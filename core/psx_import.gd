@@ -73,7 +73,7 @@ func _shader_material(mat: BaseMaterial3D) -> Material:
 
 func _crunch(mat: BaseMaterial3D) -> void:
 	# (the stylized look: smooth filtering, and each material's own roughness from Blender, not a flat 1)
-	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS_ANISOTROPIC  # (crisp pixel art, as the crew)
 	mat.roughness = clampf(mat.roughness, 0.35, 1.0)
 	mat.metallic = minf(mat.metallic, 0.6)
 	mat.metallic_specular = SPECULAR

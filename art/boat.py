@@ -494,7 +494,7 @@ def main():
     helm = psx.empty("helm", coll, (0.9, 1.55, DECK), rot_z_deg=0.0)
     objs = [boat, chair, wheel, radar, collider, helm] + hs + floods + spawns
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    psx.export_glb(os.path.abspath(OUT), objs)
+    psx.export_glb(os.path.abspath(OUT), objs, ao=True)
     print("wrote", os.path.abspath(OUT), len(boat.data.polygons), "faces")
 
 

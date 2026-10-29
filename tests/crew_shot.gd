@@ -25,9 +25,21 @@ func _ready() -> void:
 	await _shot(me, cam, "crew_standing", Vector3(0.0, 1.35, -2.4), 1.0)
 	await _shot(me, cam, "crew_face", Vector3(0.0, 1.6, -0.9), 1.55)
 	await _shot(me, cam, "crew_back", Vector3(0.6, 1.4, 2.4), 1.0)
+	await _boat_shot(cam, "boat_" + str(sea.boat.kind), Vector3(-5.5, 3.2, 7.5))
+	await _boat_shot(cam, "boat_" + str(sea.boat.kind) + "_deck", Vector3(1.2, 2.4, 3.6))
 	sea.rods.request_grab(0)
 	await get_tree().create_timer(1.5).timeout
 	await _shot(me, cam, "crew_rod", Vector3(1.4, 1.4, -1.8), 1.0)
+	# and the sportfisher (bought for the shot, in the test's own save)
+	sea.rods.request_return(0)
+	sea.fish_hold.head_in()
+	await get_tree().create_timer(1.0).timeout
+	sea.fish_hold.owned = ["skiff", "sportfisher"]
+	sea.fish_hold.head_out("sportfisher")
+	sea.fish_hold.trip_t0 -= sea.fish_hold.DAY * 0.4
+	await get_tree().create_timer(2.0).timeout
+	await _boat_shot(cam, "boat_sportfisher", Vector3(-8.0, 5.0, 12.0))
+	await _boat_shot(cam, "boat_sportfisher_deck", Vector3(1.5, 2.6, 7.0))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(sea.fish_hold.save_path))
 	get_tree().quit()
 
@@ -40,6 +52,20 @@ func _shot(me: Node3D, cam: Camera3D, what: String, off: Vector3, at_y: float) -
 		var feet := me.global_position
 		cam.global_position = feet + basis * off
 		cam.look_at(feet + basis.y * at_y, basis.y)
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	var path := "res://docs/shots/%s.png" % what
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path(path))
+	print("SHOT ", path)
+
+
+## The boat from `off` (in her own frame: +z astern, +x starboard), looking at her middle.
+func _boat_shot(cam: Camera3D, what: String, off: Vector3) -> void:
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	for i in 20:
+		var t: Transform3D = sea.boat.global_transform
+		cam.global_position = t * off
+		cam.look_at(t * Vector3(0.0, 0.8, 0.0), Vector3.UP)
 		await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	var path := "res://docs/shots/%s.png" % what

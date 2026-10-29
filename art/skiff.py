@@ -302,6 +302,12 @@ def wheel_obj(coll):
 
 # ------------------------------------------------------------------------------------------ the deck and the stern
 
+def oct_ring(cx, cy, z, rx, ry):
+    """Eight points round (cx, cy) at height z: rx across, ry fore and aft."""
+    return [(cx + rx * math.cos(math.pi / 8 + k * math.pi / 4), cy + ry * math.sin(math.pi / 8 + k * math.pi / 4), z)
+            for k in range(8)]
+
+
 def fittings(m, col):
     # the fish box forward of the console, flush in the deck
     m.box((-0.6, 1.55, DECK), (0.6, 2.35, DECK + 0.03), "hatch")
@@ -314,10 +320,20 @@ def fittings(m, col):
     # twin outboards hung on the transom: the cowl, the leg, the cavitation plate (props under the water)
     for sx in (0.55, -0.55):
         y = Y0 - 0.12
-        m.box((sx - 0.24, y - 0.62, 0.55), (sx + 0.24, y - 0.02, 1.25), "motor")
-        m.box((sx - 0.2, y - 0.58, 1.25), (sx + 0.2, y - 0.06, 1.38), "motor")
-        m.box((sx - 0.09, y - 0.45, -0.45), (sx + 0.09, y - 0.2, 0.55), "motor")
-        m.box((sx - 0.2, y - 0.5, -0.12), (sx + 0.2, y - 0.1, -0.08), "motor")
+        # the cowl: rounded, fat in the middle, a white band round its waist
+        cy = y - 0.32
+        prof = [(0.55, 0.13, 0.22, "motor"), (0.7, 0.2, 0.3, "motor"), (0.86, 0.24, 0.33, "cap"),
+                (0.93, 0.245, 0.335, "motor"), (1.18, 0.23, 0.32, "motor"), (1.32, 0.17, 0.26, "motor"),
+                (1.38, 0.09, 0.16, "motor")]
+        rings = [oct_ring(sx, cy, z, rx, ry) for z, rx, ry, _ in prof]
+        for k in range(len(rings) - 1):
+            m.prism(rings[k], rings[k + 1], prof[k][3], cap_a=(k == 0), cap_b=(k == len(rings) - 2))
+        # the leg down into the water, its cavitation plate and skeg
+        legs = [oct_ring(sx, y - 0.32, 0.56, 0.085, 0.16), oct_ring(sx, y - 0.32, 0.1, 0.07, 0.14),
+                oct_ring(sx, y - 0.34, -0.45, 0.06, 0.12)]
+        m.prism(legs[0], legs[1], "motor")
+        m.prism(legs[1], legs[2], "motor")
+        m.box((sx - 0.2, y - 0.52, -0.12), (sx + 0.2, y - 0.1, -0.08), "motor")
         cyl(m, (sx, y - 0.48, -0.36), (sx, y - 0.62, -0.36), 0.14, "steel", seg=6)
         m.box((sx - 0.12, y - 0.04, 0.6), (sx + 0.12, Y0 + 0.01, 0.95), "steel")      # the bracket
     # cleats on the gunwales, aft and at the bow
@@ -417,7 +433,7 @@ def main():
     helm = psx.empty("helm", coll, (-0.02, CON_Y0 - 0.65, DECK), rot_z_deg=0.0)
     objs = [boat, wheel, radar, collider, helm] + hs + floods + spawns
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    psx.export_glb(os.path.abspath(OUT), objs)
+    psx.export_glb(os.path.abspath(OUT), objs, ao=True)
     print("wrote", os.path.abspath(OUT), len(boat.data.polygons), "faces")
 
 

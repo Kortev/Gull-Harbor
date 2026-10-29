@@ -278,6 +278,19 @@ def painted(name, color, vary=0.1, px=128):
     key = "paint_" + name
     if key in _IMAGES:
         return _IMAGES[key]
+    # (the boats' painted pixel art, art/boat_paint.py, for the materials it knows)
+    try:
+        import boat_paint
+        arr = boat_paint.tile(name, color, px)
+    except ImportError:
+        arr = None
+    if arr is not None:
+        rgba = np.concatenate([arr, np.ones((px, px, 1))], axis=2)
+        img = bpy.data.images.new(key, px, px, alpha=True)
+        img.pixels = rgba[::-1].astype(np.float32).ravel()
+        img.pack()
+        _IMAGES[key] = img
+        return img
     rng = np.random.default_rng(abs(hash(name)) % (2 ** 32))
     noise = np.zeros((px, px))
     for scale, weight in ((4, 0.6), (12, 0.3), (40, 0.1)):
@@ -633,7 +646,13 @@ def clear_scene():
 
 # ---------------------------------------------------------------- export and renders
 
-def export_glb(path, objects):
+def export_glb(path, objects, ao=False):
+    """ao: bake ambient occlusion into the vertex colours first (art/boat_paint.py; Godot multiplies them in)."""
+    extra = {}
+    if ao:
+        import boat_paint
+        boat_paint.bake_ao(objects)
+        extra["export_vertex_color"] = "ACTIVE"
     bpy.ops.object.select_all(action='DESELECT')
     for o in objects:
         o.select_set(True)
@@ -641,7 +660,7 @@ def export_glb(path, objects):
         filepath=path, export_format='GLB', use_selection=True, export_apply=True,
         export_yup=True, export_texcoords=True, export_normals=True, export_materials='EXPORT',
         export_image_format='AUTO', export_cameras=False, export_lights=False,
-        export_extras=False, export_animations=False)
+        export_extras=False, export_animations=False, **extra)
 
 
 def look_at(obj, target):
