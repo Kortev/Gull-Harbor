@@ -105,12 +105,8 @@ func _ask_scoop_as(_who: int) -> void:
 	var stern: Vector3 = spec.get("stern", Vector3(0.0, 0.0, 7.05))
 	var lands := boat.global_transform * (stern + Vector3(randf_range(-1.0, 1.0), 0.0, THROW))
 	# the slick's heart: it sinks back through the middle of the spread
-	var heart := Vector3.ZERO
-	var baits: Array = spec.get("baits", [])
-	for b: Vector3 in baits:
-		heart += b / float(maxi(baits.size(), 1))
-	var h := boat.global_transform * heart
-	(sea.get("schools") as Node).call("host_chum", Vector2(h.x, h.z))
+	var schools := sea.get("schools") as Node
+	schools.call("host_chum", schools.call("spread_heart"))
 	if Net.in_session():
 		_scooped.rpc(Vector2(lands.x, lands.z))
 	else:

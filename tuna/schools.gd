@@ -11,6 +11,9 @@ extends Node3D
 ## and then (rods.gd hooks the fish, host only, strike()), but not with the baits skipping behind her at speed
 ## (BITE_SPEED), and run her right through a school fast and it goes down (SPOOK).
 ##
+## Get near one and slow down, and it finds your baits: a school within FIND of the spread while she's going slow enough
+## to fish comes to it (DRAW m/s) and works round it, following as she trolls.
+##
 ## Or bring them to you: chum (boat/chum.gd) lays a slick back through the baits, and while it's fresh (SLICK) a
 ## school within SLICK_PULL of it comes up it (DRAW m/s) and stays on it, working, as long as the chum keeps coming;
 ## and new schools turn up nearer it (SLICK_SPAWN).
@@ -40,6 +43,8 @@ const SLICK_PULL := 450.0
 const DRAW := 3.0
 const SLICK_SPAWN := Vector2(250.0, 500.0)
 const STAY := 60.0
+## How near the spread (m) a school has to be to find the baits on its own.
+const FIND := 160.0
 ## (tests and screenshots: the next school this close, m; 0: as usual)
 const FAR := 0.0
 
@@ -114,7 +119,7 @@ func _process(delta: float) -> void:
 		_chum_in -= delta
 		if _chum_in <= 0.0:
 			_chum_in = 1.0
-			_chumming()
+			_drawing()
 
 
 ## Host: a feeding school over a bait eats it now and then (more than one rod can go: a double header); not with
@@ -148,33 +153,56 @@ func _strikes(delta: float) -> void:
 func host_chum(at: Vector2) -> void:
 	slick = at
 	slick_t = now()
-	_chumming()
+	_drawing()
 
 
 func slick_fresh() -> bool:
 	return now() - slick_t < SLICK
 
 
-## Host, every second: schools that smell a fresh slick come up it and stay on it while the chum keeps coming.
-func _chumming() -> void:
-	if not slick_fresh():
-		return
+## Host, every second: schools near her baits while she's slow find them and work round them (following her as she
+## trolls); schools that smell a fresh slick come up it and stay on it while the chum keeps coming.
+func _drawing() -> void:
 	var t := now()
+	var fishing := absf(boat_speed()) < BITE_SPEED and not _docked()
+	var heart := spread_heart()
 	for s in schools:
-		if s.scattering(t) > 0.0:
+		if s.scattering(t) > 0.0 or t < s.spooked_until:
 			continue
 		var c := s.center(t)
-		var d := c.distance_to(slick)
-		var on_it := s.drawn_to.distance_to(slick) < 8.0
-		if not on_it and d < SLICK_PULL:
-			# up the slick to it, and it'll stay there (working the chum) a while after it gets there
+		# the slick first (it pulls from further off), else her baits if it's near them
+		var to := Vector2.INF
+		if slick_fresh() and c.distance_to(slick) < SLICK_PULL:
+			to = slick
+		elif fishing and c.distance_to(heart) < FIND:
+			to = heart
+		if to == Vector2.INF:
+			continue
+		var d := c.distance_to(to)
+		var chummed := to == slick
+		if s.drawn_to.distance_to(to) > (8.0 if chummed else 15.0):
+			# to it, and it'll stay there working a while after it gets there
 			var travel := d / DRAW
-			var heading := (slick - c).normalized() if d > 0.5 else s.heading
-			s.drawn_to = slick
-			_host_steer(s, t, c, heading, DRAW, travel, maxf(s.t0 + s.life - t, travel + STAY))
-		elif on_it and s.t0 + s.life - t < STAY:
+			var heading := (to - c).normalized() if d > 0.5 else s.heading
+			s.drawn_to = to
+			var life := maxf(s.t0 + s.life - t, travel + STAY) if chummed else s.t0 + s.life - t
+			_host_steer(s, t, c, heading, DRAW, travel, life)
+		elif chummed and s.t0 + s.life - t < STAY:
 			# the chum keeps coming: it keeps working
 			_host_steer(s, t, c, s.heading, 0.0, 0.0, STAY + 30.0)
+
+
+## The middle of her spread of baits (world x, z).
+func spread_heart() -> Vector2:
+	var boat := sea.get("boat") as Node3D
+	if boat == null:
+		return Vector2.ZERO
+	var baits: Array = (boat.get("spec") as Dictionary).get("baits", [])
+	var heart := Vector3.ZERO
+	for b: Vector3 in baits:
+		heart += b / float(maxi(baits.size(), 1))
+	var h := boat.global_transform * heart
+	return Vector2(h.x, h.z)
 
 
 ## Host: school s from where it is now (`c` at sea clock t) on a new path: `heading` at `speed` m/s for `run` s, then
