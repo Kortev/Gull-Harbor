@@ -91,9 +91,10 @@ def parts():
     # ================================================================== the head: a young face, the beanie over it
     tube(head, [
         ((0.0, 1.47, 0.02), 0.074, 0.074, W(torso=0.5, head=0.5)),
-        ((0.0, 1.515, 0.026), 0.078, 0.08, hw),                # a proper neck, into the jaw
-        ((0.0, 1.548, 0.038), 0.094, 0.1, hw),                 # under the jaw
-        ((0.0, 1.58, 0.046), 0.108, 0.114, hw),                # the jaw and the mouth
+        ((0.0, 1.512, 0.026), 0.078, 0.08, hw),                # a proper neck, into the jaw
+        ((0.0, 1.528, 0.034), 0.084, 0.092, hw),               # under the jaw: a crisp line
+        ((0.0, 1.538, 0.05), 0.104, 0.112, hw),                # the jaw: wide and square
+        ((0.0, 1.58, 0.048), 0.11, 0.116, hw),                 # the mouth
         ((0.0, 1.612, 0.042), 0.114, 0.12, hw),                # the cheeks
         ((0.0, 1.66, 0.036), 0.117, 0.121, hw),                # the eyes
         ((0.0, 1.70, 0.03), 0.115, 0.119, hw),                 # the brow
@@ -109,13 +110,17 @@ def parts():
         y = FACE_Y0 + FACE_H * j / FACE_ROWS
         rows.append([(face_at(FACE_W / 2 - FACE_W * i / FACE_COLS, y, 0.0035), hw) for i in range(FACE_COLS + 1)])
     sheet(head, rows, R["face_fx"], K.MAT_VISOR, inside=(0.0, 1.64, 0.0), rims=False)
-    nose = [face_at(0.0, 1.642, 0.004), face_at(0.0, 1.626, 0.016)]
-    pipe(head, nose, 0.011, 6, hw, P["nose"], caps=True)
+    # a man's nose: a straight bridge down from the brow to a tip
+    # (every point found on the bare face first: a ray that meets the bridge from inside gives up)
+    bridge = [face_at(0.0, 1.664, 0.002), face_at(0.0, 1.636, 0.012), face_at(0.0, 1.622, 0.02)]
+    tip = [face_at(0.0, 1.627, 0.016), face_at(0.0, 1.62, 0.024)]
+    pipe(head, bridge, 0.0105, 6, hw, P["skin"], caps=False)
+    pipe(head, tip, 0.0135, 6, hw, P["nose"], caps=True)
     for x in (1.0, -1.0):
         # the ears; sideburns down from under the beanie
         s0 = len(head.godot)
         plate(head, (x * 0.118, 1.637, 0.03), (0.0, 0.0, -x), (0.0, 1.0, 0.0), 0.036, 0.056, 0.02, hw, P["skin"])
-        K.seat(head, s0, (x, 0.0, 0.0), sink=0.004)
+        K.seat(head, s0, (x, 0.0, 0.0), sink=0.004, turn=False)
         s0 = len(head.godot)
         plate(head, (x * 0.112, 1.677, 0.075), (0.0, 0.0, -x), (0.0, 1.0, 0.0), 0.024, 0.042, 0.006, hw, P["hair"])
         K.seat(head, s0, (x, 0.0, 0.0))
@@ -312,10 +317,13 @@ def paint(p, c):
     for dx in (-5, -4, 4, 5):
         for dy in (14, 15):
             p.rect(fx + (fu + dx) % fw, fy + dy, 1, 1, (0.95, 0.5, 0.42), 0.5)
-    for dx in range(-6, 7):
-        for dy in range(6, 11):
-            if (dx * 7 + dy * 13) % 3 == 0:
-                p.rect(fx + (fu + dx) % fw, fy + dy, 1, 1, K.shade(SKIN, 0.68), 0.55)
+    for dx in range(-9, 10):
+        for dy in range(2, 13):
+            if abs(dx) > 7 and dy > 8:
+                continue
+            p.rect(fx + (fu + dx) % fw, fy + dy, 1, 1, K.shade(SKIN, 0.86), 0.45)
+            if dy > 4 and (dx * 7 + dy * 13) % 4 == 0:
+                p.rect(fx + (fu + dx) % fw, fy + dy, 1, 1, (0.4, 0.29, 0.24), 0.35)
 
     # --- the eye: white, a dark pupil looking a touch to one side, a glint, the lid's line
     ex, ey, ew, eh = R["eye"]
@@ -407,7 +415,7 @@ def faces_strip():
                 rect(c, x - th // 2, y - th // 2, th, th, col)
 
     L, R2 = 18, 46          # the eyes' columns (as you look at him), their row, the brows', the mouth's
-    EY, BY, MY = 37, 45, 13
+    EY, BY, MY = 37, 44, 13
 
     def eyes(c, glint=True, rx=3, ry=4):
         for x in (L, R2):
@@ -416,8 +424,8 @@ def faces_strip():
                 rect(c, x, EY + 1, 2, 2, WHITE)
 
     def brows(c, left_tilt=0, right_tilt=0, lift=0):
-        line(c, [(L - 6, BY + lift - left_tilt), (L + 5, BY + lift + left_tilt)], BROW, 3)
-        line(c, [(R2 - 5, BY + lift + right_tilt), (R2 + 6, BY + lift - right_tilt)], BROW, 3)
+        line(c, [(L - 7, BY + lift - left_tilt), (L + 5, BY + lift + left_tilt)], BROW, 4)
+        line(c, [(R2 - 5, BY + lift + right_tilt), (R2 + 7, BY + lift - right_tilt)], BROW, 4)
 
     def blush(c):
         for x0 in (L - 8, R2 + 2):
