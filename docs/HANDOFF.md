@@ -20,7 +20,7 @@ feature in player terms, and what the player must be taught), `docs/TODO.md` (th
 
 `fight_test`, `strike_test`, `rods_test`, `landing_test`, `wait_test` (chum, baits, jig, the quota), `sail_test`
 (the moving boat), `helm_test`, `deck_test`, `hull_test`, `look_test`, `weather_test`, `code_test`,
-`steam_test` (+ `tools/steam_test.sh`), and `tools/net_test.sh` (two instances over ENet). Each prints PASSED or
+`tower_test`, `steam_test` (+ `tools/steam_test.sh`), and `tools/net_test.sh` (two instances over ENet). Each prints PASSED or
 FAILED lines. Tests use their own save (`user://bluefin_test.cfg`), never the player's.
 
 ## The user (how to work with them)
@@ -103,7 +103,7 @@ Everything big enough to look usable must be usable, or go. Today:
 | Thing | Usable now? | Do |
 |---|---|---|
 | The fighting chair (sportfisher) | no | **Make it the real thing:** sit in it (E), drop the rod in its gimbal, fight from it (your arms tire slower, but you can't walk the rod to a corner; it swivels with the fish). Or sit and chill. |
-| The tuna tower (sportfisher) | no | Climb it: see further (the binoculars from up there spot flocks the deck can't). |
+| The tuna tower (sportfisher) | **yes:** E on the ladder at the hardtop's aft edge (`boat/tower.gd`) | Done: from up there the binoculars read the water under a flock about 2 km off (1.2 km from the deck). |
 | The leaning post / skipper's seat / bench | no | Sit or lean (E), just to chill. |
 | The cooler (sportfisher), the live well, the fish box | the box takes fish (as a whole: E on the fish) | Cooler: grab a drink (funny; maybe a little arm rest). Live well: see the mackerel in it. Fish box: the lid opens as fish go in. |
 | The radio on the dash | Dale talks on it (as a HUD card) | Make the voice come from it; maybe music (a toy). |

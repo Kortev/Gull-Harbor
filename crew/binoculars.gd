@@ -7,6 +7,9 @@ extends CanvasLayer
 const ZOOM := 8.0             # the field of view through them (degrees; the naked eye's is the camera's own)
 const AIM := 0.035            # how close to the middle a flock has to be to make it out (rad)
 const REACH := 4500.0         # the furthest you can make one out (m)
+## How far off you can read the water under a flock (m): READ * sqrt(your eye's height over the sea, m), like the
+## horizon. From the deck (about 2 m) that's about 1.2 km; up the sportfisher's tower (about 7 m), over 2 km.
+const READ := 800.0
 
 var sea: Node                 # sea/sea.gd
 ## How far they're up to your eyes, 0..1, and the field of view without them.
@@ -82,7 +85,10 @@ func _process(delta: float) -> void:
 	if _looking != null:
 		var schools := sea.get("schools") as Node
 		var w := str(schools.call("where", _looking.call("center", schools.call("now"))))
-		var text := str(schools.call("spot_text", _looking)) + "\n" + w.substr(0, 1).to_upper() + w.substr(1)
+		var c: Vector2 = _looking.call("center", schools.call("now"))
+		var off := Vector2(cam.global_position.x, cam.global_position.z).distance_to(c)
+		var text := str(schools.call("spot_text", _looking, off < read_range(cam))) + "\n" \
+				+ w.substr(0, 1).to_upper() + w.substr(1)
 		var marks: Dictionary = schools.get("marks")
 		var id := int(_looking.get("id"))
 		text += ("   (called by %s)" % str(marks[id])) if marks.has(id) else "   Left click: call it to the crew"
@@ -112,6 +118,11 @@ func _aimed_at(cam: Camera3D) -> Node:
 			best_a = a
 			best = s
 	return best
+
+
+## How far off you can read the water under a flock, from where your eye is.
+static func read_range(cam: Camera3D) -> float:
+	return READ * sqrt(maxf(cam.global_position.y, 1.0))
 
 
 ## Both hands on a rod with a fish on: no binoculars.

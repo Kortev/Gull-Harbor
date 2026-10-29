@@ -8,6 +8,22 @@ round her and "Keep the stern on it!". Taking it off the big boat makes calling 
 corner!") a real job for the crew. Alone in the big boat, though, you'd be steering blind. My pick: keep it on the
 skiff and take it off the big boat. Say yes and I'll do it, or say keep it.
 
+## Climb the tuna tower (the big boat)
+
+The tower on the sportfisher was just scenery; now you can climb it.
+- **How:** walk to the ladder at the back edge of the roof over the wheel and press E. You're up top, about 5.5 m
+  over the water. You can look round but not walk. E or Q climbs back down. Not with a rod or the harpoon in
+  your hands.
+- **Why go up:** through the binoculars you see what the birds are doing at any distance, but you can only see
+  *what's under them* (bluefin busting, or gulls on little bait) when you're close enough. That depends on how
+  high your eyes are, like the horizon: about 1.2 km from the deck, about 2 km from the tower. Further off it
+  says "Birds diving on something, too far off to see what's under them". So on the big boat someone up the tower
+  can tell the captain which flock is worth the run. The skiff has no tower, so you get closer instead.
+- **Checked:** `tests/tower_test.tscn` (the ladder in reach from the cockpit, up, can't walk off, the reading
+  distances, down again, not with a rod in hand, no tower on the skiff). Every other test still passes.
+  Screenshots: `docs/shots/tower_ladder.png`, `docs/shots/tower_view.png`.
+- **Try:** buy the sportfisher, head out, climb the ladder, hold B and sweep the horizon.
+
 ## The small boat works, start to finish (tested in Godot)
 
 The skiff had never been fished from. Now the tests run a whole fish on her, and it all works:

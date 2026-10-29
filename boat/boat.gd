@@ -17,6 +17,7 @@ const Ocean := preload("res://sea/ocean.gd")
 const Helm := preload("res://boat/helm.gd")
 const Wake := preload("res://boat/wake.gd")
 const Kinds := preload("res://boat/kinds.gd")
+const Tower := preload("res://boat/tower.gd")
 
 ## Under way: her bow up (rad) flat out ahead, and how far her stern digs in (rad, m down) backing down flat out.
 const SQUAT := 0.07
@@ -43,6 +44,8 @@ var holders: Array[Transform3D] = []     # boat-local; see holder_transform()
 var helm_spot := Transform3D.IDENTITY   # where the captain stands (boat-local)
 ## The wheel and the captain at it (boat/helm.gd): her heading.
 var helm: Helm
+## Her tuna tower's ladder, if she has one (boat/tower.gd).
+var tower: Tower
 var floods: Array[Light3D] = []
 var chair: Node3D
 var wheel: Node3D
@@ -172,6 +175,14 @@ func _build() -> void:
 		helm_spot = _src_transform(h, src)
 	helm.position = wheel.position if wheel else helm_spot.origin + Vector3(0, 1.0, -0.6)
 	helm.configure(spec)
+	tower = null
+	if spec.has("tower"):
+		tower = Tower.new()
+		tower.name = "Tower"
+		tower.boat = self
+		tower.setup(spec)
+		add_child(tower)
+		_built.append(tower)
 	# The floodlights and the cockpit lights: each empty's Blender -Z (Godot -Y) is where its light points.
 	for n: String in ["flood_0", "flood_1", "deck_light_0", "deck_light_1"]:
 		var e := src.find_child(n, true, false) as Node3D

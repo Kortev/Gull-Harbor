@@ -45,6 +45,8 @@ var look_scale := 1.0
 var arms := 1.0
 ## At the wheel (boat/helm.gd): your feet stay put and the keys steer her instead.
 var steering := false
+## Up the tuna tower (boat/tower.gd): you look round but don't walk; E or Q climbs down. Any place() ends it.
+var aloft := false
 var _yaw := 0.0
 var _pitch := 0.0
 var _prompt := ""
@@ -348,6 +350,7 @@ func _exit_tree() -> void:
 
 ## Puts you at a boat-local spot, facing `yaw` (radians round the boat's up axis; 0 faces the bow).
 func place(local: Vector3, yaw: float) -> void:
+	aloft = false
 	body.position = local
 	_prev_local = local
 	_local = local
@@ -379,6 +382,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif event.is_action_pressed("interact") and steering:
 		(boat.get("helm") as Node).call("request", false)
+	elif aloft and (event.is_action_pressed("interact") or event.is_action_pressed("drop")):
+		var tower: Node = boat.get("tower")
+		if tower:
+			tower.call("down", self)
+		else:
+			aloft = false
 	elif event.is_action_pressed("interact"):
 		var target := _looked_at()
 		if target:
@@ -434,7 +443,9 @@ func _state(at: Vector3, yaw: float, pitch: float, doing := 0) -> void:
 
 
 func _walk(delta: float) -> void:
-	if steering:
+	if aloft and boat.get("tower") == null:
+		aloft = false          # (she's been swapped for a boat with no tower: down you come)
+	if steering or aloft:
 		body.velocity = Vector3.ZERO
 		return
 	var live := force_input or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED

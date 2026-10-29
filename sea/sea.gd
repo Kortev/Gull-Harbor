@@ -6,6 +6,7 @@ extends Node3D
 ## The weather comes and goes on its own (sea/weather.gd): sunny, calm, fog, rain, heavy, storm. Nobody picks it.
 ## Screenshots: <godot> --path . -- --shot=<png> [--weather=calm|sunny|fog|rain|heavy|storm (pinned)] [--night]
 ##   [--frames=<n>] [--cam=x,y,z,lookx,looky,lookz] [--look=<degrees round from aft>] [--wheel] [--strike=<rod>]
+##   [--boat=skiff|sportfisher (out in her)] [--tower (up her tower)]
 ## Without --cam you're one of the crew, standing in the cockpit: WASD, mouse, Shift, Space, E; Esc for the menu.
 ## Co-op: --host, or --join=<address> (or from the Esc menu).
 
@@ -154,6 +155,9 @@ func _ready() -> void:
 	# the game itself (not a test, which builds the sea under its own node): the boat you last took, at the dock
 	if get_parent() == get_tree().root:
 		boat.use_kind(fish_hold.kind)
+	if _args.has("boat"):      # (screenshots: out in this boat)
+		fish_hold.save_path = "user://bluefin_shot.cfg"     # (never into your own save)
+		fish_hold.head_out(str(_args["boat"]))
 	if _args.has("school"):    # (screenshots and tests: a school starts right away, <n> m off)
 		schools.set("_next", 0.0)
 		if not str(_args["school"]).is_empty():
@@ -162,6 +166,8 @@ func _ready() -> void:
 		rods.strike(int(_args["strike"]), 220.0)
 	if _args.has("wheel"):     # (screenshots: start at the wheel)
 		boat.helm.request(true)
+	if _args.has("tower") and boat.tower != null and crew.me != null:     # (screenshots: up the tower)
+		boat.tower.up(crew.me)
 	if _args.has("hold"):      # (screenshots: start with rod <n> in your hands)
 		rods.request_grab(int(_args["hold"]))
 	if _args.has("host"):

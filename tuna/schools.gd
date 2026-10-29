@@ -402,10 +402,16 @@ func where(p: Vector2) -> String:
 
 
 ## What you'd make of a flock through the binoculars (crew/binoculars.gd).
-func spot_text(s: School) -> String:
+## `close`: near enough to read the water under the birds (crew/binoculars.gd: further the higher your eye is); further
+## off you see what the birds are doing, not what's under them.
+func spot_text(s: School, close := true) -> String:
 	var t := now()
 	if s.scattering(t) > 0.0:
 		return "The birds are lifting and scattering: whatever was there has moved on"
+	if not close:
+		if s.feeding(t):
+			return "Birds diving on something, too far off to see what's under them. Get closer, or get up higher"
+		return "Birds sitting on the water, too far off to see more. Get closer, or get up higher"
 	if s.bait_only:
 		if s.feeding(t):
 			return "Gulls picking at little bait: no big splashes, no tuna under them"

@@ -83,7 +83,9 @@ repo, now `main`), tick it here.
   - [x] **Tend the baits:** baits go stale, wash out, or get stolen; swap in fresh live mackerel (more bites than
     dead bait).
   - [x] **Chum:** throw cut bait over the side; the slick pulls a school to the boat and keeps it there.
-  - [ ] **Spot:** up the tower you see birds and schools far off; call them to the captain.
+  - [x] **Spot:** up the tower you see birds and schools far off; call them to the captain. (The binoculars call a
+    flock onto the radar; the sportfisher's ladder takes you up the tower, where you can read the water under a
+    flock about 2 km off, against about 1.2 km from the deck: `boat/tower.gd`, `tests/tower_test.tscn`.)
   - [ ] Maybe: a blue shark now and then steals a bait (cut it loose); a mako, very rarely.
 - [ ] **Green water:** spray over the bow and crests slopping over the rail in a storm; the deck streaming.
 - [x] **The bigger boat:** 46 ft with a wider cockpit, so four of you and the fighting chair have room.

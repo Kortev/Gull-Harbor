@@ -25,6 +25,8 @@ extends RefCounted
 ##   cabin_light   the dim red night light at the helm; crown: her highest point (the lightning goes for it)
 ##   haul_lift     m the fish is lifted over her gunwale as it's hauled in (0 through a tuna door)
 ##   chum          where the chum bucket stands (boat/chum.gd); jig: the holder the mackerel jig sits in (boat/jig.gd)
+##   tower, ladder where you stand up her tuna tower (your feet), and the foot of the ladder up to it on deck (boat/tower.gd;
+##                 only the sportfisher has one)
 ##   price         what she costs to buy at the dock; fuel: what a trip in her costs (taken from the sale)
 
 const DEFAULT := "sportfisher"
@@ -76,6 +78,7 @@ const KINDS := {
 		"transom": Vector3(0.0, 0.0, 7.3), "engines": Vector3(0.0, 0.3, 3.5), "bow": Vector3(1.7, 0.6, -5.0),
 		"cabin_light": Vector3(0.0, 2.45, -1.3), "crown": Vector3(0.0, 7.6, -1.3),
 		"chum": Vector3(-0.3, 1.3, 6.6), "jig": 4,
+		"tower": Vector3(0.0, 5.46, -0.75), "ladder": Vector3(-1.2, 0.55, 2.1),
 		"price": 20000, "fuel": 400,
 	},
 }
