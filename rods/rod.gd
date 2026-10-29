@@ -61,6 +61,11 @@ var bait_p := Vector3.INF
 var bait_v := Vector3.ZERO
 var slack := 0.0
 var _lure: MeshInstance3D
+## The fish on it, seen (rods.gd's _show_fish): its body in the water, the move it was last seen making, and the next
+## splash it throws up.
+var fish_node: Node3D
+var seen_move := ""
+var splash_in := 0.0
 var _scream: AudioStreamPlayer3D
 var _whir: AudioStreamPlayer3D
 var _sing: AudioStreamPlayer3D

@@ -4,10 +4,14 @@ Yellow bib-and-brace oilskin trousers over a navy hoodie, a knit beanie, orange 
 weathered face with a stubbly jaw. About 1.78 m. Built in pieces that pivot at the joints, so Godot can swing them
 (crew/player.gd: legs and arms as you walk, arms out to the rod or the wheel, the head with your look):
 
-  "torso"           hips to neck (origin at the hips, 0.95 m up)
-  "head"            origin at the neck
-  "arm_l", "arm_r"  origins at the shoulders (hanging straight down)
-  "leg_l", "leg_r"  origins at the hips (standing straight)
+  "torso"             hips to neck (origin at the hips, 0.95 m up)
+  "head"              origin at the neck
+  "arm_l", "arm_r"    the upper arms, origins at the shoulders (hanging straight down)
+  "fore_l", "fore_r"  the forearms and gloves, origins at the elbows
+  "leg_l", "leg_r"    the thighs, origins at the hips (standing straight)
+  "shin_l", "shin_r"  the shins and boots, origins at the knees
+
+All in the same space (Godot parents them: head and arms on the torso, forearms on the arms, shins on the thighs).
 
 The oilskins' material is called "oilskin" so each crew member can wear their own colour (crew/player.gd).
 
@@ -27,6 +31,8 @@ OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "crew", "cr
 HIP = 0.95
 NECK = 1.5
 SHOULDER = Vector((0.24, 0.0, 1.42))
+ELBOW = 1.12
+KNEE = 0.5
 LEG_X = 0.11
 
 TILES = {k: (1.0, 1.0) for k in ("oilskin", "hoodie", "skin", "glove", "boot", "beanie", "dark", "strap", "sole")}
@@ -82,33 +88,39 @@ def head(coll):
 
 
 def arm(coll, side):
-    name = "arm_l" if side < 0 else "arm_r"
-    a = psx.Mesh(name, TILES)
+    """The upper arm (shoulder to elbow) and the forearm with its glove (elbow down), apart so the elbow bends."""
     x = side * SHOULDER.x
-    tapered(a, 1.12, SHOULDER.z + 0.04, 0.1, 0.11, 0.12, 0.13, "hoodie", x=x)      # the upper arm
-    tapered(a, 0.86, 1.12, 0.085, 0.09, 0.1, 0.11, "hoodie", x=x)                   # the forearm
-    tapered(a, 0.72, 0.86, 0.09, 0.07, 0.1, 0.1, "glove", x=x)                      # the glove, its cuff
-    a.box((x - 0.06, -0.06, 0.82), (x + 0.06, 0.06, 0.88), "glove")
-    return a.finish(coll, origin=(x, 0, SHOULDER.z))
+    a = psx.Mesh("arm_l" if side < 0 else "arm_r", TILES)
+    tapered(a, ELBOW - 0.03, SHOULDER.z + 0.04, 0.1, 0.11, 0.12, 0.13, "hoodie", x=x)
+    upper = a.finish(coll, origin=(x, 0, SHOULDER.z))
+    f = psx.Mesh("fore_l" if side < 0 else "fore_r", TILES)
+    tapered(f, 0.86, ELBOW + 0.02, 0.085, 0.09, 0.1, 0.11, "hoodie", x=x)
+    tapered(f, 0.72, 0.86, 0.09, 0.07, 0.1, 0.1, "glove", x=x)                      # the glove, its cuff
+    f.box((x - 0.06, -0.06, 0.82), (x + 0.06, 0.06, 0.88), "glove")
+    fore = f.finish(coll, origin=(x, 0, ELBOW))
+    return [upper, fore]
 
 
 def leg(coll, side):
-    name = "leg_l" if side < 0 else "leg_r"
-    g = psx.Mesh(name, TILES)
+    """The thigh (hip to knee) and the shin with its boot (knee down), apart so the knee bends."""
     x = side * LEG_X
-    tapered(g, 0.5, HIP, 0.15, 0.17, 0.17, 0.2, "oilskin", x=x)                     # the thigh
-    tapered(g, 0.3, 0.5, 0.14, 0.15, 0.15, 0.17, "oilskin", x=x)                    # the shin, over the boot
-    tapered(g, 0.04, 0.32, 0.13, 0.15, 0.12, 0.14, "boot", x=x)                     # the boot
-    g.box((x - 0.065, -0.08, 0.0), (x + 0.065, 0.16, 0.12), "boot")                 # its foot
-    g.box((x - 0.07, -0.085, 0.0), (x + 0.07, 0.165, 0.025), "sole")
-    return g.finish(coll, origin=(x, 0, HIP))
+    g = psx.Mesh("leg_l" if side < 0 else "leg_r", TILES)
+    tapered(g, KNEE - 0.02, HIP, 0.15, 0.17, 0.17, 0.2, "oilskin", x=x)
+    thigh = g.finish(coll, origin=(x, 0, HIP))
+    s = psx.Mesh("shin_l" if side < 0 else "shin_r", TILES)
+    tapered(s, 0.3, KNEE + 0.02, 0.14, 0.15, 0.15, 0.17, "oilskin", x=x)            # over the boot
+    tapered(s, 0.04, 0.32, 0.13, 0.15, 0.12, 0.14, "boot", x=x)                     # the boot
+    s.box((x - 0.065, -0.08, 0.0), (x + 0.065, 0.16, 0.12), "boot")                 # its foot
+    s.box((x - 0.07, -0.085, 0.0), (x + 0.07, 0.165, 0.025), "sole")
+    shin = s.finish(coll, origin=(x, 0, KNEE))
+    return [thigh, shin]
 
 
 def main():
     psx.clear_scene()
     materials()
     coll = psx.new_collection("crew")
-    objs = [torso(coll), head(coll), arm(coll, -1), arm(coll, 1), leg(coll, -1), leg(coll, 1)]
+    objs = [torso(coll), head(coll)] + arm(coll, -1) + arm(coll, 1) + leg(coll, -1) + leg(coll, 1)
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     psx.export_glb(os.path.abspath(OUT), objs)
     print("wrote", os.path.abspath(OUT), sum(len(o.data.polygons) for o in objs), "faces")

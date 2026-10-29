@@ -67,7 +67,9 @@ func _attach() -> void:
 	var act := Action.new(Vector3(0.45, 0.6, 0.45))
 	act.name = "Scoop"
 	act.position = Vector3(0.0, 0.2, 0.0)
-	act.use = func(_p: Node) -> void:
+	act.use = func(p: Node) -> void:
+		if p != null and int((sea.get("fish_hold") as Node).get("chum")) > 0:
+			p.call("gesture", "scoop")
 		if Net.is_host():
 			_ask_scoop_as(Net.my_id())
 		else:

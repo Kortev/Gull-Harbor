@@ -4,6 +4,8 @@ extends Area3D
 
 func interact(player: Node) -> void:
 	var rod: Node = get_meta("rod")
+	if player != null and int(rod.get("holder")) == 0 and not bool(rod.get("hooked")):
+		player.call("gesture", "reach")      # (reeling a line in, or a fresh bait on)
 	rod.get("spread").call("request_grab", int(rod.get("index")))
 
 

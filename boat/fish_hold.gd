@@ -537,7 +537,9 @@ func _lay(f: Dictionary, boat: Node3D) -> Node3D:
 	blood.global_transform = boat.global_transform * Transform3D(Basis.IDENTITY, spot + Vector3(0.0, 0.003, 0.0))
 	var act := Action.new(Vector3(0.6, 0.5, t.length))
 	act.name = "Handle"
-	act.use = func(_p: Node) -> void:
+	act.use = func(p: Node) -> void:
+		if p != null:
+			p.call("gesture", "bleed")
 		if Net.is_host():
 			_work(id)
 		else:

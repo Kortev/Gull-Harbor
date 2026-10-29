@@ -59,6 +59,27 @@ var _send_in := 0
 var _parts := {}
 var _rest := {}
 var _stride := 0.0
+var _body_root: Node3D
+## What you're doing that the others can't work out for themselves (sent with your spot, ACT_*), and a one-off
+## move you're making (gesture(): its name and how far into it you are, s).
+const ACT_GLASSES := 1
+const ACT_JIG := 2
+const ACT_HAUL := 4
+const ACT_CRANK := 8
+var act := 0
+var _net_act := 0
+var _gesture := ""
+var _gesture_t := 0.0
+## The one-off moves and how long each takes (s).
+const GESTURES := {"throw": 0.6, "scoop": 0.7, "bleed": 1.1, "reach": 0.5, "stumble": 0.9}
+var _crank_ph := 0.0
+var _haul_ph := 0.0
+## The deck dropping out from under you (a big sea): its heave, how fast, and when you last lost your feet.
+var _deck_y := 0.0
+var _deck_vy := 0.0
+var _stumble_in := 0.0
+## How hard a lurch has to be (m/s, the deck's heave changing that much in a tenth of a second) to throw you.
+const LURCH := 2.2
 
 
 func _enter_tree() -> void:
@@ -112,7 +133,7 @@ func _build_body() -> void:
 	add_child(root)
 	var src := MODEL.instantiate() as Node3D
 	var colour := OILSKINS[_slot() % OILSKINS.size()]
-	for n: String in ["torso", "head", "arm_l", "arm_r", "leg_l", "leg_r"]:
+	for n: String in ["torso", "head", "arm_l", "arm_r", "fore_l", "fore_r", "leg_l", "leg_r", "shin_l", "shin_r"]:
 		var mi := src.find_child(n, true, false) as MeshInstance3D
 		if mi == null:
 			continue
@@ -130,6 +151,19 @@ func _build_body() -> void:
 				own.albedo_color = colour
 				mi.set_surface_override_material(i, own)
 	src.free()
+	# the joints: head and arms ride the torso, forearms the arms, shins the thighs
+	for pair: Array in [["head", "torso"], ["arm_l", "torso"], ["arm_r", "torso"], ["fore_l", "arm_l"],
+			["fore_r", "arm_r"], ["shin_l", "leg_l"], ["shin_r", "leg_r"]]:
+		var c := _parts.get(pair[0]) as Node3D
+		var to := _parts.get(pair[1]) as Node3D
+		if c == null or to == null:
+			continue
+		var t := to.transform.affine_inverse() * c.transform
+		root.remove_child(c)
+		to.add_child(c)
+		c.transform = t
+		_rest[pair[0]] = t.basis
+	_body_root = root
 	body_mesh = _parts.get("torso") as MeshInstance3D
 
 
@@ -142,33 +176,169 @@ func _slot() -> int:
 	return 0
 
 
-## The body going with what you're doing: legs and arms swinging as you walk, arms out to a rod or the wheel, the
-## throwing arm up with the harpoon, the head with your look.
+## The body going with what you're doing, worked out the same on every peer from what everyone knows (the rods,
+## the wheel, the harpoon) and what you send (`act`, gestures): walking and running (legs and arms swinging, knees
+## and elbows bending, a bob), standing easy with the sea (breathing, knees soft), a rod in your hands (cranking:
+## the reel arm going round; pumping: leaning back and dropping; braced against a run), the wheel (hands working it
+## as she turns), the harpoon (cocked, and the throw), binoculars up, hauling (leaning back, hand over hand), the jig,
+## a scoop of chum, bleeding a fish, a stumble when she slams a wave. Pieces turn about x (forward, + raises a
+## limb in front / bends an elbow; a knee bends with -), y (twist) and z (out to the side).
 func _pose_body(delta: float) -> void:
 	if _parts.is_empty():
 		return
+	var t := Time.get_ticks_msec() * 0.001
 	var moved := (_local - _prev_local) * float(Engine.physics_ticks_per_second)    # (a physics tick's step)
 	var pace := clampf(Vector2(moved.x, moved.z).length() / SPRINT, 0.0, 1.0)
 	_stride += delta * (2.0 + 9.0 * pace)
-	var swing := sin(_stride) * 0.7 * pace
+	var swing := sin(_stride) * 0.75 * pace
 	var sea: Node = boat.get("sea") if boat else null
 	var id := str(name).to_int()
 	var rods: Node = sea.get("rods") if sea else null
 	var landing: Node = sea.get("landing") if sea else null
-	var on_rod: bool = rods != null and rods.call("held_by", id) != null
+	var helm: Node = boat.get("helm") if boat else null
+	var rod: Node = rods.call("held_by", id) if rods else null
 	var harpoon: bool = landing != null and int(landing.get("harpoon_holder")) == id
-	var reach := on_rod or steering
-	_turn("leg_l", swing)
-	_turn("leg_r", -swing)
-	_turn("arm_l", 1.15 if reach or harpoon else -swing * 0.6)
-	_turn("arm_r", 1.15 if reach else (2.6 if harpoon else swing * 0.6))
-	_turn("head", clampf(_pitch * 0.6, -0.5, 0.6))
+	var doing := act if is_multiplayer_authority() else _net_act
+	if _gesture != "":
+		_gesture_t += delta
+		if _gesture_t > float(GESTURES.get(_gesture, 0.5)):
+			_gesture = ""
+	# standing easy: knees soft, a breath, the arms hanging a touch forward; walking over that
+	var breath := sin(t * 1.7) * 0.02
+	var p := {
+		"torso": Vector3(-0.04 * pace + breath, sin(_stride) * 0.1 * pace, 0.0),
+		"head": Vector3(clampf(_pitch * 0.6, -0.5, 0.6), 0.0, 0.0),
+		"arm_l": Vector3(0.08 - swing * 0.7, 0.0, -0.06), "fore_l": Vector3(0.2 + 0.4 * pace, 0.0, 0.0),
+		"arm_r": Vector3(0.08 + swing * 0.7, 0.0, 0.06), "fore_r": Vector3(0.2 + 0.4 * pace, 0.0, 0.0),
+		"leg_l": Vector3(swing, 0.0, 0.0), "shin_l": Vector3(-0.08 - maxf(0.0, -sin(_stride)) * 1.1 * pace, 0.0, 0.0),
+		"leg_r": Vector3(-swing, 0.0, 0.0), "shin_r": Vector3(-0.08 - maxf(0.0, sin(_stride)) * 1.1 * pace, 0.0, 0.0),
+	}
+	var drop := absf(sin(_stride)) * 0.035 * pace
+	var crouch := 0.0
+	if rod != null:
+		# both hands on it: the left out on the foregrip, the right on the reel
+		var lift := float(rod.get("lift"))
+		var strain := float(rod.get("strain")) if bool(rod.get("hooked")) else 0.0
+		var back := 0.12 + 0.3 * strain + 0.35 * lift          # leaning back into it
+		p["torso"] = Vector3(back, 0.0, 0.0)
+		p["arm_l"] = Vector3(0.95 + 0.6 * lift, 0.25, -0.1)
+		p["fore_l"] = Vector3(0.7, 0.0, 0.0)
+		p["arm_r"] = Vector3(0.55 + 0.4 * lift, -0.15, 0.15)
+		p["fore_r"] = Vector3(1.15, 0.0, 0.0)
+		if doing & ACT_CRANK:
+			_crank_ph += delta * 13.0
+			p["arm_r"] += Vector3(sin(_crank_ph) * 0.18, 0.0, cos(_crank_ph) * 0.1)
+			p["fore_r"] += Vector3(cos(_crank_ph) * 0.35, 0.0, 0.0)
+		crouch = 0.08 + 0.12 * strain + 0.1 * lift            # knees bent, braced
+	elif harpoon:
+		# the harpoon cocked over the shoulder, the off hand pointing; the throw: the arm whips through
+		p["arm_l"] = Vector3(1.1, 0.3, -0.1)
+		p["fore_l"] = Vector3(0.3, 0.0, 0.0)
+		p["arm_r"] = Vector3(2.7, 0.0, 0.25)
+		p["fore_r"] = Vector3(1.3, 0.0, 0.0)
+		p["torso"] = Vector3(0.08, -0.25, 0.0)
+	elif steering:
+		# both hands on the wheel, working it as she turns
+		var steer := float(helm.get("steer")) if helm else 0.0
+		p["arm_l"] = Vector3(1.15 + steer * 0.3, 0.0, -0.05)
+		p["fore_l"] = Vector3(0.75, 0.0, 0.0)
+		p["arm_r"] = Vector3(1.15 - steer * 0.3, 0.0, 0.05)
+		p["fore_r"] = Vector3(0.75, 0.0, 0.0)
+		p["torso"] = Vector3(-0.04, steer * 0.12, 0.0)
+	if doing & ACT_GLASSES:
+		# binoculars up to the eyes, elbows out
+		p["arm_l"] = Vector3(1.35, 0.0, -0.55)
+		p["fore_l"] = Vector3(2.0, 0.0, 0.0)
+		p["arm_r"] = Vector3(1.35, 0.0, 0.55)
+		p["fore_r"] = Vector3(2.0, 0.0, 0.0)
+	if doing & ACT_HAUL:
+		# leaning back on it, hand over hand
+		_haul_ph += delta * 4.5
+		var heave := sin(_haul_ph)
+		p["torso"] = Vector3(0.3 + 0.12 * heave, 0.0, 0.0)
+		p["arm_l"] = Vector3(0.9 + 0.35 * heave, 0.0, -0.05)
+		p["fore_l"] = Vector3(0.5 - 0.3 * heave, 0.0, 0.0)
+		p["arm_r"] = Vector3(0.9 - 0.35 * heave, 0.0, 0.05)
+		p["fore_r"] = Vector3(0.5 + 0.3 * heave, 0.0, 0.0)
+		crouch = 0.22
+	if doing & ACT_JIG:
+		# working the jig rod up and down
+		p["arm_r"] = Vector3(0.9, 0.0, 0.3)
+		p["fore_r"] = Vector3(0.7 + sin(t * 5.0) * 0.45, 0.0, 0.0)
+		p["arm_l"] = Vector3(0.6, 0.2, -0.05)
+		p["fore_l"] = Vector3(0.9, 0.0, 0.0)
+	# the one-off moves, over whatever else
+	if _gesture != "":
+		var gk := clampf(_gesture_t / float(GESTURES[_gesture]), 0.0, 1.0)
+		var arc := sin(gk * PI)              # 0 -> 1 -> 0 over the move
+		match _gesture:
+			"throw":
+				# wound back, then whipped through, leaning into it
+				var whip := smoothstep(0.15, 0.45, gk)
+				p["arm_r"] = Vector3(lerpf(2.9, 0.7, whip), 0.0, 0.2)
+				p["fore_r"] = Vector3(lerpf(1.5, 0.1, whip), 0.0, 0.0)
+				p["torso"] = Vector3(lerpf(0.15, -0.3, whip) * (1.0 - smoothstep(0.7, 1.0, gk)), -0.3 * (1.0 - whip), 0.0)
+			"scoop":
+				# down to the bucket, then flung out over the side
+				var fling := smoothstep(0.35, 0.7, gk)
+				p["arm_r"] = Vector3(lerpf(0.2, 2.0, fling), 0.0, 0.2)
+				p["fore_r"] = Vector3(lerpf(0.9, 0.2, fling), 0.0, 0.0)
+				p["torso"] = Vector3(-0.35 * arc, -0.35 * (fling - 0.5), 0.0)
+				crouch = maxf(crouch, 0.2 * (1.0 - fling))
+			"bleed":
+				# down on one knee, the knife in, out
+				crouch = maxf(crouch, 0.45 * arc)
+				p["torso"] = Vector3(-0.5 * arc, 0.0, 0.0)
+				p["arm_r"] = Vector3(0.9 + 0.3 * sin(gk * 18.0) * arc, 0.0, 0.1)
+				p["fore_r"] = Vector3(0.6, 0.0, 0.0)
+			"reach":
+				p["arm_r"] = Vector3(1.1 * arc + 0.1, 0.0, 0.1)
+				p["fore_r"] = Vector3(0.3, 0.0, 0.0)
+				p["torso"] = Vector3(-0.2 * arc, 0.0, 0.0)
+			"stumble":
+				# thrown off balance: arms out, a lurch
+				p["arm_l"] = Vector3(0.6 * arc, 0.0, -1.1 * arc)
+				p["arm_r"] = Vector3(0.6 * arc, 0.0, 1.1 * arc)
+				p["torso"] = Vector3(-0.25 * arc, 0.0, 0.15 * sin(gk * 9.0) * arc)
+				crouch = maxf(crouch, 0.15 * arc)
+	# crouching: down at the hips, thighs forward and shins back so the feet stay put
+	if crouch > 0.0:
+		var bend := acos(clampf(1.0 - crouch / 0.95 * 1.6, -1.0, 1.0)) * 0.6
+		p["leg_l"] += Vector3(bend, 0.0, 0.0)
+		p["leg_r"] += Vector3(bend, 0.0, 0.0)
+		p["shin_l"] += Vector3(-bend * 2.0, 0.0, 0.0)
+		p["shin_r"] += Vector3(-bend * 2.0, 0.0, 0.0)
+		p["torso"] += Vector3(-bend * 0.6, 0.0, 0.0)
+	var k := minf(1.0, delta * 14.0)
+	for part: String in p:
+		_aim(part, p[part], k)
+	if _body_root:
+		_body_root.position.y = lerpf(_body_root.position.y, -drop - crouch * 0.55, k)
 
 
-func _turn(part: String, angle: float) -> void:
-	var p := _parts.get(part) as Node3D
-	if p:
-		p.basis = p.basis.slerp(Basis(Vector3.RIGHT, angle) * (_rest[part] as Basis), 0.25)
+## One piece toward its pose (x, y, z: euler, radians), `k` of the way there this frame.
+func _aim(part: String, e: Vector3, k: float) -> void:
+	var piece := _parts.get(part) as Node3D
+	if piece:
+		piece.basis = piece.basis.slerp(Basis.from_euler(e) * (_rest[part] as Basis), k)
+
+
+## A one-off move (GESTURES: the harpoon's throw, a scoop of chum, bleeding a fish, a reach, a stumble): yours, and
+## everyone sees it.
+func gesture(g: String) -> void:
+	if not is_multiplayer_authority():
+		return
+	if Net.in_session():
+		_play_gesture.rpc(g)
+	else:
+		_play_gesture(g)
+
+
+@rpc("authority", "call_local", "reliable")
+func _play_gesture(g: String) -> void:
+	if GESTURES.has(g):
+		_gesture = g
+		_gesture_t = 0.0
 
 
 func _exit_tree() -> void:
@@ -219,10 +389,11 @@ func _physics_process(delta: float) -> void:
 	_prev_local = body.position
 	if is_multiplayer_authority():
 		_walk(delta)
+		act = _doing()
 		_send_in -= 1
 		if Net.in_session() and _send_in <= 0:
 			_send_in = 2      # 30 a second
-			_state.rpc(body.position, _yaw, _pitch)
+			_state.rpc(body.position, _yaw, _pitch, act)
 	else:
 		body.position = body.position.lerp(_net_at, 0.4)
 		_yaw = lerp_angle(_yaw, _net_yaw, 0.4)
@@ -230,12 +401,36 @@ func _physics_process(delta: float) -> void:
 	_local = body.position
 
 
+## What you're up to that the others can't see for themselves (ACT_*).
+func _doing() -> int:
+	var sea: Node = boat.get("sea") if boat else null
+	if sea == null:
+		return 0
+	var out := 0
+	var glasses: Node = sea.get("binoculars")
+	if glasses != null and float(glasses.get("_up")) > 0.3:
+		out |= ACT_GLASSES
+	var jig: Node = sea.get("jig")
+	if jig != null and bool(jig.get("_jigging")):
+		out |= ACT_JIG
+	var landing: Node = sea.get("landing")
+	if landing != null and int(landing.get("_my_pull")) >= 0:
+		out |= ACT_HAUL
+	var rods: Node = sea.get("rods")
+	var live := force_input or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+	if rods != null and rods.call("held_by", str(name).to_int()) != null and live \
+			and Input.is_action_pressed("use_primary"):
+		out |= ACT_CRANK
+	return out
+
+
 ## Where a crew member is on deck and where they look: sent by their own peer to everyone else.
 @rpc("authority", "call_remote", "unreliable_ordered")
-func _state(at: Vector3, yaw: float, pitch: float) -> void:
+func _state(at: Vector3, yaw: float, pitch: float, doing := 0) -> void:
 	_net_at = at
 	_net_yaw = yaw
 	_net_pitch = pitch
+	_net_act = doing
 
 
 func _walk(delta: float) -> void:
@@ -275,11 +470,27 @@ func _process(delta: float) -> void:
 	if is_multiplayer_authority():
 		if shake <= 0.0:
 			arms = minf(arms + REST * delta, 1.0)     # (no fish in your hands)
+		_lurch(delta)
 		if shake > 0.02:
 			var t := Time.get_ticks_msec() * 0.001
 			var tremble := Vector3(sin(t * 31.0) + sin(t * 13.0 + 2.0), sin(t * 23.0 + 1.0), 0.0) * 0.006 * shake
 			head.global_basis = head.global_basis * Basis.from_euler(tremble + Vector3(-0.035 * shake, 0.0, 0.0))
 		_update_prompt()
+
+
+## A big sea throwing the deck about: lose your feet now and then (a stumble, everyone sees), not at the wheel.
+func _lurch(delta: float) -> void:
+	if delta <= 0.0:
+		return
+	var y := boat.global_position.y
+	var vy := (y - _deck_y) / delta
+	var jerk := absf(vy - _deck_vy)
+	_deck_y = y
+	_deck_vy = lerpf(_deck_vy, vy, minf(delta * 10.0, 1.0))
+	_stumble_in -= delta
+	if jerk > LURCH and _stumble_in <= 0.0 and not steering and body.is_on_floor():
+		_stumble_in = 5.0
+		gesture("stumble")
 
 
 ## At the dock (boat/fish_hold.gd): the dock screen's up, and a click on it mustn't put you back on deck.

@@ -7,6 +7,8 @@ extends Node3D
 const Rod := preload("res://rods/rod.gd")
 const Fight := preload("res://tuna/fight.gd")
 const Sfx := preload("res://audio/sfx.gd")
+const Tuna := preload("res://tuna/tuna.gd")
+const Splash := preload("res://sea/splash.gd")
 ## A rod nobody's holding sits in its holder with the drag set: the host plays the fish against the drag (it takes
 ## line on its runs and tires doing it; between them nobody wins any back) and tells everyone how it's going.
 const WHY := {"broke": "The line parted! Too much strain: when the ring goes red, ease off.",
@@ -46,9 +48,13 @@ var _trend_out := -1.0
 var _trend := 0.0
 var _tangle_in := 0.0
 var _quiet := 0.0
+var _splash: Splash
 
 
 func _ready() -> void:
+	_splash = Splash.new()
+	_splash.name = "Splash"
+	add_child(_splash)
 	_lay_out()
 	(sea.get("boat") as Node).connect("rebuilt", _lay_out)
 	Net.peer_joined.connect(func(id: int) -> void:
@@ -78,6 +84,8 @@ func _lay_out() -> void:
 		names.append(str(n))
 	stern = spec["stern"]
 	for r in rods:
+		if is_instance_valid(r.fish_node):
+			r.fish_node.queue_free()
 		remove_child(r)
 		r.queue_free()
 	rods.clear()
@@ -615,6 +623,7 @@ func _process(delta: float) -> void:
 			r.bait_p = Vector3.INF       # (out again, it starts from where her spread puts it)
 			r.slack = 0.0
 		r.line_end = end
+		_show_fish(r, boat, ocean, delta)
 	var hud := crew.get("hud") as Node
 	var me_node := crew.get("me") as Node
 	if me_node != null:
@@ -677,6 +686,56 @@ func _process(delta: float) -> void:
 				say = "It's on the hull! Swing her stern to it!"
 			hud.call("fight", say, 0.0)
 	hud.call("plot", fish, float(helm.get("throttle")))
+
+
+## The fish on rod r, seen: mostly it's down there out of sight, but it boils the water where the line goes in when it
+## takes off on a run (the strike itself an explosion of white water), slaps it in its head shakes, and in the death
+## spiral it's up near the top, circling, its back and tail breaking the surface ("colour!"). Every peer draws it
+## from the rod's state.
+func _show_fish(r: Rod, boat: Node3D, ocean: Node, delta: float) -> void:
+	if not r.hooked or r.alongside:
+		if is_instance_valid(r.fish_node):
+			r.fish_node.queue_free()
+		r.fish_node = null
+		r.seen_move = ""
+		return
+	var hd := sqrt(maxf(r.line_out * r.line_out - r.depth * r.depth, 0.0))
+	var at := boat.global_transform * (stern + Vector3(sin(r.bearing), 0.0, cos(r.bearing)) * hd)
+	var top := float(ocean.call("height_at", at))
+	var t := _now()
+	var spiral := r.move == "spiral"
+	# how deep it shows: where it is, but in the spiral right up under the surface, its back out now and then
+	var under := r.depth if not spiral else 0.25 + 0.35 * (0.5 + 0.5 * sin(t * 1.3 + r.index))
+	at.y = top - maxf(under, 0.25)
+	if not is_instance_valid(r.fish_node):
+		var f := Tuna.new(r.fish_kg)
+		f.name = "Hooked%d" % r.index
+		f.top_level = true
+		add_child(f)
+		f.global_position = at
+		r.fish_node = f
+		_splash.burst(r.line_end, 1.8, true)        # (the strike)
+	var fish := r.fish_node as Tuna
+	fish.visible = under < 6.0
+	if delta > 0.0:
+		fish.velocity = (at - fish.global_position) / delta
+	fish.effort = clampf(r.strain + (0.6 if r.move in ["run", "shake"] else 0.0), 0.0, 1.0)
+	# the surface: a boil as it takes off, slaps in a head shake, swirls as it circles near the top
+	r.splash_in -= delta
+	if r.move != r.seen_move:
+		if r.move == "run" and r.seen_move != "":
+			_splash.burst(r.line_end, 1.3)
+		r.seen_move = r.move
+	if r.splash_in <= 0.0:
+		if r.move == "shake" and r.depth < 20.0:
+			r.splash_in = randf_range(0.4, 0.8)
+			_splash.burst(r.line_end, 0.9, true)
+		elif spiral:
+			r.splash_in = randf_range(1.6, 3.0)
+			_splash.burst(Vector3(at.x, top, at.z), 0.8, randf() < 0.5)
+		elif r.move == "run" and r.depth < 8.0:
+			r.splash_in = randf_range(0.8, 1.6)
+			_splash.burst(r.line_end, 0.6)
 
 
 ## A bait being towed (its line out, nothing on): dragged along behind the rod tip on its line, held out to its side

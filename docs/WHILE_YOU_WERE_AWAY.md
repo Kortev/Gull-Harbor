@@ -1,5 +1,19 @@
 # While you were away (newest first)
 
+## Animation: the crew move like people, and you see the fish
+**Not run in Godot yet.** Open the editor once first: `crew/crew.glb` changed (re-import).
+- **The crew have elbows and knees now** (`art/crew.py`: forearms and shins are their own pieces) and a proper pose
+  for everything, seen by everyone: walking and running (knees bending, a bob, the torso twisting), standing easy
+  (breathing, knees soft), a rod in your hands (leaning back into it, braced, the reel arm going round while you
+  crank, rocking back and dropping as you pump), at the wheel (hands working it as she turns), the harpoon cocked
+  over your shoulder and the throw whipping through, binoculars up with elbows out, hauling (leaning back, hand
+  over hand), working the jig, a scoop of chum flung over the side, down on a knee to bleed a fish, reaching for a
+  rod, and losing your feet when a big sea throws the deck about.
+- **The fish you're fighting shows:** the strike's an explosion of white water at the bait, it boils the surface
+  when it takes off on a run, slaps it in a head shake, and in the death spiral it's right up under the surface,
+  circling, its back and tail breaking the water. A fish alongside still kicks, thrashing the water now and then
+  till it's stuck.
+
 ## Dale from the bank, the owner's manual, and a clearer end of the fight
 **Not run in Godot yet.**
 - **Dale** (the bank's loan officer) comes on the VHF the first time each thing happens: heading out, your first

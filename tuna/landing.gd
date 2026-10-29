@@ -13,6 +13,7 @@ extends Node
 const Tuna := preload("res://tuna/tuna.gd")
 const Action := preload("res://core/action.gd")
 const Sfx := preload("res://audio/sfx.gd")
+const Splash := preload("res://sea/splash.gd")
 
 ## Seconds a fish lies alongside before the hook pulls, if nobody sticks it.
 const HOOK_HOLDS := 90.0
@@ -48,7 +49,13 @@ var _fly_dir := Vector3.ZERO
 var _send_in := 0.0
 
 
+var _splash: Splash
+
+
 func _ready() -> void:
+	_splash = Splash.new()
+	_splash.name = "Splash"
+	add_child(_splash)
 	_harpoon = _make_harpoon()
 	_harpoon.name = "Harpoon"
 	add_child(_harpoon)
@@ -127,7 +134,17 @@ func _process(delta: float) -> void:
 			_harpoon.global_transform = _in_hands(p)
 	for i: int in fish:
 		var f: Dictionary = fish[i]
-		(f["node"] as Node3D).global_transform = _fish_transform(f, boat, ocean)
+		var node := f["node"] as Tuna
+		node.global_transform = _fish_transform(f, boat, ocean)
+		# not stuck yet, it's still got some kick: a tail thrashing the water now and then
+		if not bool(f.get("stuck", false)) and float(f.get("haul", 0.0)) <= 0.0:
+			var due := float(f.get("thrash_in", randf_range(1.0, 3.0))) - delta
+			if due <= 0.0:
+				due = randf_range(1.8, 4.0)
+				_splash.burst(node.global_position + Vector3(0.0, 0.2, 0.0), 1.1, true)
+				node.effort = 1.0
+			f["thrash_in"] = due
+			node.effort = move_toward(node.effort, 0.15, delta * 0.8)
 	# hauling: let go of E, or look away from the door, and you've stopped
 	if _my_pull >= 0:
 		var me := crew.get("me") as Node
@@ -282,6 +299,7 @@ func throw() -> void:
 	var dir := -cam.global_basis.z
 	var hit := aimed_at(cam.global_position, dir)
 	_fly_t = 0.35
+	me.call("gesture", "throw")
 	Sfx.play_point(self, _harpoon.global_position, "dock.flaps", 0.8, 1.3)
 	var boat := sea.get("boat") as Node3D
 	_fly_at = boat.global_transform.affine_inverse() * _harpoon.global_transform
