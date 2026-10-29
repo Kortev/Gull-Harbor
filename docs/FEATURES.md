@@ -173,8 +173,9 @@ your first flock ("Slow down under 10 knots near the birds").
 - **No tiredness:** your arms never tire (removed 2026-10-29). Hand the rod to a crewmate (they E on it) and the
   fight carries on.
 - **The captain** (E on the wheel; A/D steer, W/S throttle): the tuna swings round the boat.
-  - **Keep the stern on it.** Let it swing forward of her beam and **the line rubs the hull** and wears through
-    ("Swing her stern to it", or the angler takes it to that **corner**).
+  - **Keep the stern on it.** Let it swing round toward her bow so the line runs over her house or bow and **the
+    line rubs** and wears through ("Swing her stern to it", or the angler takes it to that **corner**). Over the
+    open cockpit, or off your own corner going away from her, it never rubs.
   - **Backing down** (S) on the fish wins line back fast and eases the strain.
   - **Under the boat:** if the fish goes under her, **no throttle**: steer her stern round with A/D only. Touch W
     or S while it's under her and the props cut the line after **1.5 s** ("OUT OF GEAR!").

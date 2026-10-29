@@ -1,6 +1,7 @@
 extends Node
 ## The fight, headless, many times over: fought right with a captain keeping the stern on it, a bluefin of any size
-## comes boatside in a few minutes; alone you land the small ones but a giant swings round and chafes you off;
+## comes boatside in a few minutes; alone it takes longer (nobody backs down on it); the line rubs only where it
+## runs over her house and bow, never off your own corner going away from her;
 ## just cranking breaks the big ones off; doing nothing never lands one; backing down hard whatever the fish does
 ## puts it in the props.
 ## Run: godot --headless --path . res://tests/fight_test.tscn
@@ -18,6 +19,7 @@ func _ready() -> void:
 		var landed := 0
 		var alone := 0
 		var times: Array[float] = []
+		var times_alone: Array[float] = []
 		var ends := {}
 		var ends_alone := {}
 		for s in 20:
@@ -30,17 +32,20 @@ func _ready() -> void:
 			ends_alone[a[0]] = int(ends_alone.get(a[0], 0)) + 1
 			if a[0] == "boatside":
 				alone += 1
+				times_alone.append(a[1])
 		times.sort()
+		times_alone.sort()
+		var med_alone := times_alone[times_alone.size() / 2] if not times_alone.is_empty() else 9999.0
 		var med := times[times.size() / 2] if not times.is_empty() else 0.0
 		print("FIGHT %3d kg fought right with a captain: %s, median %.0f s; alone: %s" % [kg, ends, med, ends_alone])
 		_check(landed >= 18, "%d kg: fought right with a captain, it comes boatside (%d of 20)" % [kg, landed])
 		_check(med > 20.0 and med < 330.0, "%d kg: a fight of a minute or a few (median %.0f s)" % [kg, med])
 		if kg <= 150.0:
 			_check(alone >= 14, "%d kg: alone, you land most of them (%d of 20)" % [kg, alone])
-		else:
-			if kg >= 400.0:
-				# (this angler fights flat out and never rests: the patient one below loses far more giants alone)
-				_check(alone < landed, "%d kg: alone, a giant gets away more than with a captain (%d of 20 vs %d)" % [kg, alone, landed])
+		elif kg >= 400.0:
+			# (nobody backing down on it, nobody swinging her: alone a giant's a long fight)
+			_check(med_alone > med, "%d kg: alone, a giant takes longer than with a captain (median %.0f vs %.0f s)"
+					% [kg, med_alone, med])
 	for kg: float in [150.0, 450.0]:
 		var one: Array[float] = []
 		var two: Array[float] = []
@@ -125,6 +130,27 @@ func _ready() -> void:
 	_check(corner >= 20, "alone, with breathers, from the corner, you land most giants (%d of 40)" % corner)
 	_check(spiral_out <= Fight.SPIRAL_IN + 0.5,
 			"a beaten fish only goes into its death spiral close in (furthest %.0f m)" % spiral_out)
+	# The line rubs where it runs over her house and bow, not over the open cockpit, not off your own stand.
+	var hb := 2.4
+	var aft := 7.3
+	var house := 0.4
+	var bow := -6.7
+	var stand := Vector2(hb - 0.3, aft - 0.8)
+	var ahead_out := Vector2(stand.x + 40.0 * sin(2.4), aft + 40.0 * cos(2.4))      # off her bow quarter, your side
+	var dead_ahead := Vector2(stand.x, aft - 60.0)
+	var far_side := Vector2(-40.0, 3.0)
+	var astern := Vector2(0.0, aft + 60.0)
+	_check(Fight.rub(stand + (ahead_out - stand).normalized(), ahead_out, hb, house, bow) == 0.0,
+			"from her corner, a fish forward of the beam on your side, going away from her: no rub")
+	_check(Fight.rub(stand + (dead_ahead - stand).normalized(), dead_ahead, hb, house, bow) > 0.9,
+			"from her corner, a fish dead ahead: the line lies along her house and bow, it rubs")
+	_check(Fight.rub(Vector2(0.0, 3.3), astern, hb, house, bow) == 0.0,
+			"forward in the cockpit with the fish astern: the line's over the cockpit, no rub")
+	_check(Fight.rub(stand + (far_side - stand).normalized(), far_side, hb, house, bow) == 0.0,
+			"across the cockpit to the far side, aft of her house: no rub")
+	var cut_across := Vector2(-20.0, -40.0)
+	_check(Fight.rub(stand + (cut_across - stand).normalized(), cut_across, hb, house, bow) > 0.5,
+			"across her house to the far bow: it rubs")
 	# Picking a fight up where it was: the fish carries on with what it was doing.
 	var mid := Fight.new(200.0, 80.0, 0.5, 7)
 	var was := "spiral" if mid.move != "spiral" else "sound"

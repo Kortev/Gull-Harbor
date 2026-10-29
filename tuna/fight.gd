@@ -44,12 +44,15 @@ const BOATSIDE := 7.0           # m of line out: alongside
 ## crank while it's astern coming up to you, ease off while it's forward going under her (cranking then strains).
 const SPIRAL_IN := 30.0
 const RUN_SPEED := 9.0          # m/s, a fresh bluefin's first run
-## The boat (the captain at the wheel turns her and sets `throttle`). Swung forward of her beam, the line lies along
-## the hull and wears (CHAFE_LIFE s of full rubbing parts it); under her with the props turning, it's cut in
+## The boat (the captain at the wheel turns her and sets `throttle`). Over the open cockpit the rod holds the line up
+## clear, but where the line from the rod tip to the fish runs over her house and her bow (seen from above) it lies on
+## them and wears (CHAFE_LIFE s of full rubbing parts it): a fish well round toward her bow, not one off your own
+## corner going away from her; under her with the props turning, it's cut in
 ## PROP_GRACE s (long enough to hear "out of gear!" and do it). Backing down on a fish astern runs the boat back over it at BACK_SPEED, takes the strain off and
 ## slows a run. Left alone, a big fish slowly tows her stern round to it (TOW).
-const CHAFE_FROM := 1.6
-const CHAFE_ALL := 2.4
+const CLEAR := 1.0              # m of line from the tip that never rubs (leaning out, the rod held up)
+const RUB_ALL := 2.0            # m of line over her house and bow for a full rub
+const HULL_MARGIN := 0.5        # m: a line grazing her side rubs too
 const CHAFE_LIFE := 14.0
 ## Another rod's line tangled in this one (rods.gd: its run crossed a line still out): the lines saw at each other
 ## and it parts in TANGLE_LIFE s unless someone clears it, and the strain's up while they're crossed.
@@ -82,9 +85,17 @@ var throttle := 0.0
 ## throttle stands in for it.
 var boat_vel := Vector2.ZERO
 var moving := false
-## How far the angler's got the rod out over the side the fish is on, 0..1 (standing at that corner, leaning out):
-## buys a little room before the line touches the hull, never as much as swinging the boat. rods.gd sets it from
-## where the angler stands.
+## Her outline from above, in her frame (x across, z astern: her bow's -z): half her beam, her transom, the aft face of
+## her house (the console or the wheelhouse), her bow, and the spot the fish's bearing is measured from (rods.gd sets
+## them from her spec; the defaults are the sportfisher's).
+var half_beam := 2.4
+var aft := 7.3
+var house := 0.4
+var fore := -6.7
+var from := 7.05
+## The rod tip in her frame (x, z), rods.gd sets it from the rod as drawn. Left at NAN (the headless tests), the
+## angler stands aft on the centreline, or `reach` (0..1) of the way out to the corner the fish is on.
+var tip := Vector2(NAN, NAN)
 var reach := 0.0
 ## The rod's in its holder with nobody on it (rods.gd): the drag still works the fish on its runs (it takes line and
 ## tires), but nobody cranks or pumps, so between runs it neither tires nor gives line. Backing down on it wins no
@@ -150,9 +161,9 @@ func tell() -> String:
 	# (in a spiral it brushes her every lap: only a real rub, or a worn line, outranks the spiral's own hints)
 	var warn := chafe > (0.18 if move == "spiral" else 0.08) or (chafe > 0.0 and wear > 0.3)
 	if warn:
-		# (it's swung forward of her beam: the line's lying along her side, wearing through)
+		# (it's swung round: the line's lying over her house or bow, wearing through)
 		var side := "starboard" if sin(bearing) > 0.0 else "port"
-		if reach > 0.6:
+		if _at_corner():
 			return "The line's rubbing the hull! Swing her stern to it (the wheel)"
 		return "The line's rubbing the hull! Take it to the %s corner, or swing her stern to it" % side
 	if move == "spiral":
@@ -229,9 +240,9 @@ func step(dt: float, crank: bool, lift: float) -> void:
 		_:
 			target = 0.25 * big * float(m["pull"]) if crank else 0.0
 	target = target * (1.0 - 0.6 * back) + 0.5 * ahead
-	# Off the stern and forward of the beam the line lies along the hull: it rubs, harder the flatter it lies.
+	# Where the line runs over her house or bow it rubs, harder the flatter it lies.
 	var hd0 := sqrt(maxf(line_out * line_out - depth * depth, 0.0))
-	chafe = smoothstep(CHAFE_FROM + 0.35 * reach, CHAFE_ALL + 0.35 * reach, b) * hd0 / (hd0 + depth + 1.0)
+	chafe = rub(_tip(hd0), _fish(hd0), half_beam, house, fore) * hd0 / (hd0 + depth + 1.0)
 	if move == "spiral":
 		chafe *= 0.5        # (deep under her, the line goes down steep and only brushes the hull)
 	target = maxf(target, 0.6 * chafe)
@@ -381,3 +392,69 @@ func _set_move(m: String) -> void:
 	if m in ["run", "circle", "spiral"] and not (again and m == "spiral") and rng.randf() < 0.5:
 		_turn_sign = -_turn_sign
 	move_started.emit(m)
+
+
+## Where the fish is from above, in her frame (x, z), hd m off.
+func _fish(hd: float) -> Vector2:
+	return Vector2(0.0, from) + Vector2(sin(bearing), cos(bearing)) * hd
+
+
+## The rod tip (x, z): as rods.gd drew it, or for the tests the angler aft, `reach` of the way to the fish's corner,
+## the rod a metre out toward the fish.
+func _tip(hd: float) -> Vector2:
+	if not is_nan(tip.x):
+		return tip
+	return corner_tip(bearing, hd, reach, half_beam, aft, from)
+
+
+## The angler's at the fish's corner (the rod tip outboard on its side): only swinging her helps now.
+func _at_corner() -> bool:
+	var t := _tip(10.0)
+	return t.x * sin(bearing) > 0.0 and absf(t.x) > half_beam - 1.0 and t.y > aft - 3.0
+
+
+## A rod tip a metre out toward the fish from an angler aft, `out` (0..1) of the way over to the fish's corner.
+static func corner_tip(b: float, hd: float, out: float, hb: float, stern_z: float, from_z: float) -> Vector2:
+	var side := 1.0 if sin(b) >= 0.0 else -1.0
+	var stand := Vector2(side * (hb - 0.3) * out, stern_z - 0.8)
+	var fish := Vector2(0.0, from_z) + Vector2(sin(b), cos(b)) * hd
+	return stand + (fish - stand).normalized() * 1.0
+
+
+## How hard a line from `tip_at` to `fish` (her frame, from above) rubs her, 0..1: how much of it, past the first
+## CLEAR m, runs over her house and her bow (from the house's aft face forward, her full beam tapering to her stem,
+## grown by HULL_MARGIN). Over the cockpit the rod's holding it up over everyone's heads.
+static func rub(tip_at: Vector2, fish: Vector2, hb: float, house_z: float, bow_z: float) -> float:
+	var g := HULL_MARGIN
+	var shoulder := bow_z + 0.45 * (house_z - bow_z)
+	var poly: Array[Vector2] = [Vector2(hb + g, house_z), Vector2(-hb - g, house_z),
+			Vector2(-hb - g, shoulder), Vector2(0.0, bow_z - g), Vector2(hb + g, shoulder)]
+	var d := fish - tip_at
+	var span := d.length()
+	if span < 0.01:
+		return 0.0
+	# clip the line to the outline (it's convex): t runs from 0 at the tip to 1 at the fish
+	var t0 := 0.0
+	var t1 := 1.0
+	var mid := Vector2(0.0, (house_z + bow_z) * 0.5)
+	for i in poly.size():
+		var a: Vector2 = poly[i]
+		var e: Vector2 = poly[(i + 1) % poly.size()] - a
+		var n := Vector2(e.y, -e.x)
+		if n.dot(mid - a) > 0.0:
+			n = -n                 # (pointing out)
+		var num := n.dot(a - tip_at)     # >= 0: the tip's inside this edge
+		var den := n.dot(d)
+		if absf(den) < 1e-6:
+			if num < 0.0:
+				return 0.0
+			continue
+		var t := num / den
+		if den > 0.0:
+			t1 = minf(t1, t)       # going out through this edge
+		else:
+			t0 = maxf(t0, t)       # coming in through it
+		if t0 >= t1:
+			return 0.0
+	var over := (t1 - maxf(t0, CLEAR / span)) * span
+	return smoothstep(0.0, RUB_ALL, over)

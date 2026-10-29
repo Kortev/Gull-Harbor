@@ -15,6 +15,18 @@ Your words, kept here so every decision gets checked against them.
 - **Polish before features:** the base idea is in. Make it beautiful (animation, visuals, feel, sound) and make sure
   the player always knows what's going on, before adding anything new.
 
+## Where it's going (your words, 2026-10-29)
+
+The open sea going on forever is meant. This game is the end game of a bigger one: you start ashore at a harbour,
+get your boat ready (fuel, bait, ice, gear), head out into the ocean, and race your buddy to the fish. Make this its
+own game first, but build toward that:
+
+- The sea should feel like a place: a coast and the harbour behind you, landmarks out there (a lighthouse, an oil
+  rig, buoys), things alive to find (whales, dolphins, birds), and other boats working the same fish.
+- Exploring is part of it: something to find out there besides tuna. It's still a tuna-fishing game, and later a
+  competition.
+- The fishing is hands-on: you set your own rods, jig, bleed and box your catch, throw the chum. Not "hold E".
+
 ## Chekhov's gun: everything there has a use
 
 If something big enough to look usable is in the world, you can use it, or it goes. A chair you can't sit in

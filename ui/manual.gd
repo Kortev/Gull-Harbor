@@ -41,8 +41,9 @@ const CHAPTERS := [
 		+ "- Death spiral (the last 30 m): it circles under the boat. Coming up, crank. Going under, ease off.\n\n"
 		+ "The ring round the crosshair is how wrong you're doing it. Red too long and the line snaps.\n\n"
 		+ "Alone: put the rod in its holder (Q) to steer. It fights on its drag; nobody wins line back."],
-	["7. Driving during a fight", "Keep the stern pointed at the fish (A/D). If it swings forward of the beam, "
-		+ "the line rubs the hull and wears through: swing the stern to it, or the angler walks to that corner.\n\n"
+	["7. Driving during a fight", "Keep the stern pointed at the fish (A/D). If it swings round toward the bow and "
+		+ "the line runs over the cabin or the bow, it rubs and wears through: swing the stern to it, or the angler "
+		+ "walks to that corner. Off your own corner, going away from her, it's clear.\n\n"
 		+ "Backing down (S) on the fish wins line back fast.\n\n"
 		+ "If it goes UNDER the boat: hands off the throttle. The props cut the line only if you're in gear (W or "
 		+ "S) while it's under her, after a second and a half's warning. Steering alone is fine.\n\n"

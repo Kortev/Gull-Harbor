@@ -14,7 +14,7 @@ const Splash := preload("res://sea/splash.gd")
 const WHY := {"broke": "The line parted! Too much strain: when the ring goes red, ease off.",
 		"pulled": "Pulled the hook! Keep the line tight through its headshakes.",
 		"spooled": "Spooled! It took every metre of line. Don't crank against a run; back down on it.",
-		"chafed": "The line wore through on the hull! It swung forward of her side: take it to that corner, or swing her stern to it.",
+		"chafed": "The line wore through on the hull! It swung round over her bow: take it to that corner, or swing her stern to it.",
 		"cut": "It went under the boat: the props cut the line! Out of gear when it's under her.",
 		"tangle": "The lines tangled and sawed through! Clear the other lines when a fish is on (E on each rod)."}
 ## While a fish is on, how often (s) the host looks for its run crossing another line that's still out, and the
@@ -41,6 +41,12 @@ var holders: Array[int] = []
 var baits: Array[Vector3] = []
 var names: Array[String] = []
 var stern := Vector3(0.0, 0.0, 7.05)
+## Her outline for the line rubbing (tuna/fight.gd's rub): half her beam, her transom, her house's aft face and her
+## bow (z, her frame).
+var _half_beam := 2.4
+var _aft := 7.3
+var _house := 0.4
+var _fore := -6.7
 var _send_in := 0.0
 var _last_heading := 0.0
 ## Your rod's line out last frame, and how fast you're winning it back (m/s, smoothed; - while it takes line).
@@ -83,6 +89,10 @@ func _lay_out() -> void:
 	for n in spec["rod_names"]:
 		names.append(str(n))
 	stern = spec["stern"]
+	_half_beam = float(spec["beam"]) * 0.5
+	_aft = (spec.get("transom", stern) as Vector3).z
+	_fore = _aft - float(spec["length"])
+	_house = float(spec.get("house", 0.0))
 	for r in rods:
 		if is_instance_valid(r.fish_node):
 			r.fish_node.queue_free()
@@ -661,8 +671,10 @@ func _process(delta: float) -> void:
 		for r in rods:
 			if r.hooked and not r.alongside:
 				var hd := sqrt(maxf(r.line_out * r.line_out - r.depth * r.depth, 0.0))
-				var b := absf(wrapf(r.bearing, -PI, PI))
-				fish.append([r.bearing, hd, smoothstep(Fight.CHAFE_FROM, Fight.CHAFE_ALL, b)])
+				# (how hard it'd rub even with the angler at its corner: then it's the captain's to swing her)
+				var tip := Fight.corner_tip(r.bearing, hd, 1.0, _half_beam, _aft, stern.z)
+				var fish_at := Vector2(0.0, stern.z) + Vector2(sin(r.bearing), cos(r.bearing)) * hd
+				fish.append([r.bearing, hd, Fight.rub(tip, fish_at, _half_beam, _house, _fore)])
 		if not fish.is_empty() and mine == null:
 			var worst := 0.0
 			var spiral := false
@@ -787,7 +799,7 @@ func _fight_mine(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	fight.throttle = throttle
 	fight.moving = true
 	fight.boat_vel = _boat_vel()
-	fight.reach = _reach(me, fight.bearing)
+	fight.tip = _tip_local(r)
 	fight.tangled = is_tangled(r.index)
 	fight.step(delta, crank, r.lift)
 	if me != null:
@@ -813,6 +825,7 @@ func _fight_holder(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	fight.moving = true
 	fight.boat_vel = _boat_vel()
 	fight.tangled = is_tangled(r.index)
+	fight.tip = _tip_local(r)
 	fight.step(delta, false, 0.0)
 	if not r.hooked or r.alongside:
 		return       # (it ended this step: lost, or up alongside)
@@ -830,6 +843,11 @@ func _new_fight(r: Rod) -> Fight:
 	f.depth = r.depth
 	f.wear = r.wear
 	f.carry_on(r.move, r.wrong, r.turn_sign)
+	f.half_beam = _half_beam
+	f.aft = _aft
+	f.house = _house
+	f.fore = _fore
+	f.from = stern.z
 	# the gear she's got from the dock
 	var hold: Node = sea.get("fish_hold")
 	if hold:
@@ -860,15 +878,11 @@ func _boat_vel() -> Vector2:
 	return Vector2(0.0, -float(helm.get("speed")))
 
 
-## How far out over the fish's side the angler's got the rod, 0..1: standing aft at the rail on the side it's on.
-func _reach(p: Node, bearing: float) -> float:
-	if p == null:
-		return 0.0
-	var at: Vector3 = p.call("local_position")
-	var side := 1.0 if sin(bearing) >= 0.0 else -1.0      # (+ bearing: off the starboard quarter, + x)
-	var out := clampf((at.x * side - (float((sea.get("boat") as Node).get("beam")) * 0.5 - 1.5)) / 1.0, 0.0, 1.0)
-	var aft := smoothstep(stern.z - 3.5, stern.z - 1.5, at.z)
-	return out * aft
+## The rod tip as drawn, in her frame from above (x across, z astern): where the line to the fish starts.
+func _tip_local(r: Rod) -> Vector2:
+	var boat := sea.get("boat") as Node3D
+	var at := boat.global_transform.affine_inverse() * r.tip_position()
+	return Vector2(at.x, at.z)
 
 
 func _end_mine(r: Rod, how: String) -> void:
