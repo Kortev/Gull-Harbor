@@ -2,7 +2,7 @@
 
 The game: a homemade take on the TV bluefin shows, for playing with friends (Jack first). A crew of 1-4 on one tuna boat, endless open sea, sometimes huge waves, catching as many bluefin as
 they can. Creepy only from the sea and the weather; mostly action; very atmospheric. Real tuna only. Arcade
-rules (physics only for the look). The boat never moves: it sits at the origin and rides the swell.
+rules (physics only for the look). A set world with waves, fish and fishing grounds; the boat moves through it.
 
 Each item: build it, check it (screenshots in `docs/shots/`), commit, push (the Gull Harbor
 repo, now `main`), tick it here.
@@ -16,6 +16,19 @@ repo, now `main`), tick it here.
 - [x] **The bluefin:** a PS1-style bluefin (`art/bluefin.py` -> `tuna/bluefin.glb`), 30-400 kg (1.25-2.96 m, from the real weight-length curve), swimming like a tuna: stiff body, the tail stalk and crescent tail beating faster as it speeds up, banking into turns (`tuna/tuna.gd`, `tuna/tuna_swim.gdshader`). The lab: `tuna/tuna_lab.tscn` (F6).
 - [x] **Hooking up:** baits out from the stern holders, schools showing (birds, busting water, leaping tuna, sonar marks: `docs/shots/school_*.png`), the reel screams, anyone grabs the rod (`tests/strike_test.tscn`).
 - [x] **The fight:** the arcade fish-moves fight (from Gull Harbor's fish_fight.gd) with tuna moves: the screaming first run, sounding deep, head shakes, circling under the boat, the death spiral; left mouse cranks, right mouse heaves (pump); a strain ring and the move's tell under the crosshair; juice: the rod bucking, the drag screaming, the reel whirring, the line singing, your view shaking (`tuna/fight.gd`, `tests/fight_test.tscn`, `tests/strike_test.tscn`).
+- [ ] **A real world, and she really moves** (your call: "like any other game"). Next, before anything else:
+  - The sea is a fixed world: the waves belong to the world, not to a patch round the boat, and the ocean follows
+    her so there's always water under her.
+  - She has a real position and speed: W runs her ahead (up to about 20 knots running to the birds), S backs
+    her down (a few knots), she carries way after you let go (the big boat more than the small one), and she
+    turns harder the faster she goes. A wake, prop wash, the engines' sound rising with the throttle, her stern
+    squatting ahead and settling astern, and water over the transom when backing down hard.
+  - Fishing grounds: a few areas where schools are likelier (a bank, a temperature break), found with the birds,
+    the tower and the sonar. Schools live in the world and swim on their own; you run to them.
+  - The fight uses where she really is: backing down really closes on the fish, chasing a run really saves line,
+    and a fish under her really goes under her.
+  - Keep: you still walk on the still copy of the deck (solid footing in any sea); co-op syncs her position the
+    way it already syncs her heading.
 - [ ] **Two boats, picked by the host before heading out** (like Sea of Thieves' sloop and galleon; same tuna on both):
   - [ ] **The small boat (the default, for 1-2):** about 28 ft, an open center console, so the wheel is a few
     steps from the rods. Two rods out, low sides (one person can gaff a fish), turns fast and follows a fish
