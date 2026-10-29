@@ -1,5 +1,13 @@
 # While you were away (newest first)
 
+## Question for you (blocking one TODO item)
+
+**Should the big boat's captain lose the fish plotter?** The TODO says her captain "can't see the fish (no
+plotter; someone calls it)". Right now, at the wheel with a fish on, both boats show a little plotter: the fish
+round her and "Keep the stern on it!". Taking it off the big boat makes calling the fish ("it's off the port
+corner!") a real job for the crew. Alone in the big boat, though, you'd be steering blind. My pick: keep it on the
+skiff and take it off the big boat. Say yes and I'll do it, or say keep it.
+
 ## The small boat works, start to finish (tested in Godot)
 
 The skiff had never been fished from. Now the tests run a whole fish on her, and it all works:
