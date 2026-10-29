@@ -1,6 +1,6 @@
 # Handoff: Bluefin, from the cloud session to a local one
 
-Read this first, then `docs/VISION.md` (the user's words on what the game is), `docs/FEATURES.md` (every
+Read this first, then `docs/ART_REFERENCE.md` (what the art should look like), `docs/VISION.md` (the user's words on what the game is), `docs/FEATURES.md` (every
 feature in player terms, and what the player must be taught), `docs/TODO.md` (the plan), and
 `docs/WHILE_YOU_WERE_AWAY.md` (a newest-first log of every change).
 
@@ -55,7 +55,7 @@ cartoon proportions. **It's still boxy and still not what they want.** Procedura
 
 ### What they want, from their reference screenshots (Sea of Thieves)
 
-They sent four images (ask them to drop them into `docs/reference/` in the local session):
+They sent four images (described in full in `docs/ART_REFERENCE.md`; the images themselves stayed in the chat):
 1. **A pirate character**, full body. Lanky, exaggerated anatomy: a long face, a heavy brow, a big nose, a sneer,
    a mohawk; muscular shoulders, long arms with real hands and fingers. Hand-painted skin with tattoos and scars;
    torn trousers, wrapped bandages, worn leather boots with straps and buckles. Soft studio light, a slightly
