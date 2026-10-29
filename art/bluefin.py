@@ -215,7 +215,7 @@ def main():
     m = psx.Mesh("bluefin", {})
     body(m)
     fins(m)
-    obj = m.finish(coll, weld=False)
+    obj = m.finish(coll, weld=False, smooth=True)
     out = os.path.abspath(os.path.join(OUT_DIR, "bluefin.glb"))
     psx.export_glb(out, [obj])
     print("wrote", out, len(obj.data.polygons), "faces")

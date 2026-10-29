@@ -5,7 +5,7 @@
 shader_type spatial;
 render_mode cull_back;
 
-uniform sampler2D albedo_texture : source_color, filter_nearest_mipmap;
+uniform sampler2D albedo_texture : source_color, filter_linear_mipmap_anisotropic;
 uniform vec4 albedo_color : source_color = vec4(1.0);
 uniform bool use_texture = false;
 uniform float roughness = 0.6;

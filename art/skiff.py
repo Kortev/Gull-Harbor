@@ -114,30 +114,31 @@ TILES = {
 
 
 def materials():
+    """The stylized look: clean, rich painted colours (psx.painted), the screens and gauges still textures."""
     m = psx.make_material
-    m("bottom", "hull_bottom")
-    m("boot", "hull_green")
-    m("topsides", "house_white")
-    m("rubrail", "rubber")
-    m("cap", "boot_white")
-    m("liner", "boot_white")
-    m("deck", "m_canvas")
-    m("house", "house_white")
-    m("inside", "boot_white")
+    m("bottom", paint=(0.6, 0.13, 0.08), roughness=0.7)              # antifouling red
+    m("boot", paint=(0.04, 0.4, 0.36), roughness=0.4)                # the boot stripe, teal
+    m("topsides", paint=(0.94, 0.91, 0.83), roughness=0.35)          # cream gelcoat
+    m("rubrail", paint=(0.13, 0.13, 0.14), roughness=0.6)
+    m("cap", paint=(0.95, 0.93, 0.88), roughness=0.4)
+    m("liner", paint=(0.9, 0.89, 0.84), roughness=0.5)
+    m("deck", paint=(0.8, 0.79, 0.74), roughness=0.85)               # non-skid
+    m("house", paint=(0.95, 0.94, 0.9), roughness=0.35)
+    m("inside", paint=(0.84, 0.86, 0.85), roughness=0.55)
     m("dash", "m_dash")
     m("glass", "glass_dirty", alpha=0.35)
-    m("steel", "m_steel")
-    m("rubber", "rubber")
-    m("hatch", "floor_plate")
+    m("steel", paint=(0.78, 0.8, 0.83), roughness=0.3, metal=0.6)
+    m("rubber", paint=(0.1, 0.1, 0.11), roughness=0.7)
+    m("hatch", paint=(0.86, 0.85, 0.8), roughness=0.6)
     m("lamp", "lamp_warm", emit=1.6)
     m("sonar", "sonar", emit=1.2)
     m("radar_scope", "radar_scope", emit=1.2)
     m("gauge", "gauge", emit=0.4)
-    m("rope", "m_yellow")
-    m("buoy", color=(0.85, 0.32, 0.08))
-    m("wood", "wood")
-    m("canvas", color=(0.16, 0.24, 0.32))            # the T-top's navy canvas
-    m("motor", "m_gunmetal")
+    m("rope", paint=(0.92, 0.76, 0.28), roughness=0.9)
+    m("buoy", paint=(0.95, 0.35, 0.08), roughness=0.5)
+    m("wood", paint=(0.55, 0.32, 0.15), roughness=0.6)                # teak
+    m("canvas", paint=(0.13, 0.27, 0.42), roughness=0.9)             # the T-top's navy canvas
+    m("motor", paint=(0.08, 0.09, 0.1), roughness=0.3)               # glossy black outboards
     m("red_light", color=(1.0, 0.1, 0.05), emit=3.0)
     m("green_light", color=(0.1, 1.0, 0.2), emit=3.0)
     m("collider", color=(1.0, 0.0, 1.0))
@@ -408,7 +409,7 @@ def main():
     hs = holders(m, coll)
     floods, radar = lights(m, coll)
     wheel = wheel_obj(coll)
-    boat = m.finish(coll)
+    boat = m.finish(coll, bevel=0.012)
     collider = col.finish(coll)
     spawns = []
     for i, (x, y) in enumerate(((0.7, -2.3), (-0.7, -2.3), (0.8, -3.3), (-0.8, -3.3))):

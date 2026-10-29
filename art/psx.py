@@ -272,8 +272,33 @@ def image(name):
     return _IMAGES[name]
 
 
+def painted(name, color, vary=0.1, px=128):
+    """A painted surface for the stylized look: `color` with a soft, hand-painted unevenness (low-frequency,
+    tileable), as an image packed into the .glb. Brighter and cleaner than a photo, but not flat plastic."""
+    key = "paint_" + name
+    if key in _IMAGES:
+        return _IMAGES[key]
+    rng = np.random.default_rng(abs(hash(name)) % (2 ** 32))
+    noise = np.zeros((px, px))
+    for scale, weight in ((4, 0.6), (12, 0.3), (40, 0.1)):
+        f = np.fft.fft2(rng.standard_normal((px, px)))
+        fy = np.fft.fftfreq(px)[:, None]
+        fx = np.fft.fftfreq(px)[None, :]
+        f *= np.exp(-(fx ** 2 + fy ** 2) * (px / scale) ** 2)
+        layer = np.real(np.fft.ifft2(f))
+        noise += weight * layer / (np.abs(layer).max() + 1e-9)
+    shade = 1.0 + vary * noise
+    rgb = np.clip(np.array(color)[None, None, :] * shade[..., None], 0.0, 1.0)
+    rgba = np.concatenate([rgb, np.ones((px, px, 1))], axis=2)
+    img = bpy.data.images.new(key, px, px, alpha=True)
+    img.pixels = rgba[::-1].astype(np.float32).ravel()
+    img.pack()
+    _IMAGES[key] = img
+    return img
+
+
 def make_material(name, tex=None, color=(0.5, 0.5, 0.5), emit=0.0, cutout=False, alpha=None,
-                  roughness=0.95, blend_tex=False):
+                  roughness=0.95, blend_tex=False, paint=None, metal=0.0):
     """Principled material. tex = texture name. emit > 0 glows with the texture/color.
     cutout = alpha clip (exported as glTF MASK). alpha = constant transparency (glTF BLEND).
     blend_tex = transparency from the texture's alpha (glTF BLEND)."""
@@ -285,14 +310,23 @@ def make_material(name, tex=None, color=(0.5, 0.5, 0.5), emit=0.0, cutout=False,
     bsdf = nt.nodes.new('ShaderNodeBsdfPrincipled')
     nt.links.new(bsdf.outputs['BSDF'], out.inputs['Surface'])
     bsdf.inputs['Roughness'].default_value = roughness
-    bsdf.inputs['Metallic'].default_value = 0.0
+    bsdf.inputs['Metallic'].default_value = metal
+    if paint is not None:
+        # the stylized look: a painted colour instead of the photo texture
+        tex = None
+        node = nt.nodes.new('ShaderNodeTexImage')
+        node.image = painted(name, paint)
+        node.interpolation = 'Linear'
+        nt.links.new(node.outputs['Color'], bsdf.inputs['Base Color'])
+        col_socket = node.outputs['Color']
     if 'Specular IOR Level' in bsdf.inputs:
         bsdf.inputs['Specular IOR Level'].default_value = 0.15
-    col_socket = None
+    if paint is None:
+        col_socket = None
     if tex:
         node = nt.nodes.new('ShaderNodeTexImage')
         node.image = image(tex)
-        node.interpolation = 'Closest'
+        node.interpolation = 'Linear'
         nt.links.new(node.outputs['Color'], bsdf.inputs['Base Color'])
         col_socket = node.outputs['Color']
         if blend_tex:
@@ -302,7 +336,7 @@ def make_material(name, tex=None, color=(0.5, 0.5, 0.5), emit=0.0, cutout=False,
             rnd.operation = 'ROUND'
             nt.links.new(node.outputs['Alpha'], rnd.inputs[0])
             nt.links.new(rnd.outputs['Value'], bsdf.inputs['Alpha'])
-    else:
+    elif paint is None:
         bsdf.inputs['Base Color'].default_value = (*color, 1.0)
     if emit > 0.0:
         if col_socket is not None:
@@ -477,7 +511,9 @@ class Mesh:
                     quad = [quad[0], quad[2], quad[3]]
                 self.face([q[0] for q in quad], mat, uvs=[q[1] for q in quad])
 
-    def finish(self, collection, origin=None, smooth=False, weld=True):
+    def finish(self, collection, origin=None, smooth=False, weld=True, bevel=0.0, subdiv=0):
+        """`bevel` (m) rounds every hard edge, `subdiv` Catmull-Clark levels soften it further (the stylized look:
+        chunky, soft-edged, smooth-shaded; both applied on export)."""
         bm = self.bm
         if weld:
             bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.0005)
@@ -487,10 +523,25 @@ class Mesh:
         bm.free()
         for m in self.mats:
             me.materials.append(bpy.data.materials[m])
+        soft = bevel > 0.0 or subdiv > 0
         for p in me.polygons:
-            p.use_smooth = smooth
+            p.use_smooth = smooth or soft
         obj = bpy.data.objects.new(self.name, me)
         collection.objects.link(obj)
+        if bevel > 0.0:
+            bv = obj.modifiers.new("bevel", 'BEVEL')
+            bv.width = bevel
+            bv.segments = 1 if subdiv > 0 else 3
+            bv.limit_method = 'ANGLE'
+            bv.angle_limit = math.radians(35.0)
+            bv.miter_outer = 'MITER_ARC'
+        if subdiv > 0:
+            sd = obj.modifiers.new("soften", 'SUBSURF')
+            sd.levels = subdiv
+            sd.render_levels = subdiv
+        if soft:
+            wn = obj.modifiers.new("normals", 'WEIGHTED_NORMAL')
+            wn.keep_sharp = True
         if origin is not None:
             set_origin(obj, origin)
         return obj

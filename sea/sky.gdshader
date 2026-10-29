@@ -10,8 +10,8 @@ uniform vec3 sky_horizon : source_color = vec3(0.8, 0.8, 0.7);
 uniform vec3 ground_horizon : source_color = vec3(0.6, 0.6, 0.55);
 uniform vec3 ground_bottom : source_color = vec3(0.18, 0.22, 0.16);
 uniform float sky_curve = 0.12;
-// Directions snap to cells this many per radian: the sky's "resolution".
-uniform float pixels = 220.0;
+// Directions snap to cells this many per radian (the old PS1 look); 0: smooth.
+uniform float pixels = 0.0;
 
 // Toward the sun (also when it's below the horizon: it still lights the sister planet).
 uniform vec3 sun_dir = vec3(0.0, 0.4, 1.0);
@@ -42,7 +42,7 @@ uniform vec3 storm_color : source_color = vec3(0.62, 0.4, 0.26);
 
 // Clouds: a flat layer overhead, seen in perspective, so they bunch up toward the horizon.
 // cloud_noise: R big puffs, G finer detail, B vertical streaks (sky_noise.png).
-uniform sampler2D cloud_noise : filter_nearest_mipmap, repeat_enable;
+uniform sampler2D cloud_noise : filter_linear_mipmap, repeat_enable;
 // 0..1: how much of the sky they cover.
 uniform float clouds = 0.0;
 // How far the wind has moved them (planet.gd adds to it every frame).
@@ -71,7 +71,7 @@ float hash13(vec3 p) {
 }
 
 vec3 snap(vec3 d) {
-	return normalize(floor(d * pixels) + 0.5);
+	return pixels > 0.0 ? normalize(floor(d * pixels) + 0.5) : d;
 }
 
 vec3 gradient(vec3 d) {

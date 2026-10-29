@@ -649,7 +649,7 @@ func _spindrift() -> GPUParticles3D:
 	mat.albedo_texture = PUFF
 	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	mat.billboard_keep_scale = true
-	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	_spray_mats.append(mat)
 	var q := QuadMesh.new()
 	q.size = Vector2(7.0, 4.0)
@@ -705,7 +705,7 @@ func _puffs(amount: int, life: float, box: Vector3, spread: float, speed: Vector
 	mat.albedo_texture = PUFF
 	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	mat.billboard_keep_scale = true
-	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	var q := QuadMesh.new()
 	q.size = Vector2(size, size)
 	q.material = mat

@@ -15,6 +15,13 @@ Your words, kept here so every decision gets checked against them.
 - **Polish before features:** the base idea is in. Make it beautiful (animation, visuals, feel, sound) and make sure
   the player always knows what's going on, before adding anything new.
 
+## Chekhov's gun: everything there has a use
+
+If something big enough to look usable is in the world, you can use it, or it goes. A chair you can't sit in
+looks broken. "It's funny" or "it's chill" is reason enough (sitting in a chair to watch the sunset counts). Small
+set dressing (a can, a bobblehead, a coil of rope, a buoy) is fine as decoration. If the boat would look wrong
+without the thing, make it usable; don't keep it as a prop.
+
 ## Teaching: shown, not read
 
 - **Dale from the bank** (First Coastal Savings & Loan's loan officer) on the boat's VHF: you're his investment, so

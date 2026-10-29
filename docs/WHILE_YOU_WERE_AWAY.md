@@ -1,5 +1,16 @@
 # While you were away (newest first)
 
+## A first step off the PS1 look, and the handoff to a local session
+**Not run in Godot yet. Read `docs/HANDOFF.md`.**
+- The PS1 screen filter's off (pass `--screen=psx_360` for it back), textures filter smoothly, the light's ACES
+  with more colour, bloom and ambient occlusion, the sky's smooth, the water's teal with crests that glow where the
+  light comes through, glossy, with soft foam.
+- The boats are repainted in clean rich colours (the skiff cream with a teal stripe and a navy T-top; the
+  sportfisher a navy hull, teal stripe, teak trim), edges rounded; the deckhand has a face (eyes, brows, a big
+  nose, a beard), cartoon proportions, rounded pieces; the bluefin is smooth-shaded.
+- **Still not the look you want** (it's still built from boxes). The handoff explains the way there: proper
+  sculpted or generated models, hand-painted textures, a rigged crew; and your Chekhov's gun rule (the chair).
+
 ## Animation: the crew move like people, and you see the fish
 **Not run in Godot yet.** Open the editor once first: `crew/crew.glb` changed (re-import).
 - **The crew have elbows and knees now** (`art/crew.py`: forearms and shins are their own pieces) and a proper pose

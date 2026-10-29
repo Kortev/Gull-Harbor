@@ -22,7 +22,9 @@ The base idea's in (`docs/FEATURES.md` lists every feature and what a player nee
    the stick, the haul, the sale), the music and the sea's sound.
 5. **Co-op polish:** what you see of crewmates (their animations, what they're doing), shouting/calls, joining mid
    trip, the host leaving.
-6. **Two independent reviews**, then fix.
+6. **Chekhov's gun** (your rule): everything big enough to look usable is usable, or it goes (the fighting chair:
+   sit in it and fight from it; the tower: climb it to spot; seats: sit and chill). The audit's in `docs/HANDOFF.md`.
+7. **Two independent reviews**, then fix.
 
 Parked (features, later): overboard and the life ring, night danger, events (storms rolling in, the giant,
 something in the fog), sea life to spot, the horn and radio, sharks in the fight, VS mode.

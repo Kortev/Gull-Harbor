@@ -43,19 +43,22 @@ uniform float swell = 4.0;
 uniform float whitecaps = 0.3;
 uniform float rain = 0.6;
 // how much of the flat per-triangle facet look shows through the smooth shading (1: all facets)
-uniform float facets : hint_range(0.0, 1.0) = 0.15;
+uniform float facets : hint_range(0.0, 1.0) = 0.0;
 // Where the wind blows (for the foam streaks a storm lays on the water).
 uniform vec2 wind = vec2(0.8, 0.6);
 // A hurricane tearing the crests into spray (ocean.gd, more in a gust): the streaks spread, the sea goes white.
 uniform float spume = 0.0;
 // a hurricane's sea (ocean.gd): white with foam, the crests breaking, streaked, smoking with spray
 uniform float white = 0.0;
-uniform vec3 deep_color : source_color = vec3(0.04, 0.08, 0.1);
-uniform vec3 crest_color : source_color = vec3(0.17, 0.26, 0.29);
+uniform vec3 deep_color : source_color = vec3(0.02, 0.09, 0.14);
+uniform vec3 crest_color : source_color = vec3(0.07, 0.36, 0.4);
+// light through the thin top of a crest (the stylized sea's glow: teal-green where the sun shines through a wave)
+uniform vec3 glass_color : source_color = vec3(0.1, 0.62, 0.55);
+uniform float glass = 0.55;
 // A soft light from one side of the sky, so the wave facets read even under an even overcast.
 uniform vec3 shade_from = vec3(0.5, 0.7, 0.3);
 uniform float shade = 0.7;
-uniform vec3 foam_color : source_color = vec3(0.72, 0.78, 0.8);
+uniform vec3 foam_color : source_color = vec3(0.9, 0.95, 0.96);
 // The sky it shows at a grazing angle.
 uniform vec3 sky_color : source_color = vec3(0.4, 0.45, 0.5);
 uniform float reflect = 0.45;
@@ -63,7 +66,7 @@ uniform float reflect = 0.45;
 uniform vec4 glow_spot = vec4(0.0);
 uniform vec2 glow_heading = vec2(1.0, 0.0);
 uniform vec3 glow_color : source_color = vec3(0.3, 0.95, 0.8);
-uniform sampler2D noise : filter_nearest_mipmap, repeat_enable;
+uniform sampler2D noise : filter_linear_mipmap, repeat_enable;
 // the boat (ocean.gd's set_hull): her hull pushes the water down, so no crest ever comes up through her deck.
 // hull_xf takes her space to this node's, hull_inv back; inside her the sea stays under hull_floor (her space)
 uniform bool hull_on = false;
@@ -209,8 +212,9 @@ void fragment() {
 	float grain = texture(noise, qk * 0.045 + vec2(wave_time * 0.01, 0.0)).g;
 	// whitecaps on the crests
 	float edge = 1.0 - 0.55 * whitecaps - 0.12 * spume - 0.2 * white;
-	float foam = mix(step(edge, crest + (grain - 0.5) * 0.3), smoothstep(edge - 0.1, edge + 0.2, crest) * 0.6, far)
-		* step(0.01, whitecaps);
+	// (soft-edged, a little lacy: painted foam, not hard pixels)
+	float foam = mix(smoothstep(edge - 0.06, edge + 0.06, crest + (grain - 0.5) * 0.3),
+			smoothstep(edge - 0.1, edge + 0.2, crest) * 0.6, far) * step(0.01, whitecaps);
 	// in a blow, streaks of foam laid along the wind
 	vec2 wd = normalize(wind);
 	vec2 along = vec2(dot(qk, wd), dot(qk, vec2(-wd.y, wd.x)));
@@ -245,10 +249,16 @@ void fragment() {
 	col = mix(col, mix(col, foam_color, 0.4), drop);
 	col = mix(col, foam_color, foam);
 	ALBEDO = col;
-	ROUGHNESS = mix(0.4, 0.95, foam);
-	SPECULAR = 0.3;
+	// glossy water (the sun glints on it), matte foam
+	ROUGHNESS = mix(0.12, 0.9, foam);
+	SPECULAR = 0.5;
 	float fres = pow(1.0 - clamp(dot(n, VIEW), 0.0, 1.0), 4.0);
 	EMISSION = sky_color * fres * reflect * (1.0 - foam);
+	// the crests glowing where you look through them toward the light (strongest on the tall thin tops)
+	vec3 to_light = normalize((VIEW_MATRIX * vec4(shade_from, 0.0)).xyz);
+	float through = pow(clamp(dot(-VIEW, to_light) * 0.5 + 0.5, 0.0, 1.0), 3.0);
+	float thin = smoothstep(0.45, 1.0, h) * (0.4 + 0.6 * pow(1.0 - clamp(dot(n, VIEW), 0.0, 1.0), 1.5));
+	EMISSION += glass_color * glass * through * thin * (1.0 - foam) * (1.0 - far * 0.5);
 	if (glow_spot.w > 0.001) {
 		// long and slow, a body with a glow round it, under the waves
 		vec2 dv = q - glow_spot.xy;

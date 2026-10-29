@@ -125,7 +125,7 @@ func _particles(amount: int, life: float, upright: bool, dir: Vector3, spread: f
 	mat.vertex_color_use_as_albedo = true
 	mat.albedo_texture = PUFF
 	mat.albedo_color = Color(0.9, 0.94, 0.96)
-	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	var p := GPUParticles3D.new()
 	if upright:
 		mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES

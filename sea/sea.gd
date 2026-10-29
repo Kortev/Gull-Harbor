@@ -86,7 +86,8 @@ func _ready() -> void:
 	cam.far = 6000.0
 	add_child(cam)
 	cam.make_current()
-	add_child(SCREEN_LOOK.instantiate())
+	if _args.has("screen"):
+		add_child(SCREEN_LOOK.instantiate())      # (the old PS1 screen look, only if asked: --screen=psx_360)
 	crew = Crew.new()
 	crew.name = "Crew"
 	crew.sea = self
@@ -374,12 +375,23 @@ func _build_world() -> void:
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
-	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.tonemap_white = 6.0
+	# the look: stylized, a bit painterly, rich colour (Sea of Thieves', more or less): ACES for contrast, the colour
+	# pushed a little, a soft bloom, and ambient occlusion so the boats' corners and the crew sit in their shade
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	env.tonemap_white = 5.0
+	env.tonemap_exposure = 1.05
+	env.adjustment_enabled = true
+	env.adjustment_saturation = 1.18
+	env.adjustment_contrast = 1.04
 	env.glow_enabled = true
-	env.glow_intensity = 0.7
-	env.glow_bloom = 0.05
-	env.glow_hdr_threshold = 0.9
+	env.glow_intensity = 0.6
+	env.glow_strength = 1.1
+	env.glow_bloom = 0.08
+	env.glow_hdr_threshold = 0.85
+	env.ssao_enabled = true
+	env.ssao_radius = 1.2
+	env.ssao_intensity = 1.6
+	env.ssao_light_affect = 0.15
 	env.fog_enabled = true
 	env.fog_sky_affect = 0.55
 	var we := WorldEnvironment.new()
@@ -435,7 +447,7 @@ func _particles(at: Vector3, box: Vector3, amount: int, life: float, dir: Vector
 	mat.albedo_color = color
 	mat.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
 	mat.billboard_keep_scale = true
-	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	var q := QuadMesh.new()
 	q.size = quad
 	q.material = mat

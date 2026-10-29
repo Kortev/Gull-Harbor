@@ -14,7 +14,7 @@ extends EditorScenePostImport
 ## textures stay crisp instead of being extracted and VRAM-compressed.
 
 const NO_SHADOW: Array[String] = ["Glass", "Lights", "EngineGlow", "ForceField", "FloorPaint", "Beam"]
-const SPECULAR := 0.15
+const SPECULAR := 0.35
 ## A material named "shader__<name>" is swapped for res://boat/shaders/<name>.gdshader, its
 ## base color and texture passed in as albedo_color / albedo_texture (if the shader has them).
 const SHADER_PREFIX := "shader__"
@@ -72,9 +72,10 @@ func _shader_material(mat: BaseMaterial3D) -> Material:
 
 
 func _crunch(mat: BaseMaterial3D) -> void:
-	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
-	mat.roughness = 1.0
-	mat.metallic = 0.0
+	# (the stylized look: smooth filtering, and each material's own roughness from Blender, not a flat 1)
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	mat.roughness = clampf(mat.roughness, 0.35, 1.0)
+	mat.metallic = minf(mat.metallic, 0.6)
 	mat.metallic_specular = SPECULAR
 	for suffix: String in FINISHES:
 		if mat.resource_name.ends_with(suffix):

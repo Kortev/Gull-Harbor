@@ -646,7 +646,7 @@ class School extends Node3D:
 		mat.albedo_texture = PUFF
 		mat.albedo_color = Color(0.92, 0.95, 0.97)
 		mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-		mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+		mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 		var q := QuadMesh.new()
 		q.size = Vector2(1.4, 1.4)
 		q.material = mat
