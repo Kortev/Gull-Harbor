@@ -232,6 +232,11 @@ def parts():
                  (solid("reflect"), MAT_BODY), ((lx, ly + 2, lw, 2), MAT_ACCENT), ((lx, ly, lw, 2), MAT_ACCENT),
                  (solid("accent_dark"), MAT_ACCENT)]
         tube(lower, rings, 10, bands)
+        # the knee: a round cap of oilskin on the joint, so a bent leg (sitting, crouching) never opens a gap there
+        kx = x * 0.111
+        knee = [((kx, 0.52 + 0.065 * math.cos(a), 0.004), 0.004 + 0.094 * math.sin(a), 0.004 + 0.1 * math.sin(a),
+                 W(**{"shin_" + side: 1.0})) for a in (0.0, 0.5, 1.0, math.pi / 2, math.pi - 1.0, math.pi - 0.5, math.pi)]
+        tube(lower, knee, 10, (R["oil_leg"], MAT_ACCENT))
         del oil
         # ============================================================== a sea boot: green rubber on a black sole
         foot = "foot_" + side

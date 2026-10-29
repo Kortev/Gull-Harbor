@@ -1,5 +1,20 @@
 # While you were away (newest first)
 
+## A new crew, repainted boats, a fighting chair you can sit in (all run and tested in Godot 4.7.2)
+- **Every test passes when run in Godot** (fight, strike, rods, landing, wait, sail, helm, deck, hull, look,
+  weather, code, steam, net and the hand-off), and a bot plays a whole solo trip to the sale
+  (`tests/trip_test.tscn`). Fixed: hauling stopped when the swell drifted your crosshair off the door; every
+  crewmate's forearms floated up beside their head (the body's joints were worked out in the wrong frame).
+- **The crew** (`art/fisherman.py`, built with the space fishing game's suit kit, vendored in `art/kit`): a young
+  deckhand in chunky low poly with a 128 px painted atlas: red beanie with a pom-pom, navy roll-neck jumper, oilskin
+  bib and braces in each player's colour, green boots, orange gloves, a mackerel's tail out of his pocket. His face
+  is ten pixel-art expressions that follow what he's doing (shocked when the reel screams, gritting his teeth in a
+  fight, wiped out, dizzy, smug at the wheel, happy with a fish on deck, glum in a storm), blinking now and then.
+- **The boats** repainted the same way (`art/boat_paint.py`): scuffed gelcoat, the non-skid deck's pattern, teak,
+  canvas, antifouling with barnacles, baked shading, crisp pixels; the skiff's outboards have real cowls.
+- **The fighting chair** works (`boat/chair.gd`): E to sit, it swivels where you look, a fish fought from it tires
+  your arms slower. In the owner's manual.
+
 ## A first step off the PS1 look, and the handoff to a local session
 **Not run in Godot yet. Read `docs/HANDOFF.md`.**
 - The PS1 screen filter's off (pass `--screen=psx_360` for it back), textures filter smoothly, the light's ACES

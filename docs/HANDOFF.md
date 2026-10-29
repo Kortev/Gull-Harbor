@@ -102,7 +102,7 @@ Everything big enough to look usable must be usable, or go. Today:
 
 | Thing | Usable now? | Do |
 |---|---|---|
-| The fighting chair (sportfisher) | no | **Make it the real thing:** sit in it (E), drop the rod in its gimbal, fight from it (your arms tire slower, but you can't walk the rod to a corner; it swivels with the fish). Or sit and chill. |
+| The fighting chair (sportfisher) | **yes** (boat/chair.gd, tests/chair_test.tscn) | Done: E sits you in it, E or a jump gets you up; it swivels where you look; a fish fought from it tires your arms 0.6x; sitting with no fish your arms come back twice as fast. |
 | The tuna tower (sportfisher) | no | Climb it: see further (the binoculars from up there spot flocks the deck can't). |
 | The leaning post / skipper's seat / bench | no | Sit or lean (E), just to chill. |
 | The cooler (sportfisher), the live well, the fish box | the box takes fish (as a whole: E on the fish) | Cooler: grab a drink (funny; maybe a little arm rest). Live well: see the mackerel in it. Fish box: the lid opens as fish go in. |
