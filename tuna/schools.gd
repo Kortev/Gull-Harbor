@@ -149,17 +149,18 @@ class School extends Node3D:
 		var side := Vector2(-heading.y, heading.x)
 		return start + heading * speed * d + side * sin(d * 0.07 + seed) * 6.0
 
-	## Feeding: in spells of a few seconds, more often than not when it's near the boat.
+	## Feeding: in spells of a few seconds, more often than not, and nearly always near the boat (the baits drew it).
 	func feeding(t: float) -> bool:
 		var spell := floorf((t - t0) / 7.0)
-		return (owner_node as Node).call("hash1", float(seed % 1000), spell) > 0.4
+		var near := center(t0 + spell * 7.0).length() < 90.0
+		return (owner_node as Node).call("hash1", float(seed % 1000), spell) > (0.15 if near else 0.45)
 
 	func done(t: float) -> bool:
 		return t - t0 > 2.0 * 230.0 / speed + 10.0
 
 	func _ready() -> void:
 		var bird_mesh := _bird_mesh()
-		var n := 8 + seed % 7
+		var n := 12 + seed % 9
 		for i in n:
 			var b := MeshInstance3D.new()
 			b.mesh = bird_mesh
@@ -168,7 +169,7 @@ class School extends Node3D:
 			_birds.append(b)
 			var h := func(k: float) -> float: return owner_node.call("hash1", float(seed % 997) + i, k)
 			# radius, height, speed (rad/s, signed), phase
-			_bird_seed.append(Vector4(5.0 + 12.0 * h.call(1.0), 4.0 + 12.0 * h.call(2.0),
+			_bird_seed.append(Vector4(5.0 + 12.0 * h.call(1.0), 3.0 + 7.0 * h.call(2.0),
 					(0.5 + 0.6 * h.call(3.0)) * (1.0 if h.call(4.0) > 0.5 else -1.0), TAU * h.call(5.0)))
 		for i in 3:
 			var j := Tuna.new(kg * randf_range(0.75, 1.25))
@@ -266,11 +267,11 @@ class School extends Node3D:
 		pm.emission_sphere_radius = 0.8
 		pm.direction = Vector3.UP
 		pm.spread = 35.0
-		pm.initial_velocity_min = 3.0
-		pm.initial_velocity_max = 7.0
+		pm.initial_velocity_min = 4.0
+		pm.initial_velocity_max = 9.0
 		pm.gravity = Vector3(0, -9.8, 0)
-		pm.scale_min = 0.6
-		pm.scale_max = 1.6
+		pm.scale_min = 0.8
+		pm.scale_max = 2.2
 		var fade := Gradient.new()
 		fade.set_color(0, Color(1, 1, 1, 0.95))
 		fade.set_color(1, Color(1, 1, 1, 0.0))
@@ -289,7 +290,7 @@ class School extends Node3D:
 		q.size = Vector2(1.4, 1.4)
 		q.material = mat
 		var p := GPUParticles3D.new()
-		p.amount = 40
+		p.amount = 60
 		p.lifetime = 1.3
 		p.one_shot = true
 		p.explosiveness = 0.9
@@ -301,12 +302,13 @@ class School extends Node3D:
 		p.visibility_aabb = AABB(Vector3(-10, -5, -10), Vector3(20, 20, 20))
 		return p
 
-	## A seabird seen from below: a shallow white W (wings and body), about a metre across.
+	## A shearwater (they work the bluefin schools): a shallow W, dark, a metre and a half across, bigger than life so
+	## it reads against a grey sky from the boat.
 	static func _bird_mesh() -> ArrayMesh:
 		var st := SurfaceTool.new()
 		st.begin(Mesh.PRIMITIVE_TRIANGLES)
-		var pts := [Vector3(-0.55, 0.08, 0.05), Vector3(-0.25, 0.0, -0.08), Vector3(0, 0.02, -0.25),
-				Vector3(0.25, 0.0, -0.08), Vector3(0.55, 0.08, 0.05), Vector3(0, -0.02, 0.2)]
+		var pts := [Vector3(-0.8, 0.12, 0.08), Vector3(-0.36, 0.0, -0.12), Vector3(0, 0.03, -0.36),
+				Vector3(0.36, 0.0, -0.12), Vector3(0.8, 0.12, 0.08), Vector3(0, -0.03, 0.3)]
 		for tri: Array in [[0, 1, 5], [1, 2, 5], [2, 3, 5], [3, 4, 5]]:
 			for k: int in tri:
 				st.add_vertex(pts[k])
@@ -315,7 +317,7 @@ class School extends Node3D:
 		st.generate_normals()
 		var m := st.commit()
 		var mat := StandardMaterial3D.new()
-		mat.albedo_color = Color(0.9, 0.9, 0.88)
+		mat.albedo_color = Color(0.2, 0.19, 0.18)
 		mat.roughness = 1.0
 		m.surface_set_material(0, mat)
 		return m

@@ -1,5 +1,46 @@
 # While you were away (newest first)
 
+## Questions for you (I'm carrying on meanwhile)
+1. **When your router won't open the port by itself:** add Steam's free relay as the fallback (you both just
+   have Steam open; the game doesn't need to be on Steam)? I can't test Steam here, so you'd try it first.
+2. **The boat:** keep it at 41 ft for up to four (bigger than most boats on the TV shows), with VS as two boats
+   racing for pounds? Or stretch it to about 46 ft?
+3. **The old Gull Harbor game** is still on `main` (nothing deleted). Replace `main` with the tuna game, make
+   `bluefin` the default branch, or move the tuna game to a new repo?
+
+## The fight
+- **What changed:** hooked bluefin now fight. Every fish opens with the screaming run, then plays moves. Each
+  move shows a hint under the crosshair, and each wants one answer:
+  - **The run** ("It's running! Let it go"): don't crank. The drag tires it. Crank against a big fish's run and
+    the line parts.
+  - **Sounding deep** ("It's sounding! Pump it up"): hold right mouse to heave the rod up, then crank as it
+    comes back down. Cranking alone gains next to nothing on a deep fish.
+  - **Head shakes** ("Keep it tight"): keep cranking or lifting, or the hook pulls.
+  - **Circling under the boat** (as it tires): pump.
+  - **Resting:** crank.
+  - **The death spiral** when it's beat: crank it up alongside.
+
+  A ring round the crosshair fills and reddens with the strain; hold it full too long and the line breaks.
+  - **Fight lengths:** a 35 kg schoolie takes about a minute, 150 kg about two, a 400 kg giant about four.
+  - **Swapping:** anyone can take over. Q puts the rod back in the holder with the fish still on, and someone
+    else grabs it; the fish stays as tired as it was. Leave the rod in the holder and the fish strips the reel
+    in about half a minute.
+  - **Juice:** the rod bends and bucks, the drag screams, the reel whirs when you crank, the line sings when
+    it's bar-tight, and your view shakes with the pull.
+  - **Boatside:** the fish ends up alongside. The harpoon and the tuna door come with the crew jobs, which are
+    next.
+  - **Co-op:** the fight runs on the machine of whoever holds the rod, so it feels instant; the others see
+    the line and the rod moving, and the host calls lost or landed.
+- **Birds and busting:** schools now feed most of the time near the boat. The birds are bigger, darker
+  shearwaters lower over the water, and the splashes are bigger.
+- **How it was checked:**
+  - `tests/fight_test.tscn` fights 160 fish headless. Fought right, every size comes boatside. Just cranking
+    breaks the 150 and 400 kg ones every time. Doing nothing never lands one.
+  - `tests/strike_test.tscn`: a school bites, the drag screams, the test grabs the rod and fights it right. A
+    181 kg bluefin came boatside in 151 s, through every move.
+- **Try it:** F5 and wait by the rods for "FISH ON!" (or start with `-- --strike=0 --hold=0` for a fish on
+  in your hands).
+
 ## Fixes from your first playtest
 - **Mouse look works again.** The crosshair dot sat exactly where the captured mouse lives (the middle of
   the screen) and swallowed every mouse movement. `tests/look_test.tscn` now checks it.

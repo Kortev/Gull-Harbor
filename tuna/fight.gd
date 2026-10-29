@@ -1,0 +1,218 @@
+extends RefCounted
+## One bluefin on one rod, from the hookup to boatside. It runs on the machine of whoever holds the rod, so it feels
+## instant (rods.gd sends the others how it's going, and tells the host when it ends); no nodes, so a test can run a
+## whole fight headless.
+##
+## Arcade, not a simulation (from Gull Harbor's fish fight): the tuna plays a string of MOVES, each with a tell (the
+## line under the crosshair, the reel, the rod) and one right answer. Fight a move the wrong way and the strain
+## climbs; hold it at the top for STRAIN_GRACE seconds and the line parts. Every bluefin opens with the screaming run.
+##
+## You: `crank` (hold left mouse: wind line in) and `lift` (hold right mouse: heave the rod up; a pump is a lift,
+## then cranking as you drop it back, which wins line a heavy fish won't give you to cranking alone).
+
+signal move_started(move: String)
+## broke (the line parted), pulled (the hook pulled out), spooled (it took every metre)
+signal lost(reason: String)
+## Played out and up alongside: the crew's turn (the harpoon, the tuna door).
+signal boatside
+
+## answer: hold (don't crank: let the drag tire it), pump (lift, then crank down), tight (keep cranking or lifting,
+## or the hook pulls), reel (crank). out: how fast it takes line (x the fish's run speed); pull: how hard;
+## turn: how fast it swings round the boat (rad/s at 20 m); depth: where it heads (m); dur: how long (s).
+const MOVES := {
+	"run":    {"answer": "hold",  "out": 1.0,  "pull": 1.0,  "turn": 0.12, "depth": 20.0,  "dur": [5.0, 9.0]},
+	"sound":  {"answer": "pump",  "out": 0.25, "pull": 0.85, "turn": 0.04, "depth": 110.0, "dur": [6.0, 10.0]},
+	"shake":  {"answer": "tight", "out": 0.0,  "pull": 0.55, "turn": 0.08, "depth": 15.0,  "dur": [1.6, 2.6]},
+	"circle": {"answer": "pump",  "out": 0.0,  "pull": 0.6,  "turn": 0.5,  "depth": 50.0,  "dur": [6.0, 10.0]},
+	"rest":   {"answer": "reel",  "out": 0.0,  "pull": 0.3,  "turn": 0.03, "depth": 25.0,  "dur": [2.5, 4.0]},
+	"spiral": {"answer": "reel",  "out": 0.0,  "pull": 0.35, "turn": 0.9,  "depth": 2.0,   "dur": [6.0, 9.0]},
+}
+const TELLS := {
+	"run": "It's running! Let it go", "sound": "It's sounding! Pump it up", "shake": "Head shakes! Keep it tight",
+	"circle": "It's circling! Pump", "rest": "It's resting! Crank", "spiral": "Death spiral! Crank!",
+}
+const STRAIN_GRACE := 1.2       # s at full strain before the line parts
+const SLACK_GRACE := 1.6        # s of slack in a headshake before the hook pulls
+const CRANK := 2.4              # m/s of line a stand-up reel winds in, flat out
+const CAPACITY := 500.0         # m of line on the reel
+const BOATSIDE := 7.0           # m of line out: alongside
+const RUN_SPEED := 9.0          # m/s, a fresh bluefin's first run
+
+var kg := 150.0
+## Line out from the rod tip to the fish (m), and how fresh it is (1 .. 0, played out).
+var line_out := 40.0
+var energy := 1.0
+## Where it is: its bearing round the boat (radians, 0 dead astern, + to port) and its depth (m).
+var bearing := 0.0
+var depth := 5.0
+## 0..1: how hard you're fighting it wrong (the rod's bend, the ring round the crosshair).
+var strain := 0.0
+## How hard it pulls right now, 0..1 (the rod).
+var pull := 0.0
+var move := ""
+var move_t := 0.0
+var done := false
+var rng := RandomNumberGenerator.new()
+
+var _len := 1.0
+var _turn_sign := 1.0
+var _over_t := 0.0
+var _slack_t := 0.0
+var _pump := 0.0
+var _lift_low := true
+var _goal_s := 90.0
+
+
+func _init(weight_kg: float, out: float, fresh := 1.0, seed_value := -1) -> void:
+	kg = weight_kg
+	line_out = out
+	energy = fresh
+	if seed_value >= 0:
+		rng.seed = seed_value
+	# how long it takes to tire, fought right: a schoolie a minute, a giant three
+	_goal_s = 40.0 + kg * 0.38
+	_turn_sign = 1.0 if rng.randf() < 0.5 else -1.0
+	_set_move("run" if fresh > 0.8 else _pick())
+
+
+func answer() -> String:
+	return str(MOVES[move]["answer"])
+
+
+func tell() -> String:
+	return str(TELLS.get(move, ""))
+
+
+## One tick of the fight: what you're doing (cranking, how far the rod is lifted 0..1) against what it's doing.
+func step(dt: float, crank: bool, lift: float) -> void:
+	if done:
+		return
+	move_t += dt
+	if move_t >= _len:
+		_next_move()
+	var m: Dictionary = MOVES[move]
+	var e := 0.35 + 0.65 * energy
+	var big := clampf(kg / 250.0, 0.4, 1.6)        # how outgunned your tackle is
+	var ans := answer()
+
+	# Line: the move takes it (the drag slows it), the reel brings it back if the move lets you.
+	line_out += RUN_SPEED * float(m["out"]) * e * dt
+	var gain := 0.0
+	if crank:
+		match ans:
+			"hold":
+				gain = 0.0
+			"pump":
+				gain = minf(_pump, CRANK * dt * 1.3)
+				_pump -= gain
+				gain += CRANK * dt * 0.12
+			_:
+				gain = CRANK * dt * (1.0 - float(m["pull"]) * 0.45 * e)
+	# a heave of the rod banks line to crank back on the way down (less, the heavier the fish)
+	if lift > 0.7 and _lift_low:
+		_pump += 3.2 / (0.6 + kg / 150.0) + 0.8
+		_lift_low = false
+	elif lift < 0.3:
+		_lift_low = true
+	line_out = maxf(line_out - gain, BOATSIDE - 1.0)
+
+	# Strain: cranking against a run, cranking a deep fish without pumping, the bigger the fish the worse.
+	var target := 0.0
+	match ans:
+		"hold":
+			target = 2.0 * big if crank else 0.0
+		"pump":
+			target = 0.45 * big if crank and _pump <= 0.0 else 0.0
+		"tight":
+			target = 0.0
+		_:
+			target = 0.25 * big * float(m["pull"]) if crank else 0.0
+	strain = move_toward(strain, minf(target, 1.0), dt * (2.2 if target > strain else 1.0))
+	if strain >= 0.999:
+		_over_t += dt
+		if _over_t >= STRAIN_GRACE:
+			_end("broke")
+			return
+	else:
+		_over_t = maxf(_over_t - dt * 2.0, 0.0)
+	if ans == "tight":
+		_slack_t = _slack_t + dt if not crank and lift < 0.4 else 0.0
+		if _slack_t > SLACK_GRACE:
+			_end("pulled")
+			return
+	else:
+		_slack_t = 0.0
+	if line_out >= CAPACITY:
+		_end("spooled")
+		return
+
+	# Tiring: working against the drag and your pumping wears it down; left alone, it gets its wind back.
+	var drain := 1.0 / _goal_s
+	match ans:
+		"hold":
+			drain *= 1.5 if not crank else 0.6
+		"pump":
+			drain *= 1.2 if lift > 0.5 or _pump > 0.0 else 0.3
+		_:
+			drain *= 1.0 if crank or lift > 0.5 else -0.4
+	energy = clampf(energy - drain * dt, 0.0, 1.0)
+
+	# Where it is: swinging round the boat, heading for its depth (never deeper than the line reaches).
+	var hd := maxf(sqrt(maxf(line_out * line_out - depth * depth, 0.0)), 1.0)
+	bearing += float(m["turn"]) * _turn_sign * dt * clampf(20.0 / hd, 0.2, 2.0)
+	var want := minf(float(m["depth"]), line_out * 0.85)
+	if energy < 0.25 and line_out < 30.0:
+		want = minf(want, 3.0)
+	depth = move_toward(depth, want, dt * 6.0)
+	pull = clampf(float(m["pull"]) * e + strain * 0.4, 0.15, 1.0)
+
+	if energy < 0.25 and line_out <= BOATSIDE:
+		done = true
+		boatside.emit()
+
+
+## How far astern and to the side it is, flat (boat-local x, z from the stern), from its bearing and line.
+func flat_offset() -> Vector2:
+	var hd := sqrt(maxf(line_out * line_out - depth * depth, 0.0))
+	return Vector2(sin(bearing), cos(bearing)) * hd
+
+
+func _end(reason: String) -> void:
+	done = true
+	lost.emit(reason)
+
+
+func _next_move() -> void:
+	if energy < 0.25:
+		_set_move("spiral" if move != "spiral" or rng.randf() < 0.7 else "shake")
+	elif move != "rest" and rng.randf() < 0.25 * (1.0 - energy):
+		_set_move("rest")
+	else:
+		var pick := _pick()
+		if pick == move:
+			pick = _pick()
+		_set_move(pick)
+
+
+func _pick() -> String:
+	# fresh, it runs and sounds; as it tires it circles under the boat
+	var w := {"run": 2.0 * energy, "sound": 3.0, "shake": 1.2, "circle": 3.0 * (1.0 - energy), "rest": 0.8}
+	var total := 0.0
+	for k: String in w:
+		total += float(w[k])
+	var r := rng.randf() * total
+	for k: String in w:
+		r -= float(w[k])
+		if r <= 0.0:
+			return k
+	return "rest"
+
+
+func _set_move(m: String) -> void:
+	move = m
+	move_t = 0.0
+	var d: Array = MOVES[m]["dur"]
+	_len = rng.randf_range(float(d[0]), float(d[1])) * (0.6 + 0.4 * energy)
+	if m in ["run", "circle", "spiral"] and rng.randf() < 0.5:
+		_turn_sign = -_turn_sign
+	move_started.emit(m)

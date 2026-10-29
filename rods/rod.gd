@@ -21,14 +21,26 @@ var line_end := Vector3.ZERO
 ## Line coming in (m/s): turns the crank.
 var reeling := 0.0
 var spread: Node              # rods.gd
-## A fish on: its weight, when it bit (sea clock), which way it ran (world, flat), and how much line it's taken
-## past the bait's spot (m).
+## A fish on (tuna/fight.gd): its weight, when it bit (sea clock), the line from the tip to it (m), where it is
+## (bearing round the stern, 0 dead astern, + to port; depth, m), how fresh it is, what it's doing (a move).
 var hooked := false
 var fish_kg := 0.0
 var hook_t := 0.0
-var run_dir := Vector3.BACK
 var line_out := 0.0
+var bearing := 0.0
+var depth := 0.0
+var energy := 1.0
+var move := ""
+## How far the holder has heaved the rod up, 0..1 (a pump).
+var lift := 0.0
+## The fight itself, on the holder's machine only.
+var fight: RefCounted
+## While nobody holds it: when it was let go (sea clock) and the line out then (it runs from there).
+var free_t := 0.0
+var free_out := 0.0
 var _scream: AudioStreamPlayer3D
+var _whir: AudioStreamPlayer3D
+var _sing: AudioStreamPlayer3D
 var _last_out := 0.0
 var _blank: MeshInstance3D
 var _handle: Node3D
@@ -80,6 +92,9 @@ func _ready() -> void:
 	_scream.volume_db = 4.0
 	_scream.position = Vector3(0, 0.1, 0.37)
 	add_child(_scream)
+	# the reel winding (while line comes in) and the line singing (bar-tight, near breaking)
+	_whir = _looped(preload("res://audio/fish/reel_whir.wav"), -4.0)
+	_sing = _looped(preload("res://audio/fish/line_sing.wav"), -10.0)
 	# what you press E on: the butt and the foregrip
 	_grab = Area3D.new()
 	_grab.add_to_group("interactable")
@@ -139,7 +154,33 @@ func _process(delta: float) -> void:
 		_scream.volume_db = lerpf(-6.0, 6.0, clampf(paying / 10.0, 0.0, 1.0))
 	elif _scream.playing:
 		_scream.stop()
+	if reeling > 0.05 and not _whir.playing:
+		_whir.play()
+	elif reeling <= 0.05 and _whir.playing:
+		_whir.stop()
+	var singing := hooked and strain > 0.8 and paying <= 0.6
+	if singing and not _sing.playing:
+		_sing.play()
+	elif not singing and _sing.playing:
+		_sing.stop()
+	if _sing.playing:
+		_sing.pitch_scale = 0.9 + 0.4 * strain
 	_draw_line()
+
+
+func _looped(src: AudioStreamWAV, db: float) -> AudioStreamPlayer3D:
+	var a := AudioStreamPlayer3D.new()
+	var wav := src.duplicate() as AudioStreamWAV
+	wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	wav.loop_begin = 0
+	wav.loop_end = wav.data.size() / (2 if wav.format == AudioStreamWAV.FORMAT_16_BITS else 1) \
+			/ (2 if wav.stereo else 1)
+	a.stream = wav
+	a.unit_size = 5.0
+	a.volume_db = db
+	a.position = Vector3(0, 0.1, 0.37)
+	add_child(a)
+	return a
 
 
 func _draw_line() -> void:

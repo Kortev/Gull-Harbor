@@ -1,6 +1,7 @@
 extends Node
-## Hooking up: a feeding school crosses the spread and a bait gets eaten; the line pours off with the drag
-## screaming; grab the rod and crank it in to the boat. Run: godot --headless --path . res://tests/strike_test.tscn
+## Hooking up and the fight: a feeding school crosses the spread and a bait gets eaten; the line pours off with the
+## drag screaming; grab the rod and fight it right (let it run, pump it up when it sounds, crank otherwise) till it's
+## boatside. Run: godot --headless --path . res://tests/strike_test.tscn
 
 const Sea := preload("res://sea/sea.gd")
 
@@ -40,14 +41,29 @@ func _ready() -> void:
 	sea.crew.me.force_input = true
 	sea.rods.request_grab(hooked)
 	_check(rod.holder == 1, "grabbed it")
-	Input.action_press("use_primary")
 	var w := 0.0
-	while rod.hooked and w < 90.0:
-		await get_tree().create_timer(0.5).timeout
-		w += 0.5
-	Input.action_release("use_primary")
-	_check(not rod.hooked, "cranked it to the boat (%.0f s)" % w)
+	var moves := {}
+	while rod.hooked and w < 400.0:
+		await get_tree().process_frame
+		w += get_process_delta_time()
+		moves[rod.move] = true
+		var ans: String = rod.fight.answer() if rod.fight != null else "reel"
+		var lift := ans == "pump" and fmod(w, 2.5) < 1.0
+		_hold("use_secondary", lift)
+		_hold("use_primary", ans == "reel" or ans == "tight" or (ans == "pump" and not lift))
+	_hold("use_primary", false)
+	_hold("use_secondary", false)
+	_check(moves.has("run") and moves.size() >= 3, "it fought: %s" % ", ".join(moves.keys()))
+	_check(not rod.hooked and rod.line_out == 0.0 and sea.crew.hud._note.text.begins_with("Boatside"),
+			"fought it to the boat (%.0f s): %s" % [w, sea.crew.hud._note.text])
 	_done()
+
+
+func _hold(action: String, on: bool) -> void:
+	if on:
+		Input.action_press(action)
+	else:
+		Input.action_release(action)
 
 
 func _done() -> void:

@@ -102,6 +102,8 @@ func _ready() -> void:
 		schools.set("_next", 0.0)
 		if not str(_args["school"]).is_empty():
 			schools.start_far = float(_args["school"])
+	if _args.has("strike"):    # (screenshots: a fish on rod <n> right away)
+		rods.strike(int(_args["strike"]), 220.0)
 	if _args.has("hold"):      # (screenshots: start with rod <n> in your hands)
 		rods.request_grab(int(_args["hold"]))
 	if _args.has("host"):
@@ -120,10 +122,10 @@ func _process(_delta: float) -> void:
 	_frames += 1
 	_follow_weather()
 	if _args.has("watch") and not schools.schools.is_empty():
-		# (screenshots: from up on the tower, looking at the nearest school)
+		# (screenshots: from 28 m off the nearest school, on the boat's side of it, looking at it)
 		var c: Vector2 = schools.schools[0].center(ocean.wave_time)
 		var at := Vector3(c.x, 0.0, c.y)
-		var from := at.normalized() * minf(at.length() * 0.45, 30.0) + Vector3(0, 7.0, 0)
+		var from := at + (Vector3.ZERO - at).normalized() * 28.0 + Vector3(0, 5.0, 0)
 		cam.make_current()
 		cam.global_position = from
 		cam.look_at(at + Vector3(0, 2.0, 0))

@@ -31,6 +31,8 @@ var hand: Node3D
 var body_mesh: MeshInstance3D
 ## Tests drive the keys without a captured mouse.
 var force_input := false
+## A fish pulling on the rod in your hands, 0..1 (rods.gd): your view trembles with it and gets tugged toward it.
+var shake := 0.0
 var _yaw := 0.0
 var _pitch := 0.0
 var _prompt := ""
@@ -191,6 +193,10 @@ func _process(_delta: float) -> void:
 	var eyes := tilted.slerp(level, STEADY)
 	head.global_basis = eyes * Basis(Vector3.RIGHT, _pitch)
 	if is_multiplayer_authority():
+		if shake > 0.02:
+			var t := Time.get_ticks_msec() * 0.001
+			var tremble := Vector3(sin(t * 31.0) + sin(t * 13.0 + 2.0), sin(t * 23.0 + 1.0), 0.0) * 0.006 * shake
+			head.global_basis = head.global_basis * Basis.from_euler(tremble + Vector3(-0.035 * shake, 0.0, 0.0))
 		_update_prompt()
 
 
