@@ -1,6 +1,7 @@
-extends SceneTree
+extends Node
 ## Standing and walking on the deck in a storm: the deck must stay solid under your feet.
-## Run: godot --headless --path . -s res://tests/deck_test.gd -- --weather=storm
+## Run: godot --headless --path . res://tests/deck_test.tscn -- --weather=storm
+## (A scene, not a -s script: the Net autoload has to exist when the game's scripts compile.)
 
 const Sea := preload("res://sea/sea.gd")
 
@@ -15,10 +16,10 @@ var max_z := -INF
 var jumped_high := 0.0
 
 
-func _initialize() -> void:
+func _ready() -> void:
 	sea = (load("res://sea/sea.tscn") as PackedScene).instantiate() as Sea
-	root.add_child(sea)
-	physics_frame.connect(_tick)
+	add_child(sea)
+	get_tree().physics_frame.connect(_tick)
 
 
 ## Where the player you SEE stands, in the boat's frame (should be the deck-space spot, exactly).
@@ -60,7 +61,7 @@ func _tick() -> void:
 		for f in fails:
 			print("FAIL ", f)
 		print("DECK TEST ", "PASSED" if fails.is_empty() else "FAILED")
-		quit(1 if not fails.is_empty() else 0)
+		get_tree().quit(1 if not fails.is_empty() else 0)
 
 
 func _check(ok: bool, what: String) -> void:

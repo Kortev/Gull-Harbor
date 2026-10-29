@@ -1,5 +1,21 @@
 # While you were away (newest first)
 
+## Co-op
+- **What changed:** up to four of you on one boat:
+  - Press Esc for the menu. **Host a crew** there, and friends **Join** with your address on port 7777.
+  - Everyone stands on deck, sees each other walk around, and sees the exact same sea: the waves and the
+    boat's rolling are on the host's clock.
+  - The host picks the conditions (calm, sunny, fog, rain, heavy, storm, night) from the same menu.
+  - If the host leaves, you're put back on your own boat.
+
+  Crewmates are yellow placeholder figures until the crew model exists. Steam lobbies and invites come later.
+- **How it was checked:**
+  - `tools/net_test.sh` runs a host and a client on this machine. Both see two crew and the host's storm, and
+    their sea clocks are 0.001 s apart.
+  - `docs/shots/coop_client_sees_host.png` is from the client's eyes, looking at the host on deck.
+- **Try it on one computer:** in Godot, Debug > Customize Run Instances > 2 instances, then F5. In one window
+  press Esc and Host; in the other press Esc, type 127.0.0.1, and Join.
+
 ## Sea polish
 - **What changed:**
   - The white squares all over the water in the rain were the ocean's raindrop dots. They're now little
@@ -19,7 +35,7 @@
   moves" trick), so the deck is solid under your feet even in a storm, and you can't fall over the rail. Your
   view leans with the deck but keeps the horizon about half level, so you feel the sea without getting sick.
   At night there's a dim red light in the wheelhouse.
-- **How it was checked:** `tests/deck_test.gd` stands you in a storm for 10 s. You drifted 0.000 m and your
+- **How it was checked:** `tests/deck_test.tscn` stands you in a storm for 10 s. You drifted 0.000 m and your
   feet stayed exactly on deck. It then walks you to the transom and jumps you, and you land back on deck. The
   screenshots `docs/shots/crew_heavy.png` and `crew_storm_night_helm.png` are from the crew's eyes.
 - **Try it:** F5.
