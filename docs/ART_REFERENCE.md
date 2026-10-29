@@ -85,3 +85,24 @@ others) on 2026-10-29, saying: "The fish shouldn't be this cartoony, but I think
 Procedural box modelling can't. Generate or source proper stylized models (Meshy, Tripo or Rodin from these
 descriptions, a stylized asset pack, or an artist), clean them up in Blender, rig with Mixamo or Rigify, paint the
 textures (Blender texture paint, ArmorPaint, Substance), and keep the node names and spots the code expects.
+
+## What makes these characters good (research, 2026-10-29)
+
+The user's verdict on the first attempts: the metaball crew was too cartoony and blobby, and the plain faceted one was
+empty. They want Sea of Thieves' *craft*, a little less exaggerated than its pirates.
+
+- **Angular planes on smooth, polished forms.** A Rare character artist describes the style as "angular, sharp
+  edges on forms like the chest, arms and faces", with every form smooth and polished and no grunge or pore detail:
+  "there's nowhere to hide with this sort of style"
+  ([ZBrushCentral](https://www.zbrushcentral.com/t/sea-of-thieves-character-art/208371)). So: a planar cage,
+  subdivided, with creases where planes meet (the jaw, the brow, the nose's bridge, the collarbones, a boot's sole).
+- **A few simple rules, applied everywhere** (Rare's art director, GDC 2018,
+  [GDC Vault](https://gdcvault.com/play/1025015/Visual-Adventures-on-Sea-of)).
+- **Variety by generator.** Their Infinite Pirate Generator randomises body shape, face, age and "wonkiness"
+  (asymmetry) from a few base bodies. For us: one well-built base, varied by body type, face and kit.
+- **Silhouette first, then colour blocks, then detail** (a common rule:
+  [RocketBrush](https://rocketbrush.com/blog/shape-language-in-game-character-design-how-to-make-characters-readable-and-consistent)).
+  Exaggerate a few things (hands, feet, the face's length, the nose), keep the rest believable.
+- **Paint the light into the texture** (most hand-painted workflows,
+  [80.lv](https://80.lv/articles/ares-from-hades-recreated-in-stunning-hand-painted-3d)): soft value shifts that
+  follow the forms, darker and cooler in the crevices, lighter on top edges, not noise.

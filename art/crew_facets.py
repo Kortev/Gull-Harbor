@@ -358,9 +358,9 @@ def fore(bm, side):
     cuff = [ring(WRIST + 0.045, 0.043, 0.045, None, 10, 2.4, x0=x), ring(WRIST - 0.005, 0.04, 0.042, None, 10, 2.4, x0=x)]
     Loft(cuff).build(bm, default=S["glove"])
     # the hand hangs with its palm to the thigh: thin across (x), broad front to back (y)
-    hand = [ring(WRIST, 0.024, 0.032, 0.03, 10, 2.6, x0=x), ring(WRIST - 0.05, 0.022, 0.05, 0.04, 10, 3.0, x0=x),
-            ring(WRIST - 0.1, 0.019, 0.048, 0.04, 10, 3.0, x0=x), ring(WRIST - 0.15, 0.015, 0.04, 0.032, 10, 2.6, x0=x),
-            ring(WRIST - 0.175, 0.01, 0.026, 0.02, 10, 2.2, x0=x)]
+    hand = [ring(WRIST, 0.028, 0.036, 0.034, 10, 2.6, x0=x), ring(WRIST - 0.06, 0.027, 0.062, 0.05, 10, 3.0, x0=x),
+            ring(WRIST - 0.12, 0.024, 0.06, 0.05, 10, 3.0, x0=x), ring(WRIST - 0.18, 0.019, 0.05, 0.04, 10, 2.6, x0=x),
+            ring(WRIST - 0.21, 0.012, 0.032, 0.025, 10, 2.2, x0=x)]
     L = Loft(hand)
     L.push(3, [0, 1, 9], (0, 0.0, 0.01)).push(4, [0], (0, -0.006, 0.008))      # the fingertips curling in
     L.build(bm, default=S["glove"])
@@ -401,16 +401,45 @@ def shin(bm, side):
         return S["oilskin"]
     L.build(bm, which, cap_top=False)
     boot = [ring(0.26, 0.054, 0.058, 0.058, 12, 2.4, x0=x), ring(0.2, 0.05, 0.055, 0.055, 12, 2.4, x0=x),
-            ring(0.11, 0.05, 0.075, 0.058, 12, 2.6, x0=x), ring(0.06, 0.054, 0.13, 0.062, 12, 2.8, x0=x),
-            ring(0.03, 0.056, 0.155, 0.064, 12, 3.0, x0=x)]
+            ring(0.11, 0.054, 0.085, 0.062, 12, 2.6, x0=x), ring(0.06, 0.06, 0.15, 0.068, 12, 2.8, x0=x),
+            ring(0.03, 0.062, 0.18, 0.07, 12, 3.0, x0=x)]
     L = Loft(boot)
     L.push(3, [0], (0, 0.01, -0.01)).push(4, [0, 1, 11], (0, 0.004, 0))        # the toe's slope
     L.build(bm, default=S["boot"], cap_bottom=False)
-    sole = [ring(0.0, 0.058, 0.16, 0.066, 12, 3.0, x0=x), ring(0.031, 0.058, 0.158, 0.066, 12, 3.0, x0=x)]
+    sole = [ring(0.0, 0.065, 0.188, 0.074, 12, 3.0, x0=x), ring(0.031, 0.065, 0.186, 0.074, 12, 3.0, x0=x)]
     Loft(sole).build(bm, default=S["sole"])
 
 
 # ------------------------------------------------------------------------------------------------ out
+
+SUBD = 2
+
+
+def paint_forms(me):
+    """The light painted into the forms (vertex colours): darker and cooler in the hollows, lighter on the edges
+    that stick out, a touch darker low down and underneath."""
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bm.verts.ensure_lookup_table()
+    col = me.color_attributes.new("Col", 'FLOAT_COLOR', 'POINT')
+    shadow = Vector((0.7, 0.62, 0.86))
+    for v in bm.verts:
+        if not v.link_edges:
+            col.data[v.index].color = (1, 1, 1, 1)
+            continue
+        nb = [e.other_vert(v).co for e in v.link_edges]
+        avg = sum(nb, Vector()) / len(nb)
+        span = sum((q - v.co).length for q in nb) / len(nb) + 1e-6
+        conc = (avg - v.co).dot(v.normal) / span          # + in a hollow, - on a ridge
+        hollow = min(max(conc * 4.0, 0.0), 1.0)
+        ridge = min(max(-conc * 4.0, 0.0), 1.0)
+        g = 0.84 + 0.16 * min(max(v.co.z / 1.8, 0.0), 1.0)
+        under = 1.0 - 0.18 * min(max(-v.normal.z, 0.0), 1.0)
+        k = g * under * (1.0 + 0.12 * ridge)
+        c = Vector((k, k, k)).lerp(Vector((k * shadow.x, k * shadow.y, k * shadow.z)), hollow * 0.8)
+        col.data[v.index].color = (min(c.x, 1.0), min(c.y, 1.0), min(c.z, 1.0), 1.0)
+    bm.free()
+
 
 def paint_faces(me):
     """Painted variation: each face a touch lighter or darker, warmer or cooler, darker low down and underneath
@@ -435,13 +464,32 @@ def make(name, fn, origin, mats, *args):
     fn(bm, *args)
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    # the planes that meet sharply keep a crisp (creased) edge once it's smoothed; gentle ones melt together
+    cl = bm.edges.layers.float.get('crease_edge') or bm.edges.layers.float.new('crease_edge')
+    for e in bm.edges:
+        if len(e.link_faces) != 2:
+            e[cl] = 1.0
+            continue
+        a = e.calc_face_angle(0.0)
+        e[cl] = min(max((a - 0.5) / 0.7, 0.0), 1.0) * 0.9
     bm.to_mesh(me)
     bm.free()
-    paint_faces(me)
+    ob_tmp = bpy.data.objects.new("tmp", me)
+    bpy.context.scene.collection.objects.link(ob_tmp)
+    m = ob_tmp.modifiers.new("subd", 'SUBSURF')
+    m.levels = SUBD
+    m.render_levels = SUBD
+    m.boundary_smooth = 'PRESERVE_CORNERS'
+    bpy.context.view_layer.objects.active = ob_tmp
+    bpy.ops.object.select_all(action='DESELECT')
+    ob_tmp.select_set(True)
+    bpy.ops.object.modifier_apply(modifier=m.name)
+    bpy.data.objects.remove(ob_tmp, do_unlink=True)
+    paint_forms(me)
     for s in SLOTS:
         me.materials.append(mats[s])
     for p in me.polygons:
-        p.use_smooth = False
+        p.use_smooth = SUBD > 0
     ob = bpy.data.objects.new(name, me)
     bpy.context.scene.collection.objects.link(ob)
     me.transform(Matrix.Translation(-V(origin)))
