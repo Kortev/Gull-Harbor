@@ -122,9 +122,10 @@ repo, now `main`), tick it here.
 - [x] **Steam as the main way to play together:** host a friends-only Steam lobby, friends join from the menu's list or an invite, traffic through Steam's relays (`core/steam_link.gd`; needs the GodotSteam add-on from the AssetLib; `tools/steam_test.sh` against a stand-in for Steam). The join code stays as the backup.
 - [ ] **Everything on the boats is usable or goes** (HANDOFF's Chekhov audit; polish, not new features):
   - [x] The fighting chair (sportfisher): sit in it (E), the rod in its gimbal, it swivels with the fish.
-    (`boat/chair.gd`, `tests/chair_test.tscn`: your arms wear half as fast in it; it turns with your look.)
+    (`boat/seat.gd`, `tests/chair_test.tscn`: your arms wear half as fast in it; it turns with your look.)
   - [x] The tuna tower: climb it, spot further (`boat/tower.gd`).
-  - [ ] The leaning post, the skipper's seat, the bench: sit or lean (E), just to chill.
+  - [x] The leaning post, the skipper's seat, the bench: sit or lean (E), just to chill. (`boat/seat.gd`: the
+    skiff's cooler seat and leaning post, the sportfisher's skipper's seat and bench; `tests/chair_test.tscn`.)
   - [ ] The cooler: grab a drink. The live well: see the mackerel in it. The fish box: the lid opens.
   - [ ] The radio: Dale's voice comes from it.
   - [ ] The rod holders that never fish, and the outriggers: use them or take them out of the models.

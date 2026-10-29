@@ -7,7 +7,7 @@ extends Node3D
 ## Screenshots: <godot> --path . -- --shot=<png> [--weather=calm|sunny|fog|rain|heavy|storm (pinned)] [--night]
 ##   [--frames=<n>] [--cam=x,y,z,lookx,looky,lookz] [--look=<degrees round from aft>] [--wheel] [--strike=<rod>]
 ##   [--boat=skiff|sportfisher (out in her)] [--tower (up her tower)] [--green (a sea comes aboard just before the shot)]
-##   [--chair (in the fighting chair, with the rod --hold gives you)]
+##   [--chair (in the fighting chair, with the rod --hold gives you)] [--sit=<n> (in her seat n)]
 ## Without --cam you're one of the crew, standing in the cockpit: WASD, mouse, Shift, Space, E; Esc for the menu.
 ## Co-op: --host, or --join=<address> (or from the Esc menu).
 
@@ -173,6 +173,8 @@ func _ready() -> void:
 		rods.request_grab(int(_args["hold"]))
 	if _args.has("chair") and boat.seat != null and crew.me != null:   # (screenshots: in the fighting chair)
 		boat.seat.sit(crew.me)
+	if _args.has("sit") and crew.me != null and int(_args["sit"]) < boat.seats.size():   # (screenshots: in a seat)
+		boat.seats[int(_args["sit"])].sit(crew.me)
 	if _args.has("host"):
 		Net.host()
 	elif _args.has("join"):

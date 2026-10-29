@@ -19,7 +19,7 @@ const Wake := preload("res://boat/wake.gd")
 const Kinds := preload("res://boat/kinds.gd")
 const Tower := preload("res://boat/tower.gd")
 const GreenWater := preload("res://boat/green_water.gd")
-const Chair := preload("res://boat/chair.gd")
+const Seat := preload("res://boat/seat.gd")
 
 ## Under way: her bow up (rad) flat out ahead, and how far her stern digs in (rad, m down) backing down flat out.
 const SQUAT := 0.07
@@ -48,8 +48,9 @@ var helm_spot := Transform3D.IDENTITY   # where the captain stands (boat-local)
 var helm: Helm
 ## Big seas coming aboard over her rail (boat/green_water.gd).
 var green: GreenWater
-## Her fighting chair to sit in, if she has one (boat/chair.gd; `chair` is its model).
-var seat: Chair
+## Her fighting chair to sit in, if she has one (boat/seat.gd; `chair` is its model), and her other seats.
+var seat: Seat
+var seats: Array[Seat] = []
 ## Her tuna tower's ladder, if she has one (boat/tower.gd).
 var tower: Tower
 var floods: Array[Light3D] = []
@@ -186,13 +187,23 @@ func _build() -> void:
 	helm.position = wheel.position if wheel else helm_spot.origin + Vector3(0, 1.0, -0.6)
 	helm.configure(spec)
 	seat = null
+	seats.clear()
 	if chair != null:
-		seat = Chair.new()
-		seat.name = "Seat"
+		seat = Seat.new()
+		seat.name = "FightingChair"
 		seat.boat = self
-		seat.setup(chair)
+		seat.setup_chair(chair)
 		add_child(seat)
 		_built.append(seat)
+		seats.append(seat)
+	for i in (spec.get("seats", []) as Array).size():
+		var s := Seat.new()
+		s.name = "Seat%d" % i
+		s.boat = self
+		s.setup(spec["seats"][i])
+		add_child(s)
+		_built.append(s)
+		seats.append(s)
 	tower = null
 	if spec.has("tower"):
 		tower = Tower.new()

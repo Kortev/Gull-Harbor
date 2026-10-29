@@ -790,7 +790,7 @@ func _fight_mine(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	fight.moving = true
 	fight.boat_vel = _boat_vel()
 	fight.reach = _reach(me, fight.bearing)
-	fight.seated = me != null and bool(me.call("is_seated"))
+	fight.seated = me != null and bool(me.call("in_chair"))
 	fight.tangled = is_tangled(r.index)
 	fight.step(delta, crank, r.lift)
 	if me != null:
@@ -894,6 +894,6 @@ func _in_hands(p: Node3D, lift: float) -> Transform3D:
 	var pitch := clampf(float(p.get("_pitch")), -0.6, 0.9)
 	var b := p.global_basis * Basis(Vector3.RIGHT, 0.55 + pitch * 0.6 + lift * 0.6) * Basis(Vector3.UP, PI)
 	var at := p.global_transform * Vector3(0.2, 0.95, -0.3)
-	if bool(p.call("is_seated")):
-		at = p.global_transform * Vector3(0.0, 0.6, -0.4)      # (in the fighting chair: the butt in its gimbal)
+	if bool(p.call("is_seated")) and not bool(p.call("is_leaning")):
+		at = p.global_transform * Vector3(0.0, 0.6, -0.4)      # (sitting: in the fighting chair, the butt in its gimbal)
 	return Transform3D(b.orthonormalized(), at)

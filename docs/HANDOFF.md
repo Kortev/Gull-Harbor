@@ -102,9 +102,9 @@ Everything big enough to look usable must be usable, or go. Today:
 
 | Thing | Usable now? | Do |
 |---|---|---|
-| The fighting chair (sportfisher) | **yes:** E to sit; with a rod, it goes in the gimbal (`boat/chair.gd`) | Done: arms wear half as fast from it; stuck on the centreline (no corner); it turns with your look. |
+| The fighting chair (sportfisher) | **yes:** E to sit; with a rod, it goes in the gimbal (`boat/seat.gd`) | Done: arms wear half as fast from it; stuck on the centreline (no corner); it turns with your look. |
 | The tuna tower (sportfisher) | **yes:** E on the ladder at the hardtop's aft edge (`boat/tower.gd`) | Done: from up there the binoculars read the water under a flock about 2 km off (1.2 km from the deck). |
-| The leaning post / skipper's seat / bench | no | Sit or lean (E), just to chill. |
+| The leaning post / skipper's seat / bench | **yes:** E to sit, or lean on the leaning post (`boat/seat.gd`) | Done. |
 | The cooler (sportfisher), the live well, the fish box | the box takes fish (as a whole: E on the fish) | Cooler: grab a drink (funny; maybe a little arm rest). Live well: see the mackerel in it. Fish box: the lid opens as fish go in. |
 | The radio on the dash | Dale talks on it (as a HUD card) | Make the voice come from it; maybe music (a toy). |
 | Rod holders that never fish (sportfisher's 2-5, skiff's 2-3) | the jig uses one | Spare rods, or take the empty holders out of the model. |

@@ -27,6 +27,8 @@ extends RefCounted
 ##   chum          where the chum bucket stands (boat/chum.gd); jig: the holder the mackerel jig sits in (boat/jig.gd)
 ##   rail          points along her starboard rail (port mirrors them) and across her transom, where a big sea can
 ##                 come aboard (boat/green_water.gd)
+##   seats         somewhere to sit (boat/seat.gd): the middle of its seat, which way you face, its name, and lean
+##                 (a leaning post: you lean on it rather than sit). The sportfisher's fighting chair is her model's.
 ##   tower, ladder where you stand up her tuna tower (your feet), and the foot of the ladder up to it on deck (boat/tower.gd;
 ##                 only the sportfisher has one)
 ##   price         what she costs to buy at the dock; fuel: what a trip in her costs (taken from the sale)
@@ -55,6 +57,8 @@ const KINDS := {
 		"transom": Vector3(0.0, 0.0, 4.9), "engines": Vector3(0.0, 0.9, 4.7), "bow": Vector3(0.5, 0.45, -3.3),
 		"cabin_light": Vector3(0.0, 2.3, 0.4), "crown": Vector3(0.0, 2.75, 0.0),
 		"chum": Vector3(-0.25, 1.03, 3.92), "jig": 2,
+		"seats": [{"at": Vector3(0.0, 0.99, -1.2), "face": 0.0, "name": "the cooler seat"},
+				{"at": Vector3(0.0, 0.95, 1.45), "face": 0.0, "name": "the leaning post", "lean": true}],
 		"rail": [Vector3(1.37, 1.15, 3.83), Vector3(1.43, 1.15, 2.13), Vector3(1.45, 1.15, 0.43),
 				Vector3(1.41, 1.26, -1.28), Vector3(1.06, 1.54, -2.98), Vector3(0.0, 1.15, 4.25),
 				Vector3(0.8, 1.15, 4.25)],
@@ -86,6 +90,9 @@ const KINDS := {
 		"rail": [Vector3(2.22, 1.45, 6.3), Vector3(2.35, 1.45, 4.2), Vector3(2.4, 1.45, 1.4),
 				Vector3(2.39, 1.49, -1.4), Vector3(2.02, 1.97, -4.2), Vector3(0.0, 1.45, 7.0),
 				Vector3(1.1, 1.45, 7.0)],
+		"seats": [{"at": Vector3(0.9, 1.23, -1.47), "face": PI, "name": "the skipper's seat"},
+				{"at": Vector3(-1.62, 1.1, -1.45), "face": -PI * 0.5, "name": "the bench"},
+				{"at": Vector3(-1.62, 1.1, -0.55), "face": -PI * 0.5, "name": "the bench"}],
 		"tower": Vector3(0.0, 5.46, -0.75), "ladder": Vector3(-1.2, 0.55, 2.1),
 		"price": 20000, "fuel": 400,
 	},

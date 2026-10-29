@@ -96,7 +96,7 @@ var crank_mul := 1.0
 var chafe_mul := 1.0
 var grace_add := 0.0
 var arms_mul := 1.0
-## Fought from the fighting chair (boat/chair.gd): the rod's butt in its gimbal and your feet on its footrest, your
+## Fought from the fighting chair (boat/seat.gd): the rod's butt in its gimbal and your feet on its footrest, your
 ## legs and back take the weight, so your arms wear at CHAIR_ARMS of the rate. (Stuck on her centreline, though: no
 ## walking the rod to a corner to keep the line off the hull.)
 var seated := false

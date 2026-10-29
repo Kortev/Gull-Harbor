@@ -8,6 +8,19 @@ round her and "Keep the stern on it!". Taking it off the big boat makes calling 
 corner!") a real job for the crew. Alone in the big boat, though, you'd be steering blind. My pick: keep it on the
 skiff and take it off the big boat. Say yes and I'll do it, or say keep it.
 
+## Sit down: every seat on both boats works
+
+- **What:** press E on a seat to sit and watch the baits; E or Q gets you up. Your crew see you sitting.
+  - **Skiff:** the cooler seat in front of the console, and the leaning post behind the wheel (you lean on it).
+  - **Sportfisher:** the skipper's seat and the bench to port, two places on it.
+
+  It uses the same code as the fighting chair. Only the chair has a gimbal, so only the chair spares your arms
+  in a fight.
+- **Checked:** `tests/chair_test.tscn` now covers every seat on both boats. For each: you can see it from a step
+  away, E sits you, E gets you up and you can walk off. The skipper's seat doesn't hide the big boat's wheel from
+  the cockpit. Every other test passes. Screenshot: `docs/shots/bench.png` (from the bench).
+- **Try:** sit on the bench with a friend at the wheel while you wait for a bite.
+
 ## The fighting chair works (the big boat)
 
 - **What:** E on the fighting chair in the sportfisher's cockpit sits you down. With a fish on, take the rod first,

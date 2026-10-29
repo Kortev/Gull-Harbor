@@ -47,9 +47,10 @@ var arms := 1.0
 var steering := false
 ## Up the tuna tower (boat/tower.gd): you look round but don't walk; E or Q climbs down. Any place() ends it.
 var aloft := false
-## In a seat (boat/chair.gd: the fighting chair): you look round but don't walk; E or Q gets you up. Any place()
-## ends it.
+## In a seat (boat/seat.gd: a bench, a leaning post, the fighting chair): you look round but don't walk; E or Q
+## gets you up. Any place() ends it.
 var seated := false
+var sat_in: Node = null
 var _yaw := 0.0
 var _pitch := 0.0
 var _prompt := ""
@@ -72,6 +73,7 @@ const ACT_JIG := 2
 const ACT_HAUL := 4
 const ACT_CRANK := 8
 const ACT_SEATED := 16
+const ACT_LEAN := 32
 var act := 0
 var _net_act := 0
 var _gesture := ""
@@ -309,7 +311,12 @@ func _pose_body(delta: float) -> void:
 				crouch = maxf(crouch, 0.15 * arc)
 	# sitting: thighs out level, shins down, down at the hips onto the seat
 	var sit := 0.0
-	if is_seated():
+	if is_seated() and is_leaning():
+		sit = 0.1             # (leaning back on the post: a little down, legs out in front)
+		p["leg_l"] += Vector3(0.25, 0.0, 0.0)
+		p["leg_r"] += Vector3(0.25, 0.0, 0.0)
+		p["torso"] += Vector3(-0.12, 0.0, 0.0)
+	elif is_seated():
 		sit = 0.4
 		crouch = 0.0
 		p["leg_l"] = Vector3(1.45, 0.0, 0.08)
@@ -378,9 +385,20 @@ func local_position() -> Vector3:
 	return body.position
 
 
-## In a seat: yours, or as the others say they are.
+## In a seat: yours, or as the others say they are; leaning on a leaning post rather than sitting.
 func is_seated() -> bool:
 	return seated if is_multiplayer_authority() else bool(_net_act & ACT_SEATED)
+
+
+func is_leaning() -> bool:
+	if is_multiplayer_authority():
+		return seated and is_instance_valid(sat_in) and bool(sat_in.get("lean"))
+	return bool(_net_act & ACT_LEAN)
+
+
+## In the fighting chair, the rod's butt in its gimbal (yours: the fight runs on your machine).
+func in_chair() -> bool:
+	return seated and is_instance_valid(sat_in) and sat_in.get("chair") != null
 
 
 ## Mouse look comes first, before any UI could take the motion.
@@ -403,9 +421,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("interact") and steering:
 		(boat.get("helm") as Node).call("request", false)
 	elif seated and (event.is_action_pressed("interact") or event.is_action_pressed("drop")):
-		var chair: Node = boat.get("seat")
-		if chair:
-			chair.call("get_up", self)
+		if is_instance_valid(sat_in):
+			sat_in.call("get_up", self)
 		else:
 			seated = false
 		get_viewport().set_input_as_handled()
@@ -459,6 +476,8 @@ func _doing() -> int:
 		out |= ACT_CRANK
 	if seated:
 		out |= ACT_SEATED
+		if is_leaning():
+			out |= ACT_LEAN
 	return out
 
 
@@ -474,8 +493,8 @@ func _state(at: Vector3, yaw: float, pitch: float, doing := 0) -> void:
 func _walk(delta: float) -> void:
 	if aloft and boat.get("tower") == null:
 		aloft = false          # (she's been swapped for a boat with no tower: down you come)
-	if seated and boat.get("seat") == null:
-		seated = false
+	if seated and not is_instance_valid(sat_in):
+		seated = false          # (she's been rebuilt as another boat: up you get)
 	if steering or aloft or seated:
 		body.velocity = Vector3.ZERO
 		return

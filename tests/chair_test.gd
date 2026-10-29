@@ -2,7 +2,9 @@ extends Node
 ## The fighting chair (the sportfisher's): from the cockpit you can put the crosshair on it; E and you sit, where W
 ## doesn't walk you anywhere and the chair swings round with your look; E gets you up. With a fish on, E with the rod
 ## and you fight it from the chair: the rod's butt in the gimbal, your arms wearing half as fast as standing (the
-## same fish, the same fight). The skiff has no chair. Run: godot --headless --path . res://tests/chair_test.tscn
+## same fish, the same fight). The skiff has no chair. And every other seat on both boats (the benches, the skipper's
+## seat, the skiff's cooler seat and leaning post): in view from a step away, E sits you (or leans you), E gets you
+## up and walking again. Run: godot --headless --path . res://tests/chair_test.tscn
 
 const Sea := preload("res://sea/sea.gd")
 const Fight := preload("res://tuna/fight.gd")
@@ -82,7 +84,46 @@ func _ready() -> void:
 	sea.fish_hold.head_out("skiff")
 	await get_tree().process_frame
 	_check(sea.boat.get("seat") == null, "the skiff has no chair")
+	await _seats(sea, "skiff")
+	sea.fish_hold.head_in()
+	sea.fish_hold.head_out("sportfisher")
+	await get_tree().process_frame
+	await _seats(sea, "sportfisher")
+	# her skipper's seat stands in front of her wheel: it mustn't hide the wheel from the cockpit
+	var helm: Node = sea.boat.get("helm")
+	var spot: Transform3D = sea.boat.get("helm_spot")
+	_check(await _can_look_at(sea.crew.me, Vector3(spot.origin.x, 0.6, spot.origin.z + 1.6), helm, 0.0),
+			"sportfisher: past the skipper's seat you can still put the crosshair on the wheel")
 	_done()
+
+
+## Each of her plain seats: look at it from a step in front, sit, get up, walk off.
+func _seats(sea: Sea, kind: String) -> void:
+	var me := sea.crew.me
+	for s: Node in sea.boat.seats:
+		if s.get("chair") != null:
+			continue
+		var feet: Vector3 = s.get("feet")
+		var face := float(s.get("face"))
+		var fwd := Vector3(-sin(face), 0.0, -cos(face))
+		var stand := feet + fwd * 0.9
+		stand.y = float(sea.boat.deck) + 0.05
+		var title := "%s: %s" % [kind, s.get("title")]
+		_check(await _can_look_at(me, stand, s, face + PI), "%s: in view from a step away" % title)
+		var prompt := str(s.call("interact_prompt"))
+		s.call("interact", me)
+		await get_tree().create_timer(0.2).timeout
+		_check(bool(me.call("is_seated")) and prompt.ends_with(str(s.get("title"))), "%s: E (\"%s\")" % [title, prompt])
+		_press("interact")
+		await get_tree().create_timer(0.3).timeout
+		var up: Vector3 = me.local_position()
+		me.set("_yaw", face)
+		for a: String in ["move_forward", "move_right"]:      # (off the seat the way it faces, then aside)
+			Input.action_press(a)
+			await get_tree().create_timer(0.4).timeout
+			Input.action_release(a)
+		_check(not bool(me.call("is_seated")) and me.local_position().distance_to(up) > 0.3,
+				"%s: up and walking (%.1f m)" % [title, me.local_position().distance_to(up)])
 
 
 func _press(action: String) -> void:
