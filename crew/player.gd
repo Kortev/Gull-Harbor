@@ -20,6 +20,8 @@ const REACH := 2.5
 ## How much of the boat's pitch and roll your eyes take out (0: the camera is bolted to the deck).
 const STEADY := 0.45
 const REST := 0.03
+## How far you sit down in the fighting chair (m: your hips and eyes drop this much).
+const SEAT_DROP := 0.37
 
 signal prompt_changed(text: String)
 
@@ -45,6 +47,8 @@ var look_scale := 1.0
 var arms := 1.0
 ## At the wheel (boat/helm.gd): your feet stay put and the keys steer her instead.
 var steering := false
+## In the fighting chair (boat/chair.gd says).
+var seated := false
 var _yaw := 0.0
 var _pitch := 0.0
 var _prompt := ""
@@ -317,6 +321,14 @@ func _pose_body(delta: float) -> void:
 				p["arm_r"] = Vector3(0.6 * arc, 0.0, 1.1 * arc)
 				p["torso"] = Vector3(-0.25 * arc, 0.0, 0.15 * sin(gk * 9.0) * arc)
 				crouch = maxf(crouch, 0.15 * arc)
+	# in the fighting chair: sat down, thighs out level, shins hanging to the footrest
+	if seated:
+		p["leg_l"] = Vector3(1.45, 0.0, -0.08)
+		p["leg_r"] = Vector3(1.45, 0.0, 0.08)
+		p["shin_l"] = Vector3(-1.35, 0.0, 0.0)
+		p["shin_r"] = Vector3(-1.35, 0.0, 0.0)
+		drop = SEAT_DROP
+		crouch = 0.0
 	# crouching: down at the hips, thighs forward and shins back so the feet stay put
 	if crouch > 0.0:
 		var bend := acos(clampf(1.0 - crouch / 0.95 * 1.6, -1.0, 1.0)) * 0.6
@@ -435,6 +447,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif event.is_action_pressed("interact") and steering:
 		(boat.get("helm") as Node).call("request", false)
+	elif event.is_action_pressed("interact") and seated and _looked_at() == null:
+		(boat.get("seat") as Node).call("request", false)
 	elif event.is_action_pressed("interact"):
 		var target := _looked_at()
 		if target:
@@ -493,6 +507,16 @@ func _walk(delta: float) -> void:
 	if steering:
 		body.velocity = Vector3.ZERO
 		return
+	if seated:
+		# held in the fighting chair; a jump gets you up
+		var chair: Node = boat.get("seat")
+		body.velocity = Vector3.ZERO
+		if chair:
+			body.position = chair.call("seat")
+			var live := force_input or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+			if live and Input.is_action_just_pressed("jump"):
+				chair.call("request", false)
+		return
 	var live := force_input or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back") if live else Vector2.ZERO
 	var wish := Basis(Vector3.UP, _yaw) * Vector3(input.x, 0.0, input.y)
@@ -518,14 +542,15 @@ func _process(delta: float) -> void:
 	var deck := boat.global_transform
 	global_transform = deck * Transform3D(Basis(Vector3.UP, _yaw), local)
 	_pose_body(delta)
-	# Your eyes: level out part of the deck's tilt, keep your own look.
+	# Your eyes: lower in the fighting chair; level out part of the deck's tilt, keep your own look.
+	head.position.y = move_toward(head.position.y, 1.62 - (SEAT_DROP if seated else 0.0), delta * 2.0)
 	var tilted := global_transform.basis.orthonormalized()
 	var level := Basis(Vector3.UP, tilted.get_euler(EULER_ORDER_YXZ).y)
 	var eyes := tilted.slerp(level, STEADY)
 	head.global_basis = eyes * Basis(Vector3.RIGHT, _pitch)
 	if is_multiplayer_authority():
 		if shake <= 0.0:
-			arms = minf(arms + REST * delta, 1.0)     # (no fish in your hands)
+			arms = minf(arms + REST * delta * (2.0 if seated else 1.0), 1.0)     # (no fish in your hands)
 		_lurch(delta)
 		if shake > 0.02:
 			var t := Time.get_ticks_msec() * 0.001

@@ -15,6 +15,7 @@ extends AnimatableBody3D
 
 const Ocean := preload("res://sea/ocean.gd")
 const Helm := preload("res://boat/helm.gd")
+const Chair := preload("res://boat/chair.gd")
 const Wake := preload("res://boat/wake.gd")
 const Kinds := preload("res://boat/kinds.gd")
 
@@ -45,6 +46,8 @@ var helm_spot := Transform3D.IDENTITY   # where the captain stands (boat-local)
 var helm: Helm
 var floods: Array[Light3D] = []
 var chair: Node3D
+## The fighting chair you can sit in (boat/chair.gd), if she has one.
+var seat: Chair
 var wheel: Node3D
 var _radar: Node3D
 ## The still world the crew walk in (see above): add crew bodies under deck_root.
@@ -137,6 +140,14 @@ func _build() -> void:
 			mi.transform = t
 			visual.add_child(mi)
 	chair = visual.get_node_or_null("chair") as Node3D
+	if chair:
+		seat = Chair.new()
+		seat.name = "FightingChair"
+		add_child(seat)
+		seat.setup(self, chair)
+		_built.append(seat)
+	else:
+		seat = null
 	wheel = visual.get_node_or_null("wheel") as Node3D
 	if wheel:
 		_wheel_base = wheel.basis

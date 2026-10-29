@@ -40,6 +40,10 @@ func _ready() -> void:
 	await get_tree().create_timer(2.0).timeout
 	await _boat_shot(cam, "boat_sportfisher", Vector3(-8.0, 5.0, 12.0))
 	await _boat_shot(cam, "boat_sportfisher_deck", Vector3(1.5, 2.6, 7.0))
+	# sat in the fighting chair
+	sea.boat.seat.request(true)
+	await get_tree().create_timer(1.0).timeout
+	await _shot(me, cam, "crew_chair", Vector3(1.6, 1.3, -1.6), 0.7)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(sea.fish_hold.save_path))
 	get_tree().quit()
 
