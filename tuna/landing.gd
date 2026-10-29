@@ -29,6 +29,8 @@ const FLY := 14.0
 ## each extra hand on it adds the same again.
 const HAUL_BASE := 2.0
 const HAUL_PER_KG := 0.05
+## How far from the door you can stand and keep hauling (m).
+const HAUL_REACH := 3.5
 
 var sea: Node                 # sea/sea.gd
 ## Fish alongside, by the rod they came up on: {kg, side (1 starboard, -1 port), hook_t (sea clock), t (s alongside),
@@ -145,14 +147,15 @@ func _process(delta: float) -> void:
 				node.effort = 1.0
 			f["thrash_in"] = due
 			node.effort = move_toward(node.effort, 0.15, delta * 0.8)
-	# hauling: let go of E, or look away from the door, and you've stopped
+	# hauling: let go of E, or walk away from the door, and you've stopped (the crosshair can drift as she rolls:
+	# you're still holding the line)
 	if _my_pull >= 0:
-		var me := crew.get("me") as Node
+		var me := crew.get("me") as Node3D
 		var f: Dictionary = fish.get(_my_pull, {})
-		var door: Node = null
+		var door: Node3D = null
 		if not f.is_empty():
 			door = _doors[0 if float(f["side"]) > 0.0 else 1]
-		if f.is_empty() or me == null or not Input.is_action_pressed("interact") or me.call("looking_at") != door:
+		if f.is_empty() or me == null or door == null or not Input.is_action_pressed("interact") 				or me.global_position.distance_to(door.global_position) > HAUL_REACH:
 			_stop_pull()
 	if Net.is_host():
 		_host_tick(delta)

@@ -51,6 +51,25 @@ in oilskins, each crew member's oilskins their own colour.
   a deep metallic navy back fading to a silver belly, the yellow finlets, the crescent tail; painted, a little
   exaggerated in shape, with life in the eye. The birds the same way.
 
+## 5. Sea of Thieves' fish (the fishing chart; a reference, but the bluefin is less cartoony)
+
+The user sent the Sea of Thieves fishing chart and several of its fish (Splashtail, Devilfish, Wildsplash, and
+others) on 2026-10-29, saying: "The fish shouldn't be this cartoony, but I think it's still a decent reference."
+
+- **Form:** chunky, big-headed bodies. The heads are broad, heavy-jawed planes with thick pouty lips and an
+  underbite. The bodies are smooth but have a few crisp, chiselled planes (a sculpted, carved feel, not low poly).
+  They taper hard to a narrow tail stalk.
+- **Fins:** ragged, cut into points and notches, with spines showing through. They're usually a contrasting
+  colour (red or purple on grey, green or blue bodies) and slightly translucent at the edges.
+- **Paint:** one strong body colour, with painted stripes, bars or blotches that follow the form. The back is
+  darker and the belly paler. The lips and belly are lighter, and the paint is glossy with a soft sheen.
+- **Eye:** small, round, dark and glossy, with a bright highlight. It is set high, under a heavy brow ridge that
+  gives each fish a mood (grumpy, gormless).
+- **For the bluefin:** keep its real shape and colours (a navy back, a silver belly, the yellow finlets, the
+  crescent tail). Take from these the chunky sculpted head, the crisp planes over smooth forms, the painted
+  stripes and sheen, the slightly ragged fins, and the life in the eye. Exaggerate it a little, not to the point
+  of a cartoon.
+
 ## What "life" means here (the checklist)
 
 1. **Exaggerated silhouettes and proportions:** big hands and feet, characterful faces, readable shapes.

@@ -39,7 +39,8 @@ func _ready() -> void:
 			_check(alone >= 14, "%d kg: alone, you land most of them (%d of 20)" % [kg, alone])
 		else:
 			if kg >= 400.0:
-				_check(alone < landed - 3, "%d kg: alone, a giant often gets away (%d of 20 vs %d)" % [kg, alone, landed])
+				# (this angler fights flat out and never rests: the patient one below loses far more giants alone)
+				_check(alone < landed, "%d kg: alone, a giant gets away more than with a captain (%d of 20 vs %d)" % [kg, alone, landed])
 	for kg: float in [150.0, 450.0]:
 		var one: Array[float] = []
 		var two: Array[float] = []

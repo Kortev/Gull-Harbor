@@ -42,6 +42,10 @@ func _ready() -> void:
 	_check(rod.line_out > out0 + 8.0, "the fish runs: %.0f m of line gone in 2 s" % (rod.line_out - out0))
 	_check(rod._scream.playing, "the drag screams")
 	_check(rod.strain > 0.8, "the rod's bent double (strain %.2f)" % rod.strain)
+	# like a player: clear the other lines first (E on each), so the running fish can't tangle them
+	for r in sea.rods.rods:
+		if r.index != hooked and not r.bait_in:
+			sea.rods._host_line(r.index, true)
 	sea.crew.me.force_input = true
 	sea.rods.request_grab(hooked)
 	_check(rod.holder == 1, "grabbed it")
