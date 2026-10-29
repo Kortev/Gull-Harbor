@@ -42,15 +42,24 @@ repo, now `main`), tick it here.
   - [x] **The captain at the wheel** (E on the helm, A/D to turn, S to back down): the tuna swings round the boat; let it get too far off the stern and the line rubs the hull (strain jumps), let it get under the boat and the props cut it. Backing down on the fish wins the angler line back fast and takes the strain off: the rescue when the angler's losing.
   - [x] **The angler tires:** cranking and pumping drain your arms; tired arms crank slower and pump weaker, and a giant outlasts one person, so you hand the rod off mid-fight (anyone grabs it).
   - **Clear the other lines:** when a fish hits, the other baits are still out; a running tuna that crosses one tangles it (lost, or a fight with a tangle). Someone reels them in.
-  - **Boatside, everybody:** one keeps the line tight, one grabs the leader (the wire above the hook: "wiring"), one throws the harpoon ("the stick"), then haul it in through the tuna door (a giant takes two or three pulling).
-  - **After:** bleed it and ice it fast for a better grade, while the captain runs to the next birds.
+  - [x] **Boatside:** the beaten fish lies astern; someone grabs the harpoon (along the port side) and sticks it,
+    then it's hauled in through a tuna door in the transom (hold E; alone a giant takes about 20 s, two or three
+    make it quick). Leave it unstuck for 90 s and the hook pulls (`tuna/landing.gd`, `tests/landing_test.tscn`).
+    Not yet played in Godot.
+  - **Boatside, still to do:** one keeps the line tight while one grabs the leader (the wire above the hook:
+    "wiring") before the stick, so it really takes three hands on the big boat.
+  - [x] **After:** bleed it and ice it (E on the fish on deck, then E again into the fish box) for a better grade
+    (`boat/fish_hold.gd`).
   - [x] **The rod in the holder fights on its drag** (the fish takes line only on its runs, nobody wins any back),
     a hooked fish never gets its strength back, the boat out-turns a circling fish, picking the rod up carries on
     the same fight, the angler's corner keeps the line off the hull, and the HUD shows the line out and whether
     you're gaining. Not yet played in Godot.
   - **Solo** works: you drop the rod in the holder to run to the wheel. It's meant to feel desperate, and a giant
     alone takes about twelve minutes (see the table in WHILE_YOU_WERE_AWAY).
-- [ ] **The tally:** fish on deck and in the hold, weight, money for the trip: sold by the pound, graded on how it was handled (fought fast, bled, iced).
+- [x] **The tally:** top left, the hold, the deck, the weight, what it's worth and the bank. Esc, "Head in and sell
+  the catch" sells it by the kilo at its grade (#1, #2, #3: landed fast, bled soon, iced soon), shows the slip,
+  and banks the money (kept between games); "Head back out" starts the next trip (`boat/fish_hold.gd`,
+  `ui/menu.gd`). Not yet played in Godot. Later: a real trip (the run out and back, fuel, a hold that fills).
 - [ ] **Title screen**, and a day going by (dawn, day, dusk, night) instead of the dev-only `--night`.
 - [x] **Steam as the main way to play together:** host a friends-only Steam lobby, friends join from the menu's list or an invite, traffic through Steam's relays (`core/steam_link.gd`; needs the GodotSteam add-on from the AssetLib; `tools/steam_test.sh` against a stand-in for Steam). The join code stays as the backup.
 - Later: **longer fights.** Real ones on heavy tackle run twenty minutes to over an hour for a giant; ours are a

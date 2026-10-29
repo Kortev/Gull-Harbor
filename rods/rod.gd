@@ -39,10 +39,18 @@ var fight: RefCounted
 var free_t := 0.0
 ## How worn the line is from rubbing the hull (fight.gd), kept when the rod changes hands.
 var wear := 0.0
+## The fight's own strain and which way round the fish is swinging, kept when the rod changes hands too.
+var wrong := 0.0
+var turn_sign := 0.0
+## Who held it last (a fight that ended as it changed hands still counts: rods.gd's _report_end).
+var last_holder := 0
+## Its fish is beaten and up alongside (tuna/landing.gd): no more fighting, just the line to it till it's stuck.
+var alongside := false
 var _scream: AudioStreamPlayer3D
 var _whir: AudioStreamPlayer3D
 var _sing: AudioStreamPlayer3D
 var _last_out := 0.0
+var _paying := 0.0
 var _blank: MeshInstance3D
 var _handle: Node3D
 var _tip_local := Vector3(0, 0, LENGTH)
@@ -147,8 +155,11 @@ func _process(delta: float) -> void:
 	if _handle:
 		_handle.rotate_object_local(Vector3.RIGHT, -reeling * delta * 12.0)
 	# the drag screams while the fish takes line: louder and higher the faster it goes
-	var paying := (line_out - _last_out) / maxf(delta, 1e-4)
+	# (smoothed: a crewmate's fish comes in ten updates a second, and the drag mustn't stutter with them)
+	var raw := (line_out - _last_out) / maxf(delta, 1e-4)
 	_last_out = line_out
+	_paying = lerpf(_paying, raw, minf(delta * 6.0, 1.0))
+	var paying := _paying
 	if hooked and paying > 0.6:
 		if not _scream.playing:
 			_scream.play()
@@ -201,6 +212,8 @@ func _draw_line() -> void:
 
 func interact_prompt(player: Node) -> String:
 	if holder == 0:
+		if alongside:
+			return "Grab the rod (it's alongside)"
 		return "GRAB IT! Fish on!" if hooked else "Grab the rod"
 	if hooked and holder != Net.my_id():
 		return "Take over the rod"

@@ -11,6 +11,8 @@ var _strain := 0.0
 var _arms := 1.0
 var _note: Label
 var _note_t := 0.0
+## The catch, top left (boat/fish_hold.gd): the hold, the deck, what it's worth, the bank.
+var _tally: Label
 ## The captain's plotter (bottom middle, only at the wheel with a fish on): her outline, bow up, and each fish
 ## round her as a dot on its line from the stern, red where the line's on the hull.
 var _plot: Control
@@ -70,6 +72,14 @@ func _ready() -> void:
 	_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_note.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
 	add_child(_note)
+	_tally = Label.new()
+	_tally.position = Vector2(16, 12)
+	_tally.add_theme_font_size_override("font_size", 15)
+	_tally.add_theme_color_override("font_color", Color(0.92, 0.9, 0.82, 0.9))
+	_tally.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
+	_tally.add_theme_constant_override("shadow_offset_x", 1)
+	_tally.add_theme_constant_override("shadow_offset_y", 1)
+	add_child(_tally)
 	_plot = Control.new()
 	_plot.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	_plot.position += Vector2(0, -120)
@@ -112,6 +122,11 @@ func _draw_plot() -> void:
 	var gear := "BACKING DOWN" if _throttle < -0.2 else ("AHEAD" if _throttle > 0.2 else "neutral")
 	_plot.draw_string(ThemeDB.fallback_font, Vector2(-r, r + 22.0), gear, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 14,
 			Color(0.9, 0.95, 0.9, 0.9))
+
+
+## The catch's line, top left (boat/fish_hold.gd).
+func tally(text: String) -> void:
+	_tally.text = text
 
 
 ## A line of text at the top for a few seconds ("The host left.").

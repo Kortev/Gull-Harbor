@@ -18,6 +18,9 @@ var length := 2.0
 var velocity := Vector3.ZERO
 ## How hard it's working, 0..1 on top of its speed (a fish on the line beats hard even while held).
 var effort := 0.0
+## Placed by hand (tuna/landing.gd, boat/catch.gd: alongside, or on deck): it stays where it's put, facing how it's
+## put, and only its tail moves.
+var posed := false
 var mesh: MeshInstance3D
 var _phase := 0.0
 var _bend := 0.0
@@ -79,6 +82,12 @@ func steer(dir: Vector3, speed: float, delta: float, turn := 1.6) -> void:
 
 
 func _process(delta: float) -> void:
+	if posed:
+		_phase += TAU * (0.4 + effort) * delta
+		mesh.set_instance_shader_parameter("swim_phase", _phase)
+		mesh.set_instance_shader_parameter("swim_amp", 0.01 + 0.04 * effort)
+		mesh.set_instance_shader_parameter("bend", 0.0)
+		return
 	position += velocity * delta
 	var speed := velocity.length()
 	var dir := velocity / speed if speed > 0.05 else _heading

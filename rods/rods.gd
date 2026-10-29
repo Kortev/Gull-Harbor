@@ -82,6 +82,8 @@ func _ask_grab(i: int) -> void:
 	var helm: Node = (sea.get("boat") as Node).get("helm")
 	if int(helm.get("captain")) == who:
 		return        # (the captain's hands are on the wheel)
+	if int((sea.get("landing") as Node).get("harpoon_holder")) == who:
+		return        # (and the harpoon's in yours)
 	_host_set(i, who)
 
 
@@ -107,6 +109,8 @@ func _host_set(i: int, who: int) -> void:
 func _set_holder(i: int, who: int) -> void:
 	var r := rods[i]
 	var handed := r.holder != 0 and who != 0
+	if r.holder != 0:
+		r.last_holder = r.holder
 	r.holder = who
 	r.fight = null
 	r.lift = 0.0
@@ -141,6 +145,9 @@ func _strike(i: int, kg: float, t: float, bearing: float, seed_value: int) -> vo
 	r.move = "run"
 	r.line_out = (BAITS[i] - STERN).length()
 	r.free_t = t
+	r.alongside = false
+	r.wrong = 0.0
+	r.turn_sign = 0.0
 	r.fight = null
 	r.wear = 0.0
 	r.set_meta("seed", seed_value)
@@ -151,6 +158,7 @@ func _strike(i: int, kg: float, t: float, bearing: float, seed_value: int) -> vo
 func _off(i: int, why: String) -> void:
 	var r := rods[i]
 	r.hooked = false
+	r.alongside = false
 	r.fight = null
 	r.line_out = 0.0
 	r.strain = 0.05
@@ -161,9 +169,9 @@ func _off(i: int, why: String) -> void:
 ## The holder's word on how the fight's going (any peer: the holder's own; everyone else draws it).
 @rpc("any_peer", "call_remote", "unreliable_ordered")
 func _fight_state(i: int, out: float, strain: float, bearing: float, depth: float, energy: float, lift: float,
-		move: String, wear: float) -> void:
+		move: String, wear: float, wrong: float, turn: float) -> void:
 	var r := rods[i]
-	if r.holder == multiplayer.get_remote_sender_id() and r.hooked:
+	if r.holder == multiplayer.get_remote_sender_id() and r.hooked and not r.alongside:
 		r.line_out = out
 		r.strain = strain
 		r.bearing = bearing
@@ -172,14 +180,16 @@ func _fight_state(i: int, out: float, strain: float, bearing: float, depth: floa
 		r.lift = lift
 		r.move = move
 		r.wear = wear
+		r.wrong = wrong
+		r.turn_sign = turn
 
 
 ## The host's word on a fish on a rod in its holder (nobody holding it: the host plays it against the drag).
 @rpc("authority", "call_remote", "unreliable_ordered")
 func _holder_state(i: int, out: float, strain: float, bearing: float, depth: float, energy: float, move: String,
-		wear: float) -> void:
+		wear: float, wrong: float, turn: float) -> void:
 	var r := rods[i]
-	if r.holder == 0 and r.hooked:
+	if r.holder == 0 and r.hooked and not r.alongside:
 		r.line_out = out
 		r.strain = strain
 		r.bearing = bearing
@@ -187,20 +197,43 @@ func _holder_state(i: int, out: float, strain: float, bearing: float, depth: flo
 		r.energy = energy
 		r.move = move
 		r.wear = wear
+		r.wrong = wrong
+		r.turn_sign = turn
 
 
-## The holder's fight ended (lost, or boatside): the host says so to everyone.
+## The holder's fight ended (lost, or boatside): the host says so to everyone. It counts from whoever held it
+## last too: the fight can end on their machine while the rod's changing hands.
 @rpc("any_peer", "call_remote", "reliable")
 func _report_end(i: int, how: String) -> void:
-	if rods[i].holder == multiplayer.get_remote_sender_id() and rods[i].hooked:
-		_host_off(i, _end_text(i, how))
+	var r := rods[i]
+	var who := multiplayer.get_remote_sender_id()
+	if r.hooked and not r.alongside and (r.holder == who or r.last_holder == who):
+		_host_end(i, how)
 
 
-func _end_text(i: int, how: String) -> String:
+## Host: rod i's fight is over: up alongside for the harpoon (tuna/landing.gd), or lost.
+func _host_end(i: int, how: String) -> void:
+	var r := rods[i]
 	if how == "boatside":
-		return "Boatside! A %d kg bluefin. (The harpoon and the tuna door come with the crew jobs.)" \
-				% roundi(rods[i].fish_kg)
-	return str(WHY.get(how, "Lost it."))
+		(sea.get("landing") as Node).call("host_alongside", i, r.fish_kg, r.bearing, r.hook_t)
+	else:
+		_host_off(i, str(WHY.get(how, "Lost it.")))
+
+
+## Everyone (tuna/landing.gd): rod i's fish is up alongside, beaten: no more fight on it.
+func set_alongside(i: int) -> void:
+	var r := rods[i]
+	r.hooked = true
+	r.alongside = true
+	r.fight = null
+	r.move = ""
+	r.strain = 0.35
+	r.wrong = 0.0
+
+
+## Host: rod i's fish is gone (lost alongside, or stuck and on the harpoon now), with why.
+func host_off(i: int, why: String) -> void:
+	_host_off(i, why)
 
 
 func _now() -> float:
@@ -235,12 +268,14 @@ func _sync(states: Array) -> void:
 		r.free_t = float(st[7])
 		r.wear = float(st[8])
 		r.move = str(st[9])
+		r.alongside = bool(st[10])
 
 
 func _states() -> Array:
 	var out := []
 	for r in rods:
-		out.append([r.holder, r.hooked, r.fish_kg, r.line_out, r.bearing, r.depth, r.energy, r.free_t, r.wear, r.move])
+		out.append([r.holder, r.hooked, r.fish_kg, r.line_out, r.bearing, r.depth, r.energy, r.free_t, r.wear, r.move,
+				r.alongside])
 	return out
 
 
@@ -255,6 +290,7 @@ func _process(delta: float) -> void:
 	var boat := sea.get("boat") as Node3D
 	var ocean := sea.get("ocean") as Node
 	var crew := sea.get("crew") as Node
+	var landing := sea.get("landing") as Node
 	var me := Net.my_id()
 	var mine: Rod = null
 	_send_in -= delta
@@ -267,7 +303,9 @@ func _process(delta: float) -> void:
 	var turned := wrapf(heading - _last_heading, -PI, PI)
 	_last_heading = heading
 	for r in rods:
-		if r.hooked:
+		if r.hooked and r.alongside:
+			r.reeling = 0.0
+		elif r.hooked:
 			if r.fight != null:
 				(r.fight as Fight).bearing -= turned
 			if r.holder == 0:
@@ -294,12 +332,17 @@ func _process(delta: float) -> void:
 		else:
 			r.global_transform = _in_hands(p, r.lift)
 		var end := boat.global_transform * BAITS[r.index]
-		if r.hooked:
+		var alongside: Vector3 = landing.call("fish_point", r.index) if r.alongside else Vector3.ZERO
+		if r.alongside and alongside != Vector3.ZERO:
+			end = alongside      # (straight to the fish lying astern)
+		elif r.hooked:
 			# where the line goes in: toward the fish, closer to the boat the deeper it is (a straight line down)
 			var hd := sqrt(maxf(r.line_out * r.line_out - r.depth * r.depth, 0.0))
 			var entry := hd * 2.5 / (2.5 + r.depth * 0.5)
 			end = boat.global_transform * (STERN + Vector3(sin(r.bearing), 0.0, cos(r.bearing)) * entry)
-		end.y = ocean.call("height_at", end)
+			end.y = ocean.call("height_at", end)
+		else:
+			end.y = ocean.call("height_at", end)
 		r.line_end = end
 	var hud := crew.get("hud") as Node
 	var me_node := crew.get("me") as Node
@@ -320,12 +363,16 @@ func _process(delta: float) -> void:
 	else:
 		_trend_out = -1.0
 		_trend = 0.0
-		hud.call("fight", "", 0.0)
+		# nothing on in your hands: what wants doing (a fish alongside to stick and haul, one on deck to bleed)
+		var todo := str(landing.call("hint"))
+		if todo.is_empty():
+			todo = str((sea.get("fish_hold") as Node).call("hint"))
+		hud.call("fight", todo, 0.0)
 	# the captain's plotter: where each fish on is, round the boat
 	var fish := []
 	if bool(helm.call("is_mine")):
 		for r in rods:
-			if r.hooked:
+			if r.hooked and not r.alongside:
 				var hd := sqrt(maxf(r.line_out * r.line_out - r.depth * r.depth, 0.0))
 				var b := absf(wrapf(r.bearing, -PI, PI))
 				fish.append([r.bearing, hd, smoothstep(Fight.CHAFE_FROM, Fight.CHAFE_ALL, b)])
@@ -335,12 +382,12 @@ func _process(delta: float) -> void:
 			for f: Array in fish:
 				worst = maxf(worst, float(f[2]))
 			for r in rods:
-				spiral = spiral or (r.hooked and r.move == "spiral")
+				spiral = spiral or (r.hooked and not r.alongside and r.move == "spiral")
 			var say := "Keep the stern on it!"
-			if worst >= 0.3:
-				say = "It's on the hull! Swing her stern to it!"
-			elif spiral:
+			if spiral:
 				say = "Death spiral! Out of gear: it's going under her"
+			elif worst >= 0.3:
+				say = "It's on the hull! Swing her stern to it!"
 			hud.call("fight", say, 0.0)
 	hud.call("plot", fish, float(helm.get("throttle")))
 
@@ -369,7 +416,8 @@ func _fight_mine(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	var ans := fight.answer()
 	r.reeling = 0.0 if not crank or ans == "hold" else (Fight.CRANK * 0.2 if ans == "ease" else Fight.CRANK)
 	if send:
-		_fight_state.rpc(r.index, r.line_out, r.strain, r.bearing, r.depth, r.energy, r.lift, r.move, r.wear)
+		_fight_state.rpc(r.index, r.line_out, r.strain, r.bearing, r.depth, r.energy, r.lift, r.move, r.wear,
+				r.wrong, r.turn_sign)
 
 
 ## Host: a fish on a rod in its holder, nobody on it. The drag still works it: it takes line on its runs and tires
@@ -385,7 +433,8 @@ func _fight_holder(r: Rod, delta: float, throttle: float, send: bool) -> void:
 		return       # (it ended this step)
 	_take(r, fight)
 	if send:
-		_holder_state.rpc(r.index, r.line_out, r.strain, r.bearing, r.depth, r.energy, r.move, r.wear)
+		_holder_state.rpc(r.index, r.line_out, r.strain, r.bearing, r.depth, r.energy, r.move, r.wear, r.wrong,
+				r.turn_sign)
 
 
 ## The fight for rod r, picked up from where it is (whoever had it, or its holder): the same fish, as tired as it
@@ -395,7 +444,7 @@ func _new_fight(r: Rod) -> Fight:
 	f.bearing = r.bearing
 	f.depth = r.depth
 	f.wear = r.wear
-	f.carry_on(r.move)
+	f.carry_on(r.move, r.wrong, r.turn_sign)
 	f.lost.connect(func(how: String) -> void: _end_mine(r, how))
 	f.boatside.connect(func() -> void: _end_mine(r, "boatside"))
 	r.fight = f
@@ -410,6 +459,8 @@ func _take(r: Rod, fight: Fight) -> void:
 	r.depth = fight.depth
 	r.energy = fight.energy
 	r.move = fight.move
+	r.wrong = fight.strain
+	r.turn_sign = fight.turn_sign()
 
 
 ## How far out over the fish's side the angler's got the rod, 0..1: standing aft at the rail on the side it's on.
@@ -425,10 +476,15 @@ func _reach(p: Node, bearing: float) -> float:
 
 func _end_mine(r: Rod, how: String) -> void:
 	if Net.is_host():
-		_host_off(r.index, _end_text(r.index, how))
+		_host_end(r.index, how)
+		return
+	# (till the host's word comes back: alongside, or gone)
+	r.fight = null
+	if how == "boatside":
+		r.alongside = true
 	else:
-		r.hooked = false        # (till the host's word comes back)
-		_report_end.rpc_id(1, r.index, how)
+		r.hooked = false
+	_report_end.rpc_id(1, r.index, how)
 
 
 ## A rod in someone's hands: the butt at their belt, the rod out in front and up, following where they look; heaved

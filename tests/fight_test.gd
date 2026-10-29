@@ -126,8 +126,10 @@ func _ready() -> void:
 			"a beaten fish only goes into its death spiral close in (furthest %.0f m)" % spiral_out)
 	# Picking a fight up where it was: the fish carries on with what it was doing.
 	var mid := Fight.new(200.0, 80.0, 0.5, 7)
-	mid.carry_on("circle")
-	_check(mid.move == "circle", "a fight picked up mid-move carries on with it (%s)" % mid.move)
+	var was := "spiral" if mid.move != "spiral" else "sound"
+	mid.carry_on(was, 0.7, -1.0)
+	_check(mid.move == was and is_equal_approx(mid.strain, 0.7) and mid.turn_sign() < 0.0,
+			"a fight picked up mid-move carries on with it: %s, the same strain and the same way round" % mid.move)
 	for f in fails:
 		print("FAIL ", f)
 	print("FIGHT TEST ", "PASSED" if fails.is_empty() else "FAILED")

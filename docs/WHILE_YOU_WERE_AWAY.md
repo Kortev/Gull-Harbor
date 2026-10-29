@@ -1,5 +1,52 @@
 # While you were away (newest first)
 
+## The whole loop: hooked, fought, stuck, aboard, sold
+**Not run in Godot yet.** This session couldn't get Godot (its download sites are blocked here). Every script was
+checked with a GDScript parser (gdtoolkit), the fight rules in a Python copy of `tuna/fight.gd`, and the code by two
+independent reviews. It's on the `claude/zealous-mendel-h2udij` branch, not `main`. Run the tests below once in
+Godot before merging.
+
+**How a catch goes now:**
+1. **A bite, the fight** as before, until the fish is beaten and close.
+2. **Boatside:** it lies on the surface just astern. "Boatside! Stick it: the harpoon's along the port side."
+3. **The stick:** E on the harpoon lying along the inside of the port side. Look at the fish and left-click to
+   throw. A miss comes back to its rack on its line; try again. Q puts it back. You can't hold a rod and the
+   harpoon at once, and the captain can't take it.
+4. **The haul:** hold E on the tuna door in the transom (on the fish's side of the live well). Alone, a 100 kg
+   fish takes 7 s and a 400 kg giant about 22 s; each extra pair of hands adds the same again. It comes up through
+   the door as you haul.
+5. **On deck:** it lies across the cockpit. E bleeds it (a pool of blood under it), E again ices it into the fish
+   box.
+6. **Sell:** Esc, "Head in and sell the catch". The slip lists each fish, its grade and price, the total and the
+   bank. "Head back out" starts the next trip.
+- **Don't dawdle:** leave a fish alongside unstuck for 90 s and the hook pulls.
+- **Grades:** a fish is graded #1, #2 or #3 from how fast it was landed for its size, how soon it was bled and
+  how soon it was iced. One still on deck when you head in sells warm, for less. A #1 200 kg fish fetches about
+  $4,500; a #3, slow and left warm, about $2,550.
+- **The tally,** top left: the hold, the deck, the weight, what it's worth now, and the bank. The bank is saved
+  between games (the host's).
+
+**Fixes from a review of the fight changes:**
+- A fight that ended just as the rod changed hands was ignored by the host, so the host and that player disagreed
+  for good. It now counts from whoever held it last.
+- A fish in the holder lost the hook whenever she backed down at all; now only when she backs down onto that fish.
+- Backing down won line on a rod nobody held (nobody's winding in the slack), so a fish in the holder could come
+  boatside on its own. Not any more. And in the holder only its runs tire it.
+- The drag scream stuttered on a crewmate's machine (their updates come ten times a second); it's smoothed.
+- Handing the rod off reset the strain and the break timer (a cheap escape) and could turn a spiral the other way
+  round; both carry over now.
+- In the spiral, the "line's on the hull" warning hid the crank and ease hints a third of every lap, and wore the
+  line through. Deep under her the line goes down steep and only brushes the hull now. The captain sees the spiral
+  hint first.
+- The strike test's angler never rested, so with spent arms it could never pump a far-off beaten fish in; it takes
+  breathers now, like the hint tells you to.
+
+**Tests to run in Godot:**
+- `tests/landing_test.tscn` (new): alongside, the harpoon rules, a miss and a hit, the haul's time, bleed, ice,
+  sell, the slip, back out, the grades, and the hook pulling. It puts your bank back as it was.
+- `tests/strike_test.tscn`: now fights to "alongside, ready for the harpoon".
+- `tests/fight_test.tscn`, `tests/rods_test.tscn`, `tests/helm_test.tscn`, `tools/net_test.sh`.
+
 ## The death spiral, only close in (from your third playtest)
 **Not run in Godot yet** (same as below: checked in a Python copy of the fight; on the working branch, not `main`).
 - **Why you spiralled from 60 m out, from halfway through:** a fish is tired out about halfway through the fight's

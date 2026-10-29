@@ -77,9 +77,9 @@ var throttle := 0.0
 ## buys a little room before the line touches the hull, never as much as swinging the boat. rods.gd sets it from
 ## where the angler stands.
 var reach := 0.0
-## The rod's in its holder with nobody on it (rods.gd): the drag still works the fish and it still takes line on its
-## runs, but nobody cranks or pumps, so between runs it neither tires nor wins line. The drag keeps the line tight,
-## so a headshake only throws the hook if she's backing down onto the fish (slack).
+## The rod's in its holder with nobody on it (rods.gd): the drag still works the fish on its runs (it takes line and
+## tires), but nobody cranks or pumps, so between runs it neither tires nor gives line. Backing down on it wins no
+## line either (nobody's winding in the slack): the slack only lets a headshake throw the hook.
 var in_holder := false
 ## The angler's arms, 1 fresh .. 0 spent (rods.gd keeps them on the person, so they carry over and rest up
 ## between fights). Cranking and heaving wear them, the heavier the fish the faster; a tired angler cranks slower
@@ -101,6 +101,9 @@ var _prop_t := 0.0
 var _pump := 0.0
 var _lift_low := true
 var _goal_s := 90.0
+## In a spiral: the half of the lap it's on (forward, going under her), with a little give either side of the beam
+## so the hint doesn't flicker as it crosses.
+var _going_under := false
 
 
 func _init(weight_kg: float, out: float, fresh := 1.0, seed_value := -1) -> void:
@@ -116,7 +119,7 @@ func _init(weight_kg: float, out: float, fresh := 1.0, seed_value := -1) -> void
 
 
 func answer() -> String:
-	if move == "spiral" and cos(bearing) < 0.0:
+	if move == "spiral" and _going_under:
 		return "ease"
 	return str(MOVES[move]["answer"])
 
@@ -163,7 +166,7 @@ func step(dt: float, crank: bool, lift: float) -> void:
 	# Line: the move takes it (the drag and the boat backing down slow it), the reel brings it back if the move lets
 	# you, and so does the boat coming back over it.
 	line_out += RUN_SPEED * float(m["out"]) * e * dt * (1.0 - 0.7 * back)
-	line_out += (1.5 * ahead - BACK_SPEED * back) * dt
+	line_out += (1.5 * ahead - (0.0 if in_holder else BACK_SPEED * back)) * dt
 	var gain := 0.0
 	if crank:
 		match ans:
@@ -202,6 +205,8 @@ func step(dt: float, crank: bool, lift: float) -> void:
 	# Off the stern and forward of the beam the line lies along the hull: it rubs, harder the flatter it lies.
 	var hd0 := sqrt(maxf(line_out * line_out - depth * depth, 0.0))
 	chafe = smoothstep(CHAFE_FROM + 0.35 * reach, CHAFE_ALL + 0.35 * reach, b) * hd0 / (hd0 + depth + 1.0)
+	if move == "spiral":
+		chafe *= 0.5        # (deep under her, the line goes down steep and only brushes the hull)
 	target = maxf(target, 0.6 * chafe)
 	wear += chafe * (0.4 + 0.6 * pull) * dt / CHAFE_LIFE
 	if wear >= 1.0:
@@ -224,7 +229,7 @@ func step(dt: float, crank: bool, lift: float) -> void:
 	else:
 		_over_t = maxf(_over_t - dt * 2.0, 0.0)
 	if ans == "tight":
-		var slack: bool = throttle < -0.05 if in_holder else (not crank and lift < 0.4)
+		var slack: bool = back > 0.05 if in_holder else (not crank and lift < 0.4)
 		_slack_t = _slack_t + dt if slack else 0.0
 		if _slack_t > SLACK_GRACE:
 			_end("pulled")
@@ -245,11 +250,18 @@ func step(dt: float, crank: bool, lift: float) -> void:
 			drain *= 1.2 if lift > 0.5 or _pump > 0.0 else 0.3
 		_:
 			drain *= 1.0 if crank or lift > 0.5 else 0.0
+	if in_holder and ans != "hold":
+		drain = 0.0
 	energy = clampf(energy - drain * dt, 0.0, 1.0)
 
 	# Where it is: swinging round the boat, heading for its depth (never deeper than the line reaches).
 	var hd := maxf(sqrt(maxf(line_out * line_out - depth * depth, 0.0)), 1.0)
 	bearing += float(m["turn"]) * _turn_sign * dt * clampf(20.0 / hd, 0.2, 1.2)
+	var c := cos(bearing)
+	if c < -0.1:
+		_going_under = true
+	elif c > 0.1:
+		_going_under = false
 	# a big fish tows her stern round toward it, slowly
 	bearing -= sin(wrapf(bearing, -PI, PI)) * TOW * pull * dt
 	var want := minf(float(m["depth"]), line_out * 0.85)
@@ -307,10 +319,20 @@ func _pick() -> String:
 
 
 ## Picking up a fight where it was (the rod changing hands, or going into its holder): the fish carries on with
-## what it was doing instead of starting a new move.
-func carry_on(m: String) -> void:
+## what it was doing, the same way round, and the line's as strained as it was.
+## `turn`: which way round it was swinging (+1 or -1; 0: unknown).
+func carry_on(m: String, strain_was := 0.0, turn := 0.0) -> void:
 	if MOVES.has(m) and m != move:
 		_set_move(m)
+	strain = strain_was
+	if turn != 0.0:
+		_turn_sign = signf(turn)
+	_going_under = cos(bearing) < 0.0
+
+
+## Which way round it's swinging (+1 or -1), for carry_on when the rod changes hands.
+func turn_sign() -> float:
+	return _turn_sign
 
 
 func _set_move(m: String) -> void:

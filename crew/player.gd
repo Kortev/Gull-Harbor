@@ -212,6 +212,12 @@ func _process(delta: float) -> void:
 		_update_prompt()
 
 
+## What you're looking at that you could press E on (null: nothing): tuna/landing.gd checks you're still on the
+## tuna door while you haul.
+func looking_at() -> Node:
+	return _looked_at()
+
+
 func _looked_at() -> Node:
 	var space := get_world_3d().direct_space_state
 	var from := cam.global_position

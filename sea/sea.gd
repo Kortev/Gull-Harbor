@@ -22,6 +22,8 @@ const Rods := preload("res://rods/rods.gd")
 const Schools := preload("res://tuna/schools.gd")
 const Sonar := preload("res://tuna/sonar.gd")
 const Weather := preload("res://sea/weather.gd")
+const Landing := preload("res://tuna/landing.gd")
+const FishHold := preload("res://boat/fish_hold.gd")
 
 ## How rough the sea is (ocean.gd: 0 calm, 0.5 rain, 1 storm), the sun, and how thick the fog.
 const CONDITIONS := {
@@ -51,6 +53,9 @@ var boat: Boat
 var crew: Crew
 var rods: Rods
 var schools: Schools
+## Boatside to the deck (the harpoon, the tuna door), and the catch (on deck, in the hold, the money).
+var landing: Landing
+var fish_hold: FishHold
 var _args := {}
 var _frames := 0
 var _steered := false
@@ -78,6 +83,14 @@ func _ready() -> void:
 	rods.name = "Rods"
 	rods.sea = self
 	add_child(rods)
+	landing = Landing.new()
+	landing.name = "Landing"
+	landing.sea = self
+	add_child(landing)
+	fish_hold = FishHold.new()
+	fish_hold.name = "FishHold"
+	fish_hold.sea = self
+	add_child(fish_hold)
 	schools = Schools.new()
 	schools.name = "Schools"
 	schools.sea = self

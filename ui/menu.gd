@@ -1,7 +1,10 @@
 extends CanvasLayer
-## The Esc menu: back to it, host a crew, join a friend's boat, leave, quit. Shown whenever the mouse is free.
+## The Esc menu: back to it, head in and sell the catch (and the slip after), host a crew, join a friend's boat,
+## leave, quit. Shown whenever the mouse is free.
 ## Steam first (host, invite, your Steam friends with a boat out), the join code under it as the backup.
 ## (No weather here: the sea decides that, sea/weather.gd.)
+
+const FishHold := preload("res://boat/fish_hold.gd")
 
 var _panel: PanelContainer
 var _status: Label
@@ -16,6 +19,10 @@ var _steam_host: Button
 var _steam_invite: Button
 var _friends: VBoxContainer
 var _friends_in := 0.0
+var _head_in: Button
+## The slip from the last sale (boat/fish_hold.gd's `sale`), and which sale it's showing.
+var _slip: VBoxContainer
+var _slip_of := {}
 
 
 func _ready() -> void:
@@ -42,6 +49,14 @@ func _ready() -> void:
 	_status.modulate = Color(0.75, 0.78, 0.8)
 	col.add_child(_status)
 	col.add_child(_button("Back to the deck", _resume))
+	_slip = VBoxContainer.new()
+	_slip.add_theme_constant_override("separation", 4)
+	col.add_child(_slip)
+	_head_in = _button("Head in and sell the catch", func() -> void:
+		var hold := _fish_hold()
+		if hold:
+			hold.call("head_in"))
+	col.add_child(_head_in)
 	# Steam: the main way (no ports, no codes)
 	_steam_box = VBoxContainer.new()
 	_steam_host = _button("Host on Steam", func() -> void:
@@ -145,6 +160,57 @@ func _process(_delta: float) -> void:
 			_list_friends()
 	if _status.text.is_empty():
 		_status.text = "Alone on the boat." if not session else ""
+	var hold := _fish_hold()
+	var sold: Dictionary = hold.get("sale") if hold else {}
+	_head_in.visible = hold != null and Net.is_host() and sold.is_empty()
+	if sold != _slip_of:
+		_slip_of = sold.duplicate(true)
+		_fill_slip(sold)
+
+
+func _fish_hold() -> Node:
+	return get_parent().get("fish_hold") as Node
+
+
+## The sale slip: each fish, its grade and what it fetched, the total and the bank; the skipper heads back out.
+func _fill_slip(sold: Dictionary) -> void:
+	for c in _slip.get_children():
+		c.queue_free()
+	if sold.is_empty():
+		return
+	var title := Label.new()
+	title.text = "SOLD AT THE DOCK"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 20)
+	_slip.add_child(title)
+	var lines: Array = sold["lines"]
+	if lines.is_empty():
+		_slip.add_child(_slip_line("Nothing in the hold this trip."))
+	for l: Array in lines:
+		_slip.add_child(_slip_line("%d kg bluefin   %s   $%s" % [roundi(float(l[0])), str(l[1]),
+				_money(int(l[2]))]))
+	_slip.add_child(_slip_line("Total  $%s" % _money(int(sold["total"])), 20))
+	_slip.add_child(_slip_line("Bank $%s   (best trip $%s)" % [_money(int(sold["bank"])), _money(int(sold["best"]))]))
+	if Net.is_host():
+		_slip.add_child(_button("Head back out", func() -> void:
+			var hold := _fish_hold()
+			if hold:
+				hold.call("head_out")
+			_resume()))
+	else:
+		_slip.add_child(_slip_line("The skipper takes her back out."))
+
+
+func _slip_line(text: String, size := 16) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.add_theme_font_size_override("font_size", size)
+	return l
+
+
+static func _money(n: int) -> String:
+	return FishHold._money(n)
 
 
 ## Screenshots and tests never show the menu.
