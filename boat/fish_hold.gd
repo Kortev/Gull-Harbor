@@ -17,6 +17,7 @@ extends Node
 const Tuna := preload("res://tuna/tuna.gd")
 const Action := preload("res://core/action.gd")
 const Kinds := preload("res://boat/kinds.gd")
+const Sfx := preload("res://audio/sfx.gd")
 const SAVE := "user://bluefin.cfg"
 ## Dollars a kilo for a fish of quality 1 is 0.35 + 0.9 = 1.25 times this; quality 0, 0.35 times.
 const PRICE_PER_KG := 18.0
@@ -56,6 +57,7 @@ var sale := {}
 var _next_id := 1
 var _deck := {}               # fish id -> its Tuna on deck
 var _sold_noted := false
+var _heard := {}              # fish id -> [bled, iced] last time (_hear_work)
 ## Where the bank's kept (tests point it somewhere else so they don't touch yours).
 var save_path := SAVE
 
@@ -287,6 +289,7 @@ func buy(item: String) -> bool:
 		gear.append(item)
 	else:
 		owned.append(item)
+	Sfx.play("ui.buy")
 	_save()
 	_host_changed()
 	return true
@@ -312,6 +315,7 @@ func _sync(state: Dictionary) -> void:
 	sale = state["sale"]
 	_next_id = int(state["next"])
 	var was := docked
+	_hear_work()
 	docked = bool(state.get("docked", docked))
 	trip_t0 = float(state.get("trip_t0", trip_t0))
 	kind = str(state.get("kind", kind))
@@ -324,8 +328,25 @@ func _sync(state: Dictionary) -> void:
 		_sold_noted = false
 	elif not _sold_noted:
 		_sold_noted = true
+		Sfx.play("kit.coins")
 		_note("Sold: %d fish for $%s. The slip's in the Esc menu." % [(sale["lines"] as Array).size(),
 				_money(int(sale["total"]))])
+
+
+## The sounds of the work on deck, from what's newly done to each fish since last time: a bleed (a wet slap), the
+## fish box lid (a clank). (Before the deck's rebuilt, while an iced fish still lies there.)
+func _hear_work() -> void:
+	for f: Dictionary in fish:
+		var id := int(f["id"])
+		var done := [float(f["bled_s"]) >= 0.0, float(f["iced_s"]) >= 0.0]
+		var was: Array = _heard.get(id, [false, false])
+		var node := _deck.get(id) as Node3D
+		if node != null and _heard.has(id):
+			if done[0] and not bool(was[0]):
+				Sfx.play_point(self, node.global_position, "dock.slap", 0.8, 0.55)
+			elif done[1] and not bool(was[1]):
+				Sfx.play_point(self, node.global_position, "kit.clank")
+		_heard[id] = done
 
 
 ## In to the dock, or out to the grounds: the dock screen comes up (the mouse freed for it), or goes and you're

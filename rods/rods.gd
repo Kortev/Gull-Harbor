@@ -6,6 +6,7 @@ extends Node3D
 
 const Rod := preload("res://rods/rod.gd")
 const Fight := preload("res://tuna/fight.gd")
+const Sfx := preload("res://audio/sfx.gd")
 ## A rod nobody's holding sits in its holder with the drag set: the host plays the fish against the drag (it takes
 ## line on its runs and tires doing it; between them nobody wins any back) and tells everyone how it's going.
 const WHY := {"broke": "The line parted! Too much strain: when the ring goes red, ease off.",
@@ -200,6 +201,8 @@ func _line(i: int, reel_in: bool) -> void:
 	var r := rods[i]
 	if r.tangled >= 0 and reel_in:
 		_hud_note("Cleared the %s line!" % _name_of(i))
+	if reel_in != r.bait_in:
+		Sfx.play_point(self, r.global_position, "dock.reel", 0.9, 1.2 if reel_in else 0.9)
 	r.bait_in = reel_in
 	r.tangled = -1
 
@@ -209,6 +212,7 @@ func _tangle(i: int, with_rod: int) -> void:
 	if i < 0 or i >= rods.size():
 		return
 	rods[i].tangled = with_rod
+	Sfx.play_point(self, rods[i].global_position, "kit.jolt")
 	_hud_note("TANGLED! The fish ran across the %s line: clear it, E on that rod" % _name_of(i))
 
 

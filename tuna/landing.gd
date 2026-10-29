@@ -12,6 +12,7 @@ extends Node
 
 const Tuna := preload("res://tuna/tuna.gd")
 const Action := preload("res://core/action.gd")
+const Sfx := preload("res://audio/sfx.gd")
 
 ## Seconds a fish lies alongside before the hook pulls, if nobody sticks it.
 const HOOK_HOLDS := 90.0
@@ -279,6 +280,7 @@ func throw() -> void:
 	var dir := -cam.global_basis.z
 	var hit := aimed_at(cam.global_position, dir)
 	_fly_t = 0.35
+	Sfx.play_point(self, _harpoon.global_position, "dock.flaps", 0.8, 1.3)
 	var boat := sea.get("boat") as Node3D
 	_fly_at = boat.global_transform.affine_inverse() * _harpoon.global_transform
 	_fly_dir = boat.global_basis.inverse() * dir
@@ -381,6 +383,7 @@ func _stuck(i: int) -> void:
 	f["stuck"] = true
 	var node := f["node"] as Tuna
 	node.effort = 0.08
+	Sfx.play_point(self, node.global_position, "collar.thump", 1.0, 0.8)
 	# the dart in its back, and the float on its line
 	var dart := MeshInstance3D.new()
 	var shaft := CylinderMesh.new()
@@ -458,6 +461,7 @@ func _wired(i: int, until: float) -> void:
 	if fish.has(i):
 		fish[i]["wired_until"] = until
 		_note("Wired! Stick it before it shakes free (%d s)" % roundi(WIRE_HOLD))
+		Sfx.play_point(self, (fish[i]["node"] as Node3D).global_position, "kit.chain")
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -557,6 +561,8 @@ func _host_aboard(i: int) -> void:
 func _aboard(i: int) -> void:
 	if _my_pull == i:
 		_my_pull = -1
+	if fish.has(i):
+		Sfx.play_point(self, (fish[i]["node"] as Node3D).global_position, "dock.slap", 1.0, 0.7)
 	_drop(i)
 
 
