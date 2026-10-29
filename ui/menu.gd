@@ -174,8 +174,8 @@ func _process(_delta: float) -> void:
 	_back.visible = not docked
 	_head_in.visible = hold != null and Net.is_host() and not docked
 	var now := [docked, Net.is_host(), (hold.get("sale") as Dictionary).duplicate(true), hold.get("bank"),
-			hold.get("kind"), (hold.get("owned") as Array).duplicate(), (hold.get("gear") as Array).duplicate()] \
-			if hold else []
+			hold.get("kind"), (hold.get("owned") as Array).duplicate(), (hold.get("gear") as Array).duplicate(),
+			hold.get("quota"), hold.get("earned"), hold.get("day")] if hold else []
 	if now != _dock_of:
 		_dock_of = now
 		_fill_dock(hold, docked)
@@ -195,6 +195,24 @@ func _fill_dock(hold: Node, docked: bool) -> void:
 		return
 	var skipper := Net.is_host()
 	var sold: Dictionary = hold.get("sale")
+	# how the quota went, if that was its last day
+	var verdict := str(sold.get("verdict", ""))
+	if verdict == "met":
+		var q: Array = sold["quota"]
+		_dock.add_child(_slip_line("QUOTA %d MADE: $%s of $%s" % [int(q[0]), _money(int(q[1])), _money(int(q[2]))],
+				24, Color(0.6, 1.0, 0.6)))
+		_dock.add_child(_slip_line("The bank wants $%s next, in %d days." % [_money(int(sold["next"])),
+				FishHold.DAYS]))
+		_dock.add_child(HSeparator.new())
+	elif verdict == "lost":
+		var q: Array = sold["quota"]
+		var run: Dictionary = sold["run"]
+		_dock.add_child(_slip_line("THE BANK TOOK THE BOAT", 26, Color(1.0, 0.45, 0.4)))
+		_dock.add_child(_slip_line("$%s of the $%s owed. That run made %d quota%s: %d fish, the biggest %d kg." % [
+				_money(int(q[1])), _money(int(q[2])), int(run["quotas"]), "" if int(run["quotas"]) == 1 else "s",
+				int(run["fish"]), roundi(float(run["biggest"]))]))
+		_dock.add_child(_slip_line("A new start: the skiff and $%s." % _money(FishHold.START_CASH)))
+		_dock.add_child(HSeparator.new())
 	if not sold.is_empty():
 		_dock.add_child(_slip_line("SOLD AT THE DOCK", 20))
 		var lines: Array = sold["lines"]
@@ -209,7 +227,19 @@ func _fill_dock(hold: Node, docked: bool) -> void:
 		_dock.add_child(HSeparator.new())
 	else:
 		_dock.add_child(_slip_line("AT THE DOCK", 20))
-	_dock.add_child(_slip_line("Bank $%s   (best trip $%s)" % [_money(int(hold.get("bank"))), _money(int(hold.get("best")))]))
+	var quota := int(hold.get("quota"))
+	var earned := int(hold.get("earned"))
+	_dock.add_child(_slip_line("QUOTA %d: $%s of $%s   Day %d of %d" % [int(hold.get("quota_n")), _money(earned),
+			_money(quota), int(hold.get("day")), FishHold.DAYS], 20,
+			Color(0.6, 1.0, 0.6) if earned >= quota else Color(1.0, 0.92, 0.6)))
+	var bar := ProgressBar.new()
+	bar.max_value = maxf(quota, 1)
+	bar.value = minf(earned, quota)
+	bar.show_percentage = false
+	bar.custom_minimum_size = Vector2(0, 10)
+	_dock.add_child(bar)
+	_dock.add_child(_slip_line("Bank $%s   (best run: %d quotas)" % [_money(int(hold.get("bank"))),
+			int(hold.get("best_run"))]))
 	# the boats
 	var bank := int(hold.get("bank"))
 	var owned: Array = hold.get("owned")
@@ -274,9 +304,11 @@ func _fill_dock(hold: Node, docked: bool) -> void:
 		_dock.add_child(_slip_line("Waiting for the skipper to head out."))
 
 
-func _slip_line(text: String, size := 16) -> Label:
+func _slip_line(text: String, size := 16, tint := Color(1, 1, 1)) -> Label:
 	var l := Label.new()
 	l.text = text
+	l.modulate = tint
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.add_theme_font_size_override("font_size", size)
 	return l

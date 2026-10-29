@@ -26,7 +26,7 @@ func _ready() -> void:
 	var rods := sea.rods
 	_check(hold.docked and hold.chum == 0, "at the dock: no chum out yet")
 	# nothing bites at the dock
-	sea.schools._start(50, 7, sea.schools.now(), Vector2(rods.rods[0].line_end.x, rods.rods[0].line_end.z),
+	sea.schools._start(50, 11, sea.schools.now(), Vector2(rods.rods[0].line_end.x, rods.rods[0].line_end.z),
 			Vector2(1, 0), 0.0, 300.0, 300.0)
 	await get_tree().create_timer(3.0).timeout
 	var any := false
@@ -73,7 +73,7 @@ func _ready() -> void:
 	_check(hold.well == FishHold.WELL_MAX, "not past a full well")
 	# get near a school and slow down, and it finds the baits
 	var at0: Vector2 = helm.get("at")
-	sea.schools._start(55, 9, sea.schools.now(), at0 + Vector2(0.0, -120.0), Vector2(1, 0), 1.5, 200.0, 200.0)
+	sea.schools._start(55, 11, sea.schools.now(), at0 + Vector2(0.0, -120.0), Vector2(1, 0), 1.5, 200.0, 200.0)
 	var near = sea.schools.schools[sea.schools.schools.size() - 1]
 	sea.schools._drawing()
 	_check(near.drawn_to == sea.schools.spread_heart() and near.speed == Schools.DRAW,
@@ -101,6 +101,26 @@ func _ready() -> void:
 	sea.chum._last = -1e9
 	sea.chum._ask_scoop_as(1)
 	_check(hold.chum == 0, "an empty bucket")
+	# the quota: made on its last day, a bigger one; missed, the bank takes the boat and a new run starts
+	hold.day = FishHold.DAYS
+	hold.earned = 0
+	hold.quota = 100
+	hold.fish = [{"id": 99, "kg": 100.0, "fight_s": 100.0, "aboard_t": 0.0, "bled_s": 10.0, "iced_s": 20.0, "spot": 0}]
+	hold.head_in()
+	_check(str(hold.sale["verdict"]) == "met" and hold.quota_n == 2 and hold.day == 1
+			and hold.quota == FishHold.quota_for(2) and hold.earned == 0, "quota made: the next one's bigger")
+	hold.head_out("skiff")
+	_check(not hold.docked and hold.day == 1, "out on day 1 of the next")
+	hold.head_in()
+	_check(hold.day == 2 and str(hold.sale["verdict"]).is_empty(), "a day without the last: day 2")
+	hold.head_out("skiff")
+	hold.day = FishHold.DAYS
+	hold.gear = ["bait", "reel"]
+	hold.head_in()
+	_check(str(hold.sale["verdict"]) == "lost" and hold.quota_n == 1 and hold.bank == FishHold.START_CASH
+			and hold.gear.is_empty() and int(hold.sale["run"]["quotas"]) == 1,
+			"missed: the bank takes the boat, a fresh run (%s)" % str(hold.sale.get("run", {})))
+	_check(hold.best_run == 1, "the best run's kept")
 	_done()
 
 

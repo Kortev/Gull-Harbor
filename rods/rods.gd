@@ -28,6 +28,8 @@ const LIVE_LIFE := 600.0
 const STALE := 0.5
 const REBAIT := 4.0
 const LIVE_BITES := 1.5
+## Faster than this (m/s: tuna/schools.gd's BITE_SPEED) the baits skip along the top.
+const BITE_SPEED_SKIP := 6.0
 
 var sea: Node                 # sea/sea.gd
 var rods: Array[Rod] = []
@@ -608,7 +610,10 @@ func _process(delta: float) -> void:
 		elif r.bait_in:
 			end = r.tip_position() + Vector3(0.0, -0.3, 0.0)     # (reeled in: just the leader hanging)
 		else:
-			end.y = ocean.call("height_at", end)
+			end = _tow(r, end, float(helm.get("speed")), ocean, delta)
+		if r.hooked or r.bait_in or tangled_in:
+			r.bait_p = Vector3.INF       # (out again, it starts from where her spread puts it)
+			r.slack = 0.0
 		r.line_end = end
 	var hud := crew.get("hud") as Node
 	var me_node := crew.get("me") as Node
@@ -636,6 +641,9 @@ func _process(delta: float) -> void:
 			todo = str((sea.get("fish_hold") as Node).call("hint"))
 		if todo.is_empty() and not bool((sea.get("fish_hold") as Node).get("docked")):
 			todo = hint()
+			var glasses: Node = sea.get("binoculars")
+			if todo.is_empty() and glasses != null and int(glasses.get("used")) < 3:
+				todo = "Find the birds: hold B for the binoculars, look along the horizon, left click to call a flock"
 		hud.call("fight", todo, 0.0)
 	# the captain's plotter: where each fish on is, round the boat
 	var fish := []
@@ -669,6 +677,38 @@ func _process(delta: float) -> void:
 				say = "It's on the hull! Swing her stern to it!"
 			hud.call("fight", say, 0.0)
 	hud.call("plot", fish, float(helm.get("throttle")))
+
+
+## A bait being towed (its line out, nothing on): dragged along behind the rod tip on its line, held out to its side
+## of the spread while she's moving (the outriggers' job: `spot` is where her spread puts it), swinging wide round
+## her turns, carrying on and dropping back when she stops (the line going slack), riding the swell, and skipping
+## along the top at speed. Every peer tows its own (it's for the eye; the host's is the one the tuna bite).
+func _tow(r: Rod, spot: Vector3, speed: float, ocean: Node, delta: float) -> Vector3:
+	var tip := r.tip_position()
+	if r.bait_p == Vector3.INF or r.bait_p.distance_to(spot) > 150.0:
+		r.bait_p = spot
+		r.bait_v = Vector3.ZERO
+	var reach := maxf(tip.distance_to(Vector3(spot.x, tip.y - 1.5, spot.z)), 5.0)
+	var p := r.bait_p
+	var held := clampf(absf(speed) / 3.0, 0.0, 1.0)
+	r.bait_v += Vector3(spot.x - p.x, 0.0, spot.z - p.z) * 0.9 * held * delta
+	r.bait_v *= exp(-1.1 * delta)
+	var was := p
+	p += r.bait_v * delta
+	# on its line: no further from the tip than the line out; pulled along it when she tows it
+	var off := Vector3(p.x - tip.x, 0.0, p.z - tip.z)
+	if off.length() > reach:
+		var n := off.normalized()
+		p = Vector3(tip.x, p.y, tip.z) + n * reach
+	# (its way through the water is what it actually did: dragged along, it carries on when she stops)
+	if delta > 0.0:
+		r.bait_v = Vector3(p.x - was.x, 0.0, p.z - was.z) / delta
+	r.slack = clampf(1.0 - minf(off.length(), reach) / reach, 0.0, 1.0)
+	p.y = float(ocean.call("height_at", p))
+	if absf(speed) > BITE_SPEED_SKIP:
+		p.y += absf(sin(_now() * 7.0 + r.index * 1.9)) * 0.3     # (skipping)
+	r.bait_p = p
+	return p
 
 
 ## Your rod with a fish on: you fight it here (left mouse cranks, right mouse heaves the rod up) and tell the rest.

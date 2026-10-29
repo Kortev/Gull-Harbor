@@ -39,6 +39,8 @@ var body_mesh: MeshInstance3D
 var force_input := false
 ## A fish pulling on the rod in your hands, 0..1 (rods.gd): your view trembles with it and gets tugged toward it.
 var shake := 0.0
+## Slower looking (crew/binoculars.gd: through them, a little mouse goes a long way).
+var look_scale := 1.0
 ## Your arms, 1 fresh .. 0 spent (tuna/fight.gd wears them in a fight; off the rod they come back at REST).
 var arms := 1.0
 ## At the wheel (boat/helm.gd): your feet stay put and the keys steer her instead.
@@ -193,8 +195,8 @@ func _input(event: InputEvent) -> void:
 	if is_multiplayer_authority() and event is InputEventMouseMotion \
 			and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var m := event as InputEventMouseMotion
-		_yaw -= m.relative.x * LOOK
-		_pitch = clampf(_pitch - m.relative.y * LOOK, -1.45, 1.45)
+		_yaw -= m.relative.x * LOOK * look_scale
+		_pitch = clampf(_pitch - m.relative.y * LOOK * look_scale, -1.45, 1.45)
 
 
 func _unhandled_input(event: InputEvent) -> void:

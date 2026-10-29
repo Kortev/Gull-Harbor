@@ -19,7 +19,7 @@ func _ready() -> void:
 	var t: float = sea.schools.now()
 	var aim: Vector3 = sea.rods.rods[0].line_end
 	for seed in range(1, 500):
-		if Sea.Schools.hash1(float(seed % 1000), 0.0) > 0.4:
+		if Sea.Schools.hash1(float(seed % 1000), 0.0) > 0.4 and Sea.Schools.hash1(float(seed % 977), 3.7) >= Sea.Schools.BAIT_ONLY:
 			sea.schools._start(1, seed, t, Vector2(aim.x - 3.0, aim.z), Vector2(1, 0), 0.4, 200.0)
 			break
 	var hooked := -1

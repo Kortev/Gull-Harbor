@@ -1,7 +1,9 @@
 extends Node
 ## The radar at the helm (the dash's right-hand screen, 96 x 96): heading up, RANGE m to the edge, the sweep going
-## round with the bar on the hardtop, and the birds working over each school painted as a blob where the sweep last
-## crossed them, fading till it comes round again. Real tuna boats find the birds this way. Every peer paints its own
+## round with the bar on the hardtop, and birds in the air painted as a blob where the sweep last crossed them, fading
+## till it comes round again (birds sitting on the water don't paint, and it can't tell gulls over little bait from
+## birds over bluefin: that's the binoculars' job). Flocks the crew have called (tuna/schools.gd's marks) show as a
+## mark wherever they are, pinned to the edge if they're further than the radar reaches. Every peer paints its own
 ## from the shared schools.
 
 const S := 96
@@ -69,11 +71,21 @@ func _process(delta: float) -> void:
 		for j in int(S * 0.5):
 			_dot(mid + Vector2(sin(a), -cos(a)) * j, c)
 	# the birds over each school: brightest just swept, fading till the sweep comes round again
+	var marks: Dictionary = schools.get("marks")
 	for s: Node in schools.get("schools"):
 		var c2: Vector2 = s.call("center", t)
 		var rel := c2 - at
 		var p := Vector2(rel.dot(right), rel.dot(fwd))
-		if p.length() > RANGE:
+		if marks.has(int(s.get("id"))):
+			# a called flock: a cross, at the edge if it's beyond the range
+			var q := p if p.length() < RANGE else p.normalized() * RANGE
+			var mp := mid + Vector2(q.x, -q.y) * scale
+			for k in range(-2, 3):
+				_dot(mp + Vector2(k, k), Color(0.4, 0.9, 1.0))
+				_dot(mp + Vector2(k, -k), Color(0.4, 0.9, 1.0))
+		var flying := bool(s.call("feeding", t)) or t < float(s.get("spooked_until")) \
+				or float(s.call("scattering", t)) > 0.0
+		if p.length() > RANGE or not flying:
 			continue
 		var a := atan2(p.x, p.y)
 		var age := fposmod(sweep - a, TAU) / SWEEP

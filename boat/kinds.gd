@@ -76,7 +76,7 @@ const KINDS := {
 		"transom": Vector3(0.0, 0.0, 7.3), "engines": Vector3(0.0, 0.3, 3.5), "bow": Vector3(1.7, 0.6, -5.0),
 		"cabin_light": Vector3(0.0, 2.45, -1.3), "crown": Vector3(0.0, 7.6, -1.3),
 		"chum": Vector3(-0.3, 1.3, 6.6), "jig": 4,
-		"price": 30000, "fuel": 400,
+		"price": 20000, "fuel": 400,
 	},
 }
 

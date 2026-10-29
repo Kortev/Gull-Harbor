@@ -157,6 +157,11 @@ func _add(id: int, slot: int) -> void:
 		me_changed.emit(p)
 
 
+## What the crew call each other: by their oilskins.
+func call_sign(id: int) -> String:
+	return ["Yellow", "Orange", "Green", "Red"][int(slots.get(id, 0)) % 4]
+
+
 func _remove(id: int) -> void:
 	var p := get_player(id)
 	if p:

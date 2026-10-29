@@ -5,9 +5,12 @@ extends Node3D
 ## when it's feeding and where it busts are all worked out from the shared sea clock and its seed, so every peer
 ## sees the same birds and the same busting water.
 ##
-## How you find them: birds working over them (wheeling, diving when the tuna push bait up), the water busting
-## white where they feed, tuna clearing the water, blips on the helm's radar (tuna/radar.gd), and marks on the
-## sonar right under her. Run her to them, then troll the baits through: a feeding school over a bait eats it now
+## How you find them (a hunt: it takes a while): birds, far off. With the naked eye a flock's a smudge on the horizon;
+## through the binoculars (crew/binoculars.gd) you see what they're doing: diving on bluefin busting white water, or
+## working little bait with no tuna under them (BAIT_ONLY of flocks: not worth the run), or sitting on the water
+## because the tuna have gone down (they feed in spells, SPELL s at a time: wait and they'll come up). Call a flock
+## and it's marked on the radar for everyone (call_out); the radar itself paints birds in the air within its range
+## (tuna/radar.gd), and the sonar marks what's right under her. Run her to them, then troll the baits through: a feeding school over a bait eats it now
 ## and then (rods.gd hooks the fish, host only, strike()), but not with the baits skipping behind her at speed
 ## (BITE_SPEED), and run her right through a school fast and it goes down (SPOOK).
 ##
@@ -26,11 +29,15 @@ const PUFF := preload("res://sea/textures/steam_puff.png")
 ## How many work at once, how far off they turn up (m: the first one quickly and closer), how long one lasts (s),
 ## the last of which its birds spend lifting and scattering, and how fast it cruises (m/s).
 const MAX_SCHOOLS := 4
-const SPAWN := Vector2(250.0, 1100.0)
-const FIRST := Vector2(120.0, 260.0)
-const LIFE := Vector2(180.0, 360.0)
+const SPAWN := Vector2(800.0, 2600.0)
+const FIRST := Vector2(600.0, 1000.0)
+const LIFE := Vector2(360.0, 720.0)
 const SCATTER := 25.0
 const CRUISE := Vector2(0.8, 2.2)
+## Of the flocks, how many are only birds over little bait (no bluefin), and how long a feeding spell or a spell down
+## lasts (s: a spell's up or down by the seed's dice).
+const BAIT_ONLY := 0.35
+const SPELL := 40.0
 ## Faster than this (m/s) the baits skip and nothing bites; run her through a school faster than SPOOK_SPEED and it
 ## goes down for SPOOK s.
 const BITE_SPEED := 6.0
@@ -60,6 +67,11 @@ var _first := true
 var slick := Vector2.ZERO
 var slick_t := -1e9
 var _chum_in := 0.0
+## The flocks someone's called (school id -> who: crew/crew.gd's call sign), marked on the radar for everyone.
+var marks := {}
+## The birds' look, shared: dark, and only lightly hazed by distance (the sea's fog would wipe them out past a few
+## hundred metres; a flock on the horizon is what you're looking for).
+var bird_mat: ShaderMaterial
 
 
 static func hash1(a: float, b: float) -> float:
@@ -75,12 +87,30 @@ func now() -> float:
 
 
 func _ready() -> void:
+	bird_mat = ShaderMaterial.new()
+	var sh := Shader.new()
+	sh.code = BIRD_SHADER
+	bird_mat.shader = sh
 	Net.peer_joined.connect(func(id: int) -> void:
 		if multiplayer.is_server():
+			for m: int in marks:
+				_mark.rpc_id(id, m, str(marks[m]), true)
 			for s in schools:
 				_start.rpc_id(id, s.id, s.seed, s.t0, s.start, s.heading, s.speed, s.kg, s.life, s.run)
 				if s.spooked_until > now():
 					_spook.rpc_id(id, s.id, s.spooked_until))
+
+
+const BIRD_SHADER := """
+shader_type spatial;
+render_mode unshaded, cull_disabled, fog_disabled;
+uniform vec4 color : source_color = vec4(0.16, 0.15, 0.15, 1.0);
+uniform vec4 haze : source_color = vec4(0.6, 0.64, 0.68, 1.0);
+uniform float haze_k = 0.0006;
+void fragment() {
+	ALBEDO = mix(color.rgb, haze.rgb, 1.0 - exp(-haze_k * length(VERTEX)));
+}
+"""
 
 
 ## At the dock, between trips: nothing turns up, nothing bites.
@@ -103,6 +133,12 @@ func boat_speed() -> float:
 
 
 func _process(delta: float) -> void:
+	var env := sea.get("env") as Environment
+	if env != null and bird_mat != null:
+		# a third the sea's haze (a storm's wall of fog hides them, though)
+		var k := 0.25 if env.fog_mode == Environment.FOG_MODE_DEPTH else env.fog_density * 0.33
+		bird_mat.set_shader_parameter("haze", env.fog_light_color)
+		bird_mat.set_shader_parameter("haze_k", k)
 	if Net.is_host() and not _docked():
 		_next -= delta
 		if _next <= 0.0:
@@ -111,6 +147,7 @@ func _process(delta: float) -> void:
 				_host_start()
 	for s in schools.duplicate():
 		if s.done(now()):
+			marks.erase(s.id)
 			schools.erase(s)
 			s.queue_free()
 	if Net.is_host():
@@ -135,7 +172,7 @@ func _strikes(delta: float) -> void:
 		on += 1 if bool(r.get("hooked")) else 0
 	var chance := 0.3 * (1.0 if on == 0 else 0.015)
 	for s in schools:
-		if not s.feeding(t):
+		if s.bait_only or not s.feeding(t):
 			continue
 		var c := s.center(t)
 		for r: Node3D in spread.get("rods"):
@@ -167,7 +204,7 @@ func _drawing() -> void:
 	var fishing := absf(boat_speed()) < BITE_SPEED and not _docked()
 	var heart := spread_heart()
 	for s in schools:
-		if s.scattering(t) > 0.0 or t < s.spooked_until:
+		if s.bait_only or s.scattering(t) > 0.0 or t < s.spooked_until:
 			continue
 		var c := s.center(t)
 		# the slick first (it pulls from further off), else her baits if it's near them
@@ -236,7 +273,7 @@ func _spooking() -> void:
 	var t := now()
 	var at := boat_at()
 	for s in schools:
-		if s.spooked_until < t and s.center(t).distance_to(at) < s.radius + 15.0:
+		if s.spooked_until < t and not s.bait_only and s.center(t).distance_to(at) < s.radius + 15.0:
 			var until := t + SPOOK
 			if Net.in_session():
 				_spook.rpc(s.id, until)
@@ -248,7 +285,11 @@ func _spooking() -> void:
 func _spook(id: int, until: float) -> void:
 	for s in schools:
 		if s.id == id:
+			var fresh := s.spooked_until < now()
 			s.spooked_until = until
+			if fresh and sea.get("crew") != null:
+				((sea.get("crew") as Node).get("hud") as Node).call("notify",
+						"You ran right over them! They've gone deep. Come up on the next ones slow, under 10 knots")
 
 
 ## Host: a new school somewhere round her, cruising its own way.
@@ -287,9 +328,83 @@ func _start(id: int, seed: int, t0: float, start: Vector2, heading: Vector2, spe
 	s.kg = kg
 	s.life = life
 	s.run = run
+	s.born = t0
+	s.bait_only = hash1(float(seed % 977), 3.7) < BAIT_ONLY
 	s.owner_node = self
 	add_child(s)
 	schools.append(s)
+
+
+## Calling a flock (crew/binoculars.gd): marked on the radar for everyone, and the crew told where it is.
+func call_out(id: int) -> void:
+	if Net.is_host():
+		_ask_mark_as(Net.my_id(), id)
+	else:
+		_ask_mark.rpc_id(1, id)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _ask_mark(id: int) -> void:
+	_ask_mark_as(multiplayer.get_remote_sender_id(), id)
+
+
+func _ask_mark_as(who: int, id: int) -> void:
+	if marks.has(id) or find(id) == null:
+		return
+	var crew: Node = sea.get("crew")
+	var caller := str(crew.call("call_sign", who)) if crew else "Someone"
+	if Net.in_session():
+		_mark.rpc(id, caller, false)
+	else:
+		_mark(id, caller, false)
+
+
+@rpc("authority", "call_local", "reliable")
+func _mark(id: int, who: String, quiet: bool) -> void:
+	marks[id] = who
+	var s := find(id)
+	if quiet or s == null or sea.get("crew") == null:
+		return
+	((sea.get("crew") as Node).get("hud") as Node).call("notify", "%s: \"Birds! %s\" (marked on the radar)"
+			% [who, where(s.center(now()))])
+
+
+func find(id: int) -> School:
+	for s in schools:
+		if s.id == id:
+			return s
+	return null
+
+
+## Where a point is from her, the way the crew'd call it: "about 1.2 km off the port bow".
+func where(p: Vector2) -> String:
+	var boat := sea.get("boat") as Node3D
+	var at := boat_at()
+	var d := p.distance_to(at)
+	var local := boat.global_transform.basis.inverse() * Vector3(p.x - at.x, 0.0, p.y - at.y)
+	var ang := rad_to_deg(atan2(local.x, -local.z))     # 0 dead ahead, + to starboard
+	var side := "starboard" if ang > 0.0 else "port"
+	var a := absf(ang)
+	var dir := "dead ahead" if a < 15.0 else ("off the %s bow" % side if a < 60.0 else ("off the %s beam" % side
+			if a < 120.0 else ("off the %s quarter" % side if a < 165.0 else "dead astern")))
+	var far := "%d m" % (roundi(d / 50.0) * 50) if d < 1000.0 else "%.1f km" % (d / 1000.0)
+	return "about %s %s" % [far, dir]
+
+
+## What you'd make of a flock through the binoculars (crew/binoculars.gd).
+func spot_text(s: School) -> String:
+	var t := now()
+	if s.scattering(t) > 0.0:
+		return "The birds are lifting and scattering: whatever was there has moved on"
+	if s.bait_only:
+		if s.feeding(t):
+			return "Gulls picking at little bait: no big splashes, no tuna under them"
+		return "Gulls sitting on the water. Nothing doing"
+	if t < s.spooked_until:
+		return "Birds circling high: the tuna went down. Give them a minute"
+	if s.feeding(t):
+		return "Birds diving, white water busting under them: BLUEFIN!"
+	return "Birds sitting on the water, waiting: the tuna are down. They'll come up again"
 
 
 ## The schools within `reach` m of a point (world), for the sonar and the strikes.
@@ -313,8 +428,11 @@ class School extends Node3D:
 	var speed := 4.0
 	var kg := 150.0
 	var radius := 14.0
-	## The birds' last SCATTER s (the outer script's, kept here too).
+	## The birds' last SCATTER s, and a feeding spell (the outer script's, kept here too).
 	const SCATTER_S := 25.0
+	const SPELL_S := 40.0
+	## When it turned up (sea clock): t0 moves when it's steered, this doesn't.
+	var born := 0.0
 	## How long it works (s), and till when it's down after a boat ran through it (sea clock).
 	var life := 240.0
 	var spooked_until := -1.0
@@ -322,6 +440,8 @@ class School extends Node3D:
 	## drawn to (host only; INF: none).
 	var run := 1e9
 	var drawn_to := Vector2.INF
+	## Birds over little bait, no bluefin under them (from its seed: everyone agrees).
+	var bait_only := false
 	var owner_node: Node
 	var _birds: Array[MeshInstance3D] = []
 	var _bird_seed: Array[Vector4] = []
@@ -344,8 +464,9 @@ class School extends Node3D:
 	func feeding(t: float) -> bool:
 		if t < spooked_until or scattering(t) > 0.0:
 			return false
-		var spell := floorf((t - t0) / 7.0)
-		return (owner_node as Node).call("hash1", float(seed % 1000), spell) > 0.3
+		# (spells counted from when it turned up, not from a steer: a chum slick doesn't reset them)
+		var spell := floorf((t - born) / SPELL_S)
+		return (owner_node as Node).call("hash1", float(seed % 1000), spell) > 0.38
 
 	## 0 while it works; 0 .. 1 over its last SCATTER s, as the birds lift and go.
 	func scattering(t: float) -> float:
@@ -360,6 +481,7 @@ class School extends Node3D:
 		for i in n:
 			var b := MeshInstance3D.new()
 			b.mesh = bird_mesh
+			b.material_override = owner_node.get("bird_mat")
 			b.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			add_child(b)
 			_birds.append(b)
@@ -395,21 +517,38 @@ class School extends Node3D:
 		var c2 := center(t)
 		var c := Vector3(c2.x, 0.0, c2.y)
 		var feed := feeding(t)
-		# the birds: wheeling over the school, low and diving when it feeds; at the end lifting, spreading and gone
+		# the birds: wheeling over the school, low and diving when it feeds; sitting on the water while the tuna are
+		# down (high and circling if a boat ran them down); at the end lifting, spreading and gone
 		var going := scattering(t)
+		var sitting := not feed and going <= 0.0 and t >= spooked_until
+		# a bird far off is drawn no smaller than a speck on the screen (or the horizon'd be empty)
+		var cam := get_viewport().get_camera_3d()
+		var speck := 1.0
+		if cam:
+			var view := 2.0 * tan(deg_to_rad(cam.fov) * 0.5) * cam.global_position.distance_to(c)
+			speck = maxf(1.0, view / 200.0 / 1.6)
 		for i in _birds.size():
 			var bs := _bird_seed[i]
+			var b := _birds[i]
+			if sitting:
+				# rafted up on the water, bobbing
+				var a0 := bs.w * 3.0
+				var p0 := c + Vector3(cos(a0) * bs.x * 0.6, 0.0, sin(a0) * bs.x * 0.6)
+				p0.y = float(o.call("height_at", p0)) + 0.15
+				b.position = p0
+				b.basis = Basis(Vector3.UP, a0).scaled(Vector3(0.5, 0.5, 0.5) * speck)
+				continue
 			var a := bs.w + t * bs.z
 			var low := 1.0 if feed else 0.0
-			var h := lerpf(bs.y, 1.2 + bs.y * 0.25, low * (0.5 + 0.5 * sin(t * 1.3 + i))) + going * going * 60.0
+			var high := 25.0 if t < spooked_until else 0.0
+			var h := lerpf(bs.y, 1.2 + bs.y * 0.25, low * (0.5 + 0.5 * sin(t * 1.3 + i))) + going * going * 60.0 + high
 			var spread := bs.x * (1.0 + going * 6.0)
 			var p := c + Vector3(cos(a) * spread, 0.0, sin(a) * spread)
 			p.y = float(o.call("height_at", p)) + h
-			var b := _birds[i]
 			b.position = p
 			var fwd := Vector3(-sin(a), 0.0, cos(a)) * signf(bs.z)
 			b.basis = Basis.looking_at(fwd, Vector3.UP).rotated(fwd, -0.5 * signf(bs.z)) \
-					.scaled(Vector3(1.0, 0.4 + 0.6 * absf(sin(t * 9.0 + i * 1.7)), 1.0))
+					.scaled(Vector3(1.0, 0.4 + 0.6 * absf(sin(t * 9.0 + i * 1.7)), 1.0) * speck)
 		_gull_in -= delta
 		if _gull_in <= 0.0:
 			_gull_in = randf_range(2.0, 6.0) if feed else randf_range(6.0, 14.0)
@@ -418,14 +557,15 @@ class School extends Node3D:
 			_gull.position = _birds[randi() % _birds.size()].position
 			_gull.play()
 		# busting: a burst of white water every half second or so while it feeds; every third, a tuna clears it
-		var slot := int(floorf((t - t0) / 0.45))
+		# (over little bait, only now and then, small, and nothing clears the water)
+		var slot := int(floorf((t - t0) / (1.4 if bait_only else 0.45)))
 		if feed and slot != _bust_slot:
 			_bust_slot = slot
 			var r := radius * sqrt(owner_node.call("hash1", float(seed % 991), float(slot)))
 			var ang := TAU * float(owner_node.call("hash1", float(slot), float(seed % 983)))
 			var p := c + Vector3(cos(ang) * r, 0.0, sin(ang) * r)
 			p.y = float(o.call("height_at", p))
-			_bust(p, slot % 3 == 0)
+			_bust(p, slot % 3 == 0 and not bait_only)
 		for i in _jumpers.size():
 			var j := _jumpers[i]
 			if not j.visible:

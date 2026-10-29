@@ -9,6 +9,8 @@ const MODEL := preload("res://rods/rod.glb")
 const BEND := preload("res://rods/rod_bend.gdshader")
 const LENGTH := 1.76
 
+const LURES := [Color(0.95, 0.35, 0.6), Color(0.2, 0.55, 0.95), Color(0.95, 0.8, 0.2), Color(0.3, 0.85, 0.4)]
+
 static var _materials := {}
 
 var index := 0
@@ -53,6 +55,12 @@ var tangled := -1
 ## The bait on it: when it went out (sea clock) and whether it's a live mackerel from the well (rods.gd's freshness).
 var baited_t := 0.0
 var live := false
+## The bait being towed (rods.gd's _tow): where it is and its way through the water (world; INF: not out), and how
+## slack its line is (0 bar-tight .. 1: she's stopped and it's dropped back).
+var bait_p := Vector3.INF
+var bait_v := Vector3.ZERO
+var slack := 0.0
+var _lure: MeshInstance3D
 var _scream: AudioStreamPlayer3D
 var _whir: AudioStreamPlayer3D
 var _sing: AudioStreamPlayer3D
@@ -98,6 +106,19 @@ func _ready() -> void:
 	lm.albedo_color = Color(0.85, 0.86, 0.78)
 	_line.material_override = lm
 	add_child(_line)
+	# the bait on the end of it: a skirted trolling lure (a live mackerel's a dark one)
+	_lure = MeshInstance3D.new()
+	var cone := CylinderMesh.new()
+	cone.top_radius = 0.012
+	cone.bottom_radius = 0.05
+	cone.height = 0.28
+	cone.radial_segments = 6
+	cone.rings = 1
+	_lure.mesh = cone
+	_lure.top_level = true
+	_lure.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_lure.material_override = StandardMaterial3D.new()
+	add_child(_lure)
 	_scream = AudioStreamPlayer3D.new()
 	var wav := (preload("res://audio/fish/drag_scream.wav") as AudioStreamWAV).duplicate() as AudioStreamWAV
 	wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
@@ -208,13 +229,27 @@ func _draw_line() -> void:
 	var b := line_end
 	_line_mesh.clear_surfaces()
 	_line_mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
-	var sag := (1.0 - strain) * clampf(a.distance_to(b) * 0.04, 0.0, 1.5)
-	for i in 13:
-		var f := i / 12.0
+	# a line always droops a little; a slack one (she's stopped) a lot, down onto the water; a fish on pulls it
+	# straight
+	var d := a.distance_to(b)
+	var sag := (0.02 + 0.3 * slack) * d * (1.0 - 0.85 * strain)
+	for i in 17:
+		var f := i / 16.0
 		var p := a.lerp(b, f)
 		p.y -= sag * 4.0 * f * (1.0 - f)
+		p.y = maxf(p.y, minf(b.y, a.y) - 0.05)       # (not through the water)
 		_line_mesh.surface_add_vertex(p)
 	_line_mesh.surface_end()
+	# the lure, nose toward the rod, riding just in the water
+	var out := not hooked and not bait_in and tangled < 0 and bait_p != Vector3.INF
+	_lure.visible = out
+	if out:
+		var to := (a - b) * Vector3(1, 0, 1)
+		if to.length() > 0.01:
+			_lure.global_transform = Transform3D(Basis.looking_at(to.normalized(), Vector3.UP)
+					* Basis(Vector3.RIGHT, -PI * 0.5), b + Vector3(0.0, 0.02, 0.0))
+		var lm := _lure.material_override as StandardMaterial3D
+		lm.albedo_color = Color(0.15, 0.25, 0.3) if live else LURES[index % LURES.size()]
 
 
 func interact_prompt(player: Node) -> String:

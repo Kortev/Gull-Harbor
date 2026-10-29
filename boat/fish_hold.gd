@@ -12,6 +12,11 @@ extends Node
 ## bled and iced; one still on deck sells as it is, warm. The money goes in the bank (kept between games on the
 ## host's machine) and she heads back out with an empty hold.
 ##
+## The run (Lethal Company's quota): the crew owes the bank for the boat. Each quota is a sum to sell within DAYS
+## trips (one a day). Every fish sold counts toward it and goes in the bank to spend at the dock. Make the quota by
+## the last day's sale and there's a bigger one (quota_for); miss it and the bank takes the boat: the run's over,
+## its story on the slip, and a new one starts from the skiff and START_CASH.
+##
 ## The host keeps the books and tells everyone after every change (_sync).
 
 const Tuna := preload("res://tuna/tuna.gd")
@@ -28,6 +33,9 @@ const DAWN_H := 5.5
 const DUSK_H := 19.5
 ## A boat you don't own, for the day (taken off the sale).
 const CHARTER := 2500
+## The run: trips to make each quota in, and the money a new run starts with.
+const DAYS := 3
+const START_CASH := 1000
 ## Gear for sale at the dock, once each (tuna/fight.gd and tuna/schools.gd ask has_gear()).
 const GEAR := {
 	"reel": {"name": "A two-speed reel", "blurb": "Winds line in a quarter faster.", "price": 3000},
@@ -58,6 +66,15 @@ var trip_t0 := 0.0
 var kind := "skiff"
 var owned: Array = ["skiff"]
 var gear: Array = []
+## The run: which quota (1, 2, ...), what it is, what's been sold toward it, which day of it this is (1..DAYS), the
+## run's fish and its biggest, and the most quotas any run has made.
+var quota_n := 1
+var quota := 0
+var earned := 0
+var day := 1
+var run_fish := 0
+var run_biggest := 0.0
+var best_run := 0
 ## This trip's live mackerel in the well, and scoops of chum left.
 var well := 0
 var chum := 0
@@ -257,13 +274,63 @@ func head_in() -> void:
 		total -= int(c[1])
 	(sea.get("rods") as Node).call("host_clear")
 	(sea.get("landing") as Node).call("host_clear")
+	var gross := 0
+	for l: Array in lines:
+		gross += int(l[2])
+		run_fish += 1
+		run_biggest = maxf(run_biggest, float(l[0]))
 	bank += total
 	best = maxi(best, total)
-	sale = {"lines": lines, "costs": costs, "total": total, "bank": bank, "best": best}
+	earned += gross
+	sale = {"lines": lines, "costs": costs, "total": total, "bank": bank, "best": best,
+			"quota": [quota_n, earned, quota, day], "verdict": ""}
 	fish = []
 	docked = true
+	_settle()
 	_save()
 	_host_changed()
+
+
+## Host, after a sale: the quota's last day done, it's made (a bigger one, three more days) or the bank takes the boat
+## (the run's story on the slip, and a new run). Otherwise just the next day.
+func _settle() -> void:
+	if day < DAYS:
+		day += 1
+		return
+	if earned >= quota:
+		sale["verdict"] = "met"
+		quota_n += 1
+		best_run = maxi(best_run, quota_n - 1)
+		quota = quota_for(quota_n)
+		sale["next"] = quota
+		earned = 0
+		day = 1
+		return
+	sale["verdict"] = "lost"
+	sale["run"] = {"quotas": quota_n - 1, "fish": run_fish, "biggest": run_biggest}
+	best_run = maxi(best_run, quota_n - 1)
+	_new_run()
+	(sea.get("boat") as Node).call("use_kind", kind)      # (back in the skiff)
+	sale["bank"] = bank
+
+
+## A fresh run: the skiff, START_CASH, no gear, the first quota.
+func _new_run() -> void:
+	bank = START_CASH
+	owned = ["skiff"]
+	gear = []
+	kind = "skiff"
+	quota_n = 1
+	quota = quota_for(1)
+	earned = 0
+	day = 1
+	run_fish = 0
+	run_biggest = 0.0
+
+
+## Quota n: $5,000 for the first, half as much again each time (to the nearest $500).
+static func quota_for(n: int) -> int:
+	return roundi(5000.0 * pow(1.5, n - 1) / 500.0) * 500
 
 
 ## Host: off the dock and out to the grounds in boat `k` (or the one picked), at dawn.
@@ -351,7 +418,9 @@ func _host_changed() -> void:
 
 func _state() -> Dictionary:
 	return {"fish": fish, "bank": bank, "best": best, "sale": sale, "next": _next_id, "docked": docked,
-			"trip_t0": trip_t0, "kind": kind, "owned": owned, "gear": gear, "well": well, "chum": chum}
+			"trip_t0": trip_t0, "kind": kind, "owned": owned, "gear": gear, "well": well, "chum": chum,
+			"quota_n": quota_n, "quota": quota, "earned": earned, "day": day, "run_fish": run_fish,
+			"run_biggest": run_biggest, "best_run": best_run}
 
 
 @rpc("authority", "call_local", "reliable")
@@ -370,6 +439,13 @@ func _sync(state: Dictionary) -> void:
 	gear = state.get("gear", gear)
 	well = int(state.get("well", well))
 	chum = int(state.get("chum", chum))
+	quota_n = int(state.get("quota_n", quota_n))
+	quota = int(state.get("quota", quota))
+	earned = int(state.get("earned", earned))
+	day = int(state.get("day", day))
+	run_fish = int(state.get("run_fish", run_fish))
+	run_biggest = float(state.get("run_biggest", run_biggest))
+	best_run = int(state.get("best_run", best_run))
 	_rebuild()
 	if docked != was:
 		_dock_changed(docked)
@@ -378,8 +454,7 @@ func _sync(state: Dictionary) -> void:
 	elif not _sold_noted:
 		_sold_noted = true
 		Sfx.play("kit.coins")
-		_note("Sold: %d fish for $%s. The slip's in the Esc menu." % [(sale["lines"] as Array).size(),
-				_money(int(sale["total"]))])
+		_note("Sold: %d fish for $%s." % [(sale["lines"] as Array).size(), _money(int(sale["total"]))])
 
 
 ## The sounds of the work on deck, from what's newly done to each fish since last time: a bleed (a wet slap), the
@@ -511,14 +586,17 @@ func _tally() -> void:
 		kg += float(f["kg"])
 	var text := "Fish box %d/%d" % [held, capacity()]
 	if not docked:
-		text = clock_text() + "   " + text
+		text = "Day %d of %d   %s   %s" % [day, DAYS, clock_text(), text]
 	if deck > 0:
 		text += "   Deck %d" % deck
 	if not fish.is_empty():
 		text += "   %d kg, worth about $%s" % [roundi(kg), _money(worth())]
 	if not docked:
 		text += "\nChum %d" % chum + ("   Live bait %d/%d" % [well, WELL_MAX] if has_gear("bait") else "")
-	text += "\nBank $%s" % _money(bank)
+	text += "\nQuota $%s / $%s" % [_money(earned), _money(quota)]
+	if not fish.is_empty() and earned < quota:
+		text += "  (+$%s aboard)" % _money(worth())
+	text += "   Bank $%s" % _money(bank)
 	hud.call("tally", text)
 
 
@@ -541,12 +619,20 @@ func _load() -> void:
 		owned = cfg.get_value("trips", "owned", ["skiff"])
 		gear = cfg.get_value("trips", "gear", [])
 		kind = str(cfg.get_value("trips", "kind", "skiff"))
+		best_run = int(cfg.get_value("run", "best_run", 0))
+		if cfg.has_section_key("run", "quota"):
+			quota_n = int(cfg.get_value("run", "quota_n", 1))
+			quota = int(cfg.get_value("run", "quota", quota_for(1)))
+			earned = int(cfg.get_value("run", "earned", 0))
+			day = int(cfg.get_value("run", "day", 1))
+			run_fish = int(cfg.get_value("run", "run_fish", 0))
+			run_biggest = float(cfg.get_value("run", "run_biggest", 0.0))
+		else:
+			_new_run()        # (a save from before the quota: a run from the start)
 	else:
-		bank = 0
 		best = 0
-		owned = ["skiff"]
-		gear = []
-		kind = "skiff"
+		best_run = 0
+		_new_run()
 
 
 func _save() -> void:
@@ -557,6 +643,13 @@ func _save() -> void:
 	cfg.set_value("trips", "owned", owned)
 	cfg.set_value("trips", "gear", gear)
 	cfg.set_value("trips", "kind", kind)
+	cfg.set_value("run", "quota_n", quota_n)
+	cfg.set_value("run", "quota", quota)
+	cfg.set_value("run", "earned", earned)
+	cfg.set_value("run", "day", day)
+	cfg.set_value("run", "run_fish", run_fish)
+	cfg.set_value("run", "run_biggest", run_biggest)
+	cfg.set_value("run", "best_run", best_run)
 	cfg.save(save_path)
 
 

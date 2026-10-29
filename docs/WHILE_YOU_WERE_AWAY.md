@@ -1,5 +1,27 @@
 # While you were away (newest first)
 
+## The hunt, the baits on the water, and the quota
+**Not run in Godot yet.** `tests/wait_test.tscn` covers the new rules.
+- **The quota** (Lethal Company's): the bank wants a sum within three trips (one a day). Every fish you sell counts
+  toward it and goes in the bank to spend. Make it on the third day's sale and the next one is half as much again
+  ($5,000, $7,500, $11,000, ...). Miss it and the bank takes the boat: the slip tells the run's story and you start
+  over with the skiff and $1,000. The tally out there shows the day, the quota and what's aboard. The sportfisher's
+  $20,000 now (a mid-run upgrade).
+- **Finding them is a hunt now.** Flocks turn up 0.8 to 2.6 km off, and you can actually see them: a far flock is
+  drawn as a speck you can pick out on the horizon (it was smaller than a pixel before; that's why you saw none).
+  **Hold B (or the middle mouse) for the binoculars:** put a flock in the middle and you see what it is. About a
+  third are only gulls over little bait, no tuna (don't waste the run). Bluefin come up and go down in spells of
+  about 40 s at a time: birds diving on white water means they're up; birds sitting on the water means they're down,
+  wait. **Left click calls it:** a mark on the radar for everyone and "Yellow: Birds! about 1.4 km off the port
+  bow". The radar now only paints birds in the air (sitting birds don't show) and can't tell gulls from tuna birds.
+- **Coming up on them:** run over a school faster than about 10 knots and it goes down (now you're told: "You ran
+  right over them!"). Get within about 160 m, slow to trolling speed, and the school finds your baits and works
+  round them, following as you troll.
+- **Baits on the water:** each line now ends in a lure you can see (a live mackerel's dark). They're towed for real:
+  dragged along behind the rod tip, held out to the side while she's moving, swinging wide round her turns,
+  carrying on and dropping back when she stops (the line goes slack and droops), riding the swell, skipping along
+  the top at speed. Lines droop a little always and a lot when slack.
+
 ## Things to do while you wait, crew jobs, sounds, and fixes
 **Not run in Godot yet.** New test: `tests/wait_test.tscn`.
 - **Chum** (`boat/chum.gd`): a bucket on her transom (24 scoops a trip). E throws a scoop: a splash astern and a
