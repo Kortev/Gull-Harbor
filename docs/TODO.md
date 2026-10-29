@@ -121,7 +121,8 @@ repo, now `main`), tick it here.
 - [x] **The dock** (where a game starts: the slip, the bank, the boats, the gear, Head out) and **a day going by** (dawn, day, dusk, night). Not yet played.
 - [x] **Steam as the main way to play together:** host a friends-only Steam lobby, friends join from the menu's list or an invite, traffic through Steam's relays (`core/steam_link.gd`; needs the GodotSteam add-on from the AssetLib; `tools/steam_test.sh` against a stand-in for Steam). The join code stays as the backup.
 - [ ] **Everything on the boats is usable or goes** (HANDOFF's Chekhov audit; polish, not new features):
-  - [ ] The fighting chair (sportfisher): sit in it (E), the rod in its gimbal, it swivels with the fish.
+  - [x] The fighting chair (sportfisher): sit in it (E), the rod in its gimbal, it swivels with the fish.
+    (`boat/chair.gd`, `tests/chair_test.tscn`: your arms wear half as fast in it; it turns with your look.)
   - [x] The tuna tower: climb it, spot further (`boat/tower.gd`).
   - [ ] The leaning post, the skipper's seat, the bench: sit or lean (E), just to chill.
   - [ ] The cooler: grab a drink. The live well: see the mackerel in it. The fish box: the lid opens.

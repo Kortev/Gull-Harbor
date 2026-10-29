@@ -178,7 +178,8 @@ func _skiff(sea: Sea) -> void:
 		t += get_process_delta_time()
 	_check(not landing.fish.has(0) and hold._deck.size() == 1, "skiff: hauled over the gunwale onto her deck (%.1f s)" % t)
 	var on_deck: Node = (hold._deck.values()[0] as Node).get_node("Handle")
-	_check(await _can_look_at(me, Vector3(side * 0.2, 0.5, 1.8), on_deck, PI),
+	var lies := sea.boat.to_local((on_deck as Node3D).global_position)      # (it lies in her first spot, either side)
+	_check(await _can_look_at(me, Vector3(lies.x * 0.5, 0.5, lies.z - 1.0), on_deck, PI),
 			"skiff: from her deck you can put the crosshair on the fish")
 	var id := int(hold.fish[0]["id"])
 	hold._work(id)

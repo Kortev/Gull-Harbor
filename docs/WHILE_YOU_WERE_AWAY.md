@@ -8,6 +8,24 @@ round her and "Keep the stern on it!". Taking it off the big boat makes calling 
 corner!") a real job for the crew. Alone in the big boat, though, you'd be steering blind. My pick: keep it on the
 skiff and take it off the big boat. Say yes and I'll do it, or say keep it.
 
+## The fighting chair works (the big boat)
+
+- **What:** E on the fighting chair in the sportfisher's cockpit sits you down. With a fish on, take the rod first,
+  then E on the chair ("Fight it from the chair"). The rod's butt goes in the gimbal, and you crank and pump as
+  usual. Your legs and back take the weight, so your arms tire half as fast. The catch: you're stuck on her
+  centreline and can't walk the rod to a corner to keep the line off the hull, so the captain has to keep the
+  stern on the fish. The chair turns with your look, and you sit lower. Without a rod it's just a seat, to watch
+  the baits. E or Q gets you up (the rod stays in your hands). Your crew see you sitting.
+- **Checked:** `tests/chair_test.tscn`:
+  - you can look at the chair from the cockpit, sit, can't walk, the chair turns with you, and you get up again;
+  - with a fish on, you fight from the chair with the rod in the gimbal;
+  - the same 10 s of cranking a giant costs 13% of your arms standing and 6% in the chair;
+  - the skiff has no chair.
+
+  All the other tests pass, including the network test. Screenshot: `docs/shots/chair.png`.
+- **Also fixed:** a check I added to the landing test last run only worked if the fish came up on the starboard side.
+- **Try:** in the sportfisher, hook one, grab the rod, sit in the chair and fight it while a friend drives.
+
 ## Green water: big seas come aboard in a storm
 
 - **What:** in heavy weather or a storm, a crest now and then tops her rail. Where it does, a sheet of white water

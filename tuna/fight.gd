@@ -96,6 +96,11 @@ var crank_mul := 1.0
 var chafe_mul := 1.0
 var grace_add := 0.0
 var arms_mul := 1.0
+## Fought from the fighting chair (boat/chair.gd): the rod's butt in its gimbal and your feet on its footrest, your
+## legs and back take the weight, so your arms wear at CHAIR_ARMS of the rate. (Stuck on her centreline, though: no
+## walking the rod to a corner to keep the line off the hull.)
+var seated := false
+const CHAIR_ARMS := 0.5
 var tangled := false
 ## The angler's arms, 1 fresh .. 0 spent (rods.gd keeps them on the person, so they carry over and rest up
 ## between fights). Cranking and heaving wear them, the heavier the fish the faster, and fighting it the wrong way
@@ -197,10 +202,11 @@ func step(dt: float, crank: bool, lift: float) -> void:
 	var heavy := 0.2 + big * big
 	# fighting it the wrong way wears you out: cranking against its run, or a deep fish without pumping it
 	var waste := 3.0 if ans == "hold" else (2.0 if (ans == "pump" and _pump <= 0.0) or ans == "ease" else 0.7)
+	var wear_mul := arms_mul * (CHAIR_ARMS if seated else 1.0)
 	if crank:
-		arms -= ARMS_CRANK * heavy * dt * waste * arms_mul
+		arms -= ARMS_CRANK * heavy * dt * waste * wear_mul
 	if lift > 0.3:
-		arms -= ARMS_HEAVE * heavy * dt * (1.0 if ans == "pump" else 1.5) * arms_mul
+		arms -= ARMS_HEAVE * heavy * dt * (1.0 if ans == "pump" else 1.5) * wear_mul
 	if not crank and lift <= 0.3:
 		arms += ARMS_REST * dt
 	arms = clampf(arms, 0.0, 1.0)

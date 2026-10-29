@@ -47,6 +47,9 @@ var arms := 1.0
 var steering := false
 ## Up the tuna tower (boat/tower.gd): you look round but don't walk; E or Q climbs down. Any place() ends it.
 var aloft := false
+## In a seat (boat/chair.gd: the fighting chair): you look round but don't walk; E or Q gets you up. Any place()
+## ends it.
+var seated := false
 var _yaw := 0.0
 var _pitch := 0.0
 var _prompt := ""
@@ -68,6 +71,7 @@ const ACT_GLASSES := 1
 const ACT_JIG := 2
 const ACT_HAUL := 4
 const ACT_CRANK := 8
+const ACT_SEATED := 16
 var act := 0
 var _net_act := 0
 var _gesture := ""
@@ -303,6 +307,15 @@ func _pose_body(delta: float) -> void:
 				p["arm_r"] = Vector3(0.6 * arc, 0.0, 1.1 * arc)
 				p["torso"] = Vector3(-0.25 * arc, 0.0, 0.15 * sin(gk * 9.0) * arc)
 				crouch = maxf(crouch, 0.15 * arc)
+	# sitting: thighs out level, shins down, down at the hips onto the seat
+	var sit := 0.0
+	if is_seated():
+		sit = 0.4
+		crouch = 0.0
+		p["leg_l"] = Vector3(1.45, 0.0, 0.08)
+		p["leg_r"] = Vector3(1.45, 0.0, -0.08)
+		p["shin_l"] = Vector3(-1.35, 0.0, 0.0)
+		p["shin_r"] = Vector3(-1.35, 0.0, 0.0)
 	# crouching: down at the hips, thighs forward and shins back so the feet stay put
 	if crouch > 0.0:
 		var bend := acos(clampf(1.0 - crouch / 0.95 * 1.6, -1.0, 1.0)) * 0.6
@@ -315,7 +328,8 @@ func _pose_body(delta: float) -> void:
 	for part: String in p:
 		_aim(part, p[part], k)
 	if _body_root:
-		_body_root.position.y = lerpf(_body_root.position.y, -drop - crouch * 0.55, k)
+		_body_root.position.y = lerpf(_body_root.position.y, -drop - crouch * 0.55 - sit, k)
+	head.position.y = lerpf(head.position.y, 1.62 - sit * 0.8, k)
 
 
 ## One piece toward its pose (x, y, z: euler, radians), `k` of the way there this frame.
@@ -351,6 +365,7 @@ func _exit_tree() -> void:
 ## Puts you at a boat-local spot, facing `yaw` (radians round the boat's up axis; 0 faces the bow).
 func place(local: Vector3, yaw: float) -> void:
 	aloft = false
+	seated = false
 	body.position = local
 	_prev_local = local
 	_local = local
@@ -361,6 +376,11 @@ func place(local: Vector3, yaw: float) -> void:
 
 func local_position() -> Vector3:
 	return body.position
+
+
+## In a seat: yours, or as the others say they are.
+func is_seated() -> bool:
+	return seated if is_multiplayer_authority() else bool(_net_act & ACT_SEATED)
 
 
 ## Mouse look comes first, before any UI could take the motion.
@@ -382,6 +402,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif event.is_action_pressed("interact") and steering:
 		(boat.get("helm") as Node).call("request", false)
+	elif seated and (event.is_action_pressed("interact") or event.is_action_pressed("drop")):
+		var chair: Node = boat.get("seat")
+		if chair:
+			chair.call("get_up", self)
+		else:
+			seated = false
+		get_viewport().set_input_as_handled()
 	elif aloft and (event.is_action_pressed("interact") or event.is_action_pressed("drop")):
 		var tower: Node = boat.get("tower")
 		if tower:
@@ -430,6 +457,8 @@ func _doing() -> int:
 	if rods != null and rods.call("held_by", str(name).to_int()) != null and live \
 			and Input.is_action_pressed("use_primary"):
 		out |= ACT_CRANK
+	if seated:
+		out |= ACT_SEATED
 	return out
 
 
@@ -445,7 +474,9 @@ func _state(at: Vector3, yaw: float, pitch: float, doing := 0) -> void:
 func _walk(delta: float) -> void:
 	if aloft and boat.get("tower") == null:
 		aloft = false          # (she's been swapped for a boat with no tower: down you come)
-	if steering or aloft:
+	if seated and boat.get("seat") == null:
+		seated = false
+	if steering or aloft or seated:
 		body.velocity = Vector3.ZERO
 		return
 	var live := force_input or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED

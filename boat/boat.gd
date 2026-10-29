@@ -19,6 +19,7 @@ const Wake := preload("res://boat/wake.gd")
 const Kinds := preload("res://boat/kinds.gd")
 const Tower := preload("res://boat/tower.gd")
 const GreenWater := preload("res://boat/green_water.gd")
+const Chair := preload("res://boat/chair.gd")
 
 ## Under way: her bow up (rad) flat out ahead, and how far her stern digs in (rad, m down) backing down flat out.
 const SQUAT := 0.07
@@ -47,6 +48,8 @@ var helm_spot := Transform3D.IDENTITY   # where the captain stands (boat-local)
 var helm: Helm
 ## Big seas coming aboard over her rail (boat/green_water.gd).
 var green: GreenWater
+## Her fighting chair to sit in, if she has one (boat/chair.gd; `chair` is its model).
+var seat: Chair
 ## Her tuna tower's ladder, if she has one (boat/tower.gd).
 var tower: Tower
 var floods: Array[Light3D] = []
@@ -182,6 +185,14 @@ func _build() -> void:
 		helm_spot = _src_transform(h, src)
 	helm.position = wheel.position if wheel else helm_spot.origin + Vector3(0, 1.0, -0.6)
 	helm.configure(spec)
+	seat = null
+	if chair != null:
+		seat = Chair.new()
+		seat.name = "Seat"
+		seat.boat = self
+		seat.setup(chair)
+		add_child(seat)
+		_built.append(seat)
 	tower = null
 	if spec.has("tower"):
 		tower = Tower.new()
