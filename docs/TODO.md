@@ -1,5 +1,34 @@
 # TODO (in order)
 
+## Now: no new features. Make what's here good (your call, 2026-10-29)
+
+The base idea's in (`docs/FEATURES.md` lists every feature and what a player needs to know). Before anything new
+(except maybe VS and better co-op), polish it till it's beautiful:
+
+1. **Teach the player** (`docs/FEATURES.md`'s teaching plan): first-time tips, each once (slow down near birds,
+   grab the rod, each fight move the first time, wiring, the harpoon, bleed and ice, the quota's stakes); the field
+   guide in the Esc menu; the dock spelling out the quota.
+2. **Animation** (the art pass's biggest part):
+   - the crew: a real walk and run, idle sway with the sea, reeling (the crank arm going round), pumping (lean back,
+     drop and wind), bracing against a run, steering, throwing the harpoon, hauling, holding binoculars, scooping
+     chum, jigging, bleeding a fish, stumbling when she slams a wave;
+   - the tuna: jumping and thrashing on the surface in the fight (you see it), the last circles under the boat,
+     thrashing alongside, kicking on deck;
+   - the birds: flapping and gliding, folding to dive, sitting and lifting off the water;
+   - the boat: the wheel, the throttles, rods bending and the reels' handles, the harpoon's line, the door.
+3. **Visual polish:** light at dawn and dusk, the water (foam, the wake, spray, the slick), the boats' detail, the
+   dock itself, the HUD (cleaner, readable, styled), screen transitions.
+4. **Feel and sound:** the camera (sea legs, the slam of a wave), feedback when things go right (the fish showing,
+   the stick, the haul, the sale), the music and the sea's sound.
+5. **Co-op polish:** what you see of crewmates (their animations, what they're doing), shouting/calls, joining mid
+   trip, the host leaving.
+6. **Two independent reviews**, then fix.
+
+Parked (features, later): overboard and the life ring, night danger, events (storms rolling in, the giant,
+something in the fog), sea life to spot, the horn and radio, sharks in the fight, VS mode.
+
+## Done before (the history)
+
 The game: a homemade take on the TV bluefin shows, for playing with friends (Jack first). A crew of 1-4 on one tuna boat, endless open sea, sometimes huge waves, catching as many bluefin as
 they can. Creepy only from the sea and the weather; mostly action; very atmospheric. Real tuna only. Arcade
 rules (physics only for the look). A set world with waves, fish and fishing grounds; the boat moves through it.
