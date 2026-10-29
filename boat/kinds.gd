@@ -29,6 +29,7 @@ extends RefCounted
 ##                 come aboard (boat/green_water.gd)
 ##   seats         somewhere to sit (boat/seat.gd): the middle of its seat, which way you face, its name, and lean
 ##                 (a leaning post: you lean on it rather than sit). The sportfisher's fighting chair is her model's.
+##   cooler        where the cooler stands (the top of its lid; boat/cooler.gd): grab a drink
 ##   tower, ladder where you stand up her tuna tower (your feet), and the foot of the ladder up to it on deck (boat/tower.gd;
 ##                 only the sportfisher has one)
 ##   price         what she costs to buy at the dock; fuel: what a trip in her costs (taken from the sale)
@@ -93,6 +94,7 @@ const KINDS := {
 		"seats": [{"at": Vector3(0.9, 1.23, -1.47), "face": PI, "name": "the skipper's seat"},
 				{"at": Vector3(-1.62, 1.1, -1.45), "face": -PI * 0.5, "name": "the bench"},
 				{"at": Vector3(-1.62, 1.1, -0.55), "face": -PI * 0.5, "name": "the bench"}],
+		"cooler": Vector3(-1.4, 1.11, 1.37),
 		"tower": Vector3(0.0, 5.46, -0.75), "ladder": Vector3(-1.2, 0.55, 2.1),
 		"price": 20000, "fuel": 400,
 	},

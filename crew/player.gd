@@ -79,7 +79,7 @@ var _net_act := 0
 var _gesture := ""
 var _gesture_t := 0.0
 ## The one-off moves and how long each takes (s).
-const GESTURES := {"throw": 0.6, "scoop": 0.7, "bleed": 1.1, "reach": 0.5, "stumble": 0.9}
+const GESTURES := {"throw": 0.6, "scoop": 0.7, "bleed": 1.1, "reach": 0.5, "stumble": 0.9, "drink": 1.8}
 var _crank_ph := 0.0
 var _haul_ph := 0.0
 ## The deck dropping out from under you (a big sea): its heave, how fast, and when you last lost your feet.
@@ -299,6 +299,13 @@ func _pose_body(delta: float) -> void:
 				p["torso"] = Vector3(-0.5 * arc, 0.0, 0.0)
 				p["arm_r"] = Vector3(0.9 + 0.3 * sin(gk * 18.0) * arc, 0.0, 0.1)
 				p["fore_r"] = Vector3(0.6, 0.0, 0.0)
+			"drink":
+				# the can up to your mouth, head tipped back for a long swig
+				var up := smoothstep(0.0, 0.25, gk) * (1.0 - smoothstep(0.8, 1.0, gk))
+				p["arm_r"] = Vector3(0.1 + 1.25 * up, 0.0, 0.1 + 0.25 * up)
+				p["fore_r"] = Vector3(0.3 + 1.8 * up, 0.0, 0.0)
+				p["head"] = Vector3(-0.35 * up, 0.0, 0.0)
+				p["torso"] = Vector3(-0.08 * up, 0.0, 0.0)
 			"reach":
 				p["arm_r"] = Vector3(1.1 * arc + 0.1, 0.0, 0.1)
 				p["fore_r"] = Vector3(0.3, 0.0, 0.0)

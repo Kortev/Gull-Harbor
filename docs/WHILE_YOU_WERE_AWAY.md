@@ -8,6 +8,18 @@ round her and "Keep the stern on it!". Taking it off the big boat makes calling 
 corner!") a real job for the crew. Alone in the big boat, though, you'd be steering blind. My pick: keep it on the
 skiff and take it off the big boat. Say yes and I'll do it, or say keep it.
 
+## Grab a drink from the cooler (the big boat)
+
+- **What:** E on the cooler by the sportfisher's wheelhouse. You crack a can and take a long swig (your crew see
+  you tip it back), and the screen says what you got, e.g. "Bilge Brew Root Beer. You don't want to know where
+  it's made." There are 8 made-up drinks. It's just for fun and does nothing to the fishing. Not with a rod or
+  the harpoon in your hands. (The skiff's cooler is the seat in front of her console.)
+- **Checked:** `tests/chair_test.tscn`:
+  - you can see the cooler from the cockpit;
+  - E plays the swig and shows one of the drinks;
+  - there's no prompt with a rod in your hands.
+- **Try:** offer your friend a Sea Mist mid-fight.
+
 ## Sit down: every seat on both boats works
 
 - **What:** press E on a seat to sit and watch the baits; E or Q gets you up. Your crew see you sitting.

@@ -4,7 +4,7 @@ extends Node
 ## and you fight it from the chair: the rod's butt in the gimbal, your arms wearing half as fast as standing (the
 ## same fish, the same fight). The skiff has no chair. And every other seat on both boats (the benches, the skipper's
 ## seat, the skiff's cooler seat and leaning post): in view from a step away, E sits you (or leans you), E gets you
-## up and walking again. Run: godot --headless --path . res://tests/chair_test.tscn
+## up and walking again. And the sportfisher's cooler: E on it and you swig a drink (not with a rod in your hands). Run: godot --headless --path . res://tests/chair_test.tscn
 
 const Sea := preload("res://sea/sea.gd")
 const Fight := preload("res://tuna/fight.gd")
@@ -94,6 +94,20 @@ func _ready() -> void:
 	var spot: Transform3D = sea.boat.get("helm_spot")
 	_check(await _can_look_at(sea.crew.me, Vector3(spot.origin.x, 0.6, spot.origin.z + 1.6), helm, 0.0),
 			"sportfisher: past the skipper's seat you can still put the crosshair on the wheel")
+	var cooler: Node = sea.boat.get_node_or_null("Cooler")
+	_check(cooler != null, "sportfisher: a cooler")
+	if cooler != null:
+		var top := sea.boat.to_local((cooler as Node3D).global_position)
+		_check(await _can_look_at(me, Vector3(top.x + 1.0, 0.6, top.z), cooler, -PI * 0.5 + PI),
+				"sportfisher: from the cockpit you can put the crosshair on the cooler")
+		_check(str(cooler.call("interact_prompt")) == "Grab a drink", "it says: %s" % cooler.call("interact_prompt"))
+		cooler.call("interact", me)
+		await get_tree().process_frame
+		var said := str(sea.crew.hud._note.text)
+		_check(str(me.get("_gesture")) == "drink" and said in cooler.DRINKS, "E: a swig (%s)" % said)
+		sea.rods.request_grab(1)
+		_check(str(cooler.call("interact_prompt")) == "", "no drink with a rod in your hands")
+		sea.rods.request_return(1)
 	_done()
 
 

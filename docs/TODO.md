@@ -126,7 +126,9 @@ repo, now `main`), tick it here.
   - [x] The tuna tower: climb it, spot further (`boat/tower.gd`).
   - [x] The leaning post, the skipper's seat, the bench: sit or lean (E), just to chill. (`boat/seat.gd`: the
     skiff's cooler seat and leaning post, the sportfisher's skipper's seat and bench; `tests/chair_test.tscn`.)
-  - [ ] The cooler: grab a drink. The live well: see the mackerel in it. The fish box: the lid opens.
+  - [x] The cooler: grab a drink (`boat/cooler.gd`, the sportfisher's; the skiff's cooler is her seat).
+  - [ ] The live well: see the mackerel in it. The fish box: the lid opens (needs the lids as their own pieces in
+    the models).
   - [ ] The radio: Dale's voice comes from it.
   - [ ] The rod holders that never fish, and the outriggers: use them or take them out of the models.
 - Later: **longer fights.** Real ones on heavy tackle run twenty minutes to over an hour for a giant; ours are a
