@@ -1,6 +1,6 @@
 extends Node
 ## The crew on the boat: who's aboard, each one's spot, and the things every peer must share to see the same sea
-## (the wave clock, the conditions). Players live under this node, named by peer id, so their paths match on
+## (the wave clock, the weather's seed). Players live under this node, named by peer id, so their paths match on
 ## every peer. Alone you're crew member 1; host and you stay 1 and friends join; join someone and you take the
 ## spot their host gives you.
 
@@ -56,18 +56,9 @@ func _on_peer_joined(id: int) -> void:
 	var slot := _free_slot()
 	var roster := slots.duplicate()
 	roster[id] = slot
-	_welcome.rpc_id(id, str(sea.get("condition")), bool(sea.get("night")), _clock_now(), roster)
+	var w: RefCounted = sea.get("weather")
+	_welcome.rpc_id(id, int(w.get("seed")), str(w.get("pinned")), bool(sea.get("night")), _clock_now(), roster)
 	_add_crew.rpc(id, slot)
-
-
-## Host only: changes the conditions for everyone aboard.
-func set_conditions(c: String, is_night: bool) -> void:
-	if not Net.is_host():
-		return
-	if Net.in_session():
-		_conditions.rpc(c, is_night)
-	else:
-		_conditions(c, is_night)
 
 
 func _free_slot() -> int:
@@ -80,13 +71,17 @@ func _free_slot() -> int:
 # ------------------------------------------------------------------ everyone
 
 @rpc("authority", "call_remote", "reliable")
-func _welcome(cond: String, is_night: bool, clock: float, roster: Dictionary) -> void:
+func _welcome(weather_seed: int, pinned: String, is_night: bool, clock: float, roster: Dictionary) -> void:
 	_clear()
 	_set_clock(clock, true)       # (rough: the asks that follow tighten it)
 	_clock_asks = 0
 	_best_rtt = INF
 	_clock_in = 0.0
-	_conditions(cond, is_night)
+	# the weather: the host's, from here on worked out from the shared clock
+	var w: RefCounted = sea.get("weather")
+	w.set("seed", weather_seed)
+	w.set("pinned", pinned)
+	sea.call("set_night", is_night)
 	for id: int in roster:
 		_add(id, int(roster[id]))
 
@@ -95,12 +90,6 @@ func _welcome(cond: String, is_night: bool, clock: float, roster: Dictionary) ->
 func _add_crew(id: int, slot: int) -> void:
 	if get_player(id) == null:
 		_add(id, slot)
-
-
-@rpc("authority", "call_local", "reliable")
-func _conditions(cond: String, is_night: bool) -> void:
-	sea.set("night", is_night)
-	sea.call("set_condition", cond)
 
 
 @rpc("any_peer", "call_remote", "unreliable")

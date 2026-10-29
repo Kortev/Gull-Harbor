@@ -1,5 +1,29 @@
 # While you were away (newest first)
 
+## Fixes from your first playtest
+- **Mouse look works again.** The crosshair dot sat exactly where the captured mouse lives (the middle of
+  the screen) and swallowed every mouse movement. `tests/look_test.tscn` now checks it.
+- **Nobody picks the weather.** It comes and goes by itself: about five minutes of one kind, then a minute
+  and a half turning into the next. It wanders (calm can cloud over to rain and build into a storm, a storm
+  blows through and clears) rather than jumping, and sometimes it's sunny. Everyone aboard sees the same
+  sky: it comes from the shared clock and a seed the host hands out. The menu's weather buttons are gone.
+  (`--weather=storm` still pins it for testing.)
+- **The sea is rebuilt:**
+  - **No more pattern.** It used to be a dozen tidy waves added up, which looked even and repeated. Now it's
+    28 waves of scattered lengths and directions, so the swell comes in sets and the chop never repeats.
+  - **The boat rides it.** She's fitted to the water under her whole hull and follows the swell fully. The
+    storm keeps its big 12 m swell (long waves she climbs and drops off) but lost most of the short,
+    boat-sized chop that used to bury her.
+  - **No hole in the sea.** The old trick cut the water away inside the boat, so a crest climbing the hull
+    showed its open underside. Now the hull pushes the water down where it meets her: no hole, no underside.
+  - `tests/hull_test.tscn` measures it over a minute: in a storm water reaches the rail 1.7% of the time (a
+    slap over the transom, 0.35 m at worst); in heavy weather under 2%; in rain never.
+- **Hosting without port forwarding.** Host now asks your router to open the port by itself (UPnP, on by
+  default on most home routers) and shows a **join code** with a Copy button. Your friend pastes it in and
+  presses Join; joining never needs anything opened. If your router says no, the menu says so: the code then
+  works on your own Wi-Fi only (see the TODO for the fallback).
+- **Try it:** F5. Esc, Host a crew, copy the code and send it to Jack; Jack pastes it and presses Join.
+
 ## The bluefin
 - **What changed:** a real-looking Atlantic bluefin, low-poly and crunchy like the rest of the game:
   - the body: a torpedo shape, navy-black back with a blue sheen, silver flanks with rows of pale spots, a
@@ -18,7 +42,6 @@
   - Press Esc for the menu. **Host a crew** there, and friends **Join** with your address on port 7777.
   - Everyone stands on deck, sees each other walk around, and sees the exact same sea: the waves and the
     boat's rolling are on the host's clock.
-  - The host picks the conditions (calm, sunny, fog, rain, heavy, storm, night) from the same menu.
   - If the host leaves, you're put back on your own boat.
 
   Crewmates are yellow placeholder figures until the crew model exists. Steam lobbies and invites come later.

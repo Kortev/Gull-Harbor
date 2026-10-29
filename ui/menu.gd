@@ -1,8 +1,6 @@
 extends CanvasLayer
-## The Esc menu: back to it, host a crew, join a friend's boat, leave, quit; and (host only, for now) the
-## conditions: calm, sunny, fog, rain, heavy, storm, day or night. Shown whenever the mouse is free.
-
-const CONDITIONS: Array[String] = ["calm", "sunny", "fog", "rain", "heavy", "storm"]
+## The Esc menu: back to it, host a crew, join a friend's boat, leave, quit. Shown whenever the mouse is free.
+## (No weather here: the sea decides that, sea/weather.gd.)
 
 var _panel: PanelContainer
 var _status: Label
@@ -10,8 +8,8 @@ var _address: LineEdit
 var _host: Button
 var _join: Button
 var _leave: Button
-var _weather: Array[Button] = []
-var _night: CheckButton
+var _code_row: HBoxContainer
+var _code: Label
 
 
 func _ready() -> void:
@@ -38,13 +36,25 @@ func _ready() -> void:
 	_status.modulate = Color(0.75, 0.78, 0.8)
 	col.add_child(_status)
 	col.add_child(_button("Back to the deck", _resume))
-	_host = _button("Host a crew (port %d)" % Net.PORT, func() -> void:
+	_host = _button("Host a crew", func() -> void:
 		var err := Net.host()
-		_status.text = "Hosting. Friends join your address." if err == OK else "Couldn't host (port in use?)")
+		_status.text = "Hosting. Opening the door on your router..." if err == OK else "Couldn't host (port in use?)")
 	col.add_child(_host)
+	# the join code, once hosting has it, to copy and send to your friend
+	_code_row = HBoxContainer.new()
+	_code = Label.new()
+	_code.add_theme_font_size_override("font_size", 24)
+	_code.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_code.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_code_row.add_child(_code)
+	_code_row.add_child(_button("Copy", func() -> void:
+		DisplayServer.clipboard_set(Net.code)
+		_status.text = "Copied. Send it to your friend: they paste it in and press Join."))
+	_code_row.visible = false
+	col.add_child(_code_row)
 	var row := HBoxContainer.new()
 	_address = LineEdit.new()
-	_address.placeholder_text = "friend's address (127.0.0.1)"
+	_address.placeholder_text = "join code from the host (or an address)"
 	_address.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(_address)
 	_join = _button("Join", func() -> void:
@@ -56,20 +66,12 @@ func _ready() -> void:
 		var crew := get_parent().get("crew") as Node
 		crew.call("start_solo"))
 	col.add_child(_leave)
-	var wrow := HBoxContainer.new()
-	for c in CONDITIONS:
-		var b := _button(c, func() -> void: _set_conditions(c, bool(get_parent().get("night"))))
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		wrow.add_child(b)
-		_weather.append(b)
-	col.add_child(wrow)
-	_night = CheckButton.new()
-	_night.text = "Night"
-	_night.toggled.connect(func(on: bool) -> void:
-		_set_conditions(str(get_parent().get("condition")), on))
-	col.add_child(_night)
 	col.add_child(_button("Quit", func() -> void: get_tree().quit()))
 	Net.joined.connect(func() -> void: _status.text = "Aboard.")
+	Net.opened.connect(func(ok: bool, code: String) -> void:
+		_code.text = code
+		_status.text = "Your join code: send it to your friend." if ok else \
+				"Your router wouldn't open the door (UPnP is off there),\nso this code works on your own Wi-Fi only.\nOver the internet: both install Tailscale and join its address.")
 	Net.dropped.connect(func(reason: String) -> void: _status.text = reason)
 
 
@@ -78,10 +80,6 @@ func _button(text: String, on: Callable) -> Button:
 	b.text = text
 	b.pressed.connect(on)
 	return b
-
-
-func _set_conditions(c: String, is_night: bool) -> void:
-	(get_parent().get("crew") as Node).call("set_conditions", c, is_night)
 
 
 func _resume() -> void:
@@ -94,14 +92,10 @@ func _process(_delta: float) -> void:
 	if not open:
 		return
 	var session := Net.in_session()
-	_host.disabled = session
-	_join.disabled = session
-	_leave.disabled = not session
-	for b in _weather:
-		b.disabled = not Net.is_host()
-		b.modulate = Color(1, 0.85, 0.4) if b.text == str(get_parent().get("condition")) else Color.WHITE
-	_night.disabled = not Net.is_host()
-	_night.set_pressed_no_signal(bool(get_parent().get("night")))
+	_host.disabled = Net.in_session_or_hosting()
+	_join.disabled = Net.in_session_or_hosting()
+	_leave.disabled = not Net.in_session_or_hosting()
+	_code_row.visible = Net.in_session_or_hosting() and multiplayer.is_server() and not Net.code.is_empty()
 	if _status.text.is_empty():
 		_status.text = "Alone on the boat." if not session else ""
 

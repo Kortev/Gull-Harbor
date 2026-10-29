@@ -21,6 +21,15 @@ var line_end := Vector3.ZERO
 ## Line coming in (m/s): turns the crank.
 var reeling := 0.0
 var spread: Node              # rods.gd
+## A fish on: its weight, when it bit (sea clock), which way it ran (world, flat), and how much line it's taken
+## past the bait's spot (m).
+var hooked := false
+var fish_kg := 0.0
+var hook_t := 0.0
+var run_dir := Vector3.BACK
+var line_out := 0.0
+var _scream: AudioStreamPlayer3D
+var _last_out := 0.0
 var _blank: MeshInstance3D
 var _handle: Node3D
 var _tip_local := Vector3(0, 0, LENGTH)
@@ -61,6 +70,16 @@ func _ready() -> void:
 	lm.albedo_color = Color(0.85, 0.86, 0.78)
 	_line.material_override = lm
 	add_child(_line)
+	_scream = AudioStreamPlayer3D.new()
+	var wav := (preload("res://audio/fish/drag_scream.wav") as AudioStreamWAV).duplicate() as AudioStreamWAV
+	wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	wav.loop_begin = 0
+	wav.loop_end = wav.data.size() / 2
+	_scream.stream = wav
+	_scream.unit_size = 6.0
+	_scream.volume_db = 4.0
+	_scream.position = Vector3(0, 0.1, 0.37)
+	add_child(_scream)
 	# what you press E on: the butt and the foregrip
 	_grab = Area3D.new()
 	_grab.add_to_group("interactable")
@@ -110,6 +129,16 @@ func _process(delta: float) -> void:
 	_blank.set_instance_shader_parameter("bend", _bend)
 	if _handle:
 		_handle.rotate_object_local(Vector3.RIGHT, -reeling * delta * 12.0)
+	# the drag screams while the fish takes line: louder and higher the faster it goes
+	var paying := (line_out - _last_out) / maxf(delta, 1e-4)
+	_last_out = line_out
+	if hooked and paying > 0.6:
+		if not _scream.playing:
+			_scream.play()
+		_scream.pitch_scale = clampf(0.75 + paying / 14.0, 0.75, 1.5)
+		_scream.volume_db = lerpf(-6.0, 6.0, clampf(paying / 10.0, 0.0, 1.0))
+	elif _scream.playing:
+		_scream.stop()
 	_draw_line()
 
 
@@ -129,5 +158,5 @@ func _draw_line() -> void:
 
 func interact_prompt(player: Node) -> String:
 	if holder == 0:
-		return "Grab the rod" if strain < 0.3 else "GRAB IT!"
+		return "GRAB IT! Fish on!" if hooked else "Grab the rod"
 	return ""

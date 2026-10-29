@@ -15,18 +15,22 @@ const NIGHT_LENGTH := 15.0 * 60.0
 const SHADER := preload("res://sea/ocean.gdshader")
 const NOISE := preload("res://sea/textures/sky_noise.png")
 const G := 9.81
-## The swell: long waves running with the wind, and a second, smaller swell crossing it (a confused
-## sea). [wavelength m, share of the swell's height, direction off the wind (degrees), phase]
-const SWELL := [[150.0, 0.34, 0.0, 0.0], [107.0, 0.25, 17.0, 1.7], [83.0, 0.18, -23.0, 4.1],
-	[118.0, 0.13, 75.0, 2.6], [69.0, 0.1, 88.0, 5.3]]
-## The chop on top, from all round, wavelengths that never line up. [wavelength m, amplitude at
-## chop 1 (m), direction off the wind, phase]
-const CHOP := [[27.0, 0.55, 36.0, 2.3], [19.5, 0.45, -51.0, 5.2], [14.2, 0.36, 103.0, 0.9], [10.3, 0.28, -128.0, 3.3],
-	[7.4, 0.2, 164.0, 1.1], [5.3, 0.14, -12.0, 4.4], [3.9, 0.09, 61.0, 2.0]]
+## The sea is a spread of many waves (a spectrum), not a few tidy ones: lengths scattered so none line up, directions
+## fanned round the wind, phases at random. Close lengths beat against each other, so the swell comes in sets (a few
+## big ones, then a lull) and the chop never repeats. Made once from a fixed seed: every peer gets the same sea.
+## The swell: long waves with the wind and a cross swell; shares of its height (their squares sum to SWELL_POWER).
+const SWELL_N := 10
+const SWELL_LENGTHS := Vector2(55.0, 170.0)
+const SWELL_POWER := 0.2374
+## The chop: short waves from all round, more of them with the wind; metres at chop 1 (squares sum to CHOP_POWER).
+const CHOP_N := 18
+const CHOP_LENGTHS := Vector2(2.6, 30.0)
+const CHOP_POWER := 0.78
+const SEA_SEED := 20261029
 ## Calm, the usual rain, a storm: (swell crest to trough m, chop, steepness 0..1, whitecaps 0..1).
 const CALM := [2.2, 0.5, 0.5, 0.1]
-const RAIN := [4.5, 1.1, 0.68, 0.45]
-const STORM := [10.0, 2.6, 0.9, 1.0]
+const RAIN := [4.5, 0.6, 0.68, 0.45]
+const STORM := [12.0, 0.9, 0.9, 1.0]
 ## How fast the rough patches drift with the wind (m/s), calm to storm.
 const GUSTS := Vector2(4.0, 12.0)
 ## Real deep-water wave speeds times this (a touch slower reads heavier).
@@ -100,6 +104,9 @@ var gusty := 0.0
 var tame := false
 var _forced_at := -100.0
 var _waves: Array[PackedFloat32Array] = []  # each: dir x, dir z, k, amplitude, omega, phase
+## [wavelength m, share or amplitude, direction off the wind (degrees), phase] (see SWELL_N and CHOP_N)
+var _swell_spec: Array[PackedFloat32Array] = []
+var _chop_spec: Array[PackedFloat32Array] = []
 var _swirl_r := PackedFloat32Array()
 var _swirl_g := PackedFloat32Array()
 var _swirl_size := 128
@@ -107,9 +114,8 @@ var _group_drift := Vector2.ZERO
 var _q := 0.0
 var _steep := 0.6
 var _mat: ShaderMaterial
-var _dry_box := Vector4.ZERO
-var _dry_axis := Vector2(1.0, 0.0)
-var _dry_top := 0.0
+var _hull := Transform3D.IDENTITY
+var _hull_on := false
 var _dirty := true
 var _planet: Node
 var _clock: Node
@@ -127,7 +133,8 @@ func _ready() -> void:
 	_mat.shader = SHADER
 	_mat.set_shader_parameter("noise", NOISE)
 	_mat.set_shader_parameter("swirl", NOISE)
-	_mat.set_shader_parameter("swell_count", SWELL.size())
+	_make_spectrum()
+	_mat.set_shader_parameter("swell_count", SWELL_N)
 	# the noise, here too, so height_at works the patches and the warp out the same way
 	var img := NOISE.get_image()
 	if img.is_compressed():
@@ -146,7 +153,8 @@ func _ready() -> void:
 	_mat.set_shader_parameter("curve_start", CURVE_START)
 	_mat.set_shader_parameter("curve_radius", CURVE_RADIUS)
 	_mat.set_shader_parameter("rain", rain)
-	set_dry(Vector2(_dry_box.x, _dry_box.y), Vector2(_dry_box.z, _dry_box.w), _dry_axis, _dry_top)
+	if _hull_on:
+		set_hull(global_transform * _hull)
 	var sea := MeshInstance3D.new()
 	sea.name = "Sea"
 	sea.mesh = _build_mesh()
@@ -274,14 +282,15 @@ func normal_at(at: Vector3) -> Vector3:
 ## A deck over the sea (Fathom's wave deck, fathom_hazards.gd): inside this box the sea isn't drawn over `top`, so a
 ## crest never shows through its grating. Its middle (x, z), half sizes along `axis` (x, z) and across it, the height:
 ## all in this node's space. A zero `half` turns it off.
-func set_dry(center: Vector2, half: Vector2, axis: Vector2, top: float) -> void:
-	_dry_box = Vector4(center.x, center.y, half.x, half.y)
-	_dry_axis = axis.normalized()
-	_dry_top = top
+## The boat, where she is right now (her global transform): the sea is drawn pushed down inside her hull, so a
+## crest never shows through her deck (ocean.gdshader). Only the drawing: height_at is the open sea.
+func set_hull(boat: Transform3D) -> void:
+	_hull_on = true
+	_hull = global_transform.affine_inverse() * boat
 	if _mat != null:
-		_mat.set_shader_parameter("dry_box", _dry_box)
-		_mat.set_shader_parameter("dry_axis", _dry_axis)
-		_mat.set_shader_parameter("dry_top", _dry_top)
+		_mat.set_shader_parameter("hull_on", true)
+		_mat.set_shader_parameter("hull_xf", Projection(_hull))
+		_mat.set_shader_parameter("hull_inv", Projection(_hull.affine_inverse()))
 
 
 func set_sky_color(c: Color) -> void:
@@ -303,7 +312,7 @@ func _displace(p: Vector2, t: float, drift: Vector2) -> Vector3:
 	var wp := (_swirl(_swirl_r, p / 120.0 + Vector2(0.37, 0.11)) - 0.5) * 3.8
 	for i in _waves.size():
 		var w := _waves[i]
-		var swell_wave := i < SWELL.size()
+		var swell_wave := i < SWELL_N
 		var a: float = w[3] * (sw if swell_wave else g)
 		var th: float = w[2] * (w[0] * p.x + w[1] * p.y) - w[4] * t + w[5] + wp * (1.0 if swell_wave else 0.5)
 		var c := cos(th)
@@ -349,14 +358,14 @@ func _update_waves() -> void:
 	var whitecaps := lerpf(a[3], b[3], f)
 	var base := atan2(wind.y, wind.x)
 	_waves.clear()
-	for w: Array in SWELL:
-		_waves.append(_wave(w[0], swell * 0.5 * float(w[1]), base + deg_to_rad(w[2]), w[3]))
-	for w: Array in CHOP:
-		_waves.append(_wave(w[0], float(w[1]) * chop, base + deg_to_rad(w[2]), w[3]))
+	for w in _swell_spec:
+		_waves.append(_wave(w[0], swell * 0.5 * w[1], base + deg_to_rad(w[2]), w[3]))
+	for w in _chop_spec:
+		_waves.append(_wave(w[0], w[1] * chop, base + deg_to_rad(w[2]), w[3]))
 	# one steepness for all: sharp crests, but never looping over
 	var sum := 0.0
 	for i in _waves.size():
-		sum += _waves[i][2] * _waves[i][3] * (1.15 if i < SWELL.size() else 1.65)
+		sum += _waves[i][2] * _waves[i][3] * (1.15 if i < SWELL_N else 1.65)
 	_q = _steep / maxf(sum, 0.0001)
 	var wa := PackedVector4Array()
 	var wb := PackedVector4Array()
@@ -378,6 +387,36 @@ func _update_waves() -> void:
 	_mat.set_shader_parameter("wind", wind)
 
 
+## The sea's waves, from SEA_SEED: lengths spread evenly on a log scale and jittered, heights rising with length.
+func _make_spectrum() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = SEA_SEED
+	_swell_spec = _spread(rng, SWELL_N, SWELL_LENGTHS, SWELL_POWER, 1.3, true)
+	_chop_spec = _spread(rng, CHOP_N, CHOP_LENGTHS, CHOP_POWER, 0.9, false)
+
+
+static func _spread(rng: RandomNumberGenerator, n: int, lengths: Vector2, power: float, rise: float,
+		swell: bool) -> Array[PackedFloat32Array]:
+	var out: Array[PackedFloat32Array] = []
+	var sq := 0.0
+	for i in n:
+		var f := (i + rng.randf_range(0.15, 0.85)) / n
+		var length := lengths.x * pow(lengths.y / lengths.x, f)
+		var angle := 0.0
+		if swell:
+			# most run with the wind, give or take; every third is the cross swell
+			angle = rng.randf_range(60.0, 100.0) * (1.0 if rng.randf() < 0.5 else -1.0) if i % 3 == 2 \
+					else rng.randfn(0.0, 14.0)
+		else:
+			angle = clampf(rng.randfn(0.0, 70.0), -170.0, 170.0)
+		var a := pow(length / lengths.y, rise) * rng.randf_range(0.7, 1.3)
+		sq += a * a
+		out.append(PackedFloat32Array([length, a, angle, rng.randf_range(0.0, TAU)]))
+	for w in out:
+		w[1] *= sqrt(power / sq)
+	return out
+
+
 static func _wave(length: float, amplitude: float, angle: float, phase: float) -> PackedFloat32Array:
 	var k := TAU / length
 	return PackedFloat32Array([cos(angle), sin(angle), k, amplitude, sqrt(G * k) * PACE, phase])
@@ -387,12 +426,14 @@ static func _wave(length: float, amplitude: float, angle: float, phase: float) -
 ## many points round each ring: no seams to crack open when the waves move it.
 func _build_mesh() -> ArrayMesh:
 	var radii := PackedFloat32Array([0.0])
-	var step := 1.2
+	# fine round the boat (so the sea meets her hull cleanly), coarser and coarser out to the horizon
+	var step := 0.3
 	var r := 0.0
 	while r < reach:
 		r += step
 		radii.append(r)
-		step *= 1.035
+		if r > 14.0:
+			step *= 1.08 if step < 1.2 else 1.035
 	var seg := 320
 	var verts := PackedVector3Array([Vector3.ZERO])
 	for i in range(1, radii.size()):

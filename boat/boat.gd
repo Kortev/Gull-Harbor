@@ -17,8 +17,8 @@ const BEAM := 4.3
 const DECK := 0.55          # the cockpit sole above the model's origin (its waterline)
 const SINK := 0.12          # loaded with ice, fuel and crew she sits a little below her painted waterline
 ## How much of the sea's slope the hull follows: a long, heavy hull bridges the short chop.
-const PITCH_FOLLOW := 0.75
-const ROLL_FOLLOW := 0.7
+const PITCH_FOLLOW := 1.0
+const ROLL_FOLLOW := 0.85
 
 var ocean: Ocean
 var spawns: Array[Transform3D] = []      # boat-local
@@ -155,29 +155,32 @@ func _process(delta: float) -> void:
 	if ocean == null:
 		return
 	global_transform = pose()
-	# Keep the sea from being drawn inside the hull when a crest rises past the waterline.
-	# A flat cut a little under the deck's lowest corner, so it still holds when she rolls.
-	var fwd := -global_transform.basis.z
-	var low := INF
-	for c: Vector3 in [Vector3(-1.9, DECK, -4.0), Vector3(1.9, DECK, -4.0), Vector3(-1.9, DECK, 5.8),
-			Vector3(1.9, DECK, 5.8)]:
-		low = minf(low, (global_transform * c).y)
-	ocean.set_dry(Vector2.ZERO, Vector2(LENGTH * 0.46, BEAM * 0.48), Vector2(fwd.x, fwd.z), low - 0.1)
+	# her hull pushes the sea down where she sits: no crest shows up through her deck
+	ocean.set_hull(global_transform)
 
 
-## Where the hull sits on the swell right now: the waterline from the mean of the water under it, pitch from bow
-## vs stern, roll from port vs starboard. A pure function of the wave clock, so every peer agrees.
+## Where the hull sits on the swell right now: a plane fitted to the water under her (five stations along, three
+## across), the waterline at its middle, its slopes her pitch and roll. A pure function of the wave clock, so every
+## peer agrees.
 func pose() -> Transform3D:
-	var hl := LENGTH * 0.42
-	var hb := BEAM * 0.45
-	var bow := ocean.height_at(Vector3(0.0, 0.0, -hl))
-	var stern := ocean.height_at(Vector3(0.0, 0.0, hl))
-	var port := ocean.height_at(Vector3(-hb, 0.0, 0.0))
-	var stbd := ocean.height_at(Vector3(hb, 0.0, 0.0))
-	var mid := ocean.height_at(Vector3.ZERO)
-	var y := (bow + stern + port + stbd + mid * 2.0) / 6.0 - SINK
-	var pitch := atan2(bow - stern, hl * 2.0) * PITCH_FOLLOW
-	var roll := atan2(stbd - port, hb * 2.0) * ROLL_FOLLOW
+	var sum := 0.0
+	var sx := 0.0
+	var sz := 0.0
+	var xx := 0.0
+	var zz := 0.0
+	for i in 5:
+		var z := (i - 2) * LENGTH * 0.2
+		for j in 3:
+			var x := (j - 1) * BEAM * 0.4
+			var h := ocean.height_at(Vector3(x, 0.0, z))
+			sum += h
+			sx += x * h
+			sz += z * h
+			xx += x * x
+			zz += z * z
+	var y := sum / 15.0 - SINK
+	var pitch := atan(-sz / zz) * PITCH_FOLLOW
+	var roll := atan(sx / xx) * ROLL_FOLLOW
 	return Transform3D(Basis.from_euler(Vector3(pitch, 0.0, roll)), Vector3(0.0, y, 0.0))
 
 

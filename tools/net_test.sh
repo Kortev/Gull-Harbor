@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 G=${GODOT:-godot}
 timeout 90 $G --headless --path . -- --host --weather=storm --net-report=9 > /tmp/bluefin_host.log 2>&1 &
 sleep 2
-timeout 90 $G --headless --path . -- --join=127.0.0.1 --weather=calm --net-report=5 > /tmp/bluefin_client.log 2>&1
+timeout 90 $G --headless --path . -- --join=3ZJ2-223 --weather=calm --net-report=5 > /tmp/bluefin_client.log 2>&1
 wait
 H=$(grep "^NET" /tmp/bluefin_host.log)
 C=$(grep "^NET" /tmp/bluefin_client.log)

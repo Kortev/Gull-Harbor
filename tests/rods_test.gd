@@ -22,8 +22,10 @@ func _ready() -> void:
 	var me: Node3D = sea.crew.me
 	var butt: Vector3 = rods.rods[2].global_position
 	_check(butt.distance_to(me.global_position) < 1.5, "the rod is in your hands (%.2f m from you)" % butt.distance_to(me.global_position))
-	var tip: Vector3 = rods.rods[2].tip_position()
-	_check(tip.y > butt.y + 0.5, "held up ahead of you (tip %.2f m above the butt)" % (tip.y - butt.y))
+	# (in the boat's frame: in a storm she pitches, and the rod with her)
+	var deck := sea.boat.global_transform.affine_inverse()
+	var up := (deck * rods.rods[2].tip_position()).y - (deck * butt).y
+	_check(up > 0.5, "held up ahead of you (tip %.2f m above the butt)" % up)
 	rods.request_return(2)
 	_check(rods.rods[2].holder == 0, "Q: back in its holder")
 	rods.request_grab(0)

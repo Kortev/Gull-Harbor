@@ -10,8 +10,12 @@ const HOLDERS: Array[int] = [6, 7, 0, 1]
 const BAITS: Array[Vector3] = [Vector3(5.0, 0, 38.0), Vector3(-5.0, 0, 38.0), Vector3(14.0, 0, 52.0),
 		Vector3(-14.0, 0, 52.0)]
 
+## Seconds of a bluefin's first run before an unattended reel is empty.
+const SPOOL_S := 24.0
+
 var sea: Node                 # sea/sea.gd
 var rods: Array[Rod] = []
+var _send_in := 0.0
 
 
 func _ready() -> void:
@@ -87,6 +91,65 @@ func _set_holder(i: int, who: int) -> void:
 	rods[i].holder = who
 
 
+## Host: a fish takes rod i's bait.
+func strike(i: int, kg: float) -> void:
+	var r := rods[i]
+	if r.hooked:
+		return
+	var away := (r.line_end - r.global_position)
+	var dir := Vector3(away.x, 0.0, away.z).normalized().rotated(Vector3.UP, randf_range(-0.9, 0.9))
+	var t := float((sea.get("ocean") as Node).get("wave_time"))
+	if Net.in_session():
+		_strike.rpc(i, kg, t, dir)
+	else:
+		_strike(i, kg, t, dir)
+
+
+@rpc("authority", "call_local", "reliable")
+func _strike(i: int, kg: float, t: float, dir: Vector3) -> void:
+	var r := rods[i]
+	r.hooked = true
+	r.fish_kg = kg
+	r.hook_t = t
+	r.run_dir = dir
+	r.line_out = 0.0
+	_hud_note("FISH ON!  The %s rod!" % ["port corner", "starboard corner", "port", "starboard"][i])
+
+
+## The first run, left alone: blistering at first, tiring a little (m of line past the bait, s after the bite).
+static func run_out(dt: float) -> float:
+	return 150.0 * (1.0 - exp(-maxf(dt, 0.0) / 16.0))
+
+
+@rpc("authority", "call_local", "reliable")
+func _off(i: int, why: String) -> void:
+	var r := rods[i]
+	r.hooked = false
+	r.line_out = 0.0
+	r.strain = 0.05
+	_hud_note(why)
+
+
+## The holder's word on how the fight's going: line out and how hard it pulls (any peer: the holder's own).
+@rpc("any_peer", "call_remote", "unreliable_ordered")
+func _fight_state(i: int, out: float, pull: float) -> void:
+	if rods[i].holder == multiplayer.get_remote_sender_id():
+		rods[i].line_out = out
+		rods[i].strain = pull
+
+
+func _hud_note(text: String) -> void:
+	var crew := sea.get("crew") as Node
+	(crew.get("hud") as Node).call("notify", text)
+
+
+func _host_off(i: int, why: String) -> void:
+	if Net.in_session():
+		_off.rpc(i, why)
+	else:
+		_off(i, why)
+
+
 @rpc("authority", "call_remote", "reliable")
 func _holders(list: Array) -> void:
 	for i in mini(list.size(), rods.size()):
@@ -107,21 +170,67 @@ func _unhandled_input(event: InputEvent) -> void:
 			request_return(mine.index)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	var boat := sea.get("boat") as Node3D
 	var ocean := sea.get("ocean") as Node
 	var crew := sea.get("crew") as Node
+	var t := float(ocean.get("wave_time"))
+	var me := Net.my_id()
+	_send_in -= delta
 	for r in rods:
+		if r.hooked:
+			if r.holder == 0:
+				# nobody on it: the fish runs, line pours off; the reel empties and it's gone
+				r.line_out = run_out(t - r.hook_t)
+				r.strain = 0.95
+				r.reeling = 0.0
+				if Net.is_host() and t - r.hook_t > SPOOL_S:
+					_host_off(r.index, "Spooled! Nobody grabbed it and it took all the line.")
+			elif r.holder == me:
+				_reel_stub(r, delta)
+			# (someone else's: their peer sends line_out and strain)
+		else:
+			r.strain = 0.05
+			r.reeling = 0.0
 		var p: Node3D = crew.call("get_player", r.holder) if r.holder != 0 else null
 		if p == null:
 			# in its holder: the holder's tube, the butt down in it
-			var t: Transform3D = boat.call("holder_transform", HOLDERS[r.index])
-			r.global_transform = t.translated_local(Vector3(0, 0, -0.42))
+			var ht: Transform3D = boat.call("holder_transform", HOLDERS[r.index])
+			r.global_transform = ht.translated_local(Vector3(0, 0, -0.42))
 		else:
 			r.global_transform = _in_hands(p)
 		var end := boat.global_transform * BAITS[r.index]
+		if r.hooked:
+			end += r.run_dir * r.line_out
 		end.y = ocean.call("height_at", end)
 		r.line_end = end
+
+
+## Until the fight exists: hold left mouse to crank the fish in; it still takes line now and then.
+func _reel_stub(r: Rod, delta: float) -> void:
+	var me := (sea.get("crew") as Node).get("me") as Node
+	var live := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or (me != null and bool(me.get("force_input")))
+	var cranking := Input.is_action_pressed("use_primary") and live
+	var t := float((sea.get("ocean") as Node).get("wave_time"))
+	var surge := maxf(sin(t * 0.7 + r.fish_kg) * 6.0 - 2.0, 0.0)
+	r.reeling = 2.5 if cranking else 0.0
+	r.line_out = maxf(r.line_out - r.reeling * delta + surge * delta, -BAITS[r.index].z + 4.0)
+	r.strain = 0.55 + 0.4 * clampf(surge / 4.0, 0.0, 1.0)
+	if _send_in <= 0.0 and Net.in_session():
+		_send_in = 0.1
+		_fight_state.rpc(r.index, r.line_out, r.strain)
+	if r.line_out <= -BAITS[r.index].z + 4.5:
+		var why := "Boatside! A %d kg bluefin. (Gaff and harpoon come with the crew jobs.)" % roundi(r.fish_kg)
+		if Net.is_host():
+			_host_off(r.index, why)
+		else:
+			_landed_stub.rpc_id(1, r.index)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _landed_stub(i: int) -> void:
+	if rods[i].holder == multiplayer.get_remote_sender_id() and rods[i].hooked:
+		_host_off(i, "Boatside! A %d kg bluefin. (Gaff and harpoon come with the crew jobs.)" % roundi(rods[i].fish_kg))
 
 
 ## A rod in someone's hands: the butt at their belt, the rod out in front and up, following where they look.

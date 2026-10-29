@@ -10,8 +10,8 @@ shader_type spatial;
 render_mode specular_schlick_ggx, cull_disabled;
 
 // Each wave: direction x, z; wavenumber k; amplitude. Then: angular speed; phase; steepness Q.
-uniform vec4 waves[12];
-uniform vec4 waves_b[12];
+uniform vec4 waves[32];
+uniform vec4 waves_b[32];
 uniform int wave_count = 0;
 // The first swell_count waves are the swell; the rest, the chop, come and go in patches.
 uniform int swell_count = 5;
@@ -58,11 +58,12 @@ uniform vec4 glow_spot = vec4(0.0);
 uniform vec2 glow_heading = vec2(1.0, 0.0);
 uniform vec3 glow_color : source_color = vec3(0.3, 0.95, 0.8);
 uniform sampler2D noise : filter_nearest_mipmap, repeat_enable;
-// a deck over the sea (ocean.gd's set_dry): inside this box the sea isn't drawn over dry_top, so a crest never shows
-// through its grating: its middle (x, z), half sizes along dry_axis and across it
-uniform vec4 dry_box = vec4(0.0);
-uniform vec2 dry_axis = vec2(1.0, 0.0);
-uniform float dry_top = 0.0;
+// the boat (ocean.gd's set_hull): her hull pushes the water down, so no crest ever comes up through her deck.
+// hull_xf takes her space to this node's, hull_inv back; inside her the sea stays under hull_floor (her space)
+uniform bool hull_on = false;
+uniform mat4 hull_xf = mat4(1.0);
+uniform mat4 hull_inv = mat4(1.0);
+uniform float hull_floor = 0.35;
 
 varying vec3 local;
 varying vec3 moved;
@@ -88,6 +89,22 @@ float warp_at(vec2 p) {
 	return (textureLod(swirl, p / 120.0 + vec2(0.37, 0.11), 0.0).r - 0.5) * 3.8;
 }
 
+// her half-beam at the rail, at z along her (art/boat.py's s_half: bow toward -z, 12.5 m long)
+float hull_half(float z) {
+	float u = (6.25 - z) / 12.5;
+	if (u < 0.0 || u > 1.0) {
+		return -1.0;
+	}
+	if (u < 0.3) {
+		return 1.98 + 0.17 * smoothstep(0.0, 0.3, u);
+	}
+	if (u < 0.55) {
+		return 2.15;
+	}
+	float t = (u - 0.55) / 0.45;
+	return 0.07 + 2.08 * pow(max(0.0, 1.0 - pow(t, 2.2)), 0.55);
+}
+
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
 }
@@ -101,7 +118,7 @@ void vertex() {
 	float g = group_at(p.xz);
 	float sw = swell_at(p.xz);
 	float wp = warp_at(p.xz);
-	for (int i = 0; i < 12; i++) {
+	for (int i = 0; i < 32; i++) {
 		if (i >= wave_count) {
 			break;
 		}
@@ -115,17 +132,23 @@ void vertex() {
 	}
 	d *= k;
 	VERTEX = p + d;
+	if (hull_on) {
+		// inside her bulwarks all the way down to hull_floor, easing off to nothing at her side and transom
+		vec3 b = (hull_inv * vec4(VERTEX, 1.0)).xyz;
+		if (b.y > hull_floor) {
+			float hh = hull_half(b.z);
+			float in_k = smoothstep(hh + 0.02, hh - 0.18, abs(b.x)) * smoothstep(6.4, 6.15, b.z) * smoothstep(-6.4, -6.0, b.z);
+			if (in_k > 0.0) {
+				b.y = mix(b.y, hull_floor, in_k);
+				VERTEX = (hull_xf * vec4(b, 1.0)).xyz;
+			}
+		}
+	}
 	moved = VERTEX;
 	VERTEX.y -= pow(max(r - curve_start, 0.0), 2.0) / (2.0 * curve_radius);
 }
 
 void fragment() {
-	if (dry_box.z > 0.0 && moved.y > dry_top) {
-		vec2 rel = moved.xz - dry_box.xy;
-		if (abs(dot(rel, dry_axis)) < dry_box.z && abs(dot(rel, vec2(-dry_axis.y, dry_axis.x))) < dry_box.w) {
-			discard;
-		}
-	}
 	// a flat facet per triangle
 	vec3 n = normalize(cross(dFdx(VERTEX), dFdy(VERTEX)));
 	if (dot(n, VIEW) < 0.0) {
@@ -141,7 +164,7 @@ void fragment() {
 	float g = group_at(q);
 	float sw = swell_at(q);
 	float wp = warp_at(q);
-	for (int i = 0; i < 12; i++) {
+	for (int i = 0; i < 32; i++) {
 		if (i >= wave_count) {
 			break;
 		}
