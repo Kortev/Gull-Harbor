@@ -1,5 +1,27 @@
 # While you were away (newest first)
 
+## Brainstorm: playing with 1, 2 or 4 (your question; nothing built yet, pick what you like)
+The rule I'd hold to: **more hands make it easier, but no job is ever required.** Every job has a weaker
+fallback, so one or two people can play the whole game.
+- **CPU deckhands:** fill any job nobody's doing. Humans can take a job over anytime and the deckhand steps
+  aside. They're decent but late, so a friend always does it better. The host sets "Deckhands: 0 to 3". This is
+  also your dev test.
+- **Orders:** solo, you're the skipper. A few keys shout orders ("Back down!", "Clear the lines!", "Gaff it!") and
+  the deckhands do them.
+- **Gear instead of people:**
+  - An autopilot that holds the stern to the fish, only half as well as a captain.
+  - Fighting the fish from the rod holder while you drive.
+  - A flying-gaff stand.
+  - Solo crews buy these; full crews spend the money elsewhere.
+- **One person can do several jobs, worse:** a second set of controls aft in the cockpit (real boats have them), so
+  you can run between the wheel and the rod. With 2 players it gets frantic, like Overcooked; with 4 it's calm.
+- **The sea scales to the crew:** fewer hands, fewer giants. Solo sees mostly 50 to 200 kg fish; four of you see
+  the 400 kg ones.
+- **Four players:** two boats, 2 v 2, racing for the biggest catch. Or one boat with more rods out, so a double
+  hookup gets more likely with more idle hands.
+- **Fallbacks already in:** a big fish slowly tows the stern round to it, and a crewmate can take the rod. But
+  right now a lone angler loses every 300 kg fish, so whatever you pick, I'll retune solo.
+
 ## Tiring arms and handing off the rod
 - **What changed:**
   - Cranking and heaving wear your arms. The heavier the fish, the faster: much faster for a giant.
