@@ -8,6 +8,16 @@ round her and "Keep the stern on it!". Taking it off the big boat makes calling 
 corner!") a real job for the crew. Alone in the big boat, though, you'd be steering blind. My pick: keep it on the
 skiff and take it off the big boat. Say yes and I'll do it, or say keep it.
 
+## The outriggers fish now (the big boat)
+
+- **What:** the sportfisher's two wide lines run from the rod tips up to a release clip near each outrigger's
+  end, then out to the baits, held wide of the wake, like a real one. When a fish hits one, the line pops out of
+  the clip with a snap and comes straight to the rod. The spare rod holders stay: they're small, and real boats
+  have empty ones.
+- **Checked:** `tests/rods_test.tscn` (the wide lines go through the clips, high and out to the sides; a strike
+  pops one out). Screenshot: `docs/shots/outriggers.png` (from astern).
+- **Try:** watch the wide baits from the cockpit, and listen for the pop on a strike.
+
 ## Dale talks on the radio now
 
 - **What:** when Dale from the bank calls with a tip, you now *hear* him, from the radio on the dash by the

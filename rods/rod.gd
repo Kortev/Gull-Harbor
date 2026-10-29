@@ -58,6 +58,8 @@ var live := false
 ## The bait being towed (rods.gd's _tow): where it is and its way through the water (world; INF: not out), and how
 ## slack its line is (0 bar-tight .. 1: she's stopped and it's dropped back).
 var bait_p := Vector3.INF
+## The outrigger's release clip the line runs through (world; INF: none, straight from the tip: rods.gd).
+var clip := Vector3.INF
 var bait_v := Vector3.ZERO
 var slack := 0.0
 var _lure: MeshInstance3D
@@ -174,7 +176,7 @@ func tip_position() -> Vector3:
 
 func _process(delta: float) -> void:
 	# bend toward the line: the pull's direction seen from the rod, scaled by how hard it pulls
-	var pull := line_end - global_position
+	var pull := (clip if clip != Vector3.INF else line_end) - global_position
 	var local := global_transform.basis.inverse() * pull.normalized()
 	var want := Vector2(local.x, local.y) * (0.05 + 0.55 * strain) * LENGTH * 0.45
 	# a heavy load makes the tip buck (a fish's head shakes and the drag slips)
@@ -236,14 +238,12 @@ func _draw_line() -> void:
 	_line_mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
 	# a line always droops a little; a slack one (she's stopped) a lot, down onto the water; a fish on pulls it
 	# straight
-	var d := a.distance_to(b)
-	var sag := (0.02 + 0.3 * slack) * d * (1.0 - 0.85 * strain)
-	for i in 17:
-		var f := i / 16.0
-		var p := a.lerp(b, f)
-		p.y -= sag * 4.0 * f * (1.0 - f)
-		p.y = maxf(p.y, minf(b.y, a.y) - 0.05)       # (not through the water)
-		_line_mesh.surface_add_vertex(p)
+	if clip != Vector3.INF:
+		# up to the outrigger's clip, then out from it to the bait
+		_sag_line(a, clip, 0.02)
+		_sag_line(clip, b, 0.02 + 0.3 * slack, true)
+	else:
+		_sag_line(a, b, (0.02 + 0.3 * slack) * (1.0 - 0.85 * strain))
 	_line_mesh.surface_end()
 	# the lure, nose toward the rod, riding just in the water
 	var out := not hooked and not bait_in and tangled < 0 and bait_p != Vector3.INF
@@ -255,6 +255,17 @@ func _draw_line() -> void:
 					* Basis(Vector3.RIGHT, -PI * 0.5), b + Vector3(0.0, 0.02, 0.0))
 		var lm := _lure.material_override as StandardMaterial3D
 		lm.albedo_color = Color(0.15, 0.25, 0.3) if live else LURES[index % LURES.size()]
+
+
+## A drooping stretch of line from a to b (`droop`: how far it sags, for its length), into the strip being drawn.
+func _sag_line(a: Vector3, b: Vector3, droop: float, skip_first := false) -> void:
+	var sag := droop * a.distance_to(b)
+	for i in range(1 if skip_first else 0, 17):
+		var f := i / 16.0
+		var p := a.lerp(b, f)
+		p.y -= sag * 4.0 * f * (1.0 - f)
+		p.y = maxf(p.y, minf(b.y, a.y) - 0.05)       # (not through the water)
+		_line_mesh.surface_add_vertex(p)
 
 
 func interact_prompt(player: Node) -> String:

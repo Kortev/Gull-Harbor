@@ -107,8 +107,8 @@ Everything big enough to look usable must be usable, or go. Today:
 | The leaning post / skipper's seat / bench | **yes:** E to sit, or lean on the leaning post (`boat/seat.gd`) | Done. |
 | The cooler (sportfisher), the live well, the fish box | the box takes fish (as a whole: E on the fish) | Cooler: grab a drink (funny; maybe a little arm rest). Live well: see the mackerel in it. Fish box: the lid opens as fish go in. |
 | The radio on the dash | **yes:** Dale's voice comes from the dash by the wheel (`audio/radio_voice.gd`) | Done: a garbled VHF voice (no real words; the card has them). Music on it: maybe later. |
-| Rod holders that never fish (sportfisher's 2-5, skiff's 2-3) | the jig uses one | Spare rods, or take the empty holders out of the model. |
-| Outriggers (sportfisher) | no | Run the corner baits from them, or take them off. |
+| Rod holders that never fish (sportfisher's 2-5, skiff's 2-3) | the jig uses one | Kept: small, and real boats have spare holders. |
+| Outriggers (sportfisher) | **yes:** the wide lines run through their release clips | Done: a strike pops the line out of the clip. |
 | Floodlights, buoys, rope coils, cleats | lights come on at dark | Fine as set dressing. |
 
 ## The game, in one breath

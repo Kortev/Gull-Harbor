@@ -131,7 +131,8 @@ repo, now `main`), tick it here.
     the models).
   - [x] The radio: Dale's voice comes from it. (`audio/radio_voice.gd`: a made-up mumbling voice over VHF static,
     from the dash; the card says the words. `tests/radio_test.tscn`.)
-  - [ ] The rod holders that never fish, and the outriggers: use them or take them out of the models.
+  - [x] The outriggers: the sportfisher's wide lines run through their clips; a strike pops them out (`rods.gd`'s
+    `clips`). The spare rod holders stay: small, and real boats have empty ones.
 - Later: **longer fights.** Real ones on heavy tackle run twenty minutes to over an hour for a giant; ours are a
   few. Raise the tiring time (`_goal_s` in `tuna/fight.gd`) once the crew has enough to do during one.
 - Later: **VS mode** (two boats on the same sea, the most pounds by the end wins); proximity voice; trips cost money; a rounds structure; upgrades.

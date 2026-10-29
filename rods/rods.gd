@@ -41,6 +41,9 @@ var holders: Array[int] = []
 var baits: Array[Vector3] = []
 var names: Array[String] = []
 var stern := Vector3(0.0, 0.0, 7.05)
+## Rods whose lines run out through an outrigger's release clip (rod -> the clip, boat-local): the wide baits, held out
+## clear of the wake. A strike pops the line out of the clip, and it comes straight to the rod.
+var clips := {}
 var _send_in := 0.0
 var _last_heading := 0.0
 ## Your rod's line out last frame, and how fast you're winning it back (m/s, smoothed; - while it takes line).
@@ -83,6 +86,7 @@ func _lay_out() -> void:
 	for n in spec["rod_names"]:
 		names.append(str(n))
 	stern = spec["stern"]
+	clips = (spec.get("outriggers", {}) as Dictionary).duplicate()
 	for r in rods:
 		if is_instance_valid(r.fish_node):
 			r.fish_node.queue_free()
@@ -624,6 +628,11 @@ func _process(delta: float) -> void:
 			r.bait_p = Vector3.INF       # (out again, it starts from where her spread puts it)
 			r.slack = 0.0
 		r.line_end = end
+		# the wide lines, through the outriggers' clips while the bait's out and nothing's on; a strike pops it out
+		var clipped := clips.has(r.index) and r.holder == 0 and not r.hooked and not r.bait_in and not tangled_in
+		if r.clip != Vector3.INF and not clipped and r.hooked:
+			Sfx.play_point(self, r.clip, "collar.pop", 0.9)
+		r.clip = boat.global_transform * (clips[r.index] as Vector3) if clipped else Vector3.INF
 		_show_fish(r, boat, ocean, delta)
 	var hud := crew.get("hud") as Node
 	var me_node := crew.get("me") as Node

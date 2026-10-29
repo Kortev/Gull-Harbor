@@ -1,7 +1,8 @@
 extends Node
 ## The spread: grabbing a rod, not grabbing a second one, putting it back. And clearing the lines: with a fish on,
 ## E on an empty rod reels its line in (no bites on it), a tangle in a running fish's line is cleared the same way,
-## and with nothing on, E puts a bait back out. Run: godot --headless --path . res://tests/rods_test.tscn
+## and with nothing on, E puts a bait back out. The sportfisher's wide lines run through her outriggers' clips; a
+## strike pops them out. Run: godot --headless --path . res://tests/rods_test.tscn
 
 const Sea := preload("res://sea/sea.gd")
 
@@ -50,6 +51,15 @@ func _ready() -> void:
 	_check(not rods.fighting(), "the fish gone")
 	rods.request_grab(2)
 	_check(not rods.rods[2].bait_in, "with nothing on, E puts the bait back out")
+	# the outriggers: the wide baits (rods 2 and 3) run out through their clips, high and wide; a strike pops it
+	await get_tree().process_frame
+	var r3 = rods.rods[3]
+	var clip := sea.boat.global_transform.affine_inverse() * (r3.clip as Vector3) if r3.clip != Vector3.INF else Vector3.ZERO
+	_check(rods.rods[2].clip != Vector3.INF and clip.y > 6.0 and absf(clip.x) > 5.0
+			and rods.rods[0].clip == Vector3.INF, "the wide lines run through the outrigger clips (%s)" % clip)
+	rods.strike(3, 150.0)
+	await get_tree().process_frame
+	_check(r3.hooked and r3.clip == Vector3.INF, "a strike pops the line out of the clip")
 	for f in fails:
 		print("FAIL ", f)
 	print("RODS TEST ", "PASSED" if fails.is_empty() else "FAILED")
