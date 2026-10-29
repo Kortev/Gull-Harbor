@@ -91,7 +91,7 @@ repo, now `main`), tick it here.
   (`boat/green_water.gd`: wherever a crest tops her rail, white water bursts inboard with a crash and the deck
   streams foam for a few seconds; `hull_test` checks it comes aboard exactly when the sea's over the rail.)
 - [x] **The bigger boat:** 46 ft with a wider cockpit, so four of you and the fighting chair have room.
-- [ ] **Crew jobs: why it takes a crew.** One person can't land a big bluefin alone; while the fish is on, everyone else has a live job that decides whether you land it, and each can rescue the others' mistakes:
+- [x] **Crew jobs: why it takes a crew.** (All of it now runs and passes in Godot.) One person can't land a big bluefin alone; while the fish is on, everyone else has a live job that decides whether you land it, and each can rescue the others' mistakes:
   - [x] **The captain at the wheel** (E on the helm, A/D to turn, S to back down): the tuna swings round the boat; let it get too far off the stern and the line rubs the hull (strain jumps), let it get under the boat and the props cut it. Backing down on the fish wins the angler line back fast and takes the strain off: the rescue when the angler's losing.
   - [x] **The angler tires:** cranking and pumping drain your arms; tired arms crank slower and pump weaker, and a giant outlasts one person, so you hand the rod off mid-fight (anyone grabs it).
   - [x] **Clear the other lines:** when a fish hits, the other baits are still out; a running tuna that crosses one tangles it (lost, or a fight with a tangle). Someone reels them in.
@@ -120,6 +120,13 @@ repo, now `main`), tick it here.
   `ui/menu.gd`). Not yet played in Godot. Later: a real trip (the run out and back, fuel, a hold that fills).
 - [x] **The dock** (where a game starts: the slip, the bank, the boats, the gear, Head out) and **a day going by** (dawn, day, dusk, night). Not yet played.
 - [x] **Steam as the main way to play together:** host a friends-only Steam lobby, friends join from the menu's list or an invite, traffic through Steam's relays (`core/steam_link.gd`; needs the GodotSteam add-on from the AssetLib; `tools/steam_test.sh` against a stand-in for Steam). The join code stays as the backup.
+- [ ] **Everything on the boats is usable or goes** (HANDOFF's Chekhov audit; polish, not new features):
+  - [ ] The fighting chair (sportfisher): sit in it (E), the rod in its gimbal, it swivels with the fish.
+  - [x] The tuna tower: climb it, spot further (`boat/tower.gd`).
+  - [ ] The leaning post, the skipper's seat, the bench: sit or lean (E), just to chill.
+  - [ ] The cooler: grab a drink. The live well: see the mackerel in it. The fish box: the lid opens.
+  - [ ] The radio: Dale's voice comes from it.
+  - [ ] The rod holders that never fish, and the outriggers: use them or take them out of the models.
 - Later: **longer fights.** Real ones on heavy tackle run twenty minutes to over an hour for a giant; ours are a
   few. Raise the tiring time (`_goal_s` in `tuna/fight.gd`) once the crew has enough to do during one.
 - Later: **VS mode** (two boats on the same sea, the most pounds by the end wins); proximity voice; trips cost money; a rounds structure; upgrades.
