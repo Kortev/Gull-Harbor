@@ -18,6 +18,7 @@ const SCREEN_LOOK := preload("res://screen/screen_look.tscn")
 const Boat := preload("res://boat/boat.gd")
 const Crew := preload("res://crew/crew.gd")
 const Menu := preload("res://ui/menu.gd")
+const Rods := preload("res://rods/rods.gd")
 
 ## How rough the sea is (ocean.gd: 0 calm, 0.5 rain, 1 storm), the sun, and how thick the fog.
 const CONDITIONS := {
@@ -42,6 +43,7 @@ var rain: GPUParticles3D
 var cam: Camera3D
 var boat: Boat
 var crew: Crew
+var rods: Rods
 var _args := {}
 var _frames := 0
 var _reported := false
@@ -63,6 +65,10 @@ func _ready() -> void:
 	crew.name = "Crew"
 	crew.sea = self
 	add_child(crew)
+	rods = Rods.new()
+	rods.name = "Rods"
+	rods.sea = self
+	add_child(rods)
 	var look := deg_to_rad(float(_args.get("look", "0")))
 	if look != 0.0:
 		crew.me_changed.connect(func(me: Node) -> void:
@@ -72,6 +78,8 @@ func _ready() -> void:
 	night = _args.has("night")
 	set_condition(str(_args.get("weather", "rain")))
 	add_child(Menu.new())
+	if _args.has("hold"):      # (screenshots: start with rod <n> in your hands)
+		rods.request_grab(int(_args["hold"]))
 	if _args.has("host"):
 		Net.host()
 	elif _args.has("join"):
