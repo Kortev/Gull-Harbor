@@ -5,7 +5,7 @@ extends Node3D
 ##
 ## Conditions (one per trip): calm, sunny, fog, rain, heavy, storm; day or night.
 ## Screenshots: <godot> --path . -- --shot=<png> [--weather=calm|sunny|fog|rain|heavy|storm] [--night]
-##   [--frames=<n>] [--cam=x,y,z,lookx,looky,lookz]
+##   [--frames=<n>] [--cam=x,y,z,lookx,looky,lookz] [--look=<degrees round from aft>]
 
 const Ocean := preload("res://sea/ocean.gd")
 const SeaFx := preload("res://sea/sea_fx.gd")
@@ -13,6 +13,7 @@ const VisorRain := preload("res://sea/visor_rain.gd")
 const SKY_SHADER := preload("res://sea/sky.gdshader")
 const NOISE := preload("res://sea/textures/sky_noise.png")
 const SCREEN_LOOK := preload("res://screen/screen_look.tscn")
+const Boat := preload("res://boat/boat.gd")
 
 ## How rough the sea is (ocean.gd: 0 calm, 0.5 rain, 1 storm), the sun, and how thick the fog.
 const CONDITIONS := {
@@ -35,6 +36,7 @@ var sea_fx: SeaFx
 var visor: VisorRain
 var rain: GPUParticles3D
 var cam: Camera3D
+var boat: Boat
 var _args := {}
 var _frames := 0
 
@@ -64,11 +66,10 @@ func _process(_delta: float) -> void:
 		cam.global_position = at
 		cam.look_at(Vector3(v[3], v[4], v[5]))
 	else:
-		# For now: a pair of eyes on a deck riding the swell.
-		var at := Vector3(0.0, 2.3, 0.0)
-		at.y += ocean.height_at(Vector3.ZERO)
-		cam.global_position = at
-		cam.rotation = Vector3(-0.05, Time.get_ticks_msec() * 0.00002, 0.0)
+		# For now: a pair of eyes standing in the cockpit, looking aft over the stern (or --look=<deg> round).
+		var eye := Transform3D(Basis.from_euler(Vector3(-0.1, PI + deg_to_rad(float(_args.get("look", "0"))), 0.0)),
+				Vector3(0.4, Boat.DECK + 1.65, 1.2))
+		cam.global_transform = boat.global_transform * eye
 	if _args.has("shot") and _frames == int(_args.get("frames", "120")):
 		var img := get_viewport().get_texture().get_image()
 		img.save_png(str(_args["shot"]))
@@ -132,6 +133,7 @@ func _apply_look() -> void:
 	sun.visible = not night
 	ocean.set_sky_color(hor.lerp(fog, 0.5))
 	sea_fx.night = 1.0 if night else 0.0
+	boat.set_lights(night or condition == "storm" or condition == "fog")
 	var rain_mat := (rain.draw_pass_1 as QuadMesh).material as StandardMaterial3D
 	rain_mat.albedo_color = Color(0.75, 0.8, 0.86, 0.22 if night else 0.38)
 
@@ -190,6 +192,10 @@ func _build_world() -> void:
 	add_child(sea_fx)
 	visor = VisorRain.new()
 	add_child(visor)
+	boat = Boat.new()
+	boat.name = "Boat"
+	boat.ocean = ocean
+	add_child(boat)
 
 
 func _particles(at: Vector3, box: Vector3, amount: int, life: float, dir: Vector3, spread: float,

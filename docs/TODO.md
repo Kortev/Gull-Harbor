@@ -8,7 +8,8 @@ Each item: build it, check it (screenshots in `docs/shots/`), commit, push (bran
 repo until the new repo exists), tick it here.
 
 - [x] **The sea:** Fathom's ocean, weather (calm, sunny, fog, rain, heavy, storm), sky, rain, lightning, the PS1 look.
-- [ ] **The boat:** a grimy steel-and-glass tuna boat (Blender script, CC0 photo textures crunched PS1-style like the space fishing game's), parked at the origin, heaving, pitching and rolling on the swell; a deck you walk on, a wheelhouse, the cockpit, rod holders, outriggers, deck lights and floodlights for the night.
+- [x] **The boat:** a plain, weathered 41 ft tuna boat for four (`art/boat.py` -> `boat/boat.glb`, crunched CC0 photo textures): wheelhouse and hardtop, open cockpit, fighting chair, 8 rod holders, tuna tower, outriggers, floodlights; parked at the origin, heaving, pitching and rolling on the swell (`boat/boat.gd`).
+- [ ] **Sea polish:** the small white squares scattered on the water, and the sawtooth facets on big swells in low sun.
 - [ ] **The crew:** a first-person player (walk, sprint, jump, look, interact), standing on the moving deck without sliding; spray and green water over the rail in a storm.
 - [ ] **Co-op:** host / join (ENet direct, then Steam lobbies), players spawn on deck, everyone sees the same sea.
 - [ ] **The bluefin:** a tuna model (Blender), sizes 30-400 kg, how it swims.
