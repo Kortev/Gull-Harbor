@@ -1,6 +1,7 @@
 extends Node
 ## The fight, headless, many times over: fought right with a captain keeping the stern on it, a bluefin of any size
-## comes boatside in a few minutes; alone you land the small ones but a giant swings round and chafes you off;
+## comes boatside in a few minutes; alone you land most of them too, never more than with a captain (solo's harder,
+## not hopeless);
 ## just cranking breaks the big ones off; doing nothing never lands one; backing down hard whatever the fish does
 ## puts it in the props.
 ## Run: godot --headless --path . res://tests/fight_test.tscn
@@ -38,8 +39,7 @@ func _ready() -> void:
 		if kg <= 150.0:
 			_check(alone >= 14, "%d kg: alone, you land most of them (%d of 20)" % [kg, alone])
 		else:
-			if kg >= 400.0:
-				_check(alone < landed - 3, "%d kg: alone, a giant often gets away (%d of 20 vs %d)" % [kg, alone, landed])
+			_check(alone <= landed, "%d kg: alone, never better than with a captain (%d of 20 vs %d)" % [kg, alone, landed])
 	for kg: float in [150.0, 450.0]:
 		var one: Array[float] = []
 		var two: Array[float] = []

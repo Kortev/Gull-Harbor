@@ -1,6 +1,6 @@
 extends Node
 ## Hooking up and the fight: a feeding school crosses the spread and a bait gets eaten; the line pours off with the
-## drag screaming; grab the rod and fight it right (let it run, pump it up when it sounds, crank otherwise, ease off
+## drag screaming; clear the other lines, grab the rod and fight it right (let it run, pump it up when it sounds, crank otherwise, ease off
 ## as a spiralling fish goes under her, and take a breather when your arms are gone) till it's up alongside for the
 ## harpoon, with a captain (the test's stand-in, swinging her heading) keeping the stern on it. Run: godot --headless --path . res://tests/strike_test.tscn
 
@@ -43,6 +43,12 @@ func _ready() -> void:
 	_check(rod._scream.playing, "the drag screams")
 	_check(rod.strain > 0.8, "the rod's bent double (strain %.2f)" % rod.strain)
 	sea.crew.me.force_input = true
+	# clear the other lines first (E on each), or the running fish tangles them
+	for other in sea.rods.rods:
+		if other.index != hooked:
+			sea.rods.request_grab(other.index)
+	_check(sea.rods.rods.all(func(r: Node) -> bool: return r.index == hooked or bool(r.get("bait_in"))),
+			"cleared the other lines")
 	sea.rods.request_grab(hooked)
 	_check(rod.holder == 1, "grabbed it")
 	var w := 0.0

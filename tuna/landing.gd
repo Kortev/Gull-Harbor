@@ -29,6 +29,8 @@ const FLY := 14.0
 ## each extra hand on it adds the same again.
 const HAUL_BASE := 2.0
 const HAUL_PER_KG := 0.05
+## How far your look can wander off the tuna door while you haul (radians).
+const HAUL_AIM := 0.6
 
 var sea: Node                 # sea/sea.gd
 ## Fish alongside, by the rod they came up on: {kg, side (1 starboard, -1 port), hook_t (sea clock), t (s alongside),
@@ -145,17 +147,29 @@ func _process(delta: float) -> void:
 				node.effort = 1.0
 			f["thrash_in"] = due
 			node.effort = move_toward(node.effort, 0.15, delta * 0.8)
-	# hauling: let go of E, or look away from the door, and you've stopped
+	# hauling: let go of E, step away from the door or turn your back on it, and you've stopped (roughly facing it
+	# will do: the deck rolls the crosshair off its edge all the time)
 	if _my_pull >= 0:
 		var me := crew.get("me") as Node
 		var f: Dictionary = fish.get(_my_pull, {})
 		var door: Node = null
 		if not f.is_empty():
 			door = _doors[0 if float(f["side"]) > 0.0 else 1]
-		if f.is_empty() or me == null or not Input.is_action_pressed("interact") or me.call("looking_at") != door:
+		if f.is_empty() or me == null or not Input.is_action_pressed("interact") or not _facing(me, door):
 			_stop_pull()
 	if Net.is_host():
 		_host_tick(delta)
+
+
+## Whether you're still at the door: within reach of it and facing it to within HAUL_AIM.
+func _facing(me: Node, door: Node) -> bool:
+	if me.call("looking_at") == door:
+		return true
+	var cam := me.get("cam") as Camera3D
+	var to := (door as Node3D).global_position - cam.global_position
+	if to.length() > 3.2:
+		return false
+	return (-cam.global_basis.z).angle_to(to) < HAUL_AIM
 
 
 ## Where a fish alongside is, in the water on its side of her (across the sportfisher's stern, along the skiff's side);

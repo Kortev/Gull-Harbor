@@ -3,10 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
+uid="uid://d1svq8rhmdux6"
+path="res://.godot/imported/crew.glb-79dc2120199dfcce2dd681091cb5f439.scn"
 
 [deps]
 
 source_file="res://crew/crew.glb"
+dest_files=["res://.godot/imported/crew.glb-79dc2120199dfcce2dd681091cb5f439.scn"]
 
 [params]
 

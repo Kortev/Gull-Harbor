@@ -2,7 +2,7 @@
 # Two copies on this machine: a host and a client. Both report who's aboard and their sea clock, then quit.
 # Passes when the client sees both crew members, the host's conditions, and a sea clock within 0.15 s; and the
 # client takes the wheel and swings her round, and the host sees the same captain and heading. Then a hand-off:
-# the host holds a fish on rod 2 and a second friend takes the rod over.
+# the host holds a fish on rod 1 and a second friend takes the rod over.
 cd "$(dirname "$0")/.."
 G=${GODOT:-godot}
 timeout 90 $G --headless --path . -- --host --weather=storm --net-report=9 > /tmp/bluefin_host.log 2>&1 &
@@ -36,7 +36,6 @@ if ch < 0.2 or abs(hh - ch) > 0.05: print("FAIL heading: host %.2f client %.2f" 
 else: print("the client steered her to %.2f rad; the host sees %.2f" % (ch, hh))
 print("NET TEST PASSED" if ok else "NET TEST FAILED")
 sys.exit(0 if ok else 1)
-sys.exit(0 if ok else 1)
 PY
 
 timeout 90 $G --headless --path . -- --host --strike=1 --hold=1 --net-report=9 > /tmp/bluefin_host2.log 2>&1 &
@@ -49,7 +48,7 @@ host_rods, client, client_rods = sys.argv[1:4]
 me = re.search(r"me=(\d+)", client).group(1) if client else "?"
 h = host_rods.split("=")[-1].split(",") if host_rods else []
 c = client_rods.split("=")[-1].split(",") if client_rods else []
-ok = len(h) > 2 and len(c) > 2 and h[2] == me and c[2] == me
-print("hand-off: the friend (%s) took over rod 2: host says %s, friend says %s" % (me, h[2:3], c[2:3]))
+ok = len(h) > 1 and len(c) > 1 and h[1] == me and c[1] == me
+print("hand-off: the friend (%s) took over rod 1: host says %s, friend says %s" % (me, h[1:2], c[1:2]))
 print("HANDOFF TEST PASSED" if ok else "HANDOFF TEST FAILED")
 PY
