@@ -16,24 +16,22 @@ repo, now `main`), tick it here.
 - [x] **The bluefin:** a PS1-style bluefin (`art/bluefin.py` -> `tuna/bluefin.glb`), 30-400 kg (1.25-2.96 m, from the real weight-length curve), swimming like a tuna: stiff body, the tail stalk and crescent tail beating faster as it speeds up, banking into turns (`tuna/tuna.gd`, `tuna/tuna_swim.gdshader`). The lab: `tuna/tuna_lab.tscn` (F6).
 - [x] **Hooking up:** baits out from the stern holders, schools showing (birds, busting water, leaping tuna, sonar marks: `docs/shots/school_*.png`), the reel screams, anyone grabs the rod (`tests/strike_test.tscn`).
 - [x] **The fight:** the arcade fish-moves fight (from Gull Harbor's fish_fight.gd) with tuna moves: the screaming first run, sounding deep, head shakes, circling under the boat, the death spiral; left mouse cranks, right mouse heaves (pump); a strain ring and the move's tell under the crosshair; juice: the rod bucking, the drag screaming, the reel whirring, the line singing, your view shaking (`tuna/fight.gd`, `tests/fight_test.tscn`, `tests/strike_test.tscn`).
-- [ ] **A real world, and she really moves** (your call: "like any other game"). Next, before anything else:
-  - The sea is a fixed world: the waves belong to the world, not to a patch round the boat, and the ocean follows
-    her so there's always water under her.
-  - She has a real position and speed: W runs her ahead (up to about 20 knots running to the birds), S backs
-    her down (a few knots), she carries way after you let go (the big boat more than the small one), and she
-    turns harder the faster she goes. A wake, prop wash, the engines' sound rising with the throttle, her stern
-    squatting ahead and settling astern, and water over the transom when backing down hard.
-  - Birds anywhere, no fishing grounds (for now): schools turn up around wherever the boats are, a few km out,
-    a few always working within sight or on the radar (some near and quick, some far, where the tower and the
-    sonar help). They feed for a few minutes, then the birds scatter and the school's gone, so running to the
-    wrong one costs you. Schools live in the world and swim on their own; you run to them.
-  - With two boats (VS): birds turn up fairly round both, and some between them, where both crews can see the same
-    birds and race for them. Grounds can come later, on top of this, once fuel and trip length make "where do we
-    go today" a real choice.
-  - The fight uses where she really is: backing down really closes on the fish, chasing a run really saves line,
-    and a fish under her really goes under her.
-  - Keep: you still walk on the still copy of the deck (solid footing in any sea); co-op syncs her position the
-    way it already syncs her heading.
+- [x] **A real world, and she really moves** (your call: "like any other game"). Not yet played in Godot.
+  - The sea's waves belong to the world; its mesh follows the camera, so there's always water under her
+    (`sea/ocean.gd`, `sea/ocean.gdshader`).
+  - She has a real position and speed (`boat/helm.gd`): hold W to run her ahead (up to about 20 knots), S backs
+    her down (a few knots), let go and she carries her way (about 80 m from flat out). A/D steer; twin screws spin
+    her on the spot too. Her bow lifts under way and her stern digs in backing down (`boat/boat.gd`). Knots and
+    throttle at the bottom of the screen while you're at the wheel.
+  - Feel (`boat/wake.gd`): the engines' sound with the throttle, a wake, white water boiling astern when the screws
+    bite, spray off her bow at speed, the sea slopping over the transom backing down hard.
+  - Birds anywhere (`tuna/schools.gd`): up to four schools turn up round her, 250 m to 1.1 km off (the first one
+    close), cruise, feed on and off for 3 to 6 minutes, then the birds lift and scatter. No bites above 12 knots
+    (the baits skip); run through a school fast and it goes down for 40 s. The dash radar paints the birds out to
+    1.5 km (`tuna/radar.gd`); the sonar marks what's under her.
+  - The fight uses where she really is: backing down closes on the fish, running away pays out line.
+  - With two boats (VS, later): birds should turn up fairly round both, and some between them, for both crews
+    to race to. Grounds can come later, on top, once fuel and trip length make "where do we go today" a choice.
 - [ ] **Two boats, picked by the host before heading out** (like Sea of Thieves' sloop and galleon; same tuna on both):
   - [ ] **The small boat (the default, for 1-2):** about 28 ft, an open center console, so the wheel is a few
     steps from the rods. Two rods out, low sides (one person can gaff a fish), turns fast and follows a fish

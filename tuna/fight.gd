@@ -71,8 +71,14 @@ var strain := 0.0
 ## How hard it pulls right now, 0..1 (the rod).
 var pull := 0.0
 var move := ""
-## The helm: -1 backing down hard .. 0 neutral .. 1 ahead (rods.gd sets it from the captain).
+## The helm: -1 backing down hard .. 0 neutral .. 1 ahead (rods.gd sets it from the captain): the props turning.
 var throttle := 0.0
+## Her velocity (m/s, her own x across and z astern) when `moving` (rods.gd, from boat/helm.gd): the fish stays where
+## it is in the water, so she really closes on it backing down (the slack's wound in, if anyone's on the rod) or
+## pulls away from it under way (the line pays out against the drag). Without `moving` (the headless tests), the
+## throttle stands in for it.
+var boat_vel := Vector2.ZERO
+var moving := false
 ## How far the angler's got the rod out over the side the fish is on, 0..1 (standing at that corner, leaning out):
 ## buys a little room before the line touches the hull, never as much as swinging the boat. rods.gd sets it from
 ## where the angler stands.
@@ -125,10 +131,14 @@ func answer() -> String:
 
 
 func tell() -> String:
-	if chafe > 0.3:
+	# (in a spiral it brushes her every lap: only a real rub, or a worn line, outranks the spiral's own hints)
+	var warn := chafe > (0.18 if move == "spiral" else 0.08) or (chafe > 0.0 and wear > 0.3)
+	if warn:
+		# (it's swung forward of her beam: the line's lying along her side, wearing through)
+		var side := "starboard" if sin(bearing) > 0.0 else "port"
 		if reach > 0.6:
-			return "The line's on the hull! Swing her stern to it"
-		return "The line's on the hull! Take it to the %s corner" % ("starboard" if sin(bearing) > 0.0 else "port")
+			return "The line's rubbing the hull! Swing her stern to it (the wheel)"
+		return "The line's rubbing the hull! Take it to the %s corner, or swing her stern to it" % side
 	if arms < 0.25:
 		return "Your arms are gone! Ease off and rest them, or hand it off"
 	if move == "spiral":
@@ -148,9 +158,23 @@ func step(dt: float, crank: bool, lift: float) -> void:
 	var e := 0.35 + 0.65 * energy
 	var big := clampf(kg / 250.0, 0.4, 1.6)        # how outgunned your tackle is
 	var ans := answer()
+	var back := 0.0
+	var ahead := 0.0
+	if moving:
+		var hd_was := sqrt(maxf(line_out * line_out - depth * depth, 0.0))
+		var rel := Vector2(sin(bearing), cos(bearing)) * hd_was - boat_vel * dt
+		bearing = atan2(rel.x, rel.y)
+		var gap := sqrt(rel.length_squared() + depth * depth) - sqrt(hd_was * hd_was + depth * depth)
+		back = clampf(-gap / dt / BACK_SPEED, 0.0, 1.0)
+		ahead = clampf(gap / dt / 1.5, 0.0, 1.0)
+		# closing: the slack's wound in (nobody winds it in a holder); pulling away: the line pays out
+		line_out += maxf(gap, 0.0) if in_holder else gap
+	else:
+		var b0 := absf(wrapf(bearing, -PI, PI))
+		back = maxf(-throttle, 0.0) * clampf(cos(b0) * 1.5, 0.0, 1.0)     # (backing down only helps on a fish astern)
+		ahead = maxf(throttle, 0.0)
+		line_out += (1.5 * ahead - (0.0 if in_holder else BACK_SPEED * back)) * dt
 	var b := absf(wrapf(bearing, -PI, PI))
-	var back := maxf(-throttle, 0.0) * clampf(cos(b) * 1.5, 0.0, 1.0)     # (backing down only helps on a fish astern)
-	var ahead := maxf(throttle, 0.0)
 	var power := 0.35 + 0.65 * arms
 	if arms < 0.08:
 		lift = minf(lift, 0.5)
@@ -166,7 +190,6 @@ func step(dt: float, crank: bool, lift: float) -> void:
 	# Line: the move takes it (the drag and the boat backing down slow it), the reel brings it back if the move lets
 	# you, and so does the boat coming back over it.
 	line_out += RUN_SPEED * float(m["out"]) * e * dt * (1.0 - 0.7 * back)
-	line_out += (1.5 * ahead - (0.0 if in_holder else BACK_SPEED * back)) * dt
 	var gain := 0.0
 	if crank:
 		match ans:

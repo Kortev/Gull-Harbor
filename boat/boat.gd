@@ -1,8 +1,9 @@
 extends AnimatableBody3D
-## The boat (art/boat.py -> boat.glb): a 46 ft tuna boat for a crew of four. It never goes anywhere: it sits at
-## the origin and rides the swell, heaving, pitching and rolling with the sea under it. Its pose comes only from
-## the ocean's wave clock, so every peer computes the same deck under the same feet. (The pattern is Gull Harbor's
-## TunaBoat, on Fathom's ocean.)
+## The boat (art/boat.py -> boat.glb): a 46 ft tuna boat for a crew of four. She goes where the helm takes her
+## (boat/helm.gd: where she is, her heading, her speed) and rides the swell there, heaving, pitching and rolling with
+## the sea under her; under way her bow lifts and her stern squats, and backing down hard her stern digs in. Her pose
+## comes from the ocean's wave clock and the helm's word, so every peer computes the same deck under the same feet.
+## (The pattern is Gull Harbor's TunaBoat, on Fathom's ocean.)
 ##
 ## The crew don't walk on this moving body. They walk in the DECK SPACE: a separate, still physics world holding
 ## the same collider, never moving (the space game's "the ship never moves" rule). A crew member's position there
@@ -11,6 +12,7 @@ extends AnimatableBody3D
 
 const Ocean := preload("res://sea/ocean.gd")
 const Helm := preload("res://boat/helm.gd")
+const Wake := preload("res://boat/wake.gd")
 const MODEL := preload("res://boat/boat.glb")
 
 const LENGTH := 14.0
@@ -20,6 +22,10 @@ const SINK := 0.12          # loaded with ice, fuel and crew she sits a little b
 ## How much of the sea's slope the hull follows: a long, heavy hull bridges the short chop.
 const PITCH_FOLLOW := 1.0
 const ROLL_FOLLOW := 0.85
+## Under way: her bow up (rad) flat out ahead, and how far her stern digs in (rad, m down) backing down flat out.
+const SQUAT := 0.07
+const DIG := 0.035
+const DIG_SINK := 0.1
 
 var ocean: Ocean
 var sea: Node            # sea/sea.gd
@@ -92,6 +98,11 @@ func _build() -> void:
 	helm.boat = self
 	helm.position = wheel.position if wheel else helm_spot.origin + Vector3(0, 1.0, -0.6)
 	add_child(helm)
+	# her going: the engines, the wake, the wash, the spray (boat/wake.gd)
+	var wake := Wake.new()
+	wake.name = "Wake"
+	wake.boat = self
+	add_child(wake)
 	# The tower floodlights and the cockpit lights: each empty's Blender -Z (Godot -Y) is where its light points.
 	for n: String in ["flood_0", "flood_1", "deck_light_0", "deck_light_1"]:
 		var e := src.find_child(n, true, false) as Node3D
@@ -179,10 +190,11 @@ func _process(delta: float) -> void:
 
 
 ## Where the hull sits on the swell right now: a plane fitted to the water under her (five stations along, three
-## across, turned to her heading), the waterline at its middle, its slopes her pitch and roll. A pure function of
-## the wave clock and her heading, so every peer agrees.
+## across, turned to her heading, where she is), the waterline at its middle, its slopes her pitch and roll, and the
+## lift of her bow under way. A pure function of the wave clock and the helm's word, so every peer agrees.
 func pose() -> Transform3D:
 	var turn := Basis(Vector3.UP, helm.heading if helm else 0.0)
+	var mid := Vector3(helm.at.x, 0.0, helm.at.y) if helm else Vector3.ZERO
 	var sum := 0.0
 	var sx := 0.0
 	var sz := 0.0
@@ -192,7 +204,7 @@ func pose() -> Transform3D:
 		var z := (i - 2) * LENGTH * 0.2
 		for j in 3:
 			var x := (j - 1) * BEAM * 0.4
-			var h := ocean.height_at(turn * Vector3(x, 0.0, z))
+			var h := ocean.height_at(mid + turn * Vector3(x, 0.0, z))
 			sum += h
 			sx += x * h
 			sz += z * h
@@ -201,7 +213,13 @@ func pose() -> Transform3D:
 	var y := sum / 15.0 - SINK
 	var pitch := atan(-sz / zz) * PITCH_FOLLOW
 	var roll := atan(sx / xx) * ROLL_FOLLOW
-	return Transform3D(turn * Basis.from_euler(Vector3(pitch, 0.0, roll)), Vector3(0.0, y, 0.0))
+	# under way her bow comes up; backing down hard her stern digs into the water
+	var v: float = helm.speed if helm else 0.0
+	var ahead := clampf(v / Helm.AHEAD, 0.0, 1.0)
+	var astern := clampf(-v / Helm.ASTERN, 0.0, 1.0)
+	pitch += SQUAT * smoothstep(0.0, 0.6, ahead) + DIG * astern
+	y -= DIG_SINK * astern
+	return Transform3D(turn * Basis.from_euler(Vector3(pitch, 0.0, roll)), Vector3(mid.x, y, mid.z))
 
 
 ## A rod holder's tube in world space: origin at the rim, +Z along the tube out of it.

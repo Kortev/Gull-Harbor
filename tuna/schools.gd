@@ -1,29 +1,45 @@
 extends Node3D
-## Bluefin schools passing the boat. The host starts one every minute or so, somewhere out on the horizon, heading
-## to cross the spread astern; from then on where it is, when it's feeding and where it busts are all worked out
-## from the shared sea clock and the school's seed, so every peer sees the same birds and the same busting water.
+## Bluefin schools, anywhere round the boat. The host keeps a few working out there (MAX_SCHOOLS), each turning up
+## somewhere a few hundred metres to a kilometre or so off (SPAWN), cruising slowly its own way, feeding on and off
+## for a few minutes (LIFE), then the birds lift and scatter and it's gone. From the moment it starts, where it is,
+## when it's feeding and where it busts are all worked out from the shared sea clock and its seed, so every peer
+## sees the same birds and the same busting water.
 ##
 ## How you find them: birds working over them (wheeling, diving when the tuna push bait up), the water busting
-## white where they feed, tuna clearing the water, and marks on the helm's sonar when they're close. A feeding
-## school crossing a bait gets it eaten: rods.gd hooks the fish (host only, strike()).
+## white where they feed, tuna clearing the water, blips on the helm's radar (tuna/radar.gd), and marks on the
+## sonar right under her. Run her to them, then troll the baits through: a feeding school over a bait eats it now
+## and then (rods.gd hooks the fish, host only, strike()), but not with the baits skipping behind her at speed
+## (BITE_SPEED), and run her right through a school fast and it goes down (SPOOK).
 
 const Tuna := preload("res://tuna/tuna.gd")
 const GULLS: Array[AudioStream] = [preload("res://audio/fish/gull_1.wav"), preload("res://audio/fish/gull_2.wav"),
 		preload("res://audio/fish/gull_3.wav")]
 const SPLASH := preload("res://audio/fish/splash.wav")
 const PUFF := preload("res://sea/textures/steam_puff.png")
-## Where the schools aim to cross, boat-local: astern, through the spread.
-const AIM := Vector3(0.0, 0.0, 45.0)
-const FAR := 230.0
-const MAX_SCHOOLS := 2
+## How many work at once, how far off they turn up (m: the first one quickly and closer), how long one lasts (s),
+## the last of which its birds spend lifting and scattering, and how fast it cruises (m/s).
+const MAX_SCHOOLS := 4
+const SPAWN := Vector2(250.0, 1100.0)
+const FIRST := Vector2(120.0, 260.0)
+const LIFE := Vector2(180.0, 360.0)
+const SCATTER := 25.0
+const CRUISE := Vector2(0.8, 2.2)
+## Faster than this (m/s) the baits skip and nothing bites; run her through a school faster than SPOOK_SPEED and it
+## goes down for SPOOK s.
+const BITE_SPEED := 6.0
+const SPOOK_SPEED := 5.0
+const SPOOK := 40.0
+## (tests and screenshots: the next school this close, m; 0: as usual)
+const FAR := 0.0
 
 var sea: Node                       # sea/sea.gd
 var schools: Array[School] = []
 ## Seconds until the host starts the next school (the first comes quickly).
-var _next := 8.0
-## How far out the next school shows up (m): FAR, or closer for screenshots and tests.
+var _next := 6.0
+## How far out the next school shows up (m; 0: as usual), for screenshots and tests.
 var start_far := FAR
 var _ids := 0
+var _first := true
 
 
 static func hash1(a: float, b: float) -> float:
@@ -42,14 +58,29 @@ func _ready() -> void:
 	Net.peer_joined.connect(func(id: int) -> void:
 		if multiplayer.is_server():
 			for s in schools:
-				_start.rpc_id(id, s.id, s.seed, s.t0, s.start, s.heading, s.speed, s.kg))
+				_start.rpc_id(id, s.id, s.seed, s.t0, s.start, s.heading, s.speed, s.kg, s.life)
+				if s.spooked_until > now():
+					_spook.rpc_id(id, s.id, s.spooked_until))
+
+
+## Where the boat is (world x, z): the schools turn up round her.
+func boat_at() -> Vector2:
+	var boat := sea.get("boat") as Node
+	var helm: Node = boat.get("helm") if boat else null
+	return helm.get("at") if helm else Vector2.ZERO
+
+
+func boat_speed() -> float:
+	var boat := sea.get("boat") as Node
+	var helm: Node = boat.get("helm") if boat else null
+	return float(helm.get("speed")) if helm else 0.0
 
 
 func _process(delta: float) -> void:
 	if Net.is_host():
 		_next -= delta
 		if _next <= 0.0:
-			_next = randf_range(45.0, 100.0)
+			_next = randf_range(15.0, 40.0)
 			if schools.size() < MAX_SCHOOLS:
 				_host_start()
 	for s in schools.duplicate():
@@ -58,12 +89,14 @@ func _process(delta: float) -> void:
 			s.queue_free()
 	if Net.is_host():
 		_strikes(delta)
+		_spooking()
 
 
-## Host: a feeding school over a bait eats it now and then (more than one rod can go: a double header).
+## Host: a feeding school over a bait eats it now and then (more than one rod can go: a double header); not with
+## the baits skipping along behind her at speed.
 func _strikes(delta: float) -> void:
 	var spread := sea.get("rods") as Node
-	if spread == null:
+	if spread == null or absf(boat_speed()) > BITE_SPEED:
 		return
 	var t := now()
 	# a second fish while one's on happens, but rarely: a double is a story, not the routine
@@ -84,17 +117,41 @@ func _strikes(delta: float) -> void:
 						Tuna.MAX_KG))
 
 
-## Host: a new school out on the horizon, aimed to cross astern.
+## Host: run her fast right through a school and it goes down.
+func _spooking() -> void:
+	if absf(boat_speed()) < SPOOK_SPEED:
+		return
+	var t := now()
+	var at := boat_at()
+	for s in schools:
+		if s.spooked_until < t and s.center(t).distance_to(at) < s.radius + 15.0:
+			var until := t + SPOOK
+			if Net.in_session():
+				_spook.rpc(s.id, until)
+			else:
+				_spook(s.id, until)
+
+
+@rpc("authority", "call_local", "reliable")
+func _spook(id: int, until: float) -> void:
+	for s in schools:
+		if s.id == id:
+			s.spooked_until = until
+
+
+## Host: a new school somewhere round her, cruising its own way.
 func _host_start() -> void:
 	_ids += 1
-	var bearing := randf_range(-PI, PI)
-	var aim := AIM + Vector3(randf_range(-20, 20), 0, randf_range(-12, 15))
-	var start := aim + Vector3(cos(bearing), 0, sin(bearing)) * start_far
+	var ring := FIRST if _first else SPAWN
+	_first = false
+	var far := start_far if start_far > 0.0 else randf_range(ring.x, ring.y)
 	start_far = FAR
-	var heading := (aim - start).normalized().rotated(Vector3.UP, randf_range(-0.12, 0.12))
+	var bearing := randf_range(-PI, PI)
+	var start := boat_at() + Vector2(cos(bearing), sin(bearing)) * far
+	var heading := Vector2.from_angle(randf_range(-PI, PI))
 	var kg := randf_range(60.0, 330.0) if randf() < 0.85 else randf_range(330.0, 400.0)
-	var args := [_ids, randi(), now() + 0.5, Vector2(start.x, start.z), Vector2(heading.x, heading.z),
-			randf_range(3.0, 5.5), kg]
+	var args := [_ids, randi(), now() + 0.5, start, heading, randf_range(CRUISE.x, CRUISE.y), kg,
+			randf_range(LIFE.x, LIFE.y)]
 	if Net.in_session():
 		_start.rpc.callv(args)
 	else:
@@ -102,7 +159,8 @@ func _host_start() -> void:
 
 
 @rpc("authority", "call_local", "reliable")
-func _start(id: int, seed: int, t0: float, start: Vector2, heading: Vector2, speed: float, kg: float) -> void:
+func _start(id: int, seed: int, t0: float, start: Vector2, heading: Vector2, speed: float, kg: float,
+		life := 240.0) -> void:
 	var s := School.new()
 	s.id = id
 	s.seed = seed
@@ -111,6 +169,7 @@ func _start(id: int, seed: int, t0: float, start: Vector2, heading: Vector2, spe
 	s.heading = heading.normalized()
 	s.speed = speed
 	s.kg = kg
+	s.life = life
 	s.owner_node = self
 	add_child(s)
 	schools.append(s)
@@ -137,6 +196,11 @@ class School extends Node3D:
 	var speed := 4.0
 	var kg := 150.0
 	var radius := 14.0
+	## The birds' last SCATTER s (the outer script's, kept here too).
+	const SCATTER_S := 25.0
+	## How long it works (s), and till when it's down after a boat ran through it (sea clock).
+	var life := 240.0
+	var spooked_until := -1.0
 	var owner_node: Node
 	var _birds: Array[MeshInstance3D] = []
 	var _bird_seed: Array[Vector4] = []
@@ -154,14 +218,20 @@ class School extends Node3D:
 		var side := Vector2(-heading.y, heading.x)
 		return start + heading * speed * d + side * sin(d * 0.07 + seed) * 6.0
 
-	## Feeding: in spells of a few seconds, more often than not, and nearly always near the boat (the baits drew it).
+	## Feeding: in spells of a few seconds, more often than not; not once its birds are scattering, nor while it's
+	## down after a boat ran through it.
 	func feeding(t: float) -> bool:
+		if t < spooked_until or scattering(t) > 0.0:
+			return false
 		var spell := floorf((t - t0) / 7.0)
-		var near := center(t0 + spell * 7.0).length() < 90.0
-		return (owner_node as Node).call("hash1", float(seed % 1000), spell) > (0.15 if near else 0.45)
+		return (owner_node as Node).call("hash1", float(seed % 1000), spell) > 0.3
+
+	## 0 while it works; 0 .. 1 over its last SCATTER s, as the birds lift and go.
+	func scattering(t: float) -> float:
+		return clampf((t - t0 - (life - SCATTER_S)) / SCATTER_S, 0.0, 1.0)
 
 	func done(t: float) -> bool:
-		return t - t0 > 2.0 * 230.0 / speed + 10.0
+		return t - t0 > life
 
 	func _ready() -> void:
 		var bird_mesh := _bird_mesh()
@@ -204,13 +274,15 @@ class School extends Node3D:
 		var c2 := center(t)
 		var c := Vector3(c2.x, 0.0, c2.y)
 		var feed := feeding(t)
-		# the birds: wheeling over the school, low and diving when it feeds
+		# the birds: wheeling over the school, low and diving when it feeds; at the end lifting, spreading and gone
+		var going := scattering(t)
 		for i in _birds.size():
 			var bs := _bird_seed[i]
 			var a := bs.w + t * bs.z
 			var low := 1.0 if feed else 0.0
-			var h := lerpf(bs.y, 1.2 + bs.y * 0.25, low * (0.5 + 0.5 * sin(t * 1.3 + i)))
-			var p := c + Vector3(cos(a) * bs.x, 0.0, sin(a) * bs.x)
+			var h := lerpf(bs.y, 1.2 + bs.y * 0.25, low * (0.5 + 0.5 * sin(t * 1.3 + i))) + going * going * 60.0
+			var spread := bs.x * (1.0 + going * 6.0)
+			var p := c + Vector3(cos(a) * spread, 0.0, sin(a) * spread)
 			p.y = float(o.call("height_at", p)) + h
 			var b := _birds[i]
 			b.position = p

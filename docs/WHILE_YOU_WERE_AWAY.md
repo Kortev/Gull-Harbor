@@ -1,5 +1,27 @@
 # While you were away (newest first)
 
+## She really moves, and birds anywhere
+**Not run in Godot yet** (same as below). Pull the branch and try `tests/sail_test.tscn` too.
+- **Driving her:** take the wheel (E). Hold W and she gets going, about 20 knots flat out; let go and she carries
+  her way and slows; hold S to back down; A/D steer. The bottom of the screen shows knots and the throttle.
+- **The sea stays put,** she moves across it. The ocean's mesh follows you so there's always water, but every wave
+  belongs to the world, so two boats will share one sea (the VS mode needs that).
+- **You can feel it:** the engines rise with the throttle, she leaves a wake, white water boils astern when the
+  screws bite, her bow lifts and throws spray at speed, and backing down hard the sea slops over the transom.
+- **Finding fish:** birds turn up anywhere round her, up to four schools at once, from a couple of hundred metres
+  to about a kilometre off. Each feeds on and off for a few minutes, then the birds lift and scatter. The dash
+  radar shows them as blips out to 1.5 km. Run to them, slow down under 12 knots so the baits swim, and troll
+  through. Run straight through a school fast and it goes down for 40 s.
+- **In a fight,** her real motion counts: backing down onto a fish closes on it, running away pays out line.
+
+## Why you lost that fish at 30 m (and how the game tells you now)
+- It almost certainly wore the line through on the hull: when the fish swings forward of her side, the line lies
+  along the hull and wears every second. The game only warned you once it was rubbing hard, never showed how
+  worn the line was, and the message didn't say what to do.
+- **Now:** an earlier warning, "The line's rubbing the hull! Take it to the port corner, or swing her stern to it";
+  the line's wear under the hint ("line 40% worn", red past half); and every way of losing a fish says why and
+  how to avoid it ("...It swung forward of her side: take it to that corner, or swing her stern to it.").
+
 ## The whole loop: hooked, fought, stuck, aboard, sold
 **Not run in Godot yet.** This session couldn't get Godot (its download sites are blocked here). Every script was
 checked with a GDScript parser (gdtoolkit), the fight rules in a Python copy of `tuna/fight.gd`, and the code by two

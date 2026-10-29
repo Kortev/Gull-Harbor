@@ -19,6 +19,9 @@ uniform int swell_count = 5;
 uniform sampler2D swirl : filter_linear, repeat_enable;
 // How far the rough patches have drifted (uv).
 uniform vec2 group_drift = vec2(0.0);
+// Where the mesh's middle is over the world (x, z): the waves, the foam and the rain are the world's, so they stay put
+// while the mesh moves along under the camera (ocean.gd's follow_camera). The fade and the curve stay the mesh's.
+uniform vec2 origin = vec2(0.0);
 uniform float wave_time = 0.0;
 // The sum of Q k A over the waves: what a crest's breaking is measured against.
 uniform float steep = 0.6;
@@ -117,11 +120,12 @@ void vertex() {
 	vec3 p = VERTEX;
 	local = p;
 	float r = length(p.xz);
-	float k = (1.0 - smoothstep(fade_start, fade_end, r)) * calm_at(p.xz);
+	vec2 wq = p.xz + origin;
+	float k = (1.0 - smoothstep(fade_start, fade_end, r)) * calm_at(wq);
 	vec3 d = vec3(0.0);
-	float g = group_at(p.xz);
-	float sw = swell_at(p.xz);
-	float wp = warp_at(p.xz);
+	float g = group_at(wq);
+	float sw = swell_at(wq);
+	float wp = warp_at(wq);
 	for (int i = 0; i < 32; i++) {
 		if (i >= wave_count) {
 			break;
@@ -130,7 +134,7 @@ void vertex() {
 		vec4 b = waves_b[i];
 		bool sl = i < swell_count;
 		float a = w.w * (sl ? sw : g);
-		float th = w.z * dot(w.xy, p.xz) - b.x * wave_time + b.y + wp * (sl ? 1.0 : 0.5);
+		float th = w.z * dot(w.xy, wq) - b.x * wave_time + b.y + wp * (sl ? 1.0 : 0.5);
 		d.xz += b.z * a * w.xy * cos(th);
 		d.y += a * sin(th);
 	}
@@ -161,8 +165,8 @@ void fragment() {
 	}
 	NORMAL = n;
 	// the height and the breaking worked out here, per pixel, so the far coarse mesh doesn't show
-	vec2 q = local.xz;
-	float k = (1.0 - smoothstep(fade_start, fade_end, length(q))) * calm_at(q);
+	vec2 q = local.xz + origin;
+	float k = (1.0 - smoothstep(fade_start, fade_end, length(local.xz))) * calm_at(q);
 	float y = 0.0;
 	float jac = 0.0;
 	vec2 slope = vec2(0.0);

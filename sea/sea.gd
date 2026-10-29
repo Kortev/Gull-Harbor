@@ -21,6 +21,7 @@ const Menu := preload("res://ui/menu.gd")
 const Rods := preload("res://rods/rods.gd")
 const Schools := preload("res://tuna/schools.gd")
 const Sonar := preload("res://tuna/sonar.gd")
+const Radar := preload("res://tuna/radar.gd")
 const Weather := preload("res://sea/weather.gd")
 const Landing := preload("res://tuna/landing.gd")
 const FishHold := preload("res://boat/fish_hold.gd")
@@ -100,6 +101,11 @@ func _ready() -> void:
 	sonar.schools = schools
 	add_child(sonar)
 	sonar.attach(boat)
+	var radar := Radar.new()
+	radar.name = "Radar"
+	radar.schools = schools
+	add_child(radar)
+	radar.attach(boat)
 	var look := deg_to_rad(float(_args.get("look", "0")))
 	if look != 0.0:
 		crew.me_changed.connect(func(me: Node) -> void:
@@ -322,6 +328,7 @@ func _build_world() -> void:
 	ocean = Ocean.new()
 	ocean.name = "Ocean"
 	ocean.wind = WIND
+	ocean.follow_camera = true      # (the boat goes places: the sea's mesh goes along under you, its waves stay put)
 	add_child(ocean)
 	# rain round whoever's looking (sea_fx moves it)
 	rain = _particles(Vector3(0, 22, 0), Vector3(40, 1, 40), 5000, 3.6, Vector3(0, -1, 0), 2.0,

@@ -10,6 +10,10 @@ extends Node3D
 ## waves run on `wave_time`: the night clock while a night's on (every peer shares it, so everyone
 ## sees the same wave at the same moment), else the engine's clock. `glow_spot` lights something
 ## huge under the water (the night's moment). This node's origin is the sea's mean level.
+##
+## The waves belong to the world, not to the mesh: with `follow_camera` the mesh (and its fine middle, the fade and the
+## curve away to the horizon) moves along under whoever's looking, while every crest stays where it is in the world
+## (the shader reads world x, z through `origin`; height_at does the same). So a boat can sail across the sea.
 
 const NIGHT_LENGTH := 15.0 * 60.0
 const SHADER := preload("res://sea/ocean.gdshader")
@@ -69,6 +73,8 @@ const SQUALL_LENGTH := Vector2(2.6, 4.0)
 @export var calm_rect := Vector4.ZERO
 ## How far the sea reaches (m).
 @export var reach := 5000.0
+## Keep the mesh under the camera (the bluefin game, where the boat goes places): x, z follow it every frame.
+@export var follow_camera := false
 ## On a planet: tonight's weather (by name) -> how rough, 0..1 (a storm builds through the night).
 @export var weathers := {"rain": 0.5, "heavy rain": 0.75, "storm": 1.0}
 ## Something huge glowing under the water: x, z (this node's space), size (m), strength; and the way
@@ -165,6 +171,12 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if follow_camera:
+		var cam := get_viewport().get_camera_3d()
+		if cam != null:
+			var at := cam.global_position
+			global_position = Vector3(at.x, global_position.y, at.z)
+	_mat.set_shader_parameter("origin", _origin())
 	if _planet != null:
 		var target := float(weathers.get(String(_planet.get("weather")), 0.5))
 		var w := lerpf(0.5, target, float(_planet.get("sea_strength")))
@@ -220,13 +232,21 @@ func height_at(at: Vector3, ahead := 0.0) -> float:
 	var drift := _group_drift if ahead == 0.0 else _drift_at(t)
 	var p := to_local(at)
 	var q := Vector2(p.x, p.z)
-	# the waves move the water sideways too: find the bit of sea that's ended up over q
-	var x := q
+	# the waves are the world's: w is where q is in the world (the mesh's fade and curve stay round this node)
+	var o := _origin()
+	var w := q + o
+	# the waves move the water sideways too: find the bit of sea that's ended up over w
+	var x := w
 	for i in 3:
-		var d := _displace(x, t, drift)
-		x = q - Vector2(d.x, d.z)
-	var y := _displace(x, t, drift).y - pow(maxf(q.length() - CURVE_START, 0.0), 2.0) / (2.0 * CURVE_RADIUS)
+		var d := _displace(x, t, drift, x - o)
+		x = w - Vector2(d.x, d.z)
+	var y := _displace(x, t, drift, x - o).y - pow(maxf(q.length() - CURVE_START, 0.0), 2.0) / (2.0 * CURVE_RADIUS)
 	return to_global(Vector3(q.x, y, q.y)).y
+
+
+## Where this node is over the world (x, z): what the shader adds to the mesh's x, z to find the waves there.
+func _origin() -> Vector2:
+	return Vector2(global_position.x, global_position.z)
 
 
 ## How hard the hurricane gusts at wave time `t` (0 .. 1, before `gusty`): every peer on the same clock gets the same.
@@ -306,9 +326,9 @@ func _drift_at(t: float) -> Vector2:
 	return Vector2(fposmod(d.x, 1.0), fposmod(d.y, 1.0))
 
 
-## Where the bit of sea that starts at grid point p has moved to (and how high) at wave time `t`, the
-## patches drifted to `drift`, in this node's space.
-func _displace(p: Vector2, t: float, drift: Vector2) -> Vector3:
+## Where the bit of sea that starts at world point p has moved to (and how high) at wave time `t`, the
+## patches drifted to `drift`; `from_middle` is p from this node (where the waves fade out toward the horizon).
+func _displace(p: Vector2, t: float, drift: Vector2, from_middle := Vector2.ZERO) -> Vector3:
 	var out := Vector3.ZERO
 	var g := 0.35 + 1.3 * _swirl(_swirl_r, p / 70.0 - drift)
 	var sw := 0.85 + 0.3 * _swirl(_swirl_g, p / 180.0 + Vector2(0.31, 0.77))
@@ -322,7 +342,7 @@ func _displace(p: Vector2, t: float, drift: Vector2) -> Vector3:
 		out.x += _q * a * w[0] * c
 		out.z += _q * a * w[1] * c
 		out.y += a * sin(th)
-	return out * (1.0 - smoothstep(FADE.x, FADE.y, p.length())) * _calm_at(p)
+	return out * (1.0 - smoothstep(FADE.x, FADE.y, from_middle.length())) * _calm_at(p)
 
 
 ## The noise, smooth (bilinear, wrapping), as the shader samples it.

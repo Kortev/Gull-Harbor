@@ -2,13 +2,24 @@ extends Area3D
 ## The wheel, and whoever's at it: the captain. E on the wheel takes it (the host says who), E or Q leaves it.
 ## The captain's A/D swing her round (TURN rad/s), holding S backs her down and W runs her ahead.
 ##
-## The boat still never goes anywhere: turning swings her heading where she sits, and backing down is felt
-## through the fight (tuna/fight.gd: the boat coming back over the fish wins line and takes the strain).
-## The captain's own machine steers, so it answers at once, and tells everyone her heading and throttle.
+## She really goes places: W runs her ahead (up to AHEAD, about 20 knots, to get to the birds), S backs her down
+## (ASTERN, a few knots, onto a fish), and let go she carries her way (COAST) before she settles. A/D turn her, and with
+## twin screws she spins on the spot as well as under way. `at` is where she is in the world (x, z).
+##
+## Whoever's at the wheel moves her on their own machine, so it answers at once, and tells everyone where she is, her
+## heading, speed and throttle; with nobody at the wheel the host lets her coast to a stop and tells everyone.
 
 ## rad/s, hard over: twin screws, one ahead and one astern, spin her faster than a fish circles (tuna/fight.gd)
 const TURN := 0.45
 const SEND := 1.0 / 15.0
+## m/s flat out ahead (about 20 knots) and astern (backing down on a fish).
+const AHEAD := 10.0
+const ASTERN := 2.6
+## How fast she gets going (m/s each second), ahead and astern; how long she carries her way with the throttle
+## eased (s: what's left of her speed after this long is about a third).
+const SPURT := 1.4
+const BACK := 2.2
+const COAST := 9.0
 
 var boat: Node3D          # boat/boat.gd
 ## The captain's peer id (0: nobody at the wheel).
@@ -18,7 +29,13 @@ var captain := 0
 var heading := 0.0
 var steer := 0.0
 var throttle := 0.0
+## Where she is in the world (x, z) and how fast she's going (m/s: + ahead, - astern).
+var at := Vector2.ZERO
+var speed := 0.0
 var _net_heading := 0.0
+var _net_at := Vector2.ZERO
+var _net_speed := 0.0
+var _net_age := 0.0
 var _send_in := 0.0
 
 
@@ -34,7 +51,7 @@ func _ready() -> void:
 	add_child(cs)
 	Net.peer_joined.connect(func(id: int) -> void:
 		if multiplayer.is_server():
-			_sync.rpc_id(id, captain, heading))
+			_sync.rpc_id(id, captain, heading, at, speed))
 	Net.peer_left.connect(func(id: int) -> void:
 		if Net.is_host() and captain == id:
 			_host_set(0))
@@ -106,21 +123,46 @@ func _set_captain(who: int, at_heading: float) -> void:
 		p.call("place", spot.origin + Vector3(0, 0.05, 0), 0.0)
 		if p.is_multiplayer_authority():
 			var hud: Node = boat.get("sea").get("crew").get("hud")
-			hud.call("notify", "At the wheel: A/D swing her, hold S to back down, W ahead. E or Q to leave.")
+			hud.call("notify", "At the wheel: hold W to run her ahead, S to back down, A/D to steer. E or Q to leave.")
 
 
 @rpc("authority", "call_remote", "reliable")
-func _sync(who: int, at_heading: float) -> void:
+func _sync(who: int, at_heading: float, where: Vector2, going: float) -> void:
 	_set_captain(who, at_heading)
+	at = where
+	speed = going
+	_net_at = where
+	_net_speed = going
+	_net_age = 0.0
 
 
-## The captain's word on the wheel (sent ~15 a second; only the captain's counts).
+## The word on her from whoever moves her (the captain, or the host with nobody at the wheel), ~15 a second.
 @rpc("any_peer", "call_remote", "unreliable_ordered")
-func _state(at_heading: float, wheel: float, gas: float) -> void:
-	if multiplayer.get_remote_sender_id() == captain:
+func _state(at_heading: float, wheel: float, gas: float, where: Vector2, going: float) -> void:
+	var from := multiplayer.get_remote_sender_id()
+	if from == captain or (captain == 0 and from == 1):
 		_net_heading = at_heading
 		steer = wheel
 		throttle = gas
+		_net_at = where
+		_net_speed = going
+		_net_age = 0.0
+
+
+## Which way her bow points (world x, z) at a heading.
+static func ahead_of(h: float) -> Vector2:
+	return Vector2(-sin(h), -cos(h))
+
+
+## Her speed toward where she's going after `delta` s at throttle `gas` (-1 .. 1).
+static func next_speed(v: float, gas: float, delta: float) -> float:
+	var want := gas * AHEAD if gas > 0.0 else gas * ASTERN
+	if absf(gas) < 0.02 or (signf(v) == signf(want) and absf(v) > absf(want)):
+		# easing off (or off altogether): she carries her way
+		return want + (v - want) * exp(-delta / COAST)
+	# getting going, or the screws thrown the other way to stop her
+	var rate := SPURT if gas > 0.0 else BACK
+	return move_toward(v, want, rate * delta)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -130,6 +172,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	# whoever's at the wheel moves her; with nobody there, the host lets her coast to a stop
+	var driving := is_mine() or (captain == 0 and Net.is_host())
 	if is_mine():
 		var me: Node = _crew_member(captain)
 		var live := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or (me != null and bool(me.get("force_input")))
@@ -138,15 +182,43 @@ func _physics_process(delta: float) -> void:
 		steer = move_toward(steer, want_steer, delta * 2.5)
 		throttle = move_toward(throttle, want_gas, delta * 1.5)
 		heading = wrapf(heading + steer * TURN * delta, -PI, PI)
-		_send_in -= delta
-		if Net.in_session() and _send_in <= 0.0:
-			_send_in = SEND
-			_state.rpc(heading, steer, throttle)
-	elif captain != 0:
-		heading = heading + wrapf(_net_heading - heading, -PI, PI) * minf(delta * 10.0, 1.0)
-	else:
+	elif captain == 0:
 		steer = move_toward(steer, 0.0, delta * 2.5)
 		throttle = 0.0
+	if driving:
+		speed = next_speed(speed, throttle, delta)
+		at += ahead_of(heading) * speed * delta
+		_send_in -= delta
+		if Net.in_session() and _send_in <= 0.0:
+			_send_in = SEND if is_mine() else SEND * 3.0
+			_state.rpc(heading, steer, throttle, at, speed)
+	else:
+		# someone else moves her: ease toward where their word says she is by now
+		_net_age += delta
+		heading = heading + wrapf(_net_heading - heading, -PI, PI) * minf(delta * 10.0, 1.0)
+		var guess := _net_at + ahead_of(_net_heading) * _net_speed * _net_age
+		at = at.lerp(guess, minf(delta * 6.0, 1.0))
+		speed = _net_speed
+	_show_helm()
+
+
+## Your own readout at the wheel (the HUD's bottom line): knots, which way, and the throttle.
+var _showing := false
+
+
+func _show_helm() -> void:
+	var hud: Node = boat.get("sea").get("crew").get("hud")
+	if not is_mine():
+		if _showing:
+			hud.call("helm_line", "")
+			_showing = false
+		return
+	_showing = true
+	var knots := absf(speed) * 1.944
+	var way := "ahead" if speed > 0.2 else ("astern" if speed < -0.2 else "stopped")
+	var gear := "ahead %d%%" % roundi(throttle * 100.0) if throttle > 0.02 else \
+			("astern %d%%" % roundi(-throttle * 100.0) if throttle < -0.02 else "neutral")
+	hud.call("helm_line", "%d knots %s   ·   throttle %s" % [roundi(knots), way, gear])
 
 
 func _crew_member(id: int) -> Node:

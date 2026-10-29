@@ -49,9 +49,10 @@ func _process(delta: float) -> void:
 	_img.blit_rect(_img, Rect2i(1, 0, W - 1, H), Vector2i(0, 0))
 	var marks: Array = []
 	if schools:
-		for s: Node in schools.call("near", Vector3.ZERO, REACH):
+		var at: Vector2 = schools.call("boat_at")
+		for s: Node in schools.call("near", Vector3(at.x, 0.0, at.y), REACH):
 			var c: Vector2 = s.call("center", float(schools.call("now")))
-			var off := c.length() / REACH
+			var off := c.distance_to(at) / REACH
 			var depth := 12.0 + 30.0 * float(schools.call("hash1", float(int(s.get("seed")) % 977), 3.0)) + off * 10.0
 			marks.append(Vector3(depth / RANGE * H, 1.0 - off, float(int(s.get("seed")) % 7)))
 	for y in H:

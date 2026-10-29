@@ -13,6 +13,8 @@ var _note: Label
 var _note_t := 0.0
 ## The catch, top left (boat/fish_hold.gd): the hold, the deck, what it's worth, the bank.
 var _tally: Label
+## At the wheel, bottom middle (boat/helm.gd): her speed and the throttle.
+var _helm: Label
 ## The captain's plotter (bottom middle, only at the wheel with a fish on): her outline, bow up, and each fish
 ## round her as a dot on its line from the stern, red where the line's on the hull.
 var _plot: Control
@@ -80,6 +82,17 @@ func _ready() -> void:
 	_tally.add_theme_constant_override("shadow_offset_x", 1)
 	_tally.add_theme_constant_override("shadow_offset_y", 1)
 	add_child(_tally)
+	_helm = Label.new()
+	_helm.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_helm.position += Vector2(-200, -40)
+	_helm.size = Vector2(400, 26)
+	_helm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_helm.add_theme_font_size_override("font_size", 18)
+	_helm.add_theme_color_override("font_color", Color(0.85, 0.95, 0.88))
+	_helm.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.85))
+	_helm.add_theme_constant_override("shadow_offset_x", 1)
+	_helm.add_theme_constant_override("shadow_offset_y", 1)
+	add_child(_helm)
 	_plot = Control.new()
 	_plot.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	_plot.position += Vector2(0, -120)
@@ -124,6 +137,11 @@ func _draw_plot() -> void:
 			Color(0.9, 0.95, 0.9, 0.9))
 
 
+## At the wheel: her speed and the throttle ("" hides it).
+func helm_line(text: String) -> void:
+	_helm.text = text
+
+
 ## The catch's line, top left (boat/fish_hold.gd).
 func tally(text: String) -> void:
 	_tally.text = text
@@ -144,7 +162,8 @@ func _process(delta: float) -> void:
 ## In a fight: the tell ("It's running! Let it go") and the strain 0..1 ("" and 0 when there's no fight).
 ## `arms`: yours, 0..1 (a thin inner ring once they start to go). `line`: metres out (< 0 hides it), `gain`: how fast
 ## you're winning it back (m/s, - while it takes line), `fresh`: the fish, 1 fresh .. 0 beat.
-func fight(tell: String, strain: float, arms := 1.0, line := -1.0, gain := 0.0, fresh := 1.0) -> void:
+## `wear`: how worn the line is from rubbing the hull, 0..1 (shown once it starts).
+func fight(tell: String, strain: float, arms := 1.0, line := -1.0, gain := 0.0, fresh := 1.0, wear := 0.0) -> void:
 	_tell.text = tell
 	if line < 0.0:
 		_line.text = ""
@@ -152,11 +171,15 @@ func fight(tell: String, strain: float, arms := 1.0, line := -1.0, gain := 0.0, 
 		var how := "gaining" if gain > 0.25 else ("it's taking line" if gain < -0.25 else "holding")
 		var fish := "fresh" if fresh > 0.7 else ("tiring" if fresh > 0.45 else ("tired" if fresh > 0.25 else "beat"))
 		_line.text = "%d m out  ·  %s  ·  fish %s" % [roundi(line), how, fish]
+		if wear > 0.02:
+			_line.text += "  ·  line %d%% worn" % roundi(wear * 100.0)
 		var col := Color(0.85, 0.85, 0.82)
 		if gain > 0.25:
 			col = Color(0.55, 1.0, 0.55)
 		elif gain < -0.25:
 			col = Color(1.0, 0.5, 0.4)
+		if wear > 0.5:
+			col = Color(1.0, 0.35, 0.25)
 		_line.add_theme_color_override("font_color", col)
 	if absf(strain - _strain) > 0.01 or (strain == 0.0) != (_strain == 0.0) or absf(arms - _arms) > 0.01:
 		_strain = strain

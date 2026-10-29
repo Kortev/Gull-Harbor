@@ -16,9 +16,11 @@ const BAITS: Array[Vector3] = [Vector3(5.5, 0, 39.0), Vector3(-5.5, 0, 39.0), Ve
 const STERN := Vector3(0.0, 0.0, 7.05)
 ## A rod nobody's holding sits in its holder with the drag set: the host plays the fish against the drag (it takes
 ## line on its runs and tires doing it; between them nobody wins any back) and tells everyone how it's going.
-const WHY := {"broke": "The line parted!", "pulled": "Pulled the hook!",
-		"spooled": "Spooled! It took every metre of line.", "chafed": "The line chafed through on the hull!",
-		"cut": "It went under the boat: the props cut the line!"}
+const WHY := {"broke": "The line parted! Too much strain: when the ring goes red, ease off.",
+		"pulled": "Pulled the hook! Keep the line tight through its headshakes.",
+		"spooled": "Spooled! It took every metre of line. Don't crank against a run; back down on it.",
+		"chafed": "The line wore through on the hull! It swung forward of her side: take it to that corner, or swing her stern to it.",
+		"cut": "It went under the boat: the props cut the line! Out of gear when it's under her."}
 
 var sea: Node                 # sea/sea.gd
 var rods: Array[Rod] = []
@@ -376,7 +378,8 @@ func _process(delta: float) -> void:
 			var rate := (_trend_out - mine.line_out) / maxf(delta, 1e-4)
 			_trend = lerpf(_trend, rate, minf(delta * 2.0, 1.0))
 		_trend_out = mine.line_out
-		hud.call("fight", tell, maxf(wrong, 0.02), float(me_node.get("arms")), mine.line_out, _trend, mine.energy)
+		hud.call("fight", tell, maxf(wrong, 0.02), float(me_node.get("arms")), mine.line_out, _trend, mine.energy,
+				mine.wear)
 	else:
 		_trend_out = -1.0
 		_trend = 0.0
@@ -423,6 +426,8 @@ func _fight_mine(r: Rod, delta: float, throttle: float, send: bool) -> void:
 		if me != null:
 			fight.arms = float(me.get("arms"))      # (your arms are as tired as you left them)
 	fight.throttle = throttle
+	fight.moving = true
+	fight.boat_vel = _boat_vel()
 	fight.reach = _reach(me, fight.bearing)
 	fight.step(delta, crank, r.lift)
 	if me != null:
@@ -445,6 +450,8 @@ func _fight_holder(r: Rod, delta: float, throttle: float, send: bool) -> void:
 		fight = _new_fight(r)
 		fight.in_holder = true
 	fight.throttle = throttle
+	fight.moving = true
+	fight.boat_vel = _boat_vel()
 	fight.step(delta, false, 0.0)
 	if not r.hooked or r.alongside:
 		return       # (it ended this step: lost, or up alongside)
@@ -478,6 +485,12 @@ func _take(r: Rod, fight: Fight) -> void:
 	r.move = fight.move
 	r.wrong = fight.strain
 	r.turn_sign = fight.turn_sign()
+
+
+## Her velocity in her own frame (x across, z astern: her bow's -z), for the fight.
+func _boat_vel() -> Vector2:
+	var helm: Node = (sea.get("boat") as Node).get("helm")
+	return Vector2(0.0, -float(helm.get("speed")))
 
 
 ## How far out over the fish's side the angler's got the rod, 0..1: standing aft at the rail on the side it's on.
