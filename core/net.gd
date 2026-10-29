@@ -17,6 +17,8 @@ signal hosted
 signal joined
 ## Joining failed, or the host went away.
 signal dropped(reason: String)
+## We left the crew ourselves (the menu's Leave), hosting or not: back to our own boat.
+signal left(was_host: bool)
 signal peer_joined(id: int)
 signal peer_left(id: int)
 ## After hosting: whether the router opened the port, and the join code for friends (over the internet if it did,
@@ -107,7 +109,9 @@ func join(address: String, port := PORT) -> Error:
 
 
 func leave() -> void:
+	var was_host := in_session_or_hosting() and multiplayer.is_server()
 	_close()
+	left.emit(was_host)
 
 
 func in_session() -> bool:

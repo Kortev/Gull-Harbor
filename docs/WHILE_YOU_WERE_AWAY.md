@@ -41,9 +41,24 @@ Godot before merging.
 - The strike test's angler never rested, so with spent arms it could never pump a far-off beaten fish in; it takes
   breathers now, like the hint tells you to.
 
+**Fixes from a second review, of the landing and the catch:**
+- Leaving a crew kept the host's bank, and your next sale saved it over your own. Now leaving (or the host going)
+  puts you back on your own boat with your own bank. A host who leaves keeps their own fish; only crewmates' hands
+  come off the rods, the harpoon and the door.
+- When the host dropped, a fish alongside left your rod dead for good. Your rods are cleared now.
+- With the rod still in your hands, the harpoon rack did nothing and didn't say why. It now says "Put the rod back
+  first (Q)", and so does the hint.
+- The harpoon holder could take the wheel and keep the harpoon there. Not any more.
+- A rod whose last fish is still astern on the harpoon can't take another bite till that one's aboard (it used to
+  wipe out the stuck fish).
+- Fish on deck no longer lie through the live well or in front of the tuna doors; a fifth goes on the pile.
+- The "Sold" note now shows for the skipper too; late joiners don't get old "Boatside!" notes again.
+
 **Tests to run in Godot:**
-- `tests/landing_test.tscn` (new): alongside, the harpoon rules, a miss and a hit, the haul's time, bleed, ice,
-  sell, the slip, back out, the grades, and the hook pulling. It puts your bank back as it was.
+- `tests/landing_test.tscn` (new): alongside, the harpoon rules, a miss and a hit, that you can put the crosshair
+  on the rack, the tuna door and a fish on deck from the cockpit, that holding E hauls and letting go stops, the
+  haul's time, bleed, ice, sell, the slip, back out, the grades, and the hook pulling. It keeps its bank in a test
+  file, not yours.
 - `tests/strike_test.tscn`: now fights to "alongside, ready for the harpoon".
 - `tests/fight_test.tscn`, `tests/rods_test.tscn`, `tests/helm_test.tscn`, `tools/net_test.sh`.
 

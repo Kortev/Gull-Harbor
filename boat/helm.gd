@@ -73,7 +73,10 @@ func _ask(take: bool) -> void:
 	if who == 0:
 		who = Net.my_id()
 	var rods: Node = boat.get("sea").get("rods")
-	if take and captain == 0 and (rods == null or rods.call("held_by", who) == null):
+	var landing: Node = boat.get("sea").get("landing")
+	var hands_free := (rods == null or rods.call("held_by", who) == null) \
+			and (landing == null or int(landing.get("harpoon_holder")) != who)
+	if take and captain == 0 and hands_free:
 		_host_set(who)
 	elif not take and captain == who:
 		_host_set(0)

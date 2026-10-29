@@ -3,6 +3,8 @@ extends Node
 ## with the harpoon); a throw away from the fish misses and one straight at it sticks; hauling alone brings it
 ## aboard in HAUL_BASE + kg * HAUL_PER_KG seconds; it lies on deck; bleed it, ice it; head in: it sells, graded,
 ## into the bank; back out with an empty hold. And a fish left alongside unstuck gets away when the hook pulls.
+## Standing on deck you can put the crosshair on the harpoon rack, the tuna door and a fish on deck (nothing in
+## the way), and holding E on the door hauls while letting go stops. The bank's kept in a test file, not yours.
 ## Run: godot --headless --path . res://tests/landing_test.tscn
 
 const Sea := preload("res://sea/sea.gd")
@@ -19,8 +21,10 @@ func _ready() -> void:
 	sea.schools.set("_next", 9999.0)
 	var landing := sea.landing
 	var hold := sea.fish_hold
-	var bank0 := hold.bank
-	var best0 := hold.best
+	hold.save_path = "user://bluefin_test.cfg"
+	hold.bank = 0
+	hold.best = 0
+	var me := sea.crew.me
 	# a 200 kg fish on rod 0, fought out: up alongside
 	sea.rods.strike(0, 200.0)
 	await get_tree().process_frame
@@ -29,6 +33,10 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_check(rod.hooked and rod.alongside and landing.fish.has(0), "a beaten fish comes up alongside")
 	_check(landing.hint().begins_with("Boatside"), "the HUD says to stick it: %s" % landing.hint())
+	# the harpoon's rack, looked at from the cockpit
+	var rack := sea.boat.get_node("HarpoonRack")
+	_check(await _can_look_at(me, Vector3(-1.0, 0.6, 3.8), rack, PI * 0.5),
+			"from the cockpit you can put the crosshair on the harpoon")
 	# the harpoon and a rod: one or the other
 	sea.rods.request_grab(1)
 	landing._request_harpoon(true)
@@ -52,15 +60,33 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_check(bool(landing.fish[0]["stuck"]) and not rod.hooked, "a hit: stuck, and off the rod")
 	_check(landing.hint().begins_with("Stuck"), "the HUD says to haul it: %s" % landing.hint())
-	# the haul, alone (holding E on the door)
+	# the tuna door on its side: look at it, hold E, let go
+	var side := float(landing.fish[0]["side"])
+	var door: Node = landing._doors[0 if side > 0.0 else 1]
+	_check(await _can_look_at(me, Vector3(side * 1.0, 0.6, 5.4), door, PI),
+			"from the cockpit you can put the crosshair on the tuna door")
+	_check(str(door.call("interact_prompt")).begins_with("Hold to haul"), "the door says: %s" % door.call("interact_prompt"))
+	Input.action_press("interact")
+	door.call("interact", me)
+	await get_tree().create_timer(1.0).timeout
+	var hauled := float(landing.fish[0]["haul"])
+	_check(hauled > 0.03 and landing.hands_on(0) == 1, "holding E on the door hauls (%.0f%% in 1 s)" % (hauled * 100.0))
+	Input.action_release("interact")
+	await get_tree().create_timer(0.3).timeout
+	_check(landing.hands_on(0) == 0 and absf(float(landing.fish[0]["haul"]) - hauled) < 0.02, "letting go stops it")
+	# then the rest of the haul, alone (holding E on the door)
+	hauled = float(landing.fish[0]["haul"])
 	var t := 0.0
 	while landing.fish.has(0) and t < 30.0:
 		landing._ask_pull_as(1, 0)
 		await get_tree().process_frame
 		t += get_process_delta_time()
-	var expect := Landing.HAUL_BASE + 200.0 * Landing.HAUL_PER_KG
-	_check(not landing.fish.has(0) and absf(t - expect) < 1.5, "hauled aboard alone in %.1f s (about %.0f)" % [t, expect])
+	var expect := (1.0 - hauled) * (Landing.HAUL_BASE + 200.0 * Landing.HAUL_PER_KG)
+	_check(not landing.fish.has(0) and absf(t - expect) < 1.5, "hauled aboard alone in %.1f s more (about %.0f)" % [t, expect])
 	_check(hold.fish.size() == 1 and hold._deck.size() == 1, "it's on deck")
+	var on_deck: Node = (hold._deck.values()[0] as Node).get_node("Handle")
+	_check(await _can_look_at(me, Vector3(1.0, 0.6, 4.95), on_deck, PI),
+			"from the cockpit you can put the crosshair on the fish on deck")
 	_check(hold.hint().begins_with("A fish on deck"), "the HUD says to bleed it: %s" % hold.hint())
 	var id := int(hold.fish[0]["id"])
 	hold._work(id)
@@ -71,7 +97,7 @@ func _ready() -> void:
 	var worth := hold.worth()
 	_check(worth > 0, "it's worth $%d" % worth)
 	hold.head_in()
-	_check(hold.fish.is_empty() and int(hold.sale["total"]) == worth and hold.bank == bank0 + worth,
+	_check(hold.fish.is_empty() and int(hold.sale["total"]) == worth and hold.bank == worth,
 			"headed in: sold for $%d, banked ($%d)" % [worth, hold.bank])
 	var lines: Array = hold.sale["lines"]
 	_check(lines.size() == 1 and str(lines[0][1]).begins_with("#"), "the slip: %s" % str(lines))
@@ -92,11 +118,22 @@ func _ready() -> void:
 	landing.fish[2]["t"] = Landing.HOOK_HOLDS - 0.2
 	await get_tree().create_timer(0.5).timeout
 	_check(not landing.fish.has(2) and not rod2.hooked, "left alongside unstuck, the hook pulls")
-	# (the test sold a fish: put your bank back as it was)
-	hold.bank = bank0
-	hold.best = best0
-	hold._save()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(hold.save_path))
 	_done()
+
+
+## Whether, standing at `stand` (boat-local) facing `face` (yaw), some look in a fan around it puts the crosshair on
+## `target` (crew/player.gd's looking_at: nothing else in the way, and in reach).
+func _can_look_at(me: Node, stand: Vector3, target: Node, face: float) -> bool:
+	me.call("place", stand, face)
+	for p in 13:
+		for dy in range(-6, 7):
+			me.set("_yaw", face + dy * 0.08)
+			me.set("_pitch", -0.2 - p * 0.1)
+			await get_tree().process_frame
+			if me.call("looking_at") == target:
+				return true
+	return false
 
 
 func _done() -> void:

@@ -54,7 +54,7 @@ func _ready() -> void:
 	rack.name = "HarpoonRack"
 	rack.position = RACK + Vector3(0.0, 0.0, -0.6)
 	rack.use = func(_p: Node) -> void: _request_harpoon(true)
-	rack.prompt = func() -> String: return "Grab the harpoon" if harpoon_holder == 0 else ""
+	rack.prompt = func() -> String: return _rack_prompt()
 	boat.add_child(rack)
 	for side: float in [1.0, -1.0]:
 		var door := Action.new(Vector3(0.8, 0.7, 0.35))
@@ -73,6 +73,16 @@ func _ready() -> void:
 		if Net.is_host() and harpoon_holder == id:
 			_host_set_harpoon(0))
 	Net.dropped.connect(func(_reason: String) -> void: _clear())
+	Net.left.connect(func(was_host: bool) -> void:
+		if not was_host:
+			_clear()       # (those were the host's fish)
+			return
+		# our own boat: our fish stay; crewmates' hands come off the harpoon and the door
+		if harpoon_holder != Net.my_id():
+			harpoon_holder = 0
+		for peer: int in _pulling.keys():
+			if peer != Net.my_id():
+				_pulling.erase(peer))
 
 
 # ------------------------------------------------------------------ what everyone sees
@@ -146,11 +156,24 @@ func hint() -> String:
 			waiting = true
 	if harpoon_holder == Net.my_id():
 		return "Aim at the fish, left mouse throws  (Q puts it back)" if waiting else "Q puts the harpoon back"
+	if waiting and (sea.get("rods") as Node).call("held_by", Net.my_id()) != null:
+		return "Boatside! Q puts the rod back, then grab the harpoon (port side)"
 	if waiting:
 		return "Boatside! Stick it: the harpoon's along the port side"
 	if stuck:
 		return "Stuck! Haul it in: hold E on the tuna door"
 	return ""
+
+
+func _rack_prompt() -> String:
+	if harpoon_holder != 0:
+		return ""
+	if (sea.get("rods") as Node).call("held_by", Net.my_id()) != null:
+		return "Put the rod back first (Q)"
+	var helm: Node = (sea.get("boat") as Node).get("helm")
+	if int(helm.get("captain")) == Net.my_id():
+		return ""
+	return "Grab the harpoon"
 
 
 func _door_prompt(side: float) -> String:
@@ -401,6 +424,12 @@ func host_alongside(i: int, kg: float, bearing: float, hook_t: float) -> void:
 
 @rpc("authority", "call_local", "reliable")
 func _alongside(i: int, kg: float, side: float, hook_t: float) -> void:
+	_add(i, kg, side, hook_t)
+	_note("Boatside! A %d kg bluefin. Stick it: the harpoon's along the port side" % roundi(kg))
+
+
+## A fish up alongside, off rod i. `on_rod`: still on the line (not yet stuck), so the rod shows it.
+func _add(i: int, kg: float, side: float, hook_t: float, on_rod := true) -> void:
 	_drop(i)
 	var node := Tuna.new(kg)
 	node.name = "Alongside%d" % i
@@ -408,8 +437,8 @@ func _alongside(i: int, kg: float, side: float, hook_t: float) -> void:
 	node.effort = 0.35
 	add_child(node)
 	fish[i] = {"kg": kg, "side": side, "hook_t": hook_t, "t": 0.0, "stuck": false, "haul": 0.0, "node": node}
-	(sea.get("rods") as Node).call("set_alongside", i)
-	_note("Boatside! A %d kg bluefin. Stick it: the harpoon's along the port side" % roundi(kg))
+	if on_rod:
+		(sea.get("rods") as Node).call("set_alongside", i)
 
 
 func _host_aboard(i: int) -> void:
@@ -478,7 +507,7 @@ func _sync(holder: int, states: Array) -> void:
 	harpoon_holder = holder
 	for s: Array in states:
 		var i := int(s[0])
-		_alongside(i, float(s[1]), float(s[2]), float(s[3]))
+		_add(i, float(s[1]), float(s[2]), float(s[3]), not bool(s[5]))
 		fish[i]["t"] = float(s[4])
 		fish[i]["haul"] = float(s[6])
 		if bool(s[5]):

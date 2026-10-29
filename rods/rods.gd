@@ -45,9 +45,26 @@ func _ready() -> void:
 			for r in rods:
 				if r.holder == id:
 					_host_set(r.index, 0))
-	Net.dropped.connect(func(_reason: String) -> void:
-		for r in rods:
-			r.holder = 0)
+	Net.dropped.connect(func(_reason: String) -> void: _own_boat(false))
+	Net.left.connect(_own_boat)
+
+
+## Back on your own boat (you left the crew, or the host went). `kept`: it was our boat (we were hosting), so our
+## fish stay on and only crewmates' hands come off the rods; otherwise those were the host's fish, and they go.
+func _own_boat(kept: bool) -> void:
+	for r in rods:
+		if kept:
+			if r.holder != Net.my_id():
+				r.holder = 0
+				r.fight = null
+			continue
+		r.holder = 0
+		r.hooked = false
+		r.alongside = false
+		r.fight = null
+		r.line_out = 0.0
+		r.strain = 0.05
+		r.move = ""
 
 
 func held_by(peer: int) -> Rod:
@@ -76,8 +93,8 @@ func _ask_grab(i: int) -> void:
 	var who := _sender()
 	if i < 0 or i >= rods.size() or held_by(who) != null:
 		return
-	# a free rod, or taking over a crewmate's fish (their arms are going)
-	if rods[i].holder != 0 and not rods[i].hooked:
+	# a free rod, or taking over a crewmate's fish (their arms are going); not one whose fish is up alongside
+	if rods[i].holder != 0 and not rods[i].hooked or rods[i].alongside:
 		return
 	var helm: Node = (sea.get("boat") as Node).get("helm")
 	if int(helm.get("captain")) == who:
@@ -123,8 +140,8 @@ func _set_holder(i: int, who: int) -> void:
 ## Host: a fish takes rod i's bait.
 func strike(i: int, kg: float) -> void:
 	var r := rods[i]
-	if r.hooked:
-		return
+	if r.hooked or (sea.get("landing") as Node).get("fish").has(i):
+		return        # (its last fish is still astern on the harpoon: no bait out yet)
 	var bait := BAITS[i] - STERN
 	var bearing := atan2(bait.x, bait.z) + randf_range(-0.5, 0.5)
 	if Net.in_session():
@@ -410,8 +427,8 @@ func _fight_mine(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	fight.step(delta, crank, r.lift)
 	if me != null:
 		me.set("arms", fight.arms)
-	if not r.hooked:
-		return       # (it ended this step)
+	if not r.hooked or r.alongside:
+		return       # (it ended this step: lost, or up alongside)
 	_take(r, fight)
 	var ans := fight.answer()
 	r.reeling = 0.0 if not crank or ans == "hold" else (Fight.CRANK * 0.2 if ans == "ease" else Fight.CRANK)
@@ -429,8 +446,8 @@ func _fight_holder(r: Rod, delta: float, throttle: float, send: bool) -> void:
 		fight.in_holder = true
 	fight.throttle = throttle
 	fight.step(delta, false, 0.0)
-	if not r.hooked:
-		return       # (it ended this step)
+	if not r.hooked or r.alongside:
+		return       # (it ended this step: lost, or up alongside)
 	_take(r, fight)
 	if send:
 		_holder_state.rpc(r.index, r.line_out, r.strain, r.bearing, r.depth, r.energy, r.move, r.wear, r.wrong,

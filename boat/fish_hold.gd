@@ -14,9 +14,10 @@ const Action := preload("res://core/action.gd")
 const SAVE := "user://bluefin.cfg"
 ## Dollars a kilo for a fish of quality 1 is 0.35 + 0.9 = 1.25 times this; quality 0, 0.35 times.
 const PRICE_PER_KG := 18.0
-## Where fish lie on deck, in turn (boat-local: across the cockpit, aft of the fighting chair and forward of it).
-const SPOTS: Array[Vector3] = [Vector3(0.0, 0.55, 5.7), Vector3(0.0, 0.55, 3.5), Vector3(0.0, 0.55, 6.3),
-		Vector3(0.0, 0.55, 2.9)]
+## Where fish lie on deck, in turn (boat-local: across the cockpit, between the chair's footrest and the live well,
+## then forward of the chair, over the fish box). More than that and they're piled on top.
+const SPOTS: Array[Vector3] = [Vector3(0.0, 0.55, 5.75), Vector3(0.0, 0.55, 3.45), Vector3(0.0, 0.55, 2.55),
+		Vector3(0.0, 0.55, 1.85)]
 
 var sea: Node                 # sea/sea.gd
 ## This trip's fish: {id, kg, fight_s (hooked to aboard), aboard_t (sea clock), bled_s and iced_s (s after it came
@@ -28,6 +29,9 @@ var best := 0
 var sale := {}
 var _next_id := 1
 var _deck := {}               # fish id -> its Tuna on deck
+var _sold_noted := false
+## Where the bank's kept (tests point it somewhere else so they don't touch yours).
+var save_path := SAVE
 
 
 func _ready() -> void:
@@ -35,12 +39,18 @@ func _ready() -> void:
 	Net.peer_joined.connect(func(id: int) -> void:
 		if multiplayer.is_server():
 			_sync.rpc_id(id, _state()))
-	Net.dropped.connect(func(_reason: String) -> void:
-		# (back on your own boat: your own bank, an empty hold)
-		_load()
-		fish = []
-		sale = {}
-		_rebuild())
+	Net.dropped.connect(func(_reason: String) -> void: _own_boat())
+	Net.left.connect(func(was_host: bool) -> void:
+		if not was_host:
+			_own_boat())
+	_rebuild()
+
+
+## Back on your own boat after crewing for someone: your own bank, an empty hold (theirs stays theirs).
+func _own_boat() -> void:
+	_load()
+	fish = []
+	sale = {}
 	_rebuild()
 
 
@@ -156,14 +166,16 @@ func _state() -> Dictionary:
 
 @rpc("authority", "call_local", "reliable")
 func _sync(state: Dictionary) -> void:
-	var had := sale.is_empty()
 	fish = state["fish"]
 	bank = int(state["bank"])
 	best = int(state["best"])
 	sale = state["sale"]
 	_next_id = int(state["next"])
 	_rebuild()
-	if had and not sale.is_empty():
+	if sale.is_empty():
+		_sold_noted = false
+	elif not _sold_noted:
+		_sold_noted = true
 		_note("Sold: %d fish for $%s. The slip's in the Esc menu." % [(sale["lines"] as Array).size(),
 				_money(int(sale["total"]))])
 
@@ -197,7 +209,8 @@ func _lay(f: Dictionary, boat: Node3D) -> Node3D:
 	t.name = "OnDeck%d" % id
 	t.posed = true
 	t.effort = 0.0
-	var spot: Vector3 = SPOTS[int(f["spot"]) % SPOTS.size()]
+	var n := int(f["spot"])
+	var spot: Vector3 = SPOTS[n % SPOTS.size()] + Vector3(0.0, 0.3 * floorf(n / float(SPOTS.size())), 0.0)
 	# across the cockpit on its side, head to starboard
 	t.transform = Transform3D(Basis.looking_at(Vector3.RIGHT, Vector3.UP) * Basis(Vector3(0, 0, 1), PI * 0.5),
 			spot + Vector3(0.0, t.length * 0.07, 0.0))
@@ -288,7 +301,7 @@ func _note(text: String) -> void:
 
 func _load() -> void:
 	var cfg := ConfigFile.new()
-	if cfg.load(SAVE) == OK:
+	if cfg.load(save_path) == OK:
 		bank = int(cfg.get_value("trips", "bank", 0))
 		best = int(cfg.get_value("trips", "best", 0))
 	else:
@@ -298,10 +311,10 @@ func _load() -> void:
 
 func _save() -> void:
 	var cfg := ConfigFile.new()
-	cfg.load(SAVE)
+	cfg.load(save_path)
 	cfg.set_value("trips", "bank", bank)
 	cfg.set_value("trips", "best", best)
-	cfg.save(SAVE)
+	cfg.save(save_path)
 
 
 ## 12345 -> "12,345".
