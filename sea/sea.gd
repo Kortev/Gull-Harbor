@@ -158,8 +158,8 @@ func _process(_delta: float) -> void:
 		_last_dark = dark
 		_apply_look()
 	_move_sun()
-	# in a storm the lightning goes for her tuna tower (sea_fx's crown, in its space: the world's)
-	sea_fx.crown = boat.global_transform * Vector3(0.0, 7.6, -1.3)
+	# in a storm the lightning goes for her highest point, the tower or the T-top (sea_fx's crown, in its space: the world's)
+	sea_fx.crown = boat.global_transform * (boat.spec.get("crown", Vector3(0.0, 7.6, -1.3)) as Vector3)
 	if _args.has("watch") and not schools.schools.is_empty():
 		# (screenshots: from 28 m off the nearest school, on the boat's side of it, looking at it)
 		var c: Vector2 = schools.schools[0].center(ocean.wave_time)
@@ -187,7 +187,7 @@ func _process(_delta: float) -> void:
 	if _args.has("take") and crew.me != null and not _took and Time.get_ticks_msec() > 2500:
 		# (tests/net_test.sh: once aboard, take over the crewmate's rod)
 		var i := int(_args["take"])
-		if rods.rods[i].holder != 0 and rods.rods[i].hooked:
+		if i < rods.rods.size() and rods.rods[i].holder != 0 and rods.rods[i].hooked:
 			_took = true
 			rods.request_grab(i)
 	if _args.has("net-report") and Time.get_ticks_msec() > int(float(_args["net-report"]) * 1000.0) \

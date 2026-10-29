@@ -63,6 +63,12 @@ func _ready() -> void:
 					_spook.rpc_id(id, s.id, s.spooked_until))
 
 
+## At the dock, between trips: nothing turns up, nothing bites.
+func _docked() -> bool:
+	var hold: Node = sea.get("fish_hold")
+	return hold != null and bool(hold.get("docked"))
+
+
 ## Where the boat is (world x, z): the schools turn up round her.
 func boat_at() -> Vector2:
 	var boat := sea.get("boat") as Node
@@ -77,7 +83,7 @@ func boat_speed() -> float:
 
 
 func _process(delta: float) -> void:
-	if Net.is_host():
+	if Net.is_host() and not _docked():
 		_next -= delta
 		if _next <= 0.0:
 			_next = randf_range(15.0, 40.0)
@@ -96,7 +102,7 @@ func _process(delta: float) -> void:
 ## the baits skipping along behind her at speed.
 func _strikes(delta: float) -> void:
 	var spread := sea.get("rods") as Node
-	if spread == null or absf(boat_speed()) > BITE_SPEED:
+	if spread == null or absf(boat_speed()) > BITE_SPEED or _docked():
 		return
 	var t := now()
 	# a second fish while one's on happens, but rarely: a double is a story, not the routine

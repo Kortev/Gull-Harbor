@@ -19,6 +19,7 @@ const Action := preload("res://core/action.gd")
 const Kinds := preload("res://boat/kinds.gd")
 const Sfx := preload("res://audio/sfx.gd")
 const SAVE := "user://bluefin.cfg"
+const TEST_SAVE := "user://bluefin_test.cfg"
 ## Dollars a kilo for a fish of quality 1 is 0.35 + 0.9 = 1.25 times this; quality 0, 0.35 times.
 const PRICE_PER_KG := 18.0
 ## The day out there: real seconds from dawn to dusk, and the hours they stand for.
@@ -63,6 +64,10 @@ var save_path := SAVE
 
 
 func _ready() -> void:
+	if sea.get_parent() != get_tree().root:
+		# (a test, which builds the sea under its own node: a clean bank of its own, never yours)
+		save_path = TEST_SAVE
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(TEST_SAVE))
 	_load()
 	(sea.get("boat") as Node).connect("rebuilt", func() -> void:
 		# (another boat: lay what's on deck out again on her)
@@ -90,7 +95,8 @@ func _own_boat() -> void:
 	sale = {}
 	docked = true
 	_rebuild()
-	_dock_changed(false)
+	_dock_changed(true)
+	(sea.get("boat") as Node).call("use_kind", kind)
 
 
 func _process(_delta: float) -> void:
@@ -240,6 +246,8 @@ func head_in() -> void:
 		costs.append(["Charter, %s" % str(spec.get("name", "her")), CHARTER])
 	for c: Array in costs:
 		total -= int(c[1])
+	(sea.get("rods") as Node).call("host_clear")
+	(sea.get("landing") as Node).call("host_clear")
 	bank += total
 	best = maxi(best, total)
 	sale = {"lines": lines, "costs": costs, "total": total, "bank": bank, "best": best}
@@ -261,6 +269,7 @@ func head_out(k := "") -> void:
 	(sea.get("boat") as Node).call("use_kind", kind)
 	_save()
 	_host_changed()
+	(sea.get("rods") as Node).call("host_baits_out")
 
 
 ## Host, at the dock: the boat she'll take.

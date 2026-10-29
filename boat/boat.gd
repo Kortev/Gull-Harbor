@@ -71,6 +71,10 @@ func _ready() -> void:
 	deck_root = Node3D.new()
 	deck_root.name = "Deck"
 	deck_space.add_child(deck_root)
+	# (a late joiner hears which boat she is before the helm tells it who has her wheel: rebuilding her lets go of it)
+	Net.peer_joined.connect(func(id: int) -> void:
+		if multiplayer.is_server():
+			_use_kind.rpc_id(id, kind))
 	helm = Helm.new()
 	helm.name = "Helm"
 	helm.boat = self
@@ -81,9 +85,6 @@ func _ready() -> void:
 	wake.boat = self
 	add_child(wake)
 	_build()
-	Net.peer_joined.connect(func(id: int) -> void:
-		if multiplayer.is_server():
-			_use_kind.rpc_id(id, kind))
 
 
 ## The skipper picks her (the dock, ui/menu.gd): the host tells everyone, and every peer rebuilds her.

@@ -154,7 +154,9 @@ func _fish_transform(f: Dictionary, boat: Node3D, ocean: Node) -> Transform3D:
 	# across her stern its head toward her middle; along her side its head forward
 	var head := -boat.global_basis.x * side if bool(spec.get("fish_across", true)) else -boat.global_basis.z
 	var b := Basis.looking_at(head, boat.global_basis.y) * Basis(Vector3(0, 0, 1), k * PI * 0.5)
-	return Transform3D(b, water.lerp(aboard, k))
+	# (over a gunwale, not through the door: lifted up over it on the way)
+	var over := float(spec.get("haul_lift", 0.0)) * sin(k * PI)
+	return Transform3D(b, water.lerp(aboard, k) + boat.global_basis.y * over)
 
 
 ## The harpoon in someone's hands: at the shoulder, pointing where they look.
@@ -566,6 +568,12 @@ func _aboard(i: int) -> void:
 	_drop(i)
 
 
+## Host, heading in: whatever's alongside is cut loose.
+func host_clear() -> void:
+	for i: int in fish.keys():
+		_host_gone(i, "")
+
+
 func _host_gone(i: int, why: String) -> void:
 	(sea.get("rods") as Node).call("host_off", i, why)
 	if Net.in_session():
@@ -623,6 +631,8 @@ func _sync(holder: int, states: Array) -> void:
 # ------------------------------------------------------------------ odds and ends
 
 func _note(text: String) -> void:
+	if text.is_empty():
+		return
 	var crew := sea.get("crew") as Node
 	(crew.get("hud") as Node).call("notify", text)
 

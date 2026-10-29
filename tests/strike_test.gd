@@ -12,6 +12,7 @@ var fails: Array[String] = []
 func _ready() -> void:
 	var sea := (load("res://sea/sea.tscn") as PackedScene).instantiate() as Sea
 	add_child(sea)
+	sea.fish_hold.head_out("sportfisher")           # (off the dock: nothing bites there)
 	await get_tree().create_timer(0.3).timeout      # (the rods have put their baits out)
 	sea.schools.set("_next", 9999.0)
 	# a school right on the spread, crawling along it (seeded so it feeds early)

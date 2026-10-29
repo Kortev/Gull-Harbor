@@ -232,7 +232,8 @@ func is_tangled(i: int) -> bool:
 ## a fish, the crew put the baits back out.
 func _host_lines(delta: float) -> void:
 	var landing: Node = sea.get("landing")
-	if fighting() or (landing != null and not (landing.get("fish") as Dictionary).is_empty()):
+	var docked := bool((sea.get("fish_hold") as Node).get("docked")) if sea.get("fish_hold") != null else false
+	if docked or fighting() or (landing != null and not (landing.get("fish") as Dictionary).is_empty()):
 		_quiet = 0.0
 	else:
 		_quiet += delta
@@ -391,6 +392,23 @@ func set_alongside(i: int) -> void:
 	r.wrong = 0.0
 
 
+## Host, heading in: every fish still on is let go and the baits come in (host_baits_out when she's out again).
+func host_clear() -> void:
+	for r in rods:
+		if r.hooked:
+			_host_off(r.index, "")
+		if not r.bait_in:
+			_host_line(r.index, true)
+
+
+## Host, heading out: every bait out.
+func host_baits_out() -> void:
+	_quiet = 0.0
+	for r in rods:
+		if not r.hooked and (r.bait_in or r.tangled >= 0):
+			_host_line(r.index, false)
+
+
 ## Host: rod i's fish is gone (lost alongside, or stuck and on the harpoon now), with why.
 func host_off(i: int, why: String) -> void:
 	_host_off(i, why)
@@ -401,6 +419,8 @@ func _now() -> float:
 
 
 func _hud_note(text: String) -> void:
+	if text.is_empty():
+		return
 	var crew := sea.get("crew") as Node
 	(crew.get("hud") as Node).call("notify", text)
 

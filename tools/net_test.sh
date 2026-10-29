@@ -39,9 +39,9 @@ sys.exit(0 if ok else 1)
 sys.exit(0 if ok else 1)
 PY
 
-timeout 90 $G --headless --path . -- --host --strike=2 --hold=2 --net-report=9 > /tmp/bluefin_host2.log 2>&1 &
+timeout 90 $G --headless --path . -- --host --strike=1 --hold=1 --net-report=9 > /tmp/bluefin_host2.log 2>&1 &
 sleep 2
-timeout 90 $G --headless --path . -- --join=3ZJ2-223 --take=2 --net-report=6 > /tmp/bluefin_client2.log 2>&1
+timeout 90 $G --headless --path . -- --join=3ZJ2-223 --take=1 --net-report=6 > /tmp/bluefin_client2.log 2>&1
 wait
 python3 - "$(grep '^NET rods' /tmp/bluefin_host2.log)" "$(grep '^NET fps' /tmp/bluefin_client2.log)" "$(grep '^NET rods' /tmp/bluefin_client2.log)" <<'PY'
 import re, sys
