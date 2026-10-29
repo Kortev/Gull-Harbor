@@ -106,3 +106,11 @@ empty. They want Sea of Thieves' *craft*, a little less exaggerated than its pir
 - **Paint the light into the texture** (most hand-painted workflows,
   [80.lv](https://80.lv/articles/ares-from-hades-recreated-in-stunning-hand-painted-3d)): soft value shifts that
   follow the forms, darker and cooler in the crevices, lighter on top edges, not noise.
+
+## The user's own words on the target (2026-10-29)
+
+On the Sea of Thieves pirate: "it looks like a real human, but also plastic... a real person, but also not like
+it's real life", while ours looked "like a super stylized cartoon guy, which is not a good thing". So the target
+is **stylized realism**: real anatomy and proportions (only a little exaggerated), clean smooth sculpted surfaces
+with a slight sheen, painted colour and light. Not cartoon proportions, not big heads, not blobs. The models come
+from Meshy (`tools/gen_models.py`, prompts written to this), then get cleaned, rigged and fitted in Blender.
