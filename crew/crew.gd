@@ -143,6 +143,7 @@ func _on_dropped(reason: String) -> void:
 
 
 func _add(id: int, slot: int) -> void:
+	slots[id] = slot          # (first: the player's oilskins take their colour from it as it's made)
 	var p := Player.new()
 	p.name = str(id)
 	p.boat = sea.get("boat") as Node3D

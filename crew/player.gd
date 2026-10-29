@@ -23,6 +23,11 @@ const REST := 0.03
 
 signal prompt_changed(text: String)
 
+const MODEL := preload("res://crew/crew.glb")
+## Each crew member's oilskins, by spawn slot order (crew/crew.gd): yellow, orange, green, red.
+const OILSKINS: Array[Color] = [Color(0.85, 0.62, 0.08), Color(0.92, 0.38, 0.06), Color(0.18, 0.45, 0.18),
+		Color(0.7, 0.12, 0.08)]
+
 var boat: Node3D
 ## Your body in the deck space: its transform is boat-local.
 var body: CharacterBody3D
@@ -48,6 +53,10 @@ var _net_at := Vector3.ZERO
 var _net_yaw := 0.0
 var _net_pitch := 0.0
 var _send_in := 0
+## The crew model's pieces by name, their rest poses, and the walk's phase (_pose_body).
+var _parts := {}
+var _rest := {}
+var _stride := 0.0
 
 
 func _enter_tree() -> void:
@@ -83,23 +92,81 @@ func _ready() -> void:
 	hand.name = "Hand"
 	hand.position = Vector3(0.28, -0.32, -0.45)
 	head.add_child(hand)
-	# What the others see: an oilskin-yellow figure (a proper crew model comes later).
-	body_mesh = MeshInstance3D.new()
-	var cap := CapsuleMesh.new()
-	cap.radius = 0.3
-	cap.height = 1.75
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.78, 0.6, 0.12)
-	mat.roughness = 1.0
-	cap.material = mat
-	body_mesh.mesh = cap
-	body_mesh.position.y = 0.875
-	add_child(body_mesh)
+	# What the others see: a deckhand in oilskins (art/crew.py), in pieces that swing at the joints
+	_build_body()
 	if is_multiplayer_authority():
-		body_mesh.layers = 1 << 19      # layer 20: your own camera leaves it out, it still casts your shadow
+		for part: MeshInstance3D in _parts.values():
+			part.layers = 1 << 19      # layer 20: your own camera leaves it out, it still casts your shadow
 		cam.cull_mask &= ~(1 << 19)
 		cam.make_current()
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		if not _at_dock():
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+## The crew model's pieces (torso, head, arms, legs) under one node that turns with you; your oilskins in your colour.
+func _build_body() -> void:
+	var root := Node3D.new()
+	root.name = "Body"
+	add_child(root)
+	var src := MODEL.instantiate() as Node3D
+	var colour := OILSKINS[_slot() % OILSKINS.size()]
+	for n: String in ["torso", "head", "arm_l", "arm_r", "leg_l", "leg_r"]:
+		var mi := src.find_child(n, true, false) as MeshInstance3D
+		if mi == null:
+			continue
+		var t := mi.transform
+		mi.owner = null
+		mi.get_parent().remove_child(mi)
+		mi.transform = t
+		root.add_child(mi)
+		_parts[n] = mi
+		_rest[n] = t.basis
+		for i in mi.mesh.get_surface_count():
+			var m := mi.mesh.surface_get_material(i)
+			if m != null and m.resource_name == "oilskin" and m is BaseMaterial3D:
+				var own := (m as BaseMaterial3D).duplicate() as BaseMaterial3D
+				own.albedo_color = colour
+				mi.set_surface_override_material(i, own)
+	src.free()
+	body_mesh = _parts.get("torso") as MeshInstance3D
+
+
+## Which crew member you are, for your oilskins' colour (crew/crew.gd's spawn slot; 0 alone).
+func _slot() -> int:
+	var crew := get_parent()
+	var slots: Variant = crew.get("slots") if crew else null
+	if slots is Dictionary and (slots as Dictionary).has(str(name).to_int()):
+		return int((slots as Dictionary)[str(name).to_int()])
+	return 0
+
+
+## The body going with what you're doing: legs and arms swinging as you walk, arms out to a rod or the wheel, the
+## throwing arm up with the harpoon, the head with your look.
+func _pose_body(delta: float) -> void:
+	if _parts.is_empty():
+		return
+	var moved := (_local - _prev_local) * float(Engine.physics_ticks_per_second)    # (a physics tick's step)
+	var pace := clampf(Vector2(moved.x, moved.z).length() / SPRINT, 0.0, 1.0)
+	_stride += delta * (2.0 + 9.0 * pace)
+	var swing := sin(_stride) * 0.7 * pace
+	var sea: Node = boat.get("sea") if boat else null
+	var id := str(name).to_int()
+	var rods: Node = sea.get("rods") if sea else null
+	var landing: Node = sea.get("landing") if sea else null
+	var on_rod: bool = rods != null and rods.call("held_by", id) != null
+	var harpoon: bool = landing != null and int(landing.get("harpoon_holder")) == id
+	var reach := on_rod or steering
+	_turn("leg_l", swing)
+	_turn("leg_r", -swing)
+	_turn("arm_l", 1.15 if reach or harpoon else -swing * 0.6)
+	_turn("arm_r", 1.15 if reach else (2.6 if harpoon else swing * 0.6))
+	_turn("head", clampf(_pitch * 0.6, -0.5, 0.6))
+
+
+func _turn(part: String, angle: float) -> void:
+	var p := _parts.get(part) as Node3D
+	if p:
+		p.basis = p.basis.slerp(Basis(Vector3.RIGHT, angle) * (_rest[part] as Basis), 0.25)
 
 
 func _exit_tree() -> void:
@@ -197,6 +264,7 @@ func _process(delta: float) -> void:
 	var local := _prev_local.lerp(_local, f)
 	var deck := boat.global_transform
 	global_transform = deck * Transform3D(Basis(Vector3.UP, _yaw), local)
+	_pose_body(delta)
 	# Your eyes: level out part of the deck's tilt, keep your own look.
 	var tilted := global_transform.basis.orthonormalized()
 	var level := Basis(Vector3.UP, tilted.get_euler(EULER_ORDER_YXZ).y)

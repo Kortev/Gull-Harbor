@@ -76,6 +76,8 @@ func _ready() -> void:
 		if not was_host:
 			_own_boat())
 	_rebuild()
+	if docked:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE     # (a game starts at the dock: its screen's up)
 
 
 ## Back on your own boat after crewing for someone: your own bank and gear, an empty hold (theirs stays theirs),
