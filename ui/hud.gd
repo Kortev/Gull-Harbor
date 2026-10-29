@@ -10,6 +10,7 @@ func _ready() -> void:
 	layer = 5
 	var dot := ColorRect.new()
 	dot.color = Color(1, 1, 1, 0.55)
+	dot.mouse_filter = Control.MOUSE_FILTER_IGNORE    # the captured cursor sits right on it
 	dot.size = Vector2(3, 3)
 	dot.set_anchors_preset(Control.PRESET_CENTER)
 	dot.position -= Vector2(1.5, 1.5)

@@ -114,14 +114,19 @@ func local_position() -> Vector3:
 	return body.position
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if not is_multiplayer_authority():
-		return
-	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+## Mouse look comes first, before any UI could take the motion.
+func _input(event: InputEvent) -> void:
+	if is_multiplayer_authority() and event is InputEventMouseMotion \
+			and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var m := event as InputEventMouseMotion
 		_yaw -= m.relative.x * LOOK
 		_pitch = clampf(_pitch - m.relative.y * LOOK, -1.45, 1.45)
-	elif event.is_action_pressed("pause"):
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not is_multiplayer_authority():
+		return
+	if event.is_action_pressed("pause"):
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event is InputEventMouseButton and (event as InputEventMouseButton).pressed \
 			and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
