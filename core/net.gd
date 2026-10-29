@@ -1,8 +1,11 @@
 extends Node
-## Networking: an ENet listen server (the host plays too), up to four on one boat. No server to run and no port
-## forwarding to set up: hosting asks the router to open the port itself (UPnP, on by default on most home routers)
-## and hands you a short join code (your address, spelled out) for your friend to type in; joining never needs
-## anything opened. Steam lobbies could come later behind the same calls. The host owns the truth: a client asks the
+## Networking: a listen server (the host plays too), up to four on one boat, two ways, neither needing a server of
+## our own or port forwarding:
+## - Steam (the main way, core/steam_link.gd): a friends-only Steam lobby, the traffic through Steam's relays; friends
+##   join from the menu's list or an invite. Needs the GodotSteam add-on and Steam running.
+## - A join code (the backup): ENet; hosting asks the router to open the port itself (UPnP, on by default on most
+##   home routers) and hands you a short code (your address, spelled out) for your friend to type in; joining never
+##   needs anything opened. The host owns the truth: a client asks the
 ## host with rpc_id(1, ...), the host checks, applies and broadcasts. The crew roster and the shared sea clock live in sea/sea.gd, which listens to the signals here.
 
 const PORT := 7777
@@ -27,9 +30,26 @@ const CODE_ABC := "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 var code := ""
 var _upnp: UPNP
 var _upnp_thread: Thread
+## Steam (core/steam_link.gd): `steam.available` says whether it's there.
+var steam: Node
+## How this session runs: "", "steam" or "code".
+var mode := ""
 
 
 func _ready() -> void:
+	steam = preload("res://core/steam_link.gd").new()
+	steam.name = "Steam"
+	steam.hosting.connect(func(peer: MultiplayerPeer) -> void:
+		mode = "steam"
+		multiplayer.multiplayer_peer = peer
+		hosted.emit())
+	steam.joining.connect(func(peer: MultiplayerPeer) -> void:
+		mode = "steam"
+		multiplayer.multiplayer_peer = peer)
+	steam.failed.connect(func(reason: String) -> void:
+		_close()
+		dropped.emit(reason))
+	add_child(steam)
 	multiplayer.peer_connected.connect(func(id: int) -> void: peer_joined.emit(id))
 	multiplayer.peer_disconnected.connect(func(id: int) -> void: peer_left.emit(id))
 	multiplayer.connected_to_server.connect(func() -> void: joined.emit())
@@ -41,6 +61,18 @@ func _ready() -> void:
 		dropped.emit("The host left."))
 
 
+## Hosting over Steam (the answer comes as `hosted`, or `dropped` with why not).
+func host_steam() -> void:
+	_close()
+	steam.call("host")
+
+
+## Joining a Steam friend's boat (their lobby, from the menu's list).
+func join_steam(lobby: int) -> void:
+	_close()
+	steam.call("join", lobby)
+
+
 func host(port := PORT) -> Error:
 	_close()
 	var peer := ENetMultiplayerPeer.new()
@@ -49,6 +81,7 @@ func host(port := PORT) -> Error:
 		return err
 	multiplayer.multiplayer_peer = peer
 	code = ""
+	mode = "code"
 	hosted.emit()
 	# asking the router takes a second or two: off the main thread
 	_finish_upnp()
@@ -68,6 +101,7 @@ func join(address: String, port := PORT) -> Error:
 	var err := peer.create_client(to, port)
 	if err != OK:
 		return err
+	mode = "code"
 	multiplayer.multiplayer_peer = peer
 	return OK
 
@@ -181,6 +215,9 @@ func _exit_tree() -> void:
 
 
 func _close() -> void:
+	mode = ""
+	if steam != null:
+		steam.call("leave")
 	if _upnp != null:
 		_upnp.delete_port_mapping(PORT, "UDP")
 		_upnp = null

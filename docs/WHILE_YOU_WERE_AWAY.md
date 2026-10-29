@@ -7,6 +7,29 @@
   copy of the tuna game) is still there: I wasn't allowed to delete branches from here, so delete it on
   GitHub (Branches, the trash icon) whenever.
 
+## Playing over Steam (the main way now)
+- **What changed:**
+  - The Esc menu now starts with **Host on Steam**. Your friend opens their Esc menu and sees **Join Graeham's
+    boat** (any Steam friend with a boat out is listed), or you press **Invite a Steam friend**.
+  - No ports, no codes: the game's traffic goes through Steam's relays, so it works whatever your routers do.
+  - The join code is still there underneath, as the backup without Steam.
+- **One-time setup (you, in the Godot editor):** I couldn't download the Steam plugin from here, so:
+  1. Open the AssetLib tab at the top of the editor.
+  2. Search **GodotSteam** and pick the **GDExtension** one (not "Server").
+  3. Download, then Install. It lands in `addons/godotsteam`.
+  4. Restart the editor.
+
+  The Steam buttons then appear by themselves when Steam is running. It uses Valve's free test app (480,
+  "Spacewar"), so Steam shows you both as playing Spacewar. That's normal, and fine for friends.
+  - **Both of you start the game first**, then invite or join. On the test app an invite can't launch the game
+    for you.
+  - Commit the `addons/godotsteam` folder so Jack gets it too, or send Jack a build.
+- **How it was checked:** I can't run Steam here. `tools/steam_test.sh` runs two copies against a stand-in for
+  Steam: one hosts a lobby, the other sees "Jack" with a boat out in its friends list and joins. Both see two
+  crew, the host's storm, and the same sea clock. Your first real test is the first real Steam check, so tell
+  me what the menu says if it doesn't work.
+- **Also:** a second fish while one's already on is now rare, instead of a coin flip.
+
 ## The fight
 - **What changed:** hooked bluefin now fight. Every fish opens with the screaming run, then plays moves. Each
   move shows a hint under the crosshair, and each wants one answer:

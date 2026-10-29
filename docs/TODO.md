@@ -20,5 +20,5 @@ repo, now `main`), tick it here.
 - [ ] **Crew jobs** (the TV-show bluefin boat feel: "FISH ON!"): the captain at the wheel backing down on the fish and keeping the stern on it, the mate wiring the leader, the harpoon ("the stick") from the bow or the cockpit to finish it, hauling it in through the tuna door in the transom.
 - [ ] **The tally:** fish on deck and in the hold, weight, money for the trip: sold by the pound, graded on how it was handled (fought fast, bled, iced).
 - [ ] **Title screen**, and a day going by (dawn, day, dusk, night) instead of the dev-only `--night`.
-- If the router won't open the port (UPnP off, or the internet provider shares one address between homes): a relay. The free way that needs no server of our own is Steam's (both just have Steam open); otherwise Tailscale.
-- Later: **VS mode** (two boats on the same sea, the most pounds by the end wins); Steam lobbies and invites; proximity voice; trips cost money; a rounds structure; upgrades.
+- [x] **Steam as the main way to play together:** host a friends-only Steam lobby, friends join from the menu's list or an invite, traffic through Steam's relays (`core/steam_link.gd`; needs the GodotSteam add-on from the AssetLib; `tools/steam_test.sh` against a stand-in for Steam). The join code stays as the backup.
+- Later: **VS mode** (two boats on the same sea, the most pounds by the end wins); proximity voice; trips cost money; a rounds structure; upgrades.

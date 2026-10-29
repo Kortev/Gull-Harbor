@@ -1,5 +1,6 @@
 extends CanvasLayer
 ## The Esc menu: back to it, host a crew, join a friend's boat, leave, quit. Shown whenever the mouse is free.
+## Steam first (host, invite, your Steam friends with a boat out), the join code under it as the backup.
 ## (No weather here: the sea decides that, sea/weather.gd.)
 
 var _panel: PanelContainer
@@ -10,6 +11,11 @@ var _join: Button
 var _leave: Button
 var _code_row: HBoxContainer
 var _code: Label
+var _steam_box: VBoxContainer
+var _steam_host: Button
+var _steam_invite: Button
+var _friends: VBoxContainer
+var _friends_in := 0.0
 
 
 func _ready() -> void:
@@ -36,7 +42,23 @@ func _ready() -> void:
 	_status.modulate = Color(0.75, 0.78, 0.8)
 	col.add_child(_status)
 	col.add_child(_button("Back to the deck", _resume))
-	_host = _button("Host a crew", func() -> void:
+	# Steam: the main way (no ports, no codes)
+	_steam_box = VBoxContainer.new()
+	_steam_host = _button("Host on Steam", func() -> void:
+		_status.text = "Making a Steam lobby..."
+		Net.host_steam())
+	_steam_box.add_child(_steam_host)
+	_steam_invite = _button("Invite a Steam friend", func() -> void: Net.steam.call("invite"))
+	_steam_box.add_child(_steam_invite)
+	_friends = VBoxContainer.new()
+	_steam_box.add_child(_friends)
+	col.add_child(_steam_box)
+	var without := Label.new()
+	without.text = "Without Steam: a join code"
+	without.modulate = Color(0.6, 0.63, 0.66)
+	without.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(without)
+	_host = _button("Host with a join code", func() -> void:
 		var err := Net.host()
 		_status.text = "Hosting. Opening the door on your router..." if err == OK else "Couldn't host (port in use?)")
 	col.add_child(_host)
@@ -68,6 +90,9 @@ func _ready() -> void:
 	col.add_child(_leave)
 	col.add_child(_button("Quit", func() -> void: get_tree().quit()))
 	Net.joined.connect(func() -> void: _status.text = "Aboard.")
+	Net.hosted.connect(func() -> void:
+		if Net.mode == "steam":
+			_status.text = "Hosting on Steam. Invite a friend, or they'll see your boat in their menu.")
 	Net.opened.connect(func(ok: bool, code: String) -> void:
 		_code.text = code
 		_status.text = "Your join code: send it to your friend." if ok else \
@@ -80,6 +105,19 @@ func _button(text: String, on: Callable) -> Button:
 	b.text = text
 	b.pressed.connect(on)
 	return b
+
+
+## Your Steam friends with a boat out: a button each.
+func _list_friends() -> void:
+	for c in _friends.get_children():
+		c.queue_free()
+	if Net.in_session_or_hosting():
+		return
+	for f: Dictionary in Net.steam.call("friends_out"):
+		var lobby := int(f["lobby"])
+		_friends.add_child(_button("Join %s's boat" % f["name"], func() -> void:
+			_status.text = "Joining %s..." % f["name"]
+			Net.join_steam(lobby)))
 
 
 func _resume() -> void:
@@ -96,6 +134,15 @@ func _process(_delta: float) -> void:
 	_join.disabled = Net.in_session_or_hosting()
 	_leave.disabled = not Net.in_session_or_hosting()
 	_code_row.visible = Net.in_session_or_hosting() and multiplayer.is_server() and not Net.code.is_empty()
+	var steam_on := bool(Net.steam.get("available"))
+	_steam_box.visible = steam_on
+	if steam_on:
+		_steam_host.disabled = Net.in_session_or_hosting()
+		_steam_invite.visible = Net.mode == "steam" and multiplayer.is_server()
+		_friends_in -= get_process_delta_time()
+		if _friends_in <= 0.0:
+			_friends_in = 2.0
+			_list_friends()
 	if _status.text.is_empty():
 		_status.text = "Alone on the boat." if not session else ""
 

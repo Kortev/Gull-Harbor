@@ -66,6 +66,11 @@ func _strikes(delta: float) -> void:
 	if spread == null:
 		return
 	var t := now()
+	# a second fish while one's on happens, but rarely: a double is a story, not the routine
+	var on := 0
+	for r: Node3D in spread.get("rods"):
+		on += 1 if bool(r.get("hooked")) else 0
+	var chance := 0.3 * (1.0 if on == 0 else 0.015)
 	for s in schools:
 		if not s.feeding(t):
 			continue
@@ -74,7 +79,7 @@ func _strikes(delta: float) -> void:
 			if bool(r.get("hooked")):
 				continue
 			var bait: Vector3 = r.get("line_end")
-			if Vector2(bait.x, bait.z).distance_to(c) < s.radius + 6.0 and randf() < delta * 0.3:
+			if Vector2(bait.x, bait.z).distance_to(c) < s.radius + 6.0 and randf() < delta * chance:
 				spread.call("strike", int(r.get("index")), clampf(s.kg * randf_range(0.8, 1.2), Tuna.MIN_KG,
 						Tuna.MAX_KG))
 
