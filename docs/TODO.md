@@ -23,8 +23,13 @@ repo, now `main`), tick it here.
     her down (a few knots), she carries way after you let go (the big boat more than the small one), and she
     turns harder the faster she goes. A wake, prop wash, the engines' sound rising with the throttle, her stern
     squatting ahead and settling astern, and water over the transom when backing down hard.
-  - Fishing grounds: a few areas where schools are likelier (a bank, a temperature break), found with the birds,
-    the tower and the sonar. Schools live in the world and swim on their own; you run to them.
+  - Birds anywhere, no fishing grounds (for now): schools turn up around wherever the boats are, a few km out,
+    a few always working within sight or on the radar (some near and quick, some far, where the tower and the
+    sonar help). They feed for a few minutes, then the birds scatter and the school's gone, so running to the
+    wrong one costs you. Schools live in the world and swim on their own; you run to them.
+  - With two boats (VS): birds turn up fairly round both, and some between them, where both crews can see the same
+    birds and race for them. Grounds can come later, on top of this, once fuel and trip length make "where do we
+    go today" a real choice.
   - The fight uses where she really is: backing down really closes on the fish, chasing a run really saves line,
     and a fish under her really goes under her.
   - Keep: you still walk on the still copy of the deck (solid footing in any sea); co-op syncs her position the
