@@ -12,8 +12,10 @@
   fight, wiped out, dizzy, smug at the wheel, happy with a fish on deck, glum in a storm), blinking now and then.
 - **The boats** repainted the same way (`art/boat_paint.py`): scuffed gelcoat, the non-skid deck's pattern, teak,
   canvas, antifouling with barnacles, baked shading, crisp pixels; the skiff's outboards have real cowls.
-- **The fighting chair** works (`boat/chair.gd`): E to sit, it swivels where you look, a fish fought from it tires
-  your arms slower. In the owner's manual.
+- **The fighting chair** works (`boat/chair.gd`): E to sit, it swivels where you look. Just for sitting: no fighting
+  advantage. In the owner's manual.
+- **No more tired arms** (your call): the fight never wears you out, and the fighting harness is gone from the shop.
+  Alone, a giant fought right now gets landed; the hard part solo is juggling the wheel and the rod.
 
 ## A first step off the PS1 look, and the handoff to a local session
 **Not run in Godot yet. Read `docs/HANDOFF.md`.**

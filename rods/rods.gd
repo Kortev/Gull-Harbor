@@ -5,7 +5,6 @@ extends Node3D
 ## them, its butt in their belt and the blank up ahead of them.
 
 const Rod := preload("res://rods/rod.gd")
-const Chair := preload("res://boat/chair.gd")
 const Fight := preload("res://tuna/fight.gd")
 const Sfx := preload("res://audio/sfx.gd")
 const Tuna := preload("res://tuna/tuna.gd")
@@ -790,10 +789,6 @@ func _fight_mine(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	fight.boat_vel = _boat_vel()
 	fight.reach = _reach(me, fight.bearing)
 	fight.tangled = is_tangled(r.index)
-	# in the fighting chair the rod's in its gimbal and your back takes the load (boat/chair.gd)
-	var hold: Node = sea.get("fish_hold")
-	var harness := 0.67 if hold != null and bool(hold.call("has_gear", "harness")) else 1.0
-	fight.arms_mul = harness * (Chair.ARMS_IN_CHAIR if me != null and bool(me.get("seated")) else 1.0)
 	fight.step(delta, crank, r.lift)
 	if me != null:
 		me.set("arms", fight.arms)
@@ -841,7 +836,6 @@ func _new_fight(r: Rod) -> Fight:
 		f.crank_mul = 1.25 if bool(hold.call("has_gear", "reel")) else 1.0
 		f.chafe_mul = 1.5 if bool(hold.call("has_gear", "line")) else 1.0
 		f.grace_add = 0.6 if bool(hold.call("has_gear", "line")) else 0.0
-		f.arms_mul = 0.67 if bool(hold.call("has_gear", "harness")) else 1.0
 	f.lost.connect(func(how: String) -> void: _end_mine(r, how))
 	f.boatside.connect(func() -> void: _end_mine(r, "boatside"))
 	r.fight = f

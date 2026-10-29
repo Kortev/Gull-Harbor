@@ -1,7 +1,7 @@
 extends Node
 ## The fighting chair (boat/chair.gd), headless: the sportfisher has one, the skiff doesn't; E on it sits you down
-## and holds you in the seat; it swivels as you look round; a fish fought from it tires your arms slower; E (or a
-## jump) gets you up. The bank's kept in a test file, not yours.
+## and holds you in the seat; it swivels as you look round; E (or a jump) gets you up. (No fighting advantage: it's
+## for sitting in.) The bank's kept in a test file, not yours.
 ## Run: godot --headless --path . res://tests/chair_test.tscn
 
 const Sea := preload("res://sea/sea.gd")
@@ -47,16 +47,6 @@ func _ready() -> void:
 	await get_tree().create_timer(0.8).timeout
 	_check(absf(angle_difference(seat.chair.rotation.y, before)) > 0.5, "it swivels as you look round (%.2f rad)"
 			% angle_difference(seat.chair.rotation.y, before))
-	# a fish on, fought from the chair: arms tire slower than standing
-	sea.rods.strike(0, 250.0)
-	await get_tree().process_frame
-	sea.rods.request_grab(0)
-	Input.action_press("use_primary")
-	await get_tree().create_timer(0.5).timeout
-	var rod = sea.rods.rods[0]
-	var f = rod.fight
-	_check(f != null and absf(float(f.arms_mul) - Chair.ARMS_IN_CHAIR) < 0.01,
-			"fighting from the chair, your arms tire slower (x%.2f)" % (float(f.arms_mul) if f else -1.0))
 	Input.action_release("use_primary")
 	seat.request(false)
 	await get_tree().create_timer(0.3).timeout
@@ -64,7 +54,6 @@ func _ready() -> void:
 	await get_tree().create_timer(0.3).timeout
 	Input.action_release("use_primary")
 	_check(not bool(me.get("seated")) and seat.sitter == 0, "got up")
-	_check(rod.fight == null or absf(float(rod.fight.arms_mul) - 1.0) < 0.01, "standing, your arms tire as they did")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(hold.save_path))
 	_done()
 

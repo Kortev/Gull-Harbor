@@ -2,12 +2,8 @@ extends Area3D
 ## The fighting chair (the sportfisher's), usable (the user's Chekhov's gun rule: a chair you can't sit in looks
 ## broken). E sits you in it; E again, or a jump, gets you up. One at a time, the host says who (as boat/helm.gd does
 ## for the wheel). Sitting, you're held in the seat and the chair swivels to wherever you look: with a fish on that's
-## the fish. A rod fought from the chair sits in its gimbal and your back takes the load, so your arms tire slower
-## (rods/rods.gd, ARMS_IN_CHAIR); with no fish on, your arms come back faster (crew/player.gd), or you just sit and
-## watch the sea.
-
-## How far your arms tire, fighting from the chair, against standing.
-const ARMS_IN_CHAIR := 0.6
+## the fish. It's for sitting in (the user's call: no advantage in a fight, and no reason not to stand): fight from
+## it if you like, or just sit and watch the sea.
 
 var boat: Node3D                # boat/boat.gd
 var chair: Node3D               # the model's swivelling "chair"

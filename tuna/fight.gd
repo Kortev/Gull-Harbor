@@ -91,16 +91,14 @@ var reach := 0.0
 ## line either (nobody's winding in the slack): the slack only lets a headshake throw the hook.
 var in_holder := false
 ## Gear from the dock (boat/fish_hold.gd, rods.gd sets these): a two-speed reel winds faster, heavier line takes more
-## rubbing and holds longer at full strain, a harness spares your arms.
+## rubbing and holds longer at full strain.
 var crank_mul := 1.0
 var chafe_mul := 1.0
 var grace_add := 0.0
 var arms_mul := 1.0
 var tangled := false
-## The angler's arms, 1 fresh .. 0 spent (rods.gd keeps them on the person, so they carry over and rest up
-## between fights). Cranking and heaving wear them, the heavier the fish the faster, and fighting it the wrong way
-## (cranking against a run, cranking a deep fish without pumping) much faster than the right way. Tired arms only
-## reel slower and pump weaker: they never stop you. Easing off rests them; so does handing the rod to a crewmate.
+## The angler's arms: they don't tire any more (the user's call, 2026-10-29: "getting tired was a stupid
+## feature"). Kept at 1 for whatever still reads it.
 var arms := 1.0
 ## How worn the line is from rubbing the hull, 0..1 (1: it parts), and how hard it's rubbing right now (0..1).
 var wear := 0.0
@@ -157,8 +155,6 @@ func tell() -> String:
 		if reach > 0.6:
 			return "The line's rubbing the hull! Swing her stern to it (the wheel)"
 		return "The line's rubbing the hull! Take it to the %s corner, or swing her stern to it" % side
-	if arms < 0.25:
-		return "Your arms are tired: you're reeling slow. Fight it right and they come back"
 	if move == "spiral":
 		return "DEATH SPIRAL: it's going under her. EASE OFF, stop cranking" if answer() == "ease" \
 				else "DEATH SPIRAL: it's coming up. CRANK!"
@@ -193,17 +189,7 @@ func step(dt: float, crank: bool, lift: float) -> void:
 		ahead = maxf(throttle, 0.0)
 		line_out += (1.5 * ahead - (0.0 if in_holder else BACK_SPEED * back)) * dt
 	var b := absf(wrapf(bearing, -PI, PI))
-	var power := 0.35 + 0.65 * arms
-	var heavy := 0.2 + big * big
-	# fighting it the wrong way wears you out: cranking against its run, or a deep fish without pumping it
-	var waste := 3.0 if ans == "hold" else (2.0 if (ans == "pump" and _pump <= 0.0) or ans == "ease" else 0.7)
-	if crank:
-		arms -= ARMS_CRANK * heavy * dt * waste * arms_mul
-	if lift > 0.3:
-		arms -= ARMS_HEAVE * heavy * dt * (1.0 if ans == "pump" else 1.5) * arms_mul
-	if not crank and lift <= 0.3:
-		arms += ARMS_REST * dt
-	arms = clampf(arms, 0.0, 1.0)
+	var power := 1.0
 
 	# Line: the move takes it (the drag and the boat backing down slow it), the reel brings it back if the move lets
 	# you, and so does the boat coming back over it.

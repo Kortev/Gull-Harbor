@@ -75,7 +75,6 @@ Where a game starts and every trip ends: the last sale's slip, the quota, the ba
 | A two-speed reel | winds in a quarter faster | $3,000 |
 | Heavier line | half as much again before the hull wears it through, and longer at full strain | $2,000 |
 | A live-bait well | 4 live mackerel aboard each trip (up to 8), and keeps the ones you jig | $1,500 |
-| A fighting harness | your arms tire a third slower | $2,500 |
 
 **Teach it:** each boat and item has a one-line blurb. Gap: the skiff vs sportfisher trade-off (crew size) isn't
 said anywhere in game.
@@ -161,7 +160,7 @@ your first flock ("Slow down under 10 knots near the birds").
 
 | Move | Tell | Do |
 |---|---|---|
-| Run | "It's running! Let it go" | nothing: let the drag tire it (cranking against it wastes your arms) |
+| Run | "It's running! Let it go" | nothing: let the drag tire it (cranking against it strains the line) |
 | Sounding | "It's sounding deep! Pump: heave, then crank down" | pump |
 | Head shakes | "Head shakes! Keep it tight" | keep cranking or heaving, or the hook pulls |
 | Circling | "It's circling! Pump" | pump |
@@ -171,8 +170,7 @@ your first flock ("Slow down under 10 knots near the birds").
 - **The strain ring** round the crosshair shows how wrong you're fighting it. Red for **1.2 s** and the line
   parts.
 - **The line readout:** metres out, gaining or losing, how fresh the fish is, how worn the line is.
-- **Arms:** cranking and pumping tire them, mostly when you fight it wrong; tired arms only **reel slower and pump
-  weaker**, never stop you. Fight it right and they come back. Hand the rod to a crewmate (they E on it) and the
+- **No tiredness:** your arms never tire (removed 2026-10-29). Hand the rod to a crewmate (they E on it) and the
   fight carries on.
 - **The captain** (E on the wheel; A/D steer, W/S throttle): the tuna swings round the boat.
   - **Keep the stern on it.** Let it swing forward of her beam and **the line rubs the hull** and wears through

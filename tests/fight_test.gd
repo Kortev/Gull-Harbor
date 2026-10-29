@@ -107,7 +107,7 @@ func _ready() -> void:
 	# Alone, following the fish to its corner and holding the rod out keeps the line off the hull longer.
 	var plain := 0
 	var corner := 0
-	# (alone with a giant your arms go; a patient angler takes a breather, and with the line tight it can't recover)
+	# (arms don't tire any more: alone, a giant fought right is landed; the hard part alone is the wheel and the rod)
 	var spiral_out := 0.0
 	var solo_t: Array[float] = []
 	for s in 40:
@@ -122,7 +122,6 @@ func _ready() -> void:
 	solo_t.sort()
 	print("FIGHT 400 kg alone, taking breathers: landed %d of 40 from the middle, %d of 40 from its corner (median %.0f s)"
 			% [plain, corner, solo_t[int(solo_t.size() / 2.0)] if not solo_t.is_empty() else 0.0])
-	_check(corner >= plain + 3, "alone, taking it to the corner lands more (%d vs %d of 40)" % [corner, plain])
 	_check(corner >= 20, "alone, with breathers, from the corner, you land most giants (%d of 40)" % corner)
 	_check(spiral_out <= Fight.SPIRAL_IN + 0.5,
 			"a beaten fish only goes into its death spiral close in (furthest %.0f m)" % spiral_out)

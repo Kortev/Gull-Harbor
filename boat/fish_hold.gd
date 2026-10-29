@@ -43,8 +43,6 @@ const GEAR := {
 			+ "at full strain.", "price": 2000},
 	"bait": {"name": "A live-bait well", "blurb": "Keeps mackerel alive: four aboard each trip, and the ones you jig. "
 			+ "A live bait gets half as many bites again and lasts twice as long.", "price": 1500},
-	"harness": {"name": "A fighting harness", "blurb": "Your back takes the load: your arms tire a third slower.",
-			"price": 2500},
 }
 ## Bait for the trip: live mackerel in the well (with the well: WELL_START each trip, WELL_MAX jigged), and scoops
 ## of chum in the bucket (CHUM each trip: boat/chum.gd).

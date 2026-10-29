@@ -34,13 +34,12 @@ const CHAPTERS := [
 		+ "about 450 m and keeps them there while you keep it coming, a scoop a minute or so."],
 	["6. The fight", "Reel screams: grab the rod (E). Anyone can, and anyone can take it over mid-fight.\n\n"
 		+ "The line under the crosshair says what the fish is doing:\n"
-		+ "- Running: let it go. Cranking against it wastes your arms.\n"
+		+ "- Running: let it go. Cranking against it strains the line.\n"
 		+ "- Resting: crank (left mouse).\n"
 		+ "- Sounding or circling: pump. Heave up (right mouse), crank as you drop.\n"
 		+ "- Head shakes: keep it tight, keep cranking or heaving.\n"
 		+ "- Death spiral (the last 30 m): it circles under the boat. Coming up, crank. Going under, ease off.\n\n"
-		+ "The ring round the crosshair is how wrong you're doing it. Red too long and the line snaps. Tired arms "
-		+ "just reel slower; fight it right and they come back.\n\n"
+		+ "The ring round the crosshair is how wrong you're doing it. Red too long and the line snaps.\n\n"
 		+ "Alone: put the rod in its holder (Q) to steer. It fights on its drag; nobody wins line back."],
 	["7. Driving during a fight", "Keep the stern pointed at the fish (A/D). If it swings forward of the beam, "
 		+ "the line rubs the hull and wears through: swing the stern to it, or the angler walks to that corner.\n\n"
@@ -59,10 +58,9 @@ const CHAPTERS := [
 	["10. Boats and gear", "The skiff: 2 rods, quick, handy alone or with two. Her fish box takes 2.\n"
 		+ "The sportfisher ($20,000, or $2,500 a day chartered): 4 rods, a fish box for 12, slow to turn and "
 		+ "stop, and the tuna door means wiring. She wants a crew. Her fighting chair: E to sit (E or jump to get "
-		+ "up). Fight a fish from it and the rod's in the gimbal, your back takes the load: your arms tire slower. "
-		+ "It swivels where you look. Or just sit in it and watch the sea; your arms come back quicker.\n\n"
+		+ "up). It swivels where you look. Fight from it if you like, or just sit in it and watch the sea.\n\n"
 		+ "Gear lasts the run: a two-speed reel (winds a quarter faster), heavier line (rubs the hull longer), the "
-		+ "live-bait well, a fighting harness (arms tire a third slower)."],
+		+ "live-bait well."],
 ]
 
 var _page: Label

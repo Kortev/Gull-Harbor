@@ -33,7 +33,8 @@ FAILED lines. Tests use their own save (`user://bluefin_test.cfg`), never the pl
 - **Their rules (decided, don't relitigate):**
   - Realistic tuna fishing; no nerfs for fishing alone; **no numbers that change with crew size**. Solo must be
     possible and fun but harder than with friends; the difference comes from boats and money.
-  - Tired arms only slow your reeling. No lockout.
+  - **No tired arms** (removed 2026-10-29, the user: "getting tired was a stupid feature"). The fighting harness went with it.
+  - **The fighting chair is just for sitting** (no fighting advantage: "is there any reason not to sit in it?").
   - A fixed world, the boat moves through it. Birds anywhere (no fishing grounds for now).
   - No autopilot. A CPU crew member would be a hired person (a deckhand on a share), not a bot.
   - Finding the tuna should take a while and be its own mission; fights can be long (even longer), as long as
@@ -102,7 +103,7 @@ Everything big enough to look usable must be usable, or go. Today:
 
 | Thing | Usable now? | Do |
 |---|---|---|
-| The fighting chair (sportfisher) | **yes** (boat/chair.gd, tests/chair_test.tscn) | Done: E sits you in it, E or a jump gets you up; it swivels where you look; a fish fought from it tires your arms 0.6x; sitting with no fish your arms come back twice as fast. |
+| The fighting chair (sportfisher) | **yes** (boat/chair.gd, tests/chair_test.tscn) | Done: E sits you in it, E or a jump gets you up; it swivels where you look. No fighting advantage (the user's call): it's for sitting in. |
 | The tuna tower (sportfisher) | no | Climb it: see further (the binoculars from up there spot flocks the deck can't). |
 | The leaning post / skipper's seat / bench | no | Sit or lean (E), just to chill. |
 | The cooler (sportfisher), the live well, the fish box | the box takes fish (as a whole: E on the fish) | Cooler: grab a drink (funny; maybe a little arm rest). Live well: see the mackerel in it. Fish box: the lid opens as fish go in. |

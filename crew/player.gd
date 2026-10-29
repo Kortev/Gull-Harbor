@@ -347,7 +347,7 @@ func _pose_body(delta: float) -> void:
 
 ## The face for what you're doing (everyone works it out the same way from what they all know): dizzy when the deck
 ## throws you, wide-eyed when the reel screams or the line's near breaking, gritting your teeth through a fight,
-## wiped out when your arms are, set on the harpoon, smug at the wheel, chuffed with a fish on deck, glum in a storm.
+## set on the harpoon, smug at the wheel, chuffed with a fish on deck, glum in a storm, knackered at dusk.
 func _face_for(rod: Node, helm: Node, harpoon: bool, id: int, sea: Node) -> String:
 	if _gesture == "stumble":
 		return "dizzy"
@@ -356,8 +356,6 @@ func _face_for(rod: Node, helm: Node, harpoon: bool, id: int, sea: Node) -> Stri
 	if rod != null and bool(rod.get("hooked")):
 		if str(rod.get("move")) == "run" or float(rod.get("strain")) > 0.85:
 			return "shocked"
-		if is_multiplayer_authority() and arms < 0.3:
-			return "tired"
 		return "strain"
 	if helm != null and int(helm.get("captain")) == id:
 		return "smug"
@@ -366,6 +364,8 @@ func _face_for(rod: Node, helm: Node, harpoon: bool, id: int, sea: Node) -> Stri
 		return "happy"
 	if sea != null and str(sea.get("condition")) in ["storm", "heavy"]:
 		return "sad"
+	if hold != null and float(hold.call("day_fraction")) > 0.85:
+		return "tired"          # (a long day: dusk, and after)
 	return "neutral"
 
 
