@@ -1,8 +1,13 @@
 extends AnimatableBody3D
 ## The boat (art/boat.py -> boat.glb): a 41 ft tuna boat for a crew of four. It never goes anywhere: it sits at
 ## the origin and rides the swell, heaving, pitching and rolling with the sea under it. Its pose comes only from
-## the ocean's wave clock, so every peer computes the same deck under the same feet. Being an AnimatableBody3D,
-## it carries whoever stands on it. (The pattern is Gull Harbor's TunaBoat, on Fathom's ocean.)
+## the ocean's wave clock, so every peer computes the same deck under the same feet. (The pattern is Gull Harbor's
+## TunaBoat, on Fathom's ocean.)
+##
+## The crew don't walk on this moving body. They walk in the DECK SPACE: a separate, still physics world holding
+## the same collider, never moving (the space game's "the ship never moves" rule). A crew member's position there
+## IS their boat-local position, and what you see is that, carried by the boat's pose (crew/player.gd). So the
+## deck is solid underfoot in any sea, nobody slides, and the network only needs boat-local positions.
 
 const Ocean := preload("res://sea/ocean.gd")
 const MODEL := preload("res://boat/boat.glb")
@@ -23,11 +28,15 @@ var floods: Array[SpotLight3D] = []
 var chair: Node3D
 var wheel: Node3D
 var _radar: Node3D
+## The still world the crew walk in (see above): add crew bodies under deck_root.
+var deck_space: SubViewport
+var deck_root: Node3D
 var _lights_on := false
 
 
 func _ready() -> void:
-	sync_to_physics = true
+	# Posed by hand every frame; this body is only for things in the world (lines, raycasts), not the crew.
+	sync_to_physics = false
 	collision_layer = 1
 	collision_mask = 0
 	_build()
@@ -57,6 +66,7 @@ func _build() -> void:
 		cs.shape = shape
 		cs.transform = _src_transform(col_mesh, src)
 		add_child(cs)
+		_build_deck_space(shape, cs.transform)
 	for i in 4:
 		var e := src.find_child("spawn_%d" % i, true, false) as Node3D
 		if e:
@@ -89,7 +99,36 @@ func _build() -> void:
 		l.visible = false
 		add_child(l)
 		floods.append(l)
+	# a dim red night light in the wheelhouse, so the helm isn't a black hole
+	var cabin := OmniLight3D.new()
+	cabin.name = "CabinLight"
+	cabin.position = Vector3(0.0, DECK + 1.9, -1.3)
+	cabin.light_color = Color(1.0, 0.45, 0.32)
+	cabin.light_energy = 1.4
+	cabin.omni_range = 4.0
+	cabin.visible = false
+	add_child(cabin)
+	floods.append(cabin)
 	src.free()
+
+
+func _build_deck_space(shape: Shape3D, at: Transform3D) -> void:
+	deck_space = SubViewport.new()
+	deck_space.name = "DeckSpace"
+	deck_space.own_world_3d = true
+	deck_space.size = Vector2i(2, 2)
+	deck_space.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	add_child(deck_space)
+	deck_root = Node3D.new()
+	deck_root.name = "Deck"
+	deck_space.add_child(deck_root)
+	var still := StaticBody3D.new()
+	still.name = "Hull"
+	var cs := CollisionShape3D.new()
+	cs.shape = shape
+	cs.transform = at
+	still.add_child(cs)
+	deck_root.add_child(still)
 
 
 ## A node's transform relative to the imported scene root (before it's in the tree).
@@ -109,12 +148,10 @@ func set_lights(on: bool) -> void:
 		l.visible = on
 
 
+## Every frame (the ocean's clock moves per frame, so the pose does too; the crew ride it smoothly).
 func _process(delta: float) -> void:
 	if _radar:
 		_radar.rotate_y(delta * 2.6)
-
-
-func _physics_process(_delta: float) -> void:
 	if ocean == null:
 		return
 	global_transform = pose()
@@ -151,6 +188,13 @@ func holder_transform(i: int) -> Transform3D:
 	var along := t.basis.y.normalized()
 	var b := Basis.looking_at(-along, Vector3.UP if absf(along.y) < 0.99 else Vector3.FORWARD)
 	return global_transform * Transform3D(b, t.origin)
+
+
+## Spawn point `slot` on deck, boat-local (where the crew's deck space puts you).
+func spawn_local(slot: int) -> Transform3D:
+	if spawns.is_empty():
+		return Transform3D(Basis.IDENTITY, Vector3(0, DECK + 0.05, 2.0))
+	return spawns[slot % spawns.size()].translated(Vector3(0, 0.05, 0))
 
 
 func spawn_point(slot: int) -> Transform3D:

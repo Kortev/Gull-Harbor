@@ -1,5 +1,19 @@
 # While you were away (newest first)
 
+## Walking around on the boat
+- **What changed:** you're one of the crew now, in first person:
+  - WASD, mouse look, Shift sprints, Space jumps, E uses things.
+  - Esc frees the mouse, and a click takes it back.
+
+  Movement is calm, with no slipping. You walk in the boat's own still frame (the space game's "the ship never
+  moves" trick), so the deck is solid under your feet even in a storm, and you can't fall over the rail. Your
+  view leans with the deck but keeps the horizon about half level, so you feel the sea without getting sick.
+  At night there's a dim red light in the wheelhouse.
+- **How it was checked:** `tests/deck_test.gd` stands you in a storm for 10 s. You drifted 0.000 m and your
+  feet stayed exactly on deck. It then walks you to the transom and jumps you, and you land back on deck. The
+  screenshots `docs/shots/crew_heavy.png` and `crew_storm_night_helm.png` are from the crew's eyes.
+- **Try it:** F5.
+
 ## The boat
 - **What changed:** a normal 41 ft tuna boat for a crew of four, built by a Blender script (`art/boat.py`)
   with the space game's crunched photo textures (none of its decals or branding). It has:

@@ -6,6 +6,7 @@ extends Node3D
 ## Conditions (one per trip): calm, sunny, fog, rain, heavy, storm; day or night.
 ## Screenshots: <godot> --path . -- --shot=<png> [--weather=calm|sunny|fog|rain|heavy|storm] [--night]
 ##   [--frames=<n>] [--cam=x,y,z,lookx,looky,lookz] [--look=<degrees round from aft>]
+## Without --cam you're one of the crew, standing in the cockpit: WASD, mouse, Shift, Space, E; Esc frees the mouse.
 
 const Ocean := preload("res://sea/ocean.gd")
 const SeaFx := preload("res://sea/sea_fx.gd")
@@ -14,6 +15,8 @@ const SKY_SHADER := preload("res://sea/sky.gdshader")
 const NOISE := preload("res://sea/textures/sky_noise.png")
 const SCREEN_LOOK := preload("res://screen/screen_look.tscn")
 const Boat := preload("res://boat/boat.gd")
+const Player := preload("res://crew/player.gd")
+const Hud := preload("res://ui/hud.gd")
 
 ## How rough the sea is (ocean.gd: 0 calm, 0.5 rain, 1 storm), the sun, and how thick the fog.
 const CONDITIONS := {
@@ -37,6 +40,7 @@ var visor: VisorRain
 var rain: GPUParticles3D
 var cam: Camera3D
 var boat: Boat
+var player: Player
 var _args := {}
 var _frames := 0
 
@@ -53,6 +57,8 @@ func _ready() -> void:
 	add_child(cam)
 	cam.make_current()
 	add_child(SCREEN_LOOK.instantiate())
+	if not _args.has("cam"):
+		spawn_player(1, 0)
 	night = _args.has("night")
 	set_condition(str(_args.get("weather", "rain")))
 
@@ -65,16 +71,25 @@ func _process(_delta: float) -> void:
 		at.y += ocean.height_at(Vector3(at.x, 0.0, at.z))
 		cam.global_position = at
 		cam.look_at(Vector3(v[3], v[4], v[5]))
-	else:
-		# For now: a pair of eyes standing in the cockpit, looking aft over the stern (or --look=<deg> round).
-		var eye := Transform3D(Basis.from_euler(Vector3(-0.1, PI + deg_to_rad(float(_args.get("look", "0"))), 0.0)),
-				Vector3(0.4, Boat.DECK + 1.65, 1.2))
-		cam.global_transform = boat.global_transform * eye
 	if _args.has("shot") and _frames == int(_args.get("frames", "120")):
 		var img := get_viewport().get_texture().get_image()
 		img.save_png(str(_args["shot"]))
 		print("SHOT ", _args["shot"])
 		get_tree().quit()
+
+
+## Puts a crew member on deck at spawn point `slot`, facing aft (or --look=<degrees> round from there).
+func spawn_player(id: int, slot: int) -> Player:
+	player = Player.new()
+	player.name = str(id)
+	player.boat = boat
+	add_child(player)
+	var at := boat.spawn_local(slot)
+	player.place(at.origin, at.basis.get_euler().y + deg_to_rad(float(_args.get("look", "0"))))
+	var hud := Hud.new()
+	add_child(hud)
+	hud.follow(player)
+	return player
 
 
 func set_condition(c: String) -> void:
