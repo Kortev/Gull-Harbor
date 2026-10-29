@@ -73,8 +73,11 @@ const SQUALL_LENGTH := Vector2(2.6, 4.0)
 @export var calm_rect := Vector4.ZERO
 ## How far the sea reaches (m).
 @export var reach := 5000.0
-## Keep the mesh under the camera (the bluefin game, where the boat goes places): x, z follow it every frame.
+## Keep the mesh under the camera (the bluefin game, where the boat goes places): x, z follow it every frame. With
+## `follow` set (the boat), it follows that instead while the camera's near it: your head's heave and roll and your
+## walking about don't drag the mesh over the waves, so at anchor it stays put (no crawl), only moving with her.
 @export var follow_camera := false
+var follow: Node3D
 ## On a planet: tonight's weather (by name) -> how rough, 0..1 (a storm builds through the night).
 @export var weathers := {"rain": 0.5, "heavy rain": 0.75, "storm": 1.0}
 ## Something huge glowing under the water: x, z (this node's space), size (m), strength; and the way
@@ -175,8 +178,14 @@ func _process(delta: float) -> void:
 		var cam := get_viewport().get_camera_3d()
 		if cam != null:
 			var at := cam.global_position
+			if follow != null and follow.global_position.distance_to(at) < 60.0:
+				at = follow.global_position
 			global_position = Vector3(at.x, global_position.y, at.z)
-	_mat.set_shader_parameter("origin", _origin())
+	var o := _origin()
+	_mat.set_shader_parameter("origin", o)
+	# (the rain's cells and the foam's grain wrap every km, worked out here in full precision: far from where you
+	# started, the shader's floats would turn them to bands)
+	_mat.set_shader_parameter("origin_km", Vector2(fposmod(o.x, 1000.0), fposmod(o.y, 1000.0)))
 	if _planet != null:
 		var target := float(weathers.get(String(_planet.get("weather")), 0.5))
 		var w := lerpf(0.5, target, float(_planet.get("sea_strength")))

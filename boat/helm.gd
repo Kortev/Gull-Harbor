@@ -114,6 +114,10 @@ func _set_captain(who: int, at_heading: float) -> void:
 	captain = who
 	heading = at_heading
 	_net_heading = at_heading
+	# (whoever moves her now starts from where she is here, not from an old word)
+	_net_at = at
+	_net_speed = speed
+	_net_age = 0.0
 	steer = 0.0
 	throttle = 0.0
 	var p: Node = _crew_member(who)
@@ -171,7 +175,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-func _physics_process(delta: float) -> void:
+## (every frame, not every physics tick: the camera rides her, so she must move as smoothly as it does)
+func _process(delta: float) -> void:
 	# whoever's at the wheel moves her; with nobody there, the host lets her coast to a stop
 	var driving := is_mine() or (captain == 0 and Net.is_host())
 	if is_mine():
@@ -196,8 +201,10 @@ func _physics_process(delta: float) -> void:
 		# someone else moves her: ease toward where their word says she is by now
 		_net_age += delta
 		heading = heading + wrapf(_net_heading - heading, -PI, PI) * minf(delta * 10.0, 1.0)
+		# (carried along at her speed, and eased onto the guess: no lagging behind her)
 		var guess := _net_at + ahead_of(_net_heading) * _net_speed * _net_age
-		at = at.lerp(guess, minf(delta * 6.0, 1.0))
+		at += ahead_of(heading) * _net_speed * delta
+		at = at.lerp(guess, minf(delta * 3.0, 1.0))
 		speed = _net_speed
 	_show_helm()
 

@@ -155,7 +155,7 @@ func tell() -> String:
 
 ## One tick of the fight: what you're doing (cranking, how far the rod is lifted 0..1) against what it's doing.
 func step(dt: float, crank: bool, lift: float) -> void:
-	if done:
+	if done or dt <= 0.0:
 		return
 	move_t += dt
 	if move_t >= _len:
@@ -166,7 +166,7 @@ func step(dt: float, crank: bool, lift: float) -> void:
 	var ans := answer()
 	var back := 0.0
 	var ahead := 0.0
-	if moving:
+	if moving and boat_vel != Vector2.ZERO:
 		var hd_was := sqrt(maxf(line_out * line_out - depth * depth, 0.0))
 		var rel := Vector2(sin(bearing), cos(bearing)) * hd_was - boat_vel * dt
 		bearing = atan2(rel.x, rel.y)

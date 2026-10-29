@@ -38,10 +38,8 @@ func _ready() -> void:
 	_check(Vector2(b.x, b.z).distance_to(at) < 0.5, "the boat's where the helm says she is")
 	_check(absf(b.y - sea.ocean.height_at(b)) < 1.5, "and still riding the sea there (%.2f m off the water)"
 			% (b.y - sea.ocean.height_at(b)))
-	var cam := get_viewport().get_camera_3d()
 	var o := sea.ocean.global_position
-	_check(Vector2(o.x, o.z).distance_to(Vector2(cam.global_position.x, cam.global_position.z)) < 0.5,
-			"the sea's mesh keeps up under you")
+	_check(Vector2(o.x, o.z).distance_to(Vector2(b.x, b.z)) < 0.5, "the sea's mesh keeps up under her")
 	# let go: she carries her way, slowing
 	await get_tree().create_timer(4.0).timeout
 	var coasting := float(helm.get("speed"))

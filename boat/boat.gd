@@ -175,8 +175,9 @@ func set_lights(on: bool) -> void:
 
 ## Every frame (the ocean's clock moves per frame, so the pose does too; the crew ride it smoothly).
 func _process(delta: float) -> void:
-	if _radar:
-		_radar.rotate_y(delta * 2.6)
+	if _radar and ocean:
+		# (in step with the screen's sweep, tuna/radar.gd: clockwise from above, on the sea clock)
+		_radar.rotation.y = -fposmod(float(ocean.wave_time) * 2.6, TAU)
 	if wheel:
 		# the wheel turns with the captain's hands (art/boat.py: its shaft leans up toward the dash)
 		# (to port is anticlockwise from where the captain stands)

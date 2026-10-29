@@ -93,9 +93,10 @@ func _process(delta: float) -> void:
 	var crew := sea.get("crew") as Node
 	# the harpoon: flying from a throw, in someone's hands, or in its rack
 	if _fly_t > 0.0:
+		# (its flight in her frame: she may be under way)
 		_fly_t -= delta
 		_fly_at.origin += _fly_dir * FLY * delta
-		_harpoon.global_transform = _fly_at
+		_harpoon.global_transform = boat.global_transform * _fly_at
 	else:
 		var p: Node3D = crew.call("get_player", harpoon_holder) if harpoon_holder != 0 else null
 		if p == null:
@@ -217,8 +218,9 @@ func throw() -> void:
 	var dir := -cam.global_basis.z
 	var hit := aimed_at(cam.global_position, dir)
 	_fly_t = 0.35
-	_fly_at = _harpoon.global_transform
-	_fly_dir = dir
+	var boat := sea.get("boat") as Node3D
+	_fly_at = boat.global_transform.affine_inverse() * _harpoon.global_transform
+	_fly_dir = boat.global_basis.inverse() * dir
 	if Net.is_host():
 		_ask_throw_as(Net.my_id(), hit)
 	else:

@@ -119,7 +119,7 @@ func _ready() -> void:
 	else:
 		_follow_weather()
 	add_child(Menu.new())
-	if _args.has("school"):    # (screenshots and tests: a school starts right away, <n> m off and closing)
+	if _args.has("school"):    # (screenshots and tests: a school starts right away, <n> m off)
 		schools.set("_next", 0.0)
 		if not str(_args["school"]).is_empty():
 			schools.start_far = float(_args["school"])
@@ -144,11 +144,14 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	_frames += 1
 	_follow_weather()
+	# in a storm the lightning goes for her tuna tower (sea_fx's crown, in its space: the world's)
+	sea_fx.crown = boat.global_transform * Vector3(0.0, 7.6, -1.3)
 	if _args.has("watch") and not schools.schools.is_empty():
 		# (screenshots: from 28 m off the nearest school, on the boat's side of it, looking at it)
 		var c: Vector2 = schools.schools[0].center(ocean.wave_time)
+		var here: Vector2 = boat.helm.at
 		var at := Vector3(c.x, 0.0, c.y)
-		var from := at + (Vector3.ZERO - at).normalized() * 28.0 + Vector3(0, 5.0, 0)
+		var from := at + (Vector3(here.x, 0.0, here.y) - at).normalized() * 28.0 + Vector3(0, 5.0, 0)
 		cam.make_current()
 		cam.global_position = from
 		cam.look_at(at + Vector3(0, 2.0, 0))
@@ -349,6 +352,7 @@ func _build_world() -> void:
 	boat.ocean = ocean
 	boat.sea = self
 	add_child(boat)
+	ocean.follow = boat
 
 
 func _particles(at: Vector3, box: Vector3, amount: int, life: float, dir: Vector3, spread: float,

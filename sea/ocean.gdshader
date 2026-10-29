@@ -22,6 +22,9 @@ uniform vec2 group_drift = vec2(0.0);
 // Where the mesh's middle is over the world (x, z): the waves, the foam and the rain are the world's, so they stay put
 // while the mesh moves along under the camera (ocean.gd's follow_camera). The fade and the curve stay the mesh's.
 uniform vec2 origin = vec2(0.0);
+// The same, wrapped every 1000 m (ocean.gd works it out in full precision): for the rain, the grain and the streaks,
+// whose patterns repeat within that, so they stay crisp however far she's gone.
+uniform vec2 origin_km = vec2(0.0);
 uniform float wave_time = 0.0;
 // The sum of Q k A over the waves: what a crest's breaking is measured against.
 uniform float steep = 0.6;
@@ -202,14 +205,15 @@ void fragment() {
 	col *= 1.0 - shade * 0.5 + shade * lit;
 	// fine detail fades out far off, where it would only sparkle
 	float far = smoothstep(0.08, 0.6, length(fwidth(q)));
-	float grain = texture(noise, q * 0.045 + vec2(wave_time * 0.01, 0.0)).g;
+	vec2 qk = mod(local.xz + origin_km, 1000.0);
+	float grain = texture(noise, qk * 0.045 + vec2(wave_time * 0.01, 0.0)).g;
 	// whitecaps on the crests
 	float edge = 1.0 - 0.55 * whitecaps - 0.12 * spume - 0.2 * white;
 	float foam = mix(step(edge, crest + (grain - 0.5) * 0.3), smoothstep(edge - 0.1, edge + 0.2, crest) * 0.6, far)
 		* step(0.01, whitecaps);
 	// in a blow, streaks of foam laid along the wind
 	vec2 wd = normalize(wind);
-	vec2 along = vec2(dot(q, wd), dot(q, vec2(-wd.y, wd.x)));
+	vec2 along = vec2(dot(qk, wd), dot(qk, vec2(-wd.y, wd.x)));
 	float streak = texture(noise, vec2(along.y * 0.05, along.x * 0.008)).b;
 	// (thin and soft: wide hard-edged ones read as zebra stripes down a big swell's face)
 	float streaks = 0.08 * smoothstep(0.55, 1.0, whitecaps) + 0.08 * spume + 0.08 * white;
@@ -229,7 +233,7 @@ void fragment() {
 		foam = max(foam, step(0.45, ring * (0.55 + 0.6 * grain) + h * 0.2));
 	}
 	// rain hitting the water: little rings that open and fade (one chance per 33 cm cell per drop slot)
-	vec2 rq = q * 3.0;
+	vec2 rq = qk * 3.0;
 	vec2 cell = floor(rq);
 	float phase = wave_time * 2.5 + hash(cell) * 7.0;
 	float slot = floor(phase);
