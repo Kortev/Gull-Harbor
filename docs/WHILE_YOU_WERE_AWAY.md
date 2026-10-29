@@ -1,5 +1,29 @@
 # While you were away (newest first)
 
+## The skiff, the dock and the day, gear, and a real crew
+**Not run in Godot yet.** Open the project in the editor once before running anything: it has two new models to
+import (`boat/skiff.glb`, `crew/crew.glb`). Blender works in this session now (its Python module, rendering on the
+CPU), so the new art was checked in renders before it went in.
+- **The skiff** (`art/skiff.py`): a 28 ft center console for one or two. Two rods in the aft corners, the wheel on
+  the console a step away, quick and nimble (she turns 0.75 rad/s and stops short), lively in a sea. A stuck fish
+  comes aboard over the gunwale at her stern quarter instead of through a tuna door; her fish box takes two iced.
+- **The dock:** a game starts there (the menu). The last trip's slip, the bank, the boats (the skiff's yours; the
+  sportfisher is $30,000, or $2,500 a day to charter), the chandlery, and Head out. Picking a boat puts her in the
+  water right there. Crewmates see the skipper's choices.
+- **The day:** dawn to dusk in 20 minutes, then night. The light and the sun go with it (warm at dawn and dusk), the
+  boat's lights come on at dark, the clock's top left, and you get a word at dusk and at dark. Head in whenever
+  (Esc): the catch sells, fuel comes off ($60 the skiff, $400 the sportfisher) and any charter, back to the dock.
+- **Gear** (the chandlery, once each, kept): a two-speed reel (winds a quarter faster, $3,000), heavier line (half
+  again on the hull and longer at full strain, $2,000), a live-bait well (half as many bites again, $1,500), a
+  fighting harness (arms tire a third slower, $2,500).
+- **The crew** (`art/crew.py`): a deckhand in oilskins, a navy hoodie, a red beanie, shades and stubble, orange
+  gloves, white deck boots, each crew member's oilskins their own colour (yellow, orange, green, red). Legs and
+  arms swing as you walk, arms out to the rod or the wheel, the throwing arm up with the harpoon, the head with
+  your look.
+- **Boats as kinds** (`boat/kinds.gd`): everything about each boat in one place (her model, size, rods and baits,
+  the harpoon, where fish come aboard and lie, her fish box, her handling, fuel and price), so a third boat is one
+  more entry and a Blender script.
+
 ## Tired arms that don't stop you, and the fish under the boat
 **Not run in Godot yet.**
 - **Tired arms only slow you down now.** They used to stop you pumping at all, so alone you had to stand and wait.
