@@ -70,6 +70,11 @@ var act := 0
 var _net_act := 0
 var _gesture := ""
 var _gesture_t := 0.0
+## The face: art/fisherman.py paints FACES expressions side by side on one strip; showing one slides the strip along.
+const FACES := ["neutral", "blink", "happy", "shocked", "strain", "tired", "angry", "dizzy", "smug", "sad"]
+var _face_mat: BaseMaterial3D
+var _face := ""
+var _blink_in := 3.0
 ## The one-off moves and how long each takes (s).
 const GESTURES := {"throw": 0.6, "scoop": 0.7, "bleed": 1.1, "reach": 0.5, "stumble": 0.9}
 var _crank_ph := 0.0
@@ -153,6 +158,8 @@ func _build_body() -> void:
 			own.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
 			if m.resource_name == "oilskin":
 				own.albedo_color = colour
+			if m.resource_name == "face":
+				_face_mat = own
 			mi.set_surface_override_material(i, own)
 	src.free()
 	# the joints: head and arms ride the torso, forearms the arms, shins the thighs. (Each worked out from where the
@@ -323,6 +330,46 @@ func _pose_body(delta: float) -> void:
 		_aim(part, p[part], k)
 	if _body_root:
 		_body_root.position.y = lerpf(_body_root.position.y, -drop - crouch * 0.55, k)
+	_show_face(_face_for(rod, helm, harpoon, id, sea), delta)
+
+
+## The face for what you're doing (everyone works it out the same way from what they all know): dizzy when the deck
+## throws you, wide-eyed when the reel screams or the line's near breaking, gritting your teeth through a fight,
+## wiped out when your arms are, set on the harpoon, smug at the wheel, chuffed with a fish on deck, glum in a storm.
+func _face_for(rod: Node, helm: Node, harpoon: bool, id: int, sea: Node) -> String:
+	if _gesture == "stumble":
+		return "dizzy"
+	if _gesture == "throw" or harpoon:
+		return "angry"
+	if rod != null and bool(rod.get("hooked")):
+		if str(rod.get("move")) == "run" or float(rod.get("strain")) > 0.85:
+			return "shocked"
+		if is_multiplayer_authority() and arms < 0.3:
+			return "tired"
+		return "strain"
+	if helm != null and int(helm.get("captain")) == id:
+		return "smug"
+	var hold: Node = sea.get("fish_hold") if sea else null
+	if hold != null and not (hold.get("_deck") as Dictionary).is_empty():
+		return "happy"
+	if sea != null and str(sea.get("condition")) in ["storm", "heavy"]:
+		return "sad"
+	return "neutral"
+
+
+## Slides the face strip to `want`, blinking every few seconds when the face is a calm one.
+func _show_face(want: String, delta: float) -> void:
+	if _face_mat == null:
+		return
+	_blink_in -= delta
+	if _blink_in < 0.0 and want in ["neutral", "smug", "sad", "angry"]:
+		want = "blink"
+		if _blink_in < -0.13:
+			_blink_in = randf_range(2.5, 5.0)
+	if want == _face:
+		return
+	_face = want
+	_face_mat.uv1_offset.x = float(FACES.find(want)) / float(FACES.size())
 
 
 ## One piece toward its pose (x, y, z: euler, radians), `k` of the way there this frame.
