@@ -64,10 +64,12 @@ repo, now `main`), tick it here.
   - With two boats (VS, later): birds should turn up fairly round both, and some between them, for both crews
     to race to. Grounds can come later, on top, once fuel and trip length make "where do we go today" a choice.
 - [x] **Two boats, picked by the host at the dock** (`boat/kinds.gd`, `art/skiff.py`; not yet played) (like Sea of Thieves' sloop and galleon; same tuna on both):
-  - [ ] **The small boat (the default, for 1-2):** about 28 ft, an open center console, so the wheel is a few
+  - [x] **The small boat (the default, for 1-2):** about 28 ft, an open center console, so the wheel is a few
     steps from the rods. Two rods out, low sides (one person can gaff a fish), turns fast and follows a fish
     easily. Rough in a storm, and holds only one or two fish before you head in. Alone, you put the rod in the
-    holder, run to the wheel, then grab it back.
+    holder, run to the wheel, then grab it back. (Tested in Godot: fought from her, stuck without wiring, hauled
+    over the gunwale, iced; alone, rod down, wheel, rod back: `strike_test -- --boat=skiff`, `landing_test`,
+    `helm_test`.)
   - [ ] **The big boat (the 46 ft, for 4) is stronger but harder:**
     - Stronger: 4 rods (about 1.5-2x the bites), the tower to spot schools far off, heavy tackle and the fighting
       chair, powerful backing down, a fish hold that keeps them fresh.

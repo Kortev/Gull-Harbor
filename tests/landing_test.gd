@@ -4,7 +4,9 @@ extends Node
 ## aboard in HAUL_BASE + kg * HAUL_PER_KG seconds; it lies on deck; bleed it, ice it; head in: it sells, graded,
 ## into the bank; back out with an empty hold. And a fish left alongside unstuck gets away when the hook pulls.
 ## Standing on deck you can put the crosshair on the harpoon rack, the tuna door and a fish on deck (nothing in
-## the way), and holding E on the door hauls while letting go stops. The bank's kept in a test file, not yours.
+## the way), and holding E on the door hauls while letting go stops. Then the skiff: no wiring over her low gunwale
+## (the first good throw sticks), and it's hauled up over the gunwale onto her deck and iced into her small fish box.
+## The bank's kept in a test file, not yours.
 ## Run: godot --headless --path . res://tests/landing_test.tscn
 
 const Sea := preload("res://sea/sea.gd")
@@ -136,8 +138,53 @@ func _ready() -> void:
 	landing.fish[2]["t"] = Landing.HOOK_HOLDS - 0.2
 	await get_tree().create_timer(0.5).timeout
 	_check(not landing.fish.has(2) and not rod2.hooked, "left alongside unstuck, the hook pulls")
+	await _skiff(sea)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(hold.save_path))
 	_done()
+
+
+## The small boat: stick it as it lies (no wire), haul it over the gunwale, onto her deck, into her fish box.
+func _skiff(sea: Sea) -> void:
+	var landing := sea.landing
+	var hold := sea.fish_hold
+	var me := sea.crew.me
+	hold.head_in()
+	hold.head_out("skiff")
+	await get_tree().process_frame
+	_check(not hold.docked and sea.boat.kind == "skiff", "out in the skiff")
+	sea.rods.strike(0, 150.0)
+	await get_tree().process_frame
+	var rod = sea.rods.rods[0]
+	landing.host_alongside(0, 150.0, float(rod.bearing), float(rod.hook_t))
+	await get_tree().process_frame
+	_check(landing.fish.has(0) and not landing.needs_wire(0), "skiff: alongside, and nothing to wire")
+	var rack := sea.boat.get_node("HarpoonRack")
+	_check(await _can_look_at(me, Vector3(-0.5, 0.5, 2.0), rack, PI * 0.5),
+			"skiff: from her deck you can put the crosshair on the harpoon")
+	landing._request_harpoon(true)
+	landing._ask_throw_as(1, 0)
+	await get_tree().process_frame
+	_check(bool(landing.fish[0]["stuck"]) and not rod.hooked, "skiff: the first throw sticks")
+	var side := float(landing.fish[0]["side"])
+	var rail: Node = landing._doors[0 if side > 0.0 else 1]
+	_check(str(rail.name).begins_with("Gunwale"), "skiff: no tuna door, the gunwale (%s)" % rail.name)
+	_check(await _can_look_at(me, Vector3(side * 0.3, 0.5, 3.0), rail, -PI * 0.5 * side),
+			"skiff: from her deck you can put the crosshair on the gunwale by the fish")
+	_check(landing.hint().contains("gunwale"), "skiff: the HUD says haul it over the gunwale: %s" % landing.hint())
+	var t := 0.0
+	while landing.fish.has(0) and t < 30.0:
+		landing._ask_pull_as(1, 0)
+		await get_tree().process_frame
+		t += get_process_delta_time()
+	_check(not landing.fish.has(0) and hold._deck.size() == 1, "skiff: hauled over the gunwale onto her deck (%.1f s)" % t)
+	var on_deck: Node = (hold._deck.values()[0] as Node).get_node("Handle")
+	_check(await _can_look_at(me, Vector3(side * 0.2, 0.5, 1.8), on_deck, PI),
+			"skiff: from her deck you can put the crosshair on the fish")
+	var id := int(hold.fish[0]["id"])
+	hold._work(id)
+	hold._work(id)
+	await get_tree().process_frame
+	_check(float(hold.fish[0]["iced_s"]) >= 0.0 and hold._deck.is_empty(), "skiff: bled and iced into her fish box")
 
 
 ## Whether, standing at `stand` (boat-local) facing `face` (yaw), some look in a fan around it puts the crosshair on

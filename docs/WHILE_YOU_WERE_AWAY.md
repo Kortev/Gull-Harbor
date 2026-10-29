@@ -1,5 +1,16 @@
 # While you were away (newest first)
 
+## The small boat works, start to finish (tested in Godot)
+
+The skiff had never been fished from. Now the tests run a whole fish on her, and it all works:
+- **Fight:** a 161 kg fish fought up alongside from her in about 2.5 minutes (`strike_test -- --boat=skiff`).
+- **Boatside:** no wiring over her low side, so the first good harpoon throw sticks. You haul it up over the
+  gunwale (about 10 s alone), it lands on her deck, and you bleed it and ice it (`landing_test`).
+- **Alone:** with a fish on, you put the rod in its holder. The wheel is within reach of the rod corner, she turns
+  fast (about 1 rad in 1.5 s), and it's 1.5 s back to pick the rod up again, fish still on (`helm_test`).
+- Screenshots of how it looks now are in `docs/shots/now_start.png` and `docs/shots/now_outside.png` (both on the
+  skiff).
+
 ## It runs: the first time in Godot since the moving boat
 The last session couldn't run Godot, so a lot was "not run yet". This session can, so:
 - **Everything imports and every test passes:** fight, strike, rods, landing, wait (chum, baits, jig, the quota),

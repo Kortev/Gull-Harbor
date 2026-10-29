@@ -3,6 +3,7 @@ extends Node
 ## drag screaming; clear the other lines, grab the rod and fight it right (let it run, pump it up when it sounds, crank otherwise, ease off
 ## as a spiralling fish goes under her, and take a breather when your arms are gone) till it's up alongside for the
 ## harpoon, with a captain (the test's stand-in, swinging her heading) keeping the stern on it. Run: godot --headless --path . res://tests/strike_test.tscn
+## (-- --boat=skiff fights it from the small boat; the big one by default)
 
 const Sea := preload("res://sea/sea.gd")
 
@@ -12,7 +13,12 @@ var fails: Array[String] = []
 func _ready() -> void:
 	var sea := (load("res://sea/sea.tscn") as PackedScene).instantiate() as Sea
 	add_child(sea)
-	sea.fish_hold.head_out("sportfisher")           # (off the dock: nothing bites there)
+	var kind := "sportfisher"
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--boat="):
+			kind = a.trim_prefix("--boat=")
+	sea.fish_hold.owned = [kind]
+	sea.fish_hold.head_out(kind)                    # (off the dock: nothing bites there)
 	await get_tree().create_timer(0.3).timeout      # (the rods have put their baits out)
 	sea.schools.set("_next", 9999.0)
 	# a school right on the spread, crawling along it (seeded so it feeds early)
