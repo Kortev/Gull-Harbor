@@ -19,6 +19,7 @@ const LOOK := 0.0024
 const REACH := 2.5
 ## How much of the boat's pitch and roll your eyes take out (0: the camera is bolted to the deck).
 const STEADY := 0.45
+const REST := 0.03
 
 signal prompt_changed(text: String)
 
@@ -33,6 +34,8 @@ var body_mesh: MeshInstance3D
 var force_input := false
 ## A fish pulling on the rod in your hands, 0..1 (rods.gd): your view trembles with it and gets tugged toward it.
 var shake := 0.0
+## Your arms, 1 fresh .. 0 spent (tuna/fight.gd wears them in a fight; off the rod they come back at REST).
+var arms := 1.0
 ## At the wheel (boat/helm.gd): your feet stay put and the keys steer her instead.
 var steering := false
 var _yaw := 0.0
@@ -189,7 +192,7 @@ func _walk(delta: float) -> void:
 
 
 ## Every frame: your spot on deck (smoothed between physics ticks) carried by the boat as it is right now.
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	var f := Engine.get_physics_interpolation_fraction()
 	var local := _prev_local.lerp(_local, f)
 	var deck := boat.global_transform
@@ -200,6 +203,8 @@ func _process(_delta: float) -> void:
 	var eyes := tilted.slerp(level, STEADY)
 	head.global_basis = eyes * Basis(Vector3.RIGHT, _pitch)
 	if is_multiplayer_authority():
+		if shake <= 0.0:
+			arms = minf(arms + REST * delta, 1.0)     # (no fish in your hands)
 		if shake > 0.02:
 			var t := Time.get_ticks_msec() * 0.001
 			var tremble := Vector3(sin(t * 31.0) + sin(t * 13.0 + 2.0), sin(t * 23.0 + 1.0), 0.0) * 0.006 * shake

@@ -1,5 +1,20 @@
 # While you were away (newest first)
 
+## Tiring arms and handing off the rod
+- **What changed:**
+  - Cranking and heaving wear your arms. The heavier the fish, the faster: much faster for a giant.
+  - Tired arms crank slower and pump weaker, and spent arms can't heave at all.
+  - Easing off rests them a little. Off the rod they come back in about half a minute.
+  - Once they start to go, a thin inner ring round the crosshair shows them. At the end the tell says "Your arms
+    are gone! Hand it off".
+  - A crewmate can press E on the rod in your hands ("Take over the rod") and the fight carries on. Nothing resets:
+    the line out, the fish's tiredness, even the line's wear from the hull.
+- **Numbers from the fight test,** with a captain:
+  - 150 kg: one pair of arms lasts the whole fight.
+  - 450 kg: two anglers taking turns land it in about 165 s. One angler takes about 235 s and sometimes loses it.
+- **How it was checked:** the fight test (above) and `tools/net_test.sh`, where a joining friend takes over the
+  host's fish and both see the same holder. All the other tests pass.
+
 ## Question for you: what does a 4th person do during the fight?
 You asked this, and it's a fair hit. Right now a fight has two full-time jobs:
 - the angler;

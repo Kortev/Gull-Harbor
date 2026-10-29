@@ -38,6 +38,8 @@ var fight: RefCounted
 ## While nobody holds it: when it was let go (sea clock) and the line out then (it runs from there).
 var free_t := 0.0
 var free_out := 0.0
+## How worn the line is from rubbing the hull (fight.gd), kept when the rod changes hands.
+var wear := 0.0
 var _scream: AudioStreamPlayer3D
 var _whir: AudioStreamPlayer3D
 var _sing: AudioStreamPlayer3D
@@ -140,7 +142,8 @@ func _process(delta: float) -> void:
 		var t := Time.get_ticks_msec() * 0.001
 		want += Vector2(sin(t * 23.0), sin(t * 17.0 + 1.3)) * 0.02 * strain
 	_bend = _bend.lerp(want, minf(1.0, delta * 12.0))
-	_grab.collision_layer = 1 if holder == 0 else 0     # (a rod in your hands mustn't catch your own look)
+	# (a rod in your hands mustn't catch your own look; a crewmate's with a fish on, you can take over)
+	_grab.collision_layer = 1 if holder == 0 or (hooked and holder != Net.my_id()) else 0
 	_blank.set_instance_shader_parameter("bend", _bend)
 	if _handle:
 		_handle.rotate_object_local(Vector3.RIGHT, -reeling * delta * 12.0)
@@ -200,4 +203,6 @@ func _draw_line() -> void:
 func interact_prompt(player: Node) -> String:
 	if holder == 0:
 		return "GRAB IT! Fish on!" if hooked else "Grab the rod"
+	if hooked and holder != Net.my_id():
+		return "Take over the rod"
 	return ""

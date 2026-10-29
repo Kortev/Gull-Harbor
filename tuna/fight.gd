@@ -49,6 +49,9 @@ const UNDER := 2.5
 const PROP_GRACE := 0.6
 const BACK_SPEED := 2.2
 const TOW := 0.06
+const ARMS_CRANK := 0.0075      # per s cranking, x (0.2 + how outgunned, squared)
+const ARMS_HEAVE := 0.012       # per s heaving
+const ARMS_REST := 0.015        # per s back, easing off with the rod
 
 var kg := 150.0
 ## Line out from the rod tip to the fish (m), and how fresh it is (1 .. 0, played out).
@@ -67,6 +70,11 @@ var throttle := 0.0
 ## How far the angler's got the rod out over the side the fish is on, 0..1 (standing at that corner, leaning out):
 ## buys a little room before the line touches the hull, never as much as swinging the boat.
 var reach := 0.0
+## The angler's arms, 1 fresh .. 0 spent (rods.gd keeps them on the person, so they carry over and rest up
+## between fights). Cranking and heaving wear them, the heavier the fish the faster; a tired angler cranks slower
+## and pumps weaker, and with nothing left can't heave at all. Easing off rests them, slowly. A giant outlasts
+## one pair of arms: hand the rod to a crewmate.
+var arms := 1.0
 ## How worn the line is from rubbing the hull, 0..1 (1: it parts), and how hard it's rubbing right now (0..1).
 var wear := 0.0
 var chafe := 0.0
@@ -103,6 +111,8 @@ func answer() -> String:
 func tell() -> String:
 	if chafe > 0.3:
 		return "The line's on the hull!"
+	if arms < 0.25:
+		return "Your arms are gone! Hand it off"
 	return str(TELLS.get(move, ""))
 
 
@@ -120,6 +130,17 @@ func step(dt: float, crank: bool, lift: float) -> void:
 	var b := absf(wrapf(bearing, -PI, PI))
 	var back := maxf(-throttle, 0.0) * clampf(cos(b) * 1.5, 0.0, 1.0)     # (backing down only helps on a fish astern)
 	var ahead := maxf(throttle, 0.0)
+	var power := 0.35 + 0.65 * arms
+	if arms < 0.08:
+		lift = minf(lift, 0.5)
+	var heavy := 0.2 + big * big
+	if crank:
+		arms -= ARMS_CRANK * heavy * dt
+	if lift > 0.3:
+		arms -= ARMS_HEAVE * heavy * dt
+	if not crank and lift <= 0.3:
+		arms += ARMS_REST * dt
+	arms = clampf(arms, 0.0, 1.0)
 
 	# Line: the move takes it (the drag and the boat backing down slow it), the reel brings it back if the move lets
 	# you, and so does the boat coming back over it.
@@ -131,14 +152,14 @@ func step(dt: float, crank: bool, lift: float) -> void:
 			"hold":
 				gain = 0.0
 			"pump":
-				gain = minf(_pump, CRANK * dt * 1.3)
+				gain = minf(_pump, CRANK * dt * 1.3 * power)
 				_pump -= gain
 				gain += CRANK * dt * 0.12
 			_:
-				gain = CRANK * dt * (1.0 - float(m["pull"]) * 0.45 * e)
+				gain = CRANK * dt * (1.0 - float(m["pull"]) * 0.45 * e) * power
 	# a heave of the rod banks line to crank back on the way down (less, the heavier the fish)
 	if lift > 0.7 and _lift_low:
-		_pump += 3.2 / (0.6 + kg / 150.0) + 0.8
+		_pump += (3.2 / (0.6 + kg / 150.0) + 0.8) * power
 		_lift_low = false
 	elif lift < 0.3:
 		_lift_low = true

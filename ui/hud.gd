@@ -6,6 +6,7 @@ var _prompt: Label
 var _tell: Label
 var _ring: Control
 var _strain := 0.0
+var _arms := 1.0
 var _note: Label
 var _note_t := 0.0
 ## The captain's plotter (bottom middle, only at the wheel with a fish on): her outline, bow up, and each fish
@@ -114,10 +115,12 @@ func _process(delta: float) -> void:
 
 
 ## In a fight: the tell ("It's running! Let it go") and the strain 0..1 ("" and 0 when there's no fight).
-func fight(tell: String, strain: float) -> void:
+## `arms`: yours, 0..1 (a thin inner ring once they start to go).
+func fight(tell: String, strain: float, arms := 1.0) -> void:
 	_tell.text = tell
-	if absf(strain - _strain) > 0.01 or (strain == 0.0) != (_strain == 0.0):
+	if absf(strain - _strain) > 0.01 or (strain == 0.0) != (_strain == 0.0) or absf(arms - _arms) > 0.01:
 		_strain = strain
+		_arms = arms
 		_ring.queue_redraw()
 
 
@@ -126,6 +129,9 @@ func _draw_ring() -> void:
 		return
 	var col := Color(1, 1, 1, 0.5).lerp(Color(1.0, 0.2, 0.1, 0.95), smoothstep(0.5, 0.95, _strain))
 	_ring.draw_arc(Vector2.ZERO, 16.0, -PI * 0.5, -PI * 0.5 + TAU * clampf(_strain, 0.0, 1.0), 40, col, 3.0)
+	if _arms < 0.7:
+		var ac := Color(0.55, 0.8, 1.0, 0.7).lerp(Color(1.0, 0.55, 0.1, 0.9), smoothstep(0.4, 0.1, _arms))
+		_ring.draw_arc(Vector2.ZERO, 10.0, -PI * 0.5, -PI * 0.5 + TAU * clampf(_arms, 0.0, 1.0), 32, ac, 2.0)
 
 
 func follow(player: Node) -> void:

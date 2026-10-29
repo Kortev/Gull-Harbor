@@ -70,7 +70,10 @@ func request_return(i: int) -> void:
 @rpc("any_peer", "call_remote", "reliable")
 func _ask_grab(i: int) -> void:
 	var who := _sender()
-	if i < 0 or i >= rods.size() or rods[i].holder != 0 or held_by(who) != null:
+	if i < 0 or i >= rods.size() or held_by(who) != null:
+		return
+	# a free rod, or taking over a crewmate's fish (their arms are going)
+	if rods[i].holder != 0 and not rods[i].hooked:
 		return
 	var helm: Node = (sea.get("boat") as Node).get("helm")
 	if int(helm.get("captain")) == who:
@@ -99,12 +102,15 @@ func _host_set(i: int, who: int) -> void:
 @rpc("authority", "call_local", "reliable")
 func _set_holder(i: int, who: int) -> void:
 	var r := rods[i]
+	var handed := r.holder != 0 and who != 0
 	r.holder = who
 	r.fight = null
 	r.lift = 0.0
 	# let go with a fish on: it runs from where it is
 	r.free_t = _now()
 	r.free_out = r.line_out
+	if handed and r.hooked and who == Net.my_id():
+		_hud_note("You've got it!")
 
 
 ## Host: a fish takes rod i's bait.
@@ -134,6 +140,7 @@ func _strike(i: int, kg: float, t: float, bearing: float, seed_value: int) -> vo
 	r.free_t = t
 	r.free_out = r.line_out
 	r.fight = null
+	r.wear = 0.0
 	r.set_meta("seed", seed_value)
 	_hud_note("FISH ON!  The %s rod!" % ["port corner", "starboard corner", "port", "starboard"][i])
 
@@ -152,7 +159,7 @@ func _off(i: int, why: String) -> void:
 ## The holder's word on how the fight's going (any peer: the holder's own; everyone else draws it).
 @rpc("any_peer", "call_remote", "unreliable_ordered")
 func _fight_state(i: int, out: float, strain: float, bearing: float, depth: float, energy: float, lift: float,
-		move: String) -> void:
+		move: String, wear: float) -> void:
 	var r := rods[i]
 	if r.holder == multiplayer.get_remote_sender_id() and r.hooked:
 		r.line_out = out
@@ -162,6 +169,7 @@ func _fight_state(i: int, out: float, strain: float, bearing: float, depth: floa
 		r.energy = energy
 		r.lift = lift
 		r.move = move
+		r.wear = wear
 
 
 ## The holder's fight ended (lost, or boatside): the host says so to everyone.
@@ -209,12 +217,13 @@ func _sync(states: Array) -> void:
 		r.energy = float(st[6])
 		r.free_t = float(st[7])
 		r.free_out = float(st[8])
+		r.wear = float(st[9])
 
 
 func _states() -> Array:
 	var out := []
 	for r in rods:
-		out.append([r.holder, r.hooked, r.fish_kg, r.line_out, r.bearing, r.depth, r.energy, r.free_t, r.free_out])
+		out.append([r.holder, r.hooked, r.fish_kg, r.line_out, r.bearing, r.depth, r.energy, r.free_t, r.free_out, r.wear])
 	return out
 
 
@@ -288,7 +297,7 @@ func _process(delta: float) -> void:
 		# the ring is how wrong you're fighting it, not how hard it pulls (that's the rod's bend)
 		var wrong := (mine.fight as Fight).strain if mine.fight != null else 0.0
 		var tell: String = (mine.fight as Fight).tell() if mine.fight != null else str(Fight.TELLS.get(mine.move, ""))
-		hud.call("fight", tell, maxf(wrong, 0.02))
+		hud.call("fight", tell, maxf(wrong, 0.02), float(me_node.get("arms")))
 	else:
 		hud.call("fight", "", 0.0)
 	# the captain's plotter: where each fish on is, round the boat
@@ -320,13 +329,17 @@ func _fight_mine(r: Rod, delta: float, throttle: float) -> void:
 		var f := Fight.new(r.fish_kg, r.line_out, r.energy, int(r.get_meta("seed", 0)) + int(r.free_t))
 		f.bearing = r.bearing
 		f.depth = r.depth
+		f.wear = r.wear
 		f.lost.connect(func(how: String) -> void: _end_mine(r, how))
 		f.boatside.connect(func() -> void: _end_mine(r, "boatside"))
 		r.fight = f
 	var fight := r.fight as Fight
 	fight.step(delta, crank, r.lift)
+	if me != null:
+		me.set("arms", fight.arms)
 	if not r.hooked:
 		return       # (it ended this step)
+	r.wear = fight.wear
 	r.reeling = Fight.CRANK if crank and fight.answer() != "hold" else 0.0
 	r.line_out = fight.line_out
 	r.strain = maxf(fight.pull, fight.strain)
@@ -336,7 +349,7 @@ func _fight_mine(r: Rod, delta: float, throttle: float) -> void:
 	r.move = fight.move
 	if _send_in <= 0.0 and Net.in_session():
 		_send_in = 0.1
-		_fight_state.rpc(r.index, r.line_out, r.strain, r.bearing, r.depth, r.energy, r.lift, r.move)
+		_fight_state.rpc(r.index, r.line_out, r.strain, r.bearing, r.depth, r.energy, r.lift, r.move, r.wear)
 
 
 func _end_mine(r: Rod, how: String) -> void:

@@ -54,6 +54,7 @@ var schools: Schools
 var _args := {}
 var _frames := 0
 var _steered := false
+var _took := false
 var _reported := false
 
 
@@ -147,6 +148,12 @@ func _process(_delta: float) -> void:
 			_steered = true
 			Input.action_press("move_left")
 			get_tree().create_timer(1.5).timeout.connect(func() -> void: Input.action_release("move_left"))
+	if _args.has("take") and crew.me != null and not _took and Time.get_ticks_msec() > 2500:
+		# (tests/net_test.sh: once aboard, take over the crewmate's rod)
+		var i := int(_args["take"])
+		if rods.rods[i].holder != 0 and rods.rods[i].hooked:
+			_took = true
+			rods.request_grab(i)
 	if _args.has("net-report") and Time.get_ticks_msec() > int(float(_args["net-report"]) * 1000.0) \
 			and not _reported:
 		_reported = true
@@ -157,6 +164,7 @@ func _process(_delta: float) -> void:
 				Engine.get_frames_per_second(), Net.my_id(), Net.is_host(), ids, ocean.wave_time, condition,
 				"%s>%s@%.2f" % _mix, Time.get_ticks_msec() / 1000.0 + ocean.clock_offset - Time.get_unix_time_from_system(),
 				int(boat.helm.captain), boat.helm.heading])
+		print("NET rods holders=%s" % ",".join(rods.rods.map(func(r: Node) -> String: return str(r.get("holder")))))
 		for id: int in ids:
 			var p := crew.get_player(id)
 			print("  crew %d at %s (on deck %s) visible=%s layers=%d" % [id, p.global_position, p.local_position(),
