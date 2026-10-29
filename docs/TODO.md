@@ -16,6 +16,26 @@ repo, now `main`), tick it here.
 - [x] **The bluefin:** a PS1-style bluefin (`art/bluefin.py` -> `tuna/bluefin.glb`), 30-400 kg (1.25-2.96 m, from the real weight-length curve), swimming like a tuna: stiff body, the tail stalk and crescent tail beating faster as it speeds up, banking into turns (`tuna/tuna.gd`, `tuna/tuna_swim.gdshader`). The lab: `tuna/tuna_lab.tscn` (F6).
 - [x] **Hooking up:** baits out from the stern holders, schools showing (birds, busting water, leaping tuna, sonar marks: `docs/shots/school_*.png`), the reel screams, anyone grabs the rod (`tests/strike_test.tscn`).
 - [x] **The fight:** the arcade fish-moves fight (from Gull Harbor's fish_fight.gd) with tuna moves: the screaming first run, sounding deep, head shakes, circling under the boat, the death spiral; left mouse cranks, right mouse heaves (pump); a strain ring and the move's tell under the crosshair; juice: the rod bucking, the drag screaming, the reel whirring, the line singing, your view shaking (`tuna/fight.gd`, `tests/fight_test.tscn`, `tests/strike_test.tscn`).
+- [ ] **Two boats, picked by the host before heading out** (like Sea of Thieves' sloop and galleon; same tuna on both):
+  - [ ] **The small boat (the default, for 1-2):** about 28 ft, an open center console, so the wheel is a few
+    steps from the rods. Two rods out, low sides (one person can gaff a fish), turns fast and follows a fish
+    easily. Rough in a storm, and holds only one or two fish before you head in. Alone, you put the rod in the
+    holder, run to the wheel, then grab it back.
+  - [ ] **The big boat (the 46 ft, for 4) is stronger but harder:**
+    - Stronger: 4 rods (about 1.5-2x the bites), the tower to spot schools far off, heavy tackle and the fighting
+      chair, powerful backing down, a fish hold that keeps them fresh.
+    - Harder: slow to turn and to stop (she carries on after you let go); the captain can't see the fish (no
+      plotter; someone calls it); a long hull and twin props; more lines to tangle; boatside needs three hands
+      at once.
+- [ ] **Waiting for the tuna, the crew's busy** (all of it feeds the tuna fishing; skip it and you still get
+  bites, just fewer):
+  - [ ] **Catch bait:** a small rod with a string of little hooks catches mackerel (quick, easy, chill), into the
+    live well.
+  - [ ] **Tend the baits:** baits go stale, wash out, or get stolen; swap in fresh live mackerel (more bites than
+    dead bait).
+  - [ ] **Chum:** throw cut bait over the side; the slick pulls a school to the boat and keeps it there.
+  - [ ] **Spot:** up the tower you see birds and schools far off; call them to the captain.
+  - [ ] Maybe: a blue shark now and then steals a bait (cut it loose); a mako, very rarely.
 - [ ] **Green water:** spray over the bow and crests slopping over the rail in a storm; the deck streaming.
 - [x] **The bigger boat:** 46 ft with a wider cockpit, so four of you and the fighting chair have room.
 - [ ] **Crew jobs: why it takes a crew.** One person can't land a big bluefin alone; while the fish is on, everyone else has a live job that decides whether you land it, and each can rescue the others' mistakes:
