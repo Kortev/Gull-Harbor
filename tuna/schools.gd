@@ -104,6 +104,9 @@ func _strikes(delta: float) -> void:
 	for r: Node3D in spread.get("rods"):
 		on += 1 if bool(r.get("hooked")) else 0
 	var chance := 0.3 * (1.0 if on == 0 else 0.015)
+	var hold: Node = sea.get("fish_hold")
+	if hold and bool(hold.call("has_gear", "bait")):
+		chance *= 1.5           # (live bait from the well)
 	for s in schools:
 		if not s.feeding(t):
 			continue

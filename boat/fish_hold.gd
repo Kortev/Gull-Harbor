@@ -1,5 +1,10 @@
 extends Node
-## The catch: fish on deck, fish in the hold, and what the trip's worth.
+## The trip and the catch: the dock, the day, the boat, the gear, fish on deck and in the hold, and what it's worth.
+##
+## A game starts at the dock (ui/menu.gd shows it): the bank, which boat (the skiff's yours; the sportfisher can be
+## bought, or chartered for the day), gear for sale, and Head out. Out there the day runs from dawn (DAWN_H) to dusk
+## (DUSK_H) in DAY seconds, then it's night; head in whenever you like (Esc) and the catch is sold, the fuel and any
+## charter taken off, and you're back at the dock.
 ##
 ## A fish hauled aboard (tuna/landing.gd) lies across the cockpit. Bleed it (E on it), then ice it (E again: into the
 ## fish box). A bluefin's price is all in how it was handled, so the sooner the better. Heading in (the Esc menu)
@@ -11,9 +16,25 @@ extends Node
 
 const Tuna := preload("res://tuna/tuna.gd")
 const Action := preload("res://core/action.gd")
+const Kinds := preload("res://boat/kinds.gd")
 const SAVE := "user://bluefin.cfg"
 ## Dollars a kilo for a fish of quality 1 is 0.35 + 0.9 = 1.25 times this; quality 0, 0.35 times.
 const PRICE_PER_KG := 18.0
+## The day out there: real seconds from dawn to dusk, and the hours they stand for.
+const DAY := 1200.0
+const DAWN_H := 5.5
+const DUSK_H := 19.5
+## A boat you don't own, for the day (taken off the sale).
+const CHARTER := 2500
+## Gear for sale at the dock, once each (tuna/fight.gd and tuna/schools.gd ask has_gear()).
+const GEAR := {
+	"reel": {"name": "A two-speed reel", "blurb": "Winds line in a quarter faster.", "price": 3000},
+	"line": {"name": "Heavier line", "blurb": "Takes half as much again rubbing the hull, and holds a moment longer "
+			+ "at full strain.", "price": 2000},
+	"bait": {"name": "A live-bait well", "blurb": "Live bait swims better: half as many bites again.", "price": 1500},
+	"harness": {"name": "A fighting harness", "blurb": "Your back takes the load: your arms tire a third slower.",
+			"price": 2500},
+}
 ## Where fish lie on deck comes from the boat's kind (boat/kinds.gd's spots: x, y, z, and 1 across her or 0 along
 ## her), in turn; more than that and they're piled on top. Her fish box takes her kind's `hold` iced.
 
@@ -23,6 +44,13 @@ var sea: Node                 # sea/sea.gd
 var fish: Array = []
 var bank := 0
 var best := 0
+## At the dock (between trips), when she headed out (sea clock), which boat she takes, the boats and gear you own.
+var docked := true
+var trip_t0 := 0.0
+var kind := "skiff"
+var owned: Array = ["skiff"]
+var gear: Array = []
+var _dusk_noted := 0
 ## The last sale, shown till she heads back out: {lines: [[kg, grade, dollars]], total, bank, best}; empty: none.
 var sale := {}
 var _next_id := 1
@@ -50,12 +78,60 @@ func _ready() -> void:
 	_rebuild()
 
 
-## Back on your own boat after crewing for someone: your own bank, an empty hold (theirs stays theirs).
+## Back on your own boat after crewing for someone: your own bank and gear, an empty hold (theirs stays theirs),
+## at the dock.
 func _own_boat() -> void:
 	_load()
 	fish = []
 	sale = {}
+	docked = true
 	_rebuild()
+	_dock_changed(false)
+
+
+func _process(_delta: float) -> void:
+	# the light going: once at dusk, once at dark
+	if docked:
+		return
+	var t := day_fraction()
+	if t > 0.85 and _dusk_noted < 1:
+		_dusk_noted = 1
+		_note("The sun's getting low. Head in to sell before dark (Esc), or fish on into the night")
+	elif t > 1.0 and _dusk_noted < 2:
+		_dusk_noted = 2
+		_note("Night. Head in when you're ready (Esc)")
+	_tally()
+
+
+# ------------------------------------------------------------------ the day
+
+## How far through the day she is: 0 at dawn, 1 at dusk, more into the night (0 at the dock).
+func day_fraction() -> float:
+	return 0.0 if docked else maxf(_now() - trip_t0, 0.0) / DAY
+
+
+## How light it is, 0 (night) .. 1 (full day): first light at the dock, up with the sun, down at dusk.
+func daylight() -> float:
+	if docked:
+		return 0.55
+	var t := day_fraction()
+	if t < 0.08:
+		return lerpf(0.4, 1.0, t / 0.08)
+	if t < 0.85:
+		return 1.0
+	return clampf(lerpf(1.0, 0.0, (t - 0.85) / 0.2), 0.0, 1.0)
+
+
+## The time of day, "6:42 am".
+func clock_text() -> String:
+	var h := DAWN_H + (DUSK_H - DAWN_H) * day_fraction()
+	var hh := int(floorf(h)) % 24
+	var mm := int(floorf((h - floorf(h)) * 60.0))
+	return "%d:%02d %s" % [(hh + 11) % 12 + 1, mm, "am" if hh < 12 else "pm"]
+
+
+func has_gear(item: String) -> bool:
+	return gear.has(item)
 
 
 # ------------------------------------------------------------------ grading
@@ -142,9 +218,9 @@ func capacity() -> int:
 	return int(((sea.get("boat") as Node).get("spec") as Dictionary).get("hold", 12))
 
 
-## Host: heads in and sells the catch; the slip stays up till she heads back out.
+## Host: heads in and sells the catch, the fuel and any charter taken off; back at the dock with the slip up.
 func head_in() -> void:
-	if not Net.is_host():
+	if not Net.is_host() or docked:
 		return
 	var lines := []
 	var total := 0
@@ -153,20 +229,65 @@ func head_in() -> void:
 		var dollars := price(float(f["kg"]), q)
 		lines.append([float(f["kg"]), grade(q), dollars])
 		total += dollars
+	var costs := []
+	var spec: Dictionary = (sea.get("boat") as Node).get("spec")
+	costs.append(["Fuel", int(spec.get("fuel", 0))])
+	if not owned.has(kind):
+		costs.append(["Charter, %s" % str(spec.get("name", "her")), CHARTER])
+	for c: Array in costs:
+		total -= int(c[1])
 	bank += total
 	best = maxi(best, total)
-	sale = {"lines": lines, "total": total, "bank": bank, "best": best}
+	sale = {"lines": lines, "costs": costs, "total": total, "bank": bank, "best": best}
 	fish = []
+	docked = true
 	_save()
 	_host_changed()
 
 
-## Host: the slip's read, back out to the grounds.
-func head_out() -> void:
+## Host: off the dock and out to the grounds in boat `k` (or the one picked), at dawn.
+func head_out(k := "") -> void:
 	if not Net.is_host():
 		return
+	if not k.is_empty():
+		kind = k
 	sale = {}
+	docked = false
+	trip_t0 = _now()
+	(sea.get("boat") as Node).call("use_kind", kind)
+	_save()
 	_host_changed()
+
+
+## Host, at the dock: the boat she'll take.
+func pick(k: String) -> void:
+	if Net.is_host() and docked:
+		kind = k
+		(sea.get("boat") as Node).call("use_kind", kind)      # (there she is, alongside the dock)
+		_host_changed()
+
+
+## Host, at the dock: buys a boat or a piece of gear if the bank has it. False if not.
+func buy(item: String) -> bool:
+	if not Net.is_host() or not docked:
+		return false
+	var cost := 0
+	if GEAR.has(item) and not gear.has(item):
+		cost = int(GEAR[item]["price"])
+	elif Kinds.KINDS.has(item) and not owned.has(item):
+		cost = int(Kinds.KINDS[item]["price"])
+	else:
+		return false
+	if bank < cost:
+		return false
+	bank -= cost
+	if GEAR.has(item):
+		gear.append(item)
+	else:
+		owned.append(item)
+	_save()
+	_host_changed()
+	return true
 
 
 func _host_changed() -> void:
@@ -177,7 +298,8 @@ func _host_changed() -> void:
 
 
 func _state() -> Dictionary:
-	return {"fish": fish, "bank": bank, "best": best, "sale": sale, "next": _next_id}
+	return {"fish": fish, "bank": bank, "best": best, "sale": sale, "next": _next_id, "docked": docked,
+			"trip_t0": trip_t0, "kind": kind, "owned": owned, "gear": gear}
 
 
 @rpc("authority", "call_local", "reliable")
@@ -187,13 +309,28 @@ func _sync(state: Dictionary) -> void:
 	best = int(state["best"])
 	sale = state["sale"]
 	_next_id = int(state["next"])
+	var was := docked
+	docked = bool(state.get("docked", docked))
+	trip_t0 = float(state.get("trip_t0", trip_t0))
+	kind = str(state.get("kind", kind))
+	owned = state.get("owned", owned)
+	gear = state.get("gear", gear)
 	_rebuild()
+	if docked != was:
+		_dock_changed(docked)
 	if sale.is_empty():
 		_sold_noted = false
 	elif not _sold_noted:
 		_sold_noted = true
 		_note("Sold: %d fish for $%s. The slip's in the Esc menu." % [(sale["lines"] as Array).size(),
 				_money(int(sale["total"]))])
+
+
+## In to the dock, or out to the grounds: the dock screen comes up (the mouse freed for it), or goes and you're
+## aboard; the dusk notes start over.
+func _dock_changed(now_docked: bool) -> void:
+	_dusk_noted = 0
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if now_docked else Input.MOUSE_MODE_CAPTURED
 
 
 # ------------------------------------------------------------------ on deck
@@ -301,6 +438,8 @@ func _tally() -> void:
 			deck += 1
 		kg += float(f["kg"])
 	var text := "Fish box %d/%d" % [held, capacity()]
+	if not docked:
+		text = clock_text() + "   " + text
 	if deck > 0:
 		text += "   Deck %d" % deck
 	if not fish.is_empty():
@@ -325,9 +464,15 @@ func _load() -> void:
 	if cfg.load(save_path) == OK:
 		bank = int(cfg.get_value("trips", "bank", 0))
 		best = int(cfg.get_value("trips", "best", 0))
+		owned = cfg.get_value("trips", "owned", ["skiff"])
+		gear = cfg.get_value("trips", "gear", [])
+		kind = str(cfg.get_value("trips", "kind", "skiff"))
 	else:
 		bank = 0
 		best = 0
+		owned = ["skiff"]
+		gear = []
+		kind = "skiff"
 
 
 func _save() -> void:
@@ -335,6 +480,9 @@ func _save() -> void:
 	cfg.load(save_path)
 	cfg.set_value("trips", "bank", bank)
 	cfg.set_value("trips", "best", best)
+	cfg.set_value("trips", "owned", owned)
+	cfg.set_value("trips", "gear", gear)
+	cfg.set_value("trips", "kind", kind)
 	cfg.save(save_path)
 
 

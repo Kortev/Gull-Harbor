@@ -1,10 +1,13 @@
 extends CanvasLayer
-## The Esc menu: back to it, head in and sell the catch (and the slip after), host a crew, join a friend's boat,
-## leave, quit. Shown whenever the mouse is free.
+## The menu, shown whenever the mouse is free. At the dock (boat/fish_hold.gd's `docked`: a game starts there, and
+## heading in brings you back): the last trip's slip, the bank, which boat (take her, buy her, or charter her for the
+## day), the gear for sale, and Head out. Out there (Esc): back to the deck, or head in and sell the catch. Always:
+## host a crew, join a friend's boat, leave, quit.
 ## Steam first (host, invite, your Steam friends with a boat out), the join code under it as the backup.
 ## (No weather here: the sea decides that, sea/weather.gd.)
 
 const FishHold := preload("res://boat/fish_hold.gd")
+const Kinds := preload("res://boat/kinds.gd")
 
 var _panel: PanelContainer
 var _status: Label
@@ -20,25 +23,30 @@ var _steam_invite: Button
 var _friends: VBoxContainer
 var _friends_in := 0.0
 var _head_in: Button
-## The slip from the last sale (boat/fish_hold.gd's `sale`), and which sale it's showing.
-var _slip: VBoxContainer
-var _slip_of := {}
+var _back: Button
+## The dock: the slip, the bank, the boats, the gear, Head out (built again whenever any of it changes: _dock_of).
+var _dock: VBoxContainer
+var _dock_of := []
 
 
 func _ready() -> void:
 	layer = 10
 	_panel = PanelContainer.new()
 	_panel.set_anchors_preset(Control.PRESET_CENTER)
-	_panel.custom_minimum_size = Vector2(420, 0)
-	_panel.position = Vector2(-210, -170)
+	_panel.custom_minimum_size = Vector2(540, 600)
+	_panel.position = Vector2(-270, -300)
 	var box := StyleBoxFlat.new()
-	box.bg_color = Color(0.04, 0.05, 0.06, 0.88)
+	box.bg_color = Color(0.04, 0.05, 0.06, 0.9)
 	box.set_content_margin_all(18)
 	_panel.add_theme_stylebox_override("panel", box)
 	add_child(_panel)
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_panel.add_child(scroll)
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 8)
-	_panel.add_child(col)
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(col)
 	var title := Label.new()
 	title.text = "BLUEFIN"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -48,10 +56,11 @@ func _ready() -> void:
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_status.modulate = Color(0.75, 0.78, 0.8)
 	col.add_child(_status)
-	col.add_child(_button("Back to the deck", _resume))
-	_slip = VBoxContainer.new()
-	_slip.add_theme_constant_override("separation", 4)
-	col.add_child(_slip)
+	_back = _button("Back to the deck", _resume)
+	col.add_child(_back)
+	_dock = VBoxContainer.new()
+	_dock.add_theme_constant_override("separation", 6)
+	col.add_child(_dock)
 	_head_in = _button("Head in and sell the catch", func() -> void:
 		var hold := _fish_hold()
 		if hold:
@@ -161,44 +170,108 @@ func _process(_delta: float) -> void:
 	if _status.text.is_empty():
 		_status.text = "Alone on the boat." if not session else ""
 	var hold := _fish_hold()
-	var sold: Dictionary = hold.get("sale") if hold else {}
-	_head_in.visible = hold != null and Net.is_host() and sold.is_empty()
-	if sold != _slip_of:
-		_slip_of = sold.duplicate(true)
-		_fill_slip(sold)
+	var docked: bool = hold != null and bool(hold.get("docked"))
+	_back.visible = not docked
+	_head_in.visible = hold != null and Net.is_host() and not docked
+	var now := [docked, Net.is_host(), (hold.get("sale") as Dictionary).duplicate(true), hold.get("bank"),
+			hold.get("kind"), (hold.get("owned") as Array).duplicate(), (hold.get("gear") as Array).duplicate()] \
+			if hold else []
+	if now != _dock_of:
+		_dock_of = now
+		_fill_dock(hold, docked)
 
 
 func _fish_hold() -> Node:
 	return get_parent().get("fish_hold") as Node
 
 
-## The sale slip: each fish, its grade and what it fetched, the total and the bank; the skipper heads back out.
-func _fill_slip(sold: Dictionary) -> void:
-	for c in _slip.get_children():
+## The dock: the last sale's slip, the bank, the boats, the gear, and Head out (the skipper's; a crewmate sees the
+## skipper's choices and waits).
+func _fill_dock(hold: Node, docked: bool) -> void:
+	for c in _dock.get_children():
+		_dock.remove_child(c)
 		c.queue_free()
-	if sold.is_empty():
+	if hold == null or not docked:
 		return
-	var title := Label.new()
-	title.text = "SOLD AT THE DOCK"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 20)
-	_slip.add_child(title)
-	var lines: Array = sold["lines"]
-	if lines.is_empty():
-		_slip.add_child(_slip_line("Nothing in the hold this trip."))
-	for l: Array in lines:
-		_slip.add_child(_slip_line("%d kg bluefin   %s   $%s" % [roundi(float(l[0])), str(l[1]),
-				_money(int(l[2]))]))
-	_slip.add_child(_slip_line("Total  $%s" % _money(int(sold["total"])), 20))
-	_slip.add_child(_slip_line("Bank $%s   (best trip $%s)" % [_money(int(sold["bank"])), _money(int(sold["best"]))]))
-	if Net.is_host():
-		_slip.add_child(_button("Head back out", func() -> void:
-			var hold := _fish_hold()
-			if hold:
-				hold.call("head_out")
-			_resume()))
+	var skipper := Net.is_host()
+	var sold: Dictionary = hold.get("sale")
+	if not sold.is_empty():
+		_dock.add_child(_slip_line("SOLD AT THE DOCK", 20))
+		var lines: Array = sold["lines"]
+		if lines.is_empty():
+			_dock.add_child(_slip_line("Nothing in the hold this trip."))
+		for l: Array in lines:
+			_dock.add_child(_slip_line("%d kg bluefin   %s   $%s" % [roundi(float(l[0])), str(l[1]),
+					_money(int(l[2]))]))
+		for c: Array in sold.get("costs", []):
+			_dock.add_child(_slip_line("%s   -$%s" % [str(c[0]), _money(int(c[1]))]))
+		_dock.add_child(_slip_line("The trip: $%s" % _money(int(sold["total"])), 20))
+		_dock.add_child(HSeparator.new())
 	else:
-		_slip.add_child(_slip_line("The skipper takes her back out."))
+		_dock.add_child(_slip_line("AT THE DOCK", 20))
+	_dock.add_child(_slip_line("Bank $%s   (best trip $%s)" % [_money(int(hold.get("bank"))), _money(int(hold.get("best")))]))
+	# the boats
+	var bank := int(hold.get("bank"))
+	var owned: Array = hold.get("owned")
+	var picked := str(hold.get("kind"))
+	for k: String in Kinds.KINDS:
+		var spec: Dictionary = Kinds.KINDS[k]
+		var row := VBoxContainer.new()
+		var head := Label.new()
+		head.text = "%s%s, %s   (fuel $%s a trip)" % ["> " if k == picked else "", str(spec["name"]).capitalize(),
+				str(spec["title"]), _money(int(spec["fuel"]))]
+		head.add_theme_font_size_override("font_size", 17)
+		head.modulate = Color(1.0, 0.92, 0.6) if k == picked else Color(1, 1, 1)
+		row.add_child(head)
+		var blurb := Label.new()
+		blurb.text = str(spec["blurb"])
+		blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		blurb.modulate = Color(0.75, 0.78, 0.8)
+		row.add_child(blurb)
+		var buttons := HBoxContainer.new()
+		if owned.has(k):
+			var take := _button("Taking her" if k == picked else "Take her", func() -> void: hold.call("pick", k))
+			take.disabled = not skipper or k == picked
+			buttons.add_child(take)
+		else:
+			var buy := _button("Buy her: $%s" % _money(int(spec["price"])), func() -> void: hold.call("buy", k))
+			buy.disabled = not skipper or bank < int(spec["price"])
+			buttons.add_child(buy)
+			var hire := _button("Chartering her" if k == picked else "Charter her: $%s a day"
+					% _money(FishHold.CHARTER), func() -> void: hold.call("pick", k))
+			hire.disabled = not skipper or k == picked
+			buttons.add_child(hire)
+		row.add_child(buttons)
+		_dock.add_child(row)
+	_dock.add_child(HSeparator.new())
+	# the gear
+	_dock.add_child(_slip_line("The chandlery", 17))
+	var gear: Array = hold.get("gear")
+	for g: String in FishHold.GEAR:
+		var item: Dictionary = FishHold.GEAR[g]
+		var line := HBoxContainer.new()
+		var what := Label.new()
+		what.text = "%s: %s" % [str(item["name"]), str(item["blurb"])]
+		what.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		what.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		line.add_child(what)
+		if gear.has(g):
+			var have := Label.new()
+			have.text = "Aboard"
+			have.modulate = Color(0.6, 1.0, 0.6)
+			line.add_child(have)
+		else:
+			var b := _button("$%s" % _money(int(item["price"])), func() -> void: hold.call("buy", g))
+			b.disabled = not skipper or bank < int(item["price"])
+			line.add_child(b)
+		_dock.add_child(line)
+	_dock.add_child(HSeparator.new())
+	if skipper:
+		var go := _button("Head out", func() -> void: hold.call("head_out"))
+		go.add_theme_font_size_override("font_size", 22)
+		_dock.add_child(go)
+	else:
+		_dock.add_child(_slip_line("Waiting for the skipper to head out."))
 
 
 func _slip_line(text: String, size := 16) -> Label:

@@ -136,7 +136,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause"):
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event is InputEventMouseButton and (event as InputEventMouseButton).pressed \
-			and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+			and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not _at_dock():
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif event.is_action_pressed("interact") and steering:
 		(boat.get("helm") as Node).call("request", false)
@@ -210,6 +210,13 @@ func _process(delta: float) -> void:
 			var tremble := Vector3(sin(t * 31.0) + sin(t * 13.0 + 2.0), sin(t * 23.0 + 1.0), 0.0) * 0.006 * shake
 			head.global_basis = head.global_basis * Basis.from_euler(tremble + Vector3(-0.035 * shake, 0.0, 0.0))
 		_update_prompt()
+
+
+## At the dock (boat/fish_hold.gd): the dock screen's up, and a click on it mustn't put you back on deck.
+func _at_dock() -> bool:
+	var sea: Node = boat.get("sea") if boat else null
+	var hold: Node = sea.get("fish_hold") if sea else null
+	return hold != null and bool(hold.get("docked"))
 
 
 ## What you're looking at that you could press E on (null: nothing): tuna/landing.gd checks you're still on the

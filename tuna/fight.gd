@@ -87,6 +87,12 @@ var reach := 0.0
 ## tires), but nobody cranks or pumps, so between runs it neither tires nor gives line. Backing down on it wins no
 ## line either (nobody's winding in the slack): the slack only lets a headshake throw the hook.
 var in_holder := false
+## Gear from the dock (boat/fish_hold.gd, rods.gd sets these): a two-speed reel winds faster, heavier line takes more
+## rubbing and holds longer at full strain, a harness spares your arms.
+var crank_mul := 1.0
+var chafe_mul := 1.0
+var grace_add := 0.0
+var arms_mul := 1.0
 ## The angler's arms, 1 fresh .. 0 spent (rods.gd keeps them on the person, so they carry over and rest up
 ## between fights). Cranking and heaving wear them, the heavier the fish the faster, and fighting it the wrong way
 ## (cranking against a run, cranking a deep fish without pumping) much faster than the right way. Tired arms only
@@ -186,9 +192,9 @@ func step(dt: float, crank: bool, lift: float) -> void:
 	# fighting it the wrong way wears you out: cranking against its run, or a deep fish without pumping it
 	var waste := 3.0 if ans == "hold" else (2.0 if (ans == "pump" and _pump <= 0.0) or ans == "ease" else 0.7)
 	if crank:
-		arms -= ARMS_CRANK * heavy * dt * waste
+		arms -= ARMS_CRANK * heavy * dt * waste * arms_mul
 	if lift > 0.3:
-		arms -= ARMS_HEAVE * heavy * dt * (1.0 if ans == "pump" else 1.5)
+		arms -= ARMS_HEAVE * heavy * dt * (1.0 if ans == "pump" else 1.5) * arms_mul
 	if not crank and lift <= 0.3:
 		arms += ARMS_REST * dt
 	arms = clampf(arms, 0.0, 1.0)
@@ -202,13 +208,13 @@ func step(dt: float, crank: bool, lift: float) -> void:
 			"hold":
 				gain = 0.0
 			"pump":
-				gain = minf(_pump, CRANK * dt * 1.3 * power)
+				gain = minf(_pump, CRANK * crank_mul * dt * 1.3 * power)
 				_pump -= gain
-				gain += CRANK * dt * 0.12
+				gain += CRANK * crank_mul * dt * 0.12
 			"ease":
-				gain = CRANK * dt * 0.15 * power
+				gain = CRANK * crank_mul * dt * 0.15 * power
 			_:
-				gain = CRANK * dt * (1.0 - float(m["pull"]) * 0.45 * e) * power
+				gain = CRANK * crank_mul * dt * (1.0 - float(m["pull"]) * 0.45 * e) * power
 	# a heave of the rod banks line to crank back on the way down (less, the heavier the fish)
 	if lift > 0.7 and _lift_low:
 		_pump += (3.2 / (0.6 + kg / 150.0) + 0.8) * power
@@ -237,7 +243,7 @@ func step(dt: float, crank: bool, lift: float) -> void:
 	if move == "spiral":
 		chafe *= 0.5        # (deep under her, the line goes down steep and only brushes the hull)
 	target = maxf(target, 0.6 * chafe)
-	wear += chafe * (0.4 + 0.6 * pull) * dt / CHAFE_LIFE
+	wear += chafe * (0.4 + 0.6 * pull) * dt / (CHAFE_LIFE * chafe_mul)
 	if wear >= 1.0:
 		_end("chafed")
 		return
@@ -252,7 +258,7 @@ func step(dt: float, crank: bool, lift: float) -> void:
 	strain = move_toward(strain, minf(target, 1.0), dt * (2.2 if target > strain else 1.0))
 	if strain >= 0.999:
 		_over_t += dt
-		if _over_t >= STRAIN_GRACE:
+		if _over_t >= STRAIN_GRACE + grace_add:
 			_end("broke")
 			return
 	else:

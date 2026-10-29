@@ -62,6 +62,7 @@ var _frames := 0
 var _steered := false
 var _took := false
 var _reported := false
+var _last_dark := -1.0
 
 
 func _ready() -> void:
@@ -123,6 +124,9 @@ func _ready() -> void:
 	else:
 		_follow_weather()
 	add_child(Menu.new())
+	# the game itself (not a test, which builds the sea under its own node): the boat you last took, at the dock
+	if get_parent() == get_tree().root:
+		boat.use_kind(fish_hold.kind)
 	if _args.has("school"):    # (screenshots and tests: a school starts right away, <n> m off)
 		schools.set("_next", 0.0)
 		if not str(_args["school"]).is_empty():
@@ -148,6 +152,12 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	_frames += 1
 	_follow_weather()
+	# the day going by: the light redone as it changes, the sun moved
+	var dark := _dark()
+	if absf(dark - _last_dark) > 0.01:
+		_last_dark = dark
+		_apply_look()
+	_move_sun()
 	# in a storm the lightning goes for her tuna tower (sea_fx's crown, in its space: the world's)
 	sea_fx.crown = boat.global_transform * Vector3(0.0, 7.6, -1.3)
 	if _args.has("watch") and not schools.schools.is_empty():
@@ -262,9 +272,14 @@ func _apply_look() -> void:
 	var wet := lerpf(a["rain"], b["rain"], m)
 	var day_top := (a["sky"][0] as Color).lerp(b["sky"][0], m)
 	var day_hor := (a["sky"][1] as Color).lerp(b["sky"][1], m)
-	var top := Color(0.015, 0.02, 0.025) if night else day_top
-	var hor := Color(0.05, 0.06, 0.07) if night else day_hor
-	var fog := Color(0.045, 0.055, 0.065) if night else day_hor.lerp(Color(0.3, 0.33, 0.36), 0.4 * w)
+	# the day (boat/fish_hold.gd: dawn, day, dusk, night; --night pins night): night's colours blended in as it
+	# gets dark, and at dawn and dusk a warm low light, less of it the thicker the weather
+	var dark := _dark()
+	var warm := (1.0 - absf(dark - 0.45) / 0.45) * 0.45 * (1.0 - w) if dark > 0.02 and dark < 0.9 else 0.0
+	day_hor = day_hor.lerp(Color(0.92, 0.58, 0.36), clampf(warm, 0.0, 1.0))
+	var top := day_top.lerp(Color(0.015, 0.02, 0.025), dark)
+	var hor := day_hor.lerp(Color(0.05, 0.06, 0.07), dark)
+	var fog := day_hor.lerp(Color(0.3, 0.33, 0.36), 0.4 * w).lerp(Color(0.045, 0.055, 0.065), dark)
 	sky_mat.set_shader_parameter("sky_top", top)
 	sky_mat.set_shader_parameter("sky_horizon", hor)
 	sky_mat.set_shader_parameter("ground_horizon", fog)
@@ -286,14 +301,31 @@ func _apply_look() -> void:
 		# (as a storm comes in, the fog closes in toward that wall)
 		env.fog_mode = Environment.FOG_MODE_EXPONENTIAL
 		env.fog_density = lerpf(a["fog"], b["fog"], m) + 0.13 * storm
-	env.ambient_light_energy = 0.35 if night else 0.9
-	sun.light_energy = 0.0 if night else lerpf(a["sun"], b["sun"], m)
-	sun.visible = not night
+	env.ambient_light_energy = lerpf(0.9, 0.35, dark)
+	sun.light_energy = lerpf(a["sun"], b["sun"], m) * (1.0 - dark)
+	sun.light_color = Color(1.0, 0.93, 0.82).lerp(Color(1.0, 0.62, 0.38), clampf(warm * 2.0, 0.0, 1.0))
+	sun.visible = dark < 0.98
 	ocean.set_sky_color(hor.lerp(fog, 0.5))
-	sea_fx.night = 1.0 if night else 0.0
-	boat.set_lights(night or storm + _share("fog") > 0.5)
+	sea_fx.night = dark
+	boat.set_lights(dark > 0.45 or storm + _share("fog") > 0.5)
 	var rain_mat := (rain.draw_pass_1 as QuadMesh).material as StandardMaterial3D
-	rain_mat.albedo_color = Color(0.75, 0.8, 0.86, 0.22 if night else 0.38)
+	rain_mat.albedo_color = Color(0.75, 0.8, 0.86, lerpf(0.38, 0.22, dark))
+
+
+## How dark it is, 0 (full day) .. 1 (night): the day out there, or night pinned.
+func _dark() -> float:
+	if night:
+		return 1.0
+	return 1.0 - float(fish_hold.daylight()) if fish_hold != null else 0.0
+
+
+## The sun across the sky with the day: low in the east at dawn, high at noon, low in the west at dusk.
+func _move_sun() -> void:
+	if fish_hold == null or night:
+		return
+	var t := clampf(float(fish_hold.day_fraction()), 0.0, 1.0) if not fish_hold.docked else 0.04
+	var up := sin(PI * t)
+	sun.rotation_degrees = Vector3(-(5.0 + 55.0 * up), lerpf(80.0, -80.0, t), 0.0)
 
 
 func _build_world() -> void:

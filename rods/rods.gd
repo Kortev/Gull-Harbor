@@ -517,6 +517,13 @@ func _new_fight(r: Rod) -> Fight:
 	f.depth = r.depth
 	f.wear = r.wear
 	f.carry_on(r.move, r.wrong, r.turn_sign)
+	# the gear she's got from the dock
+	var hold: Node = sea.get("fish_hold")
+	if hold:
+		f.crank_mul = 1.25 if bool(hold.call("has_gear", "reel")) else 1.0
+		f.chafe_mul = 1.5 if bool(hold.call("has_gear", "line")) else 1.0
+		f.grace_add = 0.6 if bool(hold.call("has_gear", "line")) else 0.0
+		f.arms_mul = 0.67 if bool(hold.call("has_gear", "harness")) else 1.0
 	f.lost.connect(func(how: String) -> void: _end_mine(r, how))
 	f.boatside.connect(func() -> void: _end_mine(r, "boatside"))
 	r.fight = f

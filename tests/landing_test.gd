@@ -24,6 +24,10 @@ func _ready() -> void:
 	hold.save_path = "user://bluefin_test.cfg"
 	hold.bank = 0
 	hold.best = 0
+	hold.owned = ["skiff", "sportfisher"]
+	hold.head_out("sportfisher")        # (off the dock in the big boat: this test's spots are hers)
+	await get_tree().process_frame
+	_check(not hold.docked and sea.boat.kind == "sportfisher", "headed out in the sportfisher")
 	var me := sea.crew.me
 	# a 200 kg fish on rod 0, fought out: up alongside
 	sea.rods.strike(0, 200.0)
@@ -97,12 +101,20 @@ func _ready() -> void:
 	var worth := hold.worth()
 	_check(worth > 0, "it's worth $%d" % worth)
 	hold.head_in()
-	_check(hold.fish.is_empty() and int(hold.sale["total"]) == worth and hold.bank == worth,
-			"headed in: sold for $%d, banked ($%d)" % [worth, hold.bank])
+	var fuel := int(sea.boat.spec["fuel"])
+	_check(hold.fish.is_empty() and int(hold.sale["total"]) == worth - fuel and hold.bank == worth - fuel,
+			"headed in: sold for $%d less $%d fuel, banked ($%d)" % [worth, fuel, hold.bank])
 	var lines: Array = hold.sale["lines"]
 	_check(lines.size() == 1 and str(lines[0][1]).begins_with("#"), "the slip: %s" % str(lines))
+	_check(hold.docked, "and back at the dock")
+	# the dock's shop: gear you can afford, not a boat you can't
+	hold.bank = 2000
+	hold.owned = ["skiff"]
+	_check(hold.buy("bait") and hold.has_gear("bait") and hold.bank == 500, "bought a live-bait well for $1,500")
+	_check(not hold.buy("bait") and not hold.buy("sportfisher"), "not twice, and not a boat the bank can't stand")
+	hold.owned = ["skiff", "sportfisher"]
 	hold.head_out()
-	_check(hold.sale.is_empty(), "back out with an empty hold")
+	_check(hold.sale.is_empty() and not hold.docked, "back out with an empty hold")
 	# grading: handled well beats handled badly
 	var good := FishHold.quality(200.0, 100.0, 20.0, 60.0)
 	var bad := FishHold.quality(200.0, 1500.0, -1.0, -1.0)
