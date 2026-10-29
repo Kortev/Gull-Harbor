@@ -31,6 +31,8 @@ func _ready() -> void:
 			if r.hooked:
 				hooked = r.index
 	_check(hooked >= 0, "a feeding school over the spread got a bite (after %.1f s)" % waited)
+	for s in sea.schools.schools:
+		s.life = 0.0          # (one fish: no second one or tangles from it while this one's fought)
 	if hooked < 0:
 		_done()
 		return

@@ -73,11 +73,11 @@ func _ready() -> void:
 	_check(hold.well == FishHold.WELL_MAX, "not past a full well")
 	# get near a school and slow down, and it finds the baits
 	var at0: Vector2 = helm.get("at")
-	sea.schools._start(55, 11, sea.schools.now(), at0 + Vector2(0.0, -120.0), Vector2(1, 0), 1.5, 200.0, 200.0)
+	sea.schools._start(55, 11, sea.schools.now(), at0 + Vector2(0.0, -90.0), Vector2(1, 0), 1.5, 200.0, 200.0)
 	var near = sea.schools.schools[sea.schools.schools.size() - 1]
 	sea.schools._drawing()
 	_check(near.drawn_to == sea.schools.spread_heart() and near.speed == Schools.DRAW,
-			"a school 120 m off finds her baits while she's slow")
+			"a school 90 m off finds her baits while she's slow")
 	near.life = 0.0
 	await get_tree().process_frame
 	# chum: a school 350 m off comes up the slick and stays on it, working

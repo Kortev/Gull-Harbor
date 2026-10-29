@@ -85,6 +85,8 @@ var _next_id := 1
 var _deck := {}               # fish id -> its Tuna on deck
 var _sold_noted := false
 var _heard := {}              # fish id -> [bled, iced] last time (_hear_work)
+## The last game ended out at sea (quit, or the host dropped): that day's gone, settled as an empty trip (_ready).
+var _abandoned := false
 ## Where the bank's kept (tests point it somewhere else so they don't touch yours).
 var save_path := SAVE
 
@@ -109,6 +111,13 @@ func _ready() -> void:
 		if not was_host:
 			_own_boat())
 	_rebuild()
+	if _abandoned and Net.is_host():
+		# (no ducking a quota by quitting before the last day's sale: the day counts, the fuel's owed, nothing sold)
+		_abandoned = false
+		docked = false
+		head_in()
+		sale["abandoned"] = true
+		_host_changed()
 	if docked:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE     # (a game starts at the dock: its screen's up)
 
@@ -266,7 +275,7 @@ func head_in() -> void:
 		lines.append([float(f["kg"]), grade(q), dollars])
 		total += dollars
 	var costs := []
-	var spec: Dictionary = (sea.get("boat") as Node).get("spec")
+	var spec: Dictionary = Kinds.spec(kind)
 	costs.append(["Fuel", int(spec.get("fuel", 0))])
 	if not owned.has(kind):
 		costs.append(["Charter, %s" % str(spec.get("name", "her")), CHARTER])
@@ -630,7 +639,15 @@ func _load() -> void:
 			run_fish = int(cfg.get_value("run", "run_fish", 0))
 			run_biggest = float(cfg.get_value("run", "run_biggest", 0.0))
 		else:
-			_new_run()        # (a save from before the quota: a run from the start)
+			# (a save from before the quota: keep its bank, boats and gear; the first quota starts now)
+			quota_n = 1
+			quota = quota_for(1)
+			earned = 0
+			day = 1
+			run_fish = 0
+			run_biggest = 0.0
+		if bool(cfg.get_value("run", "at_sea", false)):
+			_abandoned = true
 	else:
 		best = 0
 		best_run = 0
@@ -652,6 +669,7 @@ func _save() -> void:
 	cfg.set_value("run", "run_fish", run_fish)
 	cfg.set_value("run", "run_biggest", run_biggest)
 	cfg.set_value("run", "best_run", best_run)
+	cfg.set_value("run", "at_sea", not docked)
 	cfg.save(save_path)
 
 

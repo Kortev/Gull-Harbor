@@ -255,9 +255,9 @@ func bite_odds(i: int) -> float:
 ## Whether rod i's bait wants changing: gone off, or a dead one while there's a live mackerel in the well.
 func _wants_bait(i: int) -> bool:
 	var r := rods[i]
-	if r.hooked or r.bait_in or r.tangled >= 0:
-		return false
 	var hold: Node = sea.get("fish_hold")
+	if r.hooked or r.bait_in or r.tangled >= 0 or (hold != null and bool(hold.get("docked"))):
+		return false
 	var live_in_well := hold != null and bool(hold.call("has_gear", "bait")) and int(hold.get("well")) > 0
 	return freshness(i) < STALE or (not r.live and live_in_well)
 
@@ -267,7 +267,8 @@ func _host_rebait(i: int) -> void:
 	var r := rods[i]
 	_host_line(i, true)
 	get_tree().create_timer(REBAIT).timeout.connect(func() -> void:
-		if is_instance_valid(r) and rods.has(r) and r.bait_in and not r.hooked and not fighting():
+		if is_instance_valid(r) and rods.has(r) and r.bait_in and not r.hooked and not fighting() \
+				and not bool((sea.get("fish_hold") as Node).get("docked")):
 			_host_line(r.index, false))
 
 

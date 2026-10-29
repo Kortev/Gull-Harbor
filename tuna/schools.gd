@@ -96,7 +96,7 @@ func _ready() -> void:
 			for m: int in marks:
 				_mark.rpc_id(id, m, str(marks[m]), true)
 			for s in schools:
-				_start.rpc_id(id, s.id, s.seed, s.t0, s.start, s.heading, s.speed, s.kg, s.life, s.run)
+				_start.rpc_id(id, s.id, s.seed, s.t0, s.start, s.heading, s.speed, s.kg, s.life, s.run, s.born)
 				if s.spooked_until > now():
 					_spook.rpc_id(id, s.id, s.spooked_until))
 
@@ -136,7 +136,10 @@ func _process(delta: float) -> void:
 	var env := sea.get("env") as Environment
 	if env != null and bird_mat != null:
 		# a third the sea's haze (a storm's wall of fog hides them, though)
-		var k := 0.25 if env.fog_mode == Environment.FOG_MODE_DEPTH else env.fog_density * 0.33
+		var k := 0.25 if env.fog_mode == Environment.FOG_MODE_DEPTH else env.fog_density * 0.12
+		var cam := get_viewport().get_camera_3d()
+		if cam:
+			k *= clampf(cam.fov / 75.0, 0.35, 1.0)     # (the binoculars see through the haze better)
 		bird_mat.set_shader_parameter("haze", env.fog_light_color)
 		bird_mat.set_shader_parameter("haze_k", k)
 	if Net.is_host() and not _docked():
@@ -209,23 +212,30 @@ func _drawing() -> void:
 		var c := s.center(t)
 		# the slick first (it pulls from further off), else her baits if it's near them
 		var to := Vector2.INF
+		var chummed := false
 		if slick_fresh() and c.distance_to(slick) < SLICK_PULL:
 			to = slick
+			chummed = true
 		elif fishing and c.distance_to(heart) < FIND:
 			to = heart
 		if to == Vector2.INF:
+			if s.drawn_to != Vector2.INF and not s.chummed:
+				# she's gone off and left it: it cruises on its way again
+				s.drawn_to = Vector2.INF
+				_host_steer(s, t, c, s.heading, CRUISE.x, 1e9, s.t0 + s.life - t)
 			continue
 		var d := c.distance_to(to)
-		var chummed := to == slick
 		if s.drawn_to.distance_to(to) > (8.0 if chummed else 15.0):
-			# to it, and it'll stay there working a while after it gets there
-			var travel := d / DRAW
+			# to it (quicker than she's trolling, so it catches her baits up), and it stays there working after
+			var pace := maxf(DRAW, absf(boat_speed()) + 1.5) if not chummed else DRAW
+			var travel := d / pace
 			var heading := (to - c).normalized() if d > 0.5 else s.heading
 			s.drawn_to = to
+			s.chummed = chummed
 			var life := maxf(s.t0 + s.life - t, travel + STAY) if chummed else s.t0 + s.life - t
-			_host_steer(s, t, c, heading, DRAW, travel, life)
-		elif chummed and s.t0 + s.life - t < STAY:
-			# the chum keeps coming: it keeps working
+			_host_steer(s, t, c, heading, pace, travel, life)
+		elif chummed and s.chummed and t >= s.t0 + s.run and s.t0 + s.life - t < STAY:
+			# there, and the chum keeps coming: it keeps working
 			_host_steer(s, t, c, s.heading, 0.0, 0.0, STAY + 30.0)
 
 
@@ -317,7 +327,7 @@ func _host_start() -> void:
 
 @rpc("authority", "call_local", "reliable")
 func _start(id: int, seed: int, t0: float, start: Vector2, heading: Vector2, speed: float, kg: float,
-		life := 240.0, run := 1e9) -> void:
+		life := 240.0, run := 1e9, born := -1.0) -> void:
 	var s := School.new()
 	s.id = id
 	s.seed = seed
@@ -328,7 +338,7 @@ func _start(id: int, seed: int, t0: float, start: Vector2, heading: Vector2, spe
 	s.kg = kg
 	s.life = life
 	s.run = run
-	s.born = t0
+	s.born = born if born >= 0.0 else t0
 	s.bait_only = hash1(float(seed % 977), 3.7) < BAIT_ONLY
 	s.owner_node = self
 	add_child(s)
@@ -442,6 +452,8 @@ class School extends Node3D:
 	var drawn_to := Vector2.INF
 	## Birds over little bait, no bluefin under them (from its seed: everyone agrees).
 	var bait_only := false
+	## (host) Drawn to a chum slick rather than her baits.
+	var chummed := false
 	var owner_node: Node
 	var _birds: Array[MeshInstance3D] = []
 	var _bird_seed: Array[Vector4] = []
@@ -542,13 +554,24 @@ class School extends Node3D:
 			var low := 1.0 if feed else 0.0
 			var high := 25.0 if t < spooked_until else 0.0
 			var h := lerpf(bs.y, 1.2 + bs.y * 0.25, low * (0.5 + 0.5 * sin(t * 1.3 + i))) + going * going * 60.0 + high
+			# feeding, each bird now and then folds its wings and plunges into the water, then beats back up
+			var dive := 0.0
+			if feed:
+				var cyc := fposmod(t + bs.w * 3.0, 5.0 + 3.0 * absf(bs.z))
+				dive = smoothstep(0.0, 0.5, cyc) * (1.0 - smoothstep(0.5, 1.4, cyc)) if cyc < 1.4 else 0.0
 			var spread := bs.x * (1.0 + going * 6.0)
 			var p := c + Vector3(cos(a) * spread, 0.0, sin(a) * spread)
-			p.y = float(o.call("height_at", p)) + h
+			p.y = float(o.call("height_at", p)) + lerpf(h, -0.2, dive)
 			b.position = p
 			var fwd := Vector3(-sin(a), 0.0, cos(a)) * signf(bs.z)
-			b.basis = Basis.looking_at(fwd, Vector3.UP).rotated(fwd, -0.5 * signf(bs.z)) \
-					.scaled(Vector3(1.0, 0.4 + 0.6 * absf(sin(t * 9.0 + i * 1.7)), 1.0) * speck)
+			# gliding mostly (wings held out, a little up), flapping in bursts and climbing out of a dive; folded in it
+			var burst := sin(t * 0.7 + bs.w * 5.0) > 0.55 or (dive > 0.0 and dive < 0.6)
+			var flap := (0.4 + 0.6 * absf(sin(t * 10.0 + i * 1.7))) if burst else 0.8
+			var fold := lerpf(1.0, 0.35, smoothstep(0.3, 0.8, dive))
+			var tip := -0.5 * signf(bs.z) * (1.0 - dive) + dive * 1.2          # (banked round, or nose down)
+			b.basis = Basis.looking_at(fwd, Vector3.UP).rotated(fwd, tip * (0.0 if dive > 0.3 else 1.0)) \
+					.rotated(fwd.cross(Vector3.UP).normalized(), -1.1 * dive) \
+					.scaled(Vector3(fold, flap, 1.0) * speck)
 		_gull_in -= delta
 		if _gull_in <= 0.0:
 			_gull_in = randf_range(2.0, 6.0) if feed else randf_range(6.0, 14.0)

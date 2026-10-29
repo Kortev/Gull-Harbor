@@ -108,15 +108,16 @@ func _ask_scoop_as(_who: int) -> void:
 	var lands := boat.global_transform * (stern + Vector3(randf_range(-1.0, 1.0), 0.0, THROW))
 	# the slick's heart: it sinks back through the middle of the spread
 	var schools := sea.get("schools") as Node
-	schools.call("host_chum", schools.call("spread_heart"))
+	var heart: Vector2 = schools.call("spread_heart")
+	schools.call("host_chum", heart)
 	if Net.in_session():
-		_scooped.rpc(Vector2(lands.x, lands.z))
+		_scooped.rpc(Vector2(lands.x, lands.z), heart)
 	else:
-		_scooped(Vector2(lands.x, lands.z))
+		_scooped(Vector2(lands.x, lands.z), heart)
 
 
 @rpc("authority", "call_local", "reliable")
-func _scooped(at: Vector2) -> void:
+func _scooped(at: Vector2, heart := Vector2.INF) -> void:
 	var ocean := sea.get("ocean") as Node
 	var p := Vector3(at.x, 0.0, at.y)
 	p.y = float(ocean.call("height_at", p))
@@ -124,12 +125,16 @@ func _scooped(at: Vector2) -> void:
 	_splash.pitch_scale = randf_range(1.3, 1.7)
 	_splash.play()
 	Sfx.play_point(self, _bucket.global_position if is_instance_valid(_bucket) else p, "dock.slap", 0.5, 0.8)
-	var k := _next % PATCHES
-	_next += 1
-	_patches[k].global_position = p
-	_patches[k].rotation = Vector3(0.0, randf_range(0.0, TAU), 0.0)
-	_patches[k].visible = true
-	_born[k] = _now()
+	# the slick: where it landed, and back among the baits where it's sunk to (and the tuna come)
+	for where: Vector2 in [at, heart]:
+		if where == Vector2.INF:
+			continue
+		var k := _next % PATCHES
+		_next += 1
+		_patches[k].global_position = Vector3(where.x, p.y, where.y)
+		_patches[k].rotation = Vector3(0.0, randf_range(0.0, TAU), 0.0)
+		_patches[k].visible = true
+		_born[k] = _now()
 
 
 ## The slick's patches: riding the swell, spreading, fading.

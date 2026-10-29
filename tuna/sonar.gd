@@ -51,6 +51,8 @@ func _process(delta: float) -> void:
 	if schools:
 		var at: Vector2 = schools.call("boat_at")
 		for s: Node in schools.call("near", Vector3(at.x, 0.0, at.y), REACH):
+			if bool(s.get("bait_only")):
+				continue        # (little bait under those birds: nothing big to mark)
 			var c: Vector2 = s.call("center", float(schools.call("now")))
 			var off := c.distance_to(at) / REACH
 			var depth := 12.0 + 30.0 * float(schools.call("hash1", float(int(s.get("seed")) % 977), 3.0)) + off * 10.0

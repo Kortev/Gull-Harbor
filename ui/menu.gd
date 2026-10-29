@@ -235,6 +235,9 @@ func _fill_dock(hold: Node, docked: bool) -> void:
 				int(run["fish"]), roundi(float(run["biggest"]))]))
 		_dock.add_child(_slip_line("A new start: the skiff and $%s." % _money(FishHold.START_CASH)))
 		_dock.add_child(HSeparator.new())
+	if bool(sold.get("abandoned", false)):
+		_dock.add_child(_slip_line("Last time you left her out there. That day's gone, and the fuel's still owed.",
+				15, Color(1.0, 0.75, 0.6)))
 	if not sold.is_empty():
 		_dock.add_child(_slip_line("SOLD AT THE DOCK", 20))
 		var lines: Array = sold["lines"]

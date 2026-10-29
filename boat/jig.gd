@@ -173,9 +173,8 @@ func _caught(who: int) -> void:
 	if who == Net.my_id():
 		var hold: Node = sea.get("fish_hold")
 		var hud := (sea.get("crew") as Node).get("hud") as Node
-		# (the well's count comes in the hold's own word, just behind this one)
-		hud.call("notify", "A mackerel! Into the live well (%d/%d)" % [mini(int(hold.get("well")) + 1,
-				FishHold.WELL_MAX), FishHold.WELL_MAX])
+		# (the hold's word with the new count comes just ahead of this one)
+		hud.call("notify", "A mackerel! Into the live well (%d/%d)" % [int(hold.get("well")), FishHold.WELL_MAX])
 
 
 func _speed() -> float:
