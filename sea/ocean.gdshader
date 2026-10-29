@@ -202,8 +202,9 @@ void fragment() {
 	vec2 wd = normalize(wind);
 	vec2 along = vec2(dot(q, wd), dot(q, vec2(-wd.y, wd.x)));
 	float streak = texture(noise, vec2(along.y * 0.05, along.x * 0.008)).b;
-	float streaks = 0.18 * smoothstep(0.55, 1.0, whitecaps) + 0.2 * spume + 0.2 * white;
-	foam = max(foam, step(1.0 - streaks, streak * (0.6 + 0.6 * grain)) * (1.0 - far));
+	// (thin and soft: wide hard-edged ones read as zebra stripes down a big swell's face)
+	float streaks = 0.08 * smoothstep(0.55, 1.0, whitecaps) + 0.08 * spume + 0.08 * white;
+	foam = max(foam, smoothstep(1.0 - streaks, 1.0 - streaks * 0.4, streak * (0.6 + 0.6 * grain)) * 0.8 * (1.0 - far));
 	// the spindrift: a white haze blown off the whole sea, thicker downwind of the crests
 	foam = max(foam, (spume + 0.6 * white) * (0.16 + 0.3 * smoothstep(0.3, 0.9, crest)) * (0.6 + 0.8 * grain));
 	// and a hurricane's: whole slopes downwind of the crests gone white, in drifting patches

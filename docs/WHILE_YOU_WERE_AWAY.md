@@ -16,6 +16,9 @@
     boat-sized chop that used to bury her.
   - **No hole in the sea.** The old trick cut the water away inside the boat, so a crest climbing the hull
     showed its open underside. Now the hull pushes the water down where it meets her: no hole, no underside.
+  - The storm's foam streaks are thinner and softer (wide hard-edged ones read as zebra stripes on a big
+    swell). Shots: `docs/shots/storm_cockpit_dry.png`, `storm_boat_rides_swell.png`,
+    `sea_spectrum_rain.png`, `sea_spectrum_sunny.png`.
   - `tests/hull_test.tscn` measures it over a minute: in a storm water reaches the rail 1.7% of the time (a
     slap over the transom, 0.35 m at worst); in heavy weather under 2%; in rain never.
 - **Hosting without port forwarding.** Host now asks your router to open the port by itself (UPnP, on by
