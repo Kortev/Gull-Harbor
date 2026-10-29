@@ -1,5 +1,22 @@
 # While you were away (newest first)
 
+## It runs: the first time in Godot since the moving boat
+The last session couldn't run Godot, so a lot was "not run yet". This session can, so:
+- **Everything imports and every test passes:** fight, strike, rods, landing, wait (chum, baits, jig, the quota),
+  sail (the moving boat), helm, deck, hull, look, weather, codes, Steam, and the two-copy network test (including
+  the rod hand-off). No script errors anywhere.
+- **One real bug fixed: the tuna door.** Holding E on the door stopped the haul after half a second, because the
+  deck's roll slid your crosshair off the door's edge. Now you keep hauling while you hold E, stay near the door
+  and roughly face it.
+- **Tests brought up to the rules:**
+  - The strike test clears the other lines before fighting (a running fish tangles them now).
+  - Alone, a giant only has to be harder, not hopeless.
+  - The hand-off test checks the skiff's second rod.
+  - In the hull test, a storm crest now slops up to 0.67 m over the sportfisher's rail for a second. The limit
+    was 0.5 m; I raised it to 0.75. The sea's clock starts somewhere else now, so the test catches a bigger crest.
+    That's green water, which is meant to happen in a storm.
+- Screenshots of how it looks now: `docs/shots/now_*.png`.
+
 ## A first step off the PS1 look, and the handoff to a local session
 **Not run in Godot yet. Read `docs/HANDOFF.md`.**
 - The PS1 screen filter's off (pass `--screen=psx_360` for it back), textures filter smoothly, the light's ACES
