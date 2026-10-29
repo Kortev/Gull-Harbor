@@ -12,7 +12,7 @@ repo until the new repo exists), tick it here.
 - [x] **Sea polish:** the white squares on the water are now little rain rings; big swells are shaded smooth with a hint of the PS1 facets (`facets` in ocean.gdshader), no more sawtooth.
 - [x] **The crew:** a first-person player (walk, sprint, jump, look, E to interact) on the moving deck: you walk in the boat's still "deck space" and are carried by its pose, so nobody slides or jitters (`crew/player.gd`, `tests/deck_test.tscn`).
 - [x] **Co-op:** host / join over ENet (Esc menu, or `--host` / `--join=<address>`), up to four on deck, everyone on the host's sea clock (ping/pong sync, 1 ms apart in `tools/net_test.sh`) and conditions. Steam lobbies later.
-- [ ] **The bluefin:** a tuna model (Blender), sizes 30-400 kg, how it swims.
+- [x] **The bluefin:** a PS1-style bluefin (`art/bluefin.py` -> `tuna/bluefin.glb`), 30-400 kg (1.25-2.96 m, from the real weight-length curve), swimming like a tuna: stiff body, the tail stalk and crescent tail beating faster as it speeds up, banking into turns (`tuna/tuna.gd`, `tuna/tuna_swim.gdshader`). The lab: `tuna/tuna_lab.tscn` (F6).
 - [ ] **Hooking up:** baits out from the stern holders, schools showing (birds, busting water, sonar marks), the reel screams, anyone grabs the rod.
 - [ ] **The fight:** the arcade fish-moves fight (from Gull Harbor's fish_fight.gd) with tuna moves: the screaming first run, sounding deep, circling under the boat, the death spiral; pump and reel; big juice (camera, rod, sound).
 - [ ] **Green water:** spray over the bow and crests slopping over the rail in a storm; the deck streaming.

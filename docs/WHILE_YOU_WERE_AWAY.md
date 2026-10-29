@@ -1,5 +1,18 @@
 # While you were away (newest first)
 
+## The bluefin
+- **What changed:** a real-looking Atlantic bluefin, low-poly and crunchy like the rest of the game:
+  - the body: a torpedo shape, navy-black back with a blue sheen, silver flanks with rows of pale spots, a
+    white belly;
+  - the fins: short pectorals, a low dark first dorsal, a sickle second dorsal, yellow finlets, a tall
+    crescent tail.
+  - **Sizes:** 30 to 400 kg, which works out to 1.25 to 2.96 m from the real weight-to-length curve.
+  - **Swimming:** it swims like a tuna. The body stays stiff and only the tail stalk and tail sweep, beating
+    faster the faster it goes and harder when it's working (on the line). It banks into turns.
+- **How it was checked:** `docs/shots/bluefin_sizes.png` (30, 150 and 400 kg side by side) and
+  `bluefin_laps.png`.
+- **Try it:** open `tuna/tuna_lab.tscn` and press F6. Three tuna swim laps; Minus makes them sprint.
+
 ## Co-op
 - **What changed:** up to four of you on one boat:
   - Press Esc for the menu. **Host a crew** there, and friends **Join** with your address on port 7777.
