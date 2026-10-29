@@ -19,7 +19,7 @@ repo, now `main`), tick it here.
 - [ ] **Green water:** spray over the bow and crests slopping over the rail in a storm; the deck streaming.
 - [x] **The bigger boat:** 46 ft with a wider cockpit, so four of you and the fighting chair have room.
 - [ ] **Crew jobs: why it takes a crew.** One person can't land a big bluefin alone; while the fish is on, everyone else has a live job that decides whether you land it, and each can rescue the others' mistakes:
-  - **The captain at the wheel** (E on the helm, A/D to turn, S to back down): the tuna swings round the boat; let it get too far off the stern and the line rubs the hull (strain jumps), let it get under the boat and the props cut it. Backing down on the fish wins the angler line back fast and takes the strain off: the rescue when the angler's losing.
+  - [x] **The captain at the wheel** (E on the helm, A/D to turn, S to back down): the tuna swings round the boat; let it get too far off the stern and the line rubs the hull (strain jumps), let it get under the boat and the props cut it. Backing down on the fish wins the angler line back fast and takes the strain off: the rescue when the angler's losing.
   - **The angler tires:** cranking and pumping drain your arms; tired arms crank slower and pump weaker, and a giant outlasts one person, so you hand the rod off mid-fight (anyone grabs it).
   - **Clear the other lines:** when a fish hits, the other baits are still out; a running tuna that crosses one tangles it (lost, or a fight with a tangle). Someone reels them in.
   - **Boatside, everybody:** one keeps the line tight, one grabs the leader (the wire above the hook: "wiring"), one throws the harpoon ("the stick"), then haul it in through the tuna door (a giant takes two or three pulling).

@@ -33,6 +33,8 @@ var body_mesh: MeshInstance3D
 var force_input := false
 ## A fish pulling on the rod in your hands, 0..1 (rods.gd): your view trembles with it and gets tugged toward it.
 var shake := 0.0
+## At the wheel (boat/helm.gd): your feet stay put and the keys steer her instead.
+var steering := false
 var _yaw := 0.0
 var _pitch := 0.0
 var _prompt := ""
@@ -133,6 +135,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton and (event as InputEventMouseButton).pressed \
 			and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	elif event.is_action_pressed("interact") and steering:
+		(boat.get("helm") as Node).call("request", false)
 	elif event.is_action_pressed("interact"):
 		var target := _looked_at()
 		if target:
@@ -163,6 +167,9 @@ func _state(at: Vector3, yaw: float, pitch: float) -> void:
 
 
 func _walk(delta: float) -> void:
+	if steering:
+		body.velocity = Vector3.ZERO
+		return
 	var live := force_input or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back") if live else Vector2.ZERO
 	var wish := Basis(Vector3.UP, _yaw) * Vector3(input.x, 0.0, input.y)

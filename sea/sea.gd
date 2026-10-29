@@ -5,7 +5,7 @@ extends Node3D
 ##
 ## The weather comes and goes on its own (sea/weather.gd): sunny, calm, fog, rain, heavy, storm. Nobody picks it.
 ## Screenshots: <godot> --path . -- --shot=<png> [--weather=calm|sunny|fog|rain|heavy|storm (pinned)] [--night]
-##   [--frames=<n>] [--cam=x,y,z,lookx,looky,lookz] [--look=<degrees round from aft>]
+##   [--frames=<n>] [--cam=x,y,z,lookx,looky,lookz] [--look=<degrees round from aft>] [--wheel] [--strike=<rod>]
 ## Without --cam you're one of the crew, standing in the cockpit: WASD, mouse, Shift, Space, E; Esc for the menu.
 ## Co-op: --host, or --join=<address> (or from the Esc menu).
 
@@ -53,6 +53,7 @@ var rods: Rods
 var schools: Schools
 var _args := {}
 var _frames := 0
+var _steered := false
 var _reported := false
 
 
@@ -104,6 +105,8 @@ func _ready() -> void:
 			schools.start_far = float(_args["school"])
 	if _args.has("strike"):    # (screenshots: a fish on rod <n> right away)
 		rods.strike(int(_args["strike"]), 220.0)
+	if _args.has("wheel"):     # (screenshots: start at the wheel)
+		boat.helm.request(true)
 	if _args.has("hold"):      # (screenshots: start with rod <n> in your hands)
 		rods.request_grab(int(_args["hold"]))
 	if _args.has("host"):
@@ -135,15 +138,25 @@ func _process(_delta: float) -> void:
 		at.y += ocean.height_at(Vector3(at.x, 0.0, at.z))
 		cam.global_position = at
 		cam.look_at(Vector3(v[3], v[4], v[5]))
+	if _args.has("helm") and crew.me != null and not _steered:
+		# (tests/net_test.sh: once aboard, take the wheel and swing her to port for a second and a half)
+		if boat.helm.captain == 0 and Time.get_ticks_msec() > 2500:
+			crew.me.force_input = true
+			boat.helm.request(true)
+		elif boat.helm.is_mine():
+			_steered = true
+			Input.action_press("move_left")
+			get_tree().create_timer(1.5).timeout.connect(func() -> void: Input.action_release("move_left"))
 	if _args.has("net-report") and Time.get_ticks_msec() > int(float(_args["net-report"]) * 1000.0) \
 			and not _reported:
 		_reported = true
 		# (tests/net_test.sh: who's aboard, and the sea clock, then quit)
 		var ids: Array = crew.slots.keys()
 		ids.sort()
-		print("NET fps=%d me=%d host=%s crew=%s clock=%.2f cond=%s mix=%s skew=%.3f" % [Engine.get_frames_per_second(), Net.my_id(), Net.is_host(), ids,
-				ocean.wave_time, condition, "%s>%s@%.2f" % _mix,
-				Time.get_ticks_msec() / 1000.0 + ocean.clock_offset - Time.get_unix_time_from_system()])
+		print("NET fps=%d me=%d host=%s crew=%s clock=%.2f cond=%s mix=%s skew=%.3f captain=%d heading=%.2f" % [
+				Engine.get_frames_per_second(), Net.my_id(), Net.is_host(), ids, ocean.wave_time, condition,
+				"%s>%s@%.2f" % _mix, Time.get_ticks_msec() / 1000.0 + ocean.clock_offset - Time.get_unix_time_from_system(),
+				int(boat.helm.captain), boat.helm.heading])
 		for id: int in ids:
 			var p := crew.get_player(id)
 			print("  crew %d at %s (on deck %s) visible=%s layers=%d" % [id, p.global_position, p.local_position(),
@@ -306,6 +319,7 @@ func _build_world() -> void:
 	boat = Boat.new()
 	boat.name = "Boat"
 	boat.ocean = ocean
+	boat.sea = self
 	add_child(boat)
 
 

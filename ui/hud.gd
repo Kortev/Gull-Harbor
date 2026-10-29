@@ -8,6 +8,11 @@ var _ring: Control
 var _strain := 0.0
 var _note: Label
 var _note_t := 0.0
+## The captain's plotter (bottom middle, only at the wheel with a fish on): her outline, bow up, and each fish
+## round her as a dot on its line from the stern, red where the line's on the hull.
+var _plot: Control
+var _fish: Array = []
+var _throttle := 0.0
 
 
 func _ready() -> void:
@@ -52,6 +57,48 @@ func _ready() -> void:
 	_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_note.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
 	add_child(_note)
+	_plot = Control.new()
+	_plot.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_plot.position += Vector2(0, -120)
+	_plot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_plot.draw.connect(_draw_plot)
+	add_child(_plot)
+
+
+## At the wheel: the fish on, each [bearing (rad, 0 dead astern, + to starboard), metres off, how hard it's rubbing
+## the hull 0..1], and the throttle; an empty list hides it.
+func plot(fish: Array, throttle: float) -> void:
+	if fish.is_empty() and _fish.is_empty():
+		return
+	_fish = fish
+	_throttle = throttle
+	_plot.queue_redraw()
+
+
+func _draw_plot() -> void:
+	if _fish.is_empty():
+		return
+	var r := 90.0
+	_plot.draw_circle(Vector2.ZERO, r + 6.0, Color(0.02, 0.05, 0.06, 0.45))
+	_plot.draw_arc(Vector2.ZERO, r, 0.0, TAU, 48, Color(0.6, 0.9, 0.8, 0.25), 1.0)
+	# the danger: forward of her beam the line's on the hull
+	_plot.draw_arc(Vector2.ZERO, r * 0.35, PI * 1.5 - 1.4, PI * 1.5 + 1.4, 24, Color(1.0, 0.3, 0.2, 0.35), 3.0)
+	# her, bow up
+	var hull := PackedVector2Array([Vector2(0, -22), Vector2(8, -8), Vector2(8, 14), Vector2(-8, 14), Vector2(-8, -8),
+			Vector2(0, -22)])
+	_plot.draw_polyline(hull, Color(0.9, 0.95, 0.9, 0.85), 2.0)
+	var stern := Vector2(0, 14)
+	for f: Array in _fish:
+		var b := float(f[0])
+		var d := clampf(log(1.0 + float(f[1]) / 6.0) / log(1.0 + 300.0 / 6.0), 0.12, 1.0) * r
+		var at := stern + Vector2(sin(b), cos(b)) * d
+		var hot := float(f[2])
+		var col := Color(0.95, 0.9, 0.6).lerp(Color(1.0, 0.25, 0.15), hot)
+		_plot.draw_line(stern, at, Color(col, 0.6), 1.0)
+		_plot.draw_circle(at, 5.0, col)
+	var gear := "BACKING DOWN" if _throttle < -0.2 else ("AHEAD" if _throttle > 0.2 else "neutral")
+	_plot.draw_string(ThemeDB.fallback_font, Vector2(-r, r + 22.0), gear, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 14,
+			Color(0.9, 0.95, 0.9, 0.9))
 
 
 ## A line of text at the top for a few seconds ("The host left.").

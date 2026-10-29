@@ -10,6 +10,7 @@ extends AnimatableBody3D
 ## deck is solid underfoot in any sea, nobody slides, and the network only needs boat-local positions.
 
 const Ocean := preload("res://sea/ocean.gd")
+const Helm := preload("res://boat/helm.gd")
 const MODEL := preload("res://boat/boat.glb")
 
 const LENGTH := 14.0
@@ -21,9 +22,12 @@ const PITCH_FOLLOW := 1.0
 const ROLL_FOLLOW := 0.85
 
 var ocean: Ocean
+var sea: Node            # sea/sea.gd
 var spawns: Array[Transform3D] = []      # boat-local
 var holders: Array[Transform3D] = []     # boat-local; see holder_transform()
-var helm := Transform3D.IDENTITY
+var helm_spot := Transform3D.IDENTITY   # where the captain stands (boat-local)
+## The wheel and the captain at it (boat/helm.gd): her heading.
+var helm: Helm
 var floods: Array[Light3D] = []
 var chair: Node3D
 var wheel: Node3D
@@ -32,6 +36,9 @@ var _radar: Node3D
 var deck_space: SubViewport
 var deck_root: Node3D
 var _lights_on := false
+var _wheel_turn := 0.0
+var _wheel_base := Basis.IDENTITY
+const WHEEL_AXIS := Vector3(0.0, 0.48191875, -0.87621591)
 
 
 func _ready() -> void:
@@ -57,6 +64,8 @@ func _build() -> void:
 			visual.add_child(mi)
 	chair = visual.get_node_or_null("chair") as Node3D
 	wheel = visual.get_node_or_null("wheel") as Node3D
+	if wheel:
+		_wheel_base = wheel.basis
 	_radar = visual.get_node_or_null("radar") as Node3D
 	var col_mesh := src.find_child("collider", true, false) as MeshInstance3D
 	if col_mesh:
@@ -77,7 +86,12 @@ func _build() -> void:
 			holders.append(_src_transform(e, src))
 	var h := src.find_child("helm", true, false) as Node3D
 	if h:
-		helm = _src_transform(h, src)
+		helm_spot = _src_transform(h, src)
+	helm = Helm.new()
+	helm.name = "Helm"
+	helm.boat = self
+	helm.position = wheel.position if wheel else helm_spot.origin + Vector3(0, 1.0, -0.6)
+	add_child(helm)
 	# The tower floodlights and the cockpit lights: each empty's Blender -Z (Godot -Y) is where its light points.
 	for n: String in ["flood_0", "flood_1", "deck_light_0", "deck_light_1"]:
 		var e := src.find_child(n, true, false) as Node3D
@@ -152,6 +166,11 @@ func set_lights(on: bool) -> void:
 func _process(delta: float) -> void:
 	if _radar:
 		_radar.rotate_y(delta * 2.6)
+	if wheel:
+		# the wheel turns with the captain's hands (art/boat.py: its shaft leans up toward the dash)
+		# (to port is anticlockwise from where the captain stands)
+		_wheel_turn = lerpf(_wheel_turn, -helm.steer * 2.4, minf(delta * 8.0, 1.0))
+		wheel.basis = Basis(WHEEL_AXIS, _wheel_turn) * _wheel_base
 	if ocean == null:
 		return
 	global_transform = pose()
@@ -160,9 +179,10 @@ func _process(delta: float) -> void:
 
 
 ## Where the hull sits on the swell right now: a plane fitted to the water under her (five stations along, three
-## across), the waterline at its middle, its slopes her pitch and roll. A pure function of the wave clock, so every
-## peer agrees.
+## across, turned to her heading), the waterline at its middle, its slopes her pitch and roll. A pure function of
+## the wave clock and her heading, so every peer agrees.
 func pose() -> Transform3D:
+	var turn := Basis(Vector3.UP, helm.heading if helm else 0.0)
 	var sum := 0.0
 	var sx := 0.0
 	var sz := 0.0
@@ -172,7 +192,7 @@ func pose() -> Transform3D:
 		var z := (i - 2) * LENGTH * 0.2
 		for j in 3:
 			var x := (j - 1) * BEAM * 0.4
-			var h := ocean.height_at(Vector3(x, 0.0, z))
+			var h := ocean.height_at(turn * Vector3(x, 0.0, z))
 			sum += h
 			sx += x * h
 			sz += z * h
@@ -181,7 +201,7 @@ func pose() -> Transform3D:
 	var y := sum / 15.0 - SINK
 	var pitch := atan(-sz / zz) * PITCH_FOLLOW
 	var roll := atan(sx / xx) * ROLL_FOLLOW
-	return Transform3D(Basis.from_euler(Vector3(pitch, 0.0, roll)), Vector3(0.0, y, 0.0))
+	return Transform3D(turn * Basis.from_euler(Vector3(pitch, 0.0, roll)), Vector3(0.0, y, 0.0))
 
 
 ## A rod holder's tube in world space: origin at the rim, +Z along the tube out of it.

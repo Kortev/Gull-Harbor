@@ -1,7 +1,7 @@
 extends Node
 ## Hooking up and the fight: a feeding school crosses the spread and a bait gets eaten; the line pours off with the
 ## drag screaming; grab the rod and fight it right (let it run, pump it up when it sounds, crank otherwise) till it's
-## boatside. Run: godot --headless --path . res://tests/strike_test.tscn
+## boatside, with a captain (the test's stand-in, swinging her heading) keeping the stern on it. Run: godot --headless --path . res://tests/strike_test.tscn
 
 const Sea := preload("res://sea/sea.gd")
 
@@ -43,9 +43,12 @@ func _ready() -> void:
 	_check(rod.holder == 1, "grabbed it")
 	var w := 0.0
 	var moves := {}
+	var helm: Node = sea.boat.get("helm")
 	while rod.hooked and w < 400.0:
 		await get_tree().process_frame
 		w += get_process_delta_time()
+		var b := wrapf(float(rod.bearing), -PI, PI)
+		helm.set("heading", float(helm.get("heading")) + clampf(b * 1.5, -1.0, 1.0) * 0.3 * get_process_delta_time())
 		moves[rod.move] = true
 		var ans: String = rod.fight.answer() if rod.fight != null else "reel"
 		var lift := ans == "pump" and fmod(w, 2.5) < 1.0

@@ -11,7 +11,8 @@ extends RefCounted
 ## then cranking as you drop it back, which wins line a heavy fish won't give you to cranking alone).
 
 signal move_started(move: String)
-## broke (the line parted), pulled (the hook pulled out), spooled (it took every metre)
+## broke (the line parted), pulled (the hook pulled out), spooled (it took every metre), chafed (worn through on
+## the hull), cut (it went under the boat with her props turning)
 signal lost(reason: String)
 ## Played out and up alongside: the crew's turn (the harpoon, the tuna door).
 signal boatside
@@ -37,6 +38,17 @@ const CRANK := 2.4              # m/s of line a stand-up reel winds in, flat out
 const CAPACITY := 500.0         # m of line on the reel
 const BOATSIDE := 7.0           # m of line out: alongside
 const RUN_SPEED := 9.0          # m/s, a fresh bluefin's first run
+## The boat (the captain at the wheel turns her and sets `throttle`). Swung forward of her beam, the line lies along
+## the hull and wears (CHAFE_LIFE s of full rubbing parts it); under her with the props turning, it's cut in
+## PROP_GRACE s. Backing down on a fish astern runs the boat back over it at BACK_SPEED, takes the strain off and
+## slows a run. Left alone, a big fish slowly tows her stern round to it (TOW).
+const CHAFE_FROM := 1.6
+const CHAFE_ALL := 2.4
+const CHAFE_LIFE := 14.0
+const UNDER := 2.5
+const PROP_GRACE := 0.6
+const BACK_SPEED := 2.2
+const TOW := 0.06
 
 var kg := 150.0
 ## Line out from the rod tip to the fish (m), and how fresh it is (1 .. 0, played out).
@@ -50,6 +62,14 @@ var strain := 0.0
 ## How hard it pulls right now, 0..1 (the rod).
 var pull := 0.0
 var move := ""
+## The helm: -1 backing down hard .. 0 neutral .. 1 ahead (rods.gd sets it from the captain).
+var throttle := 0.0
+## How far the angler's got the rod out over the side the fish is on, 0..1 (standing at that corner, leaning out):
+## buys a little room before the line touches the hull, never as much as swinging the boat.
+var reach := 0.0
+## How worn the line is from rubbing the hull, 0..1 (1: it parts), and how hard it's rubbing right now (0..1).
+var wear := 0.0
+var chafe := 0.0
 var move_t := 0.0
 var done := false
 var rng := RandomNumberGenerator.new()
@@ -58,6 +78,7 @@ var _len := 1.0
 var _turn_sign := 1.0
 var _over_t := 0.0
 var _slack_t := 0.0
+var _prop_t := 0.0
 var _pump := 0.0
 var _lift_low := true
 var _goal_s := 90.0
@@ -80,6 +101,8 @@ func answer() -> String:
 
 
 func tell() -> String:
+	if chafe > 0.3:
+		return "The line's on the hull!"
 	return str(TELLS.get(move, ""))
 
 
@@ -94,9 +117,14 @@ func step(dt: float, crank: bool, lift: float) -> void:
 	var e := 0.35 + 0.65 * energy
 	var big := clampf(kg / 250.0, 0.4, 1.6)        # how outgunned your tackle is
 	var ans := answer()
+	var b := absf(wrapf(bearing, -PI, PI))
+	var back := maxf(-throttle, 0.0) * clampf(cos(b) * 1.5, 0.0, 1.0)     # (backing down only helps on a fish astern)
+	var ahead := maxf(throttle, 0.0)
 
-	# Line: the move takes it (the drag slows it), the reel brings it back if the move lets you.
-	line_out += RUN_SPEED * float(m["out"]) * e * dt
+	# Line: the move takes it (the drag and the boat backing down slow it), the reel brings it back if the move lets
+	# you, and so does the boat coming back over it.
+	line_out += RUN_SPEED * float(m["out"]) * e * dt * (1.0 - 0.7 * back)
+	line_out += (1.5 * ahead - BACK_SPEED * back) * dt
 	var gain := 0.0
 	if crank:
 		match ans:
@@ -127,6 +155,23 @@ func step(dt: float, crank: bool, lift: float) -> void:
 			target = 0.0
 		_:
 			target = 0.25 * big * float(m["pull"]) if crank else 0.0
+	target = target * (1.0 - 0.6 * back) + 0.5 * ahead
+	# Off the stern and forward of the beam the line lies along the hull: it rubs, harder the flatter it lies.
+	var hd0 := sqrt(maxf(line_out * line_out - depth * depth, 0.0))
+	chafe = smoothstep(CHAFE_FROM + 0.35 * reach, CHAFE_ALL + 0.35 * reach, b) * hd0 / (hd0 + depth + 1.0)
+	target = maxf(target, 0.6 * chafe)
+	wear += chafe * (0.4 + 0.6 * pull) * dt / CHAFE_LIFE
+	if wear >= 1.0:
+		_end("chafed")
+		return
+	# Under her with the props turning: cut.
+	if b > UNDER and absf(throttle) > 0.05 and depth < 25.0 and hd0 < 35.0:
+		_prop_t += dt
+		if _prop_t >= PROP_GRACE:
+			_end("cut")
+			return
+	else:
+		_prop_t = 0.0
 	strain = move_toward(strain, minf(target, 1.0), dt * (2.2 if target > strain else 1.0))
 	if strain >= 0.999:
 		_over_t += dt
@@ -160,6 +205,8 @@ func step(dt: float, crank: bool, lift: float) -> void:
 	# Where it is: swinging round the boat, heading for its depth (never deeper than the line reaches).
 	var hd := maxf(sqrt(maxf(line_out * line_out - depth * depth, 0.0)), 1.0)
 	bearing += float(m["turn"]) * _turn_sign * dt * clampf(20.0 / hd, 0.2, 2.0)
+	# a big fish tows her stern round toward it, slowly
+	bearing -= sin(wrapf(bearing, -PI, PI)) * TOW * pull * dt
 	var want := minf(float(m["depth"]), line_out * 0.85)
 	if energy < 0.25 and line_out < 30.0:
 		want = minf(want, 3.0)

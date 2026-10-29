@@ -1,5 +1,54 @@
 # While you were away (newest first)
 
+## Question for you: what does a 4th person do during the fight?
+You asked this, and it's a fair hit. Right now a fight has two full-time jobs:
+- the angler;
+- the captain.
+
+A third person has real work, but in bursts: clearing the other lines when it hits, then the leader and the
+harpoon at the end. A fourth person mid-fight would mostly be watching. My options, best first:
+1. **The tower spotter.** Only someone up the tuna tower can see where the fish and the line are; the captain at
+   the wheel sees just the bow. The spotter calls it out over voice ("it's going under the port side!"), and the
+   captain's plotter goes away. This one is the most fun with friends talking.
+2. **Taking turns on the rod.** Arms tire, and a giant outlasts one angler. Two people share the rod, one resting.
+3. **The chair mate.** For a giant, the angler fights from the fighting chair, and someone swings the chair to keep
+   it pointed at the line. Turn it wrong and the strain climbs.
+4. **Keep fishing.** Someone keeps the other baits out and chums to hold the school; a second fish can bite (still
+   rare).
+
+My pick is 1 plus 2, with 3 only for giants. Say which you like. Until you answer, I'll build the angler's tiring
+arms (2), since it's in every version.
+
+## The captain at the wheel (and your question about just moving the rod)
+- **How it plays:**
+  - Press E on the wheel to take it.
+  - A/D swing her round. She really turns: the sea, the sky and the baits all swing.
+  - Hold S to back down, W to go ahead. E or Q leaves the wheel. The captain can't hold a rod.
+  - At the wheel you get a small plotter: her outline, bow up, and each fish on its line from the stern.
+- **Why it matters:**
+  - **The hull:** let the fish swing forward of her beam and the line lies along the hull and wears through
+    ("The line chafed through on the hull!"). Swing the stern to the fish to clear it.
+  - **Backing down:** on a fish astern this runs the boat back over it. It wins line, takes the strain off and
+    slows a run. It roughly halves the fight and saves you from being spooled.
+  - **The props:** back down (or go ahead) while the fish is under the boat and the props cut the line.
+  - Left alone, a big fish slowly tows her stern round to it, so a solo angler still has a chance.
+- **Your question: can't the angler just move the rod?** Partly, and that's in too.
+  - Stand out at the corner the fish is on and the line clears the hull a bit longer.
+  - But a rod only reaches over the side, so once the fish goes forward of the beam only turning the boat
+    fixes it.
+- **Numbers from the fight test,** played perfectly:
+
+  | Fish | Alone | With a captain |
+  | --- | --- | --- |
+  | 150 kg | 17 of 20 landed | 20 of 20, twice as fast |
+  | 300 kg | 13 of 20 | 20 of 20 |
+  | 450 kg | 4 of 20 | 20 of 20 |
+- **How it was checked:**
+  - `tests/helm_test.tscn`: take the wheel, steer, the fish swings, back down, leave the wheel.
+  - `tools/net_test.sh`: your friend steers and you see the same heading.
+  - All the other tests pass too.
+  - Screenshot: `docs/shots/captain_at_the_wheel.png`.
+
 ## A bigger boat: 46 ft
 - She's 14 m long and 4.8 m across (was 12.5 by 4.3), so the cockpit is about 0.75 m longer and half a metre wider.
   That's room for four of you round the fighting chair.

@@ -16,11 +16,13 @@ const STERN := Vector3(0.0, 0.0, 7.05)
 ## How fast a fish on an unattended rod strips line (m/s, fresh): nobody to stop it, the reel's empty in half a minute.
 const FREE_RUN := 16.0
 const WHY := {"broke": "The line parted!", "pulled": "Pulled the hook!",
-		"spooled": "Spooled! It took every metre of line."}
+		"spooled": "Spooled! It took every metre of line.", "chafed": "The line chafed through on the hull!",
+		"cut": "It went under the boat: the props cut the line!"}
 
 var sea: Node                 # sea/sea.gd
 var rods: Array[Rod] = []
 var _send_in := 0.0
+var _last_heading := 0.0
 
 
 func _ready() -> void:
@@ -70,6 +72,9 @@ func _ask_grab(i: int) -> void:
 	var who := _sender()
 	if i < 0 or i >= rods.size() or rods[i].holder != 0 or held_by(who) != null:
 		return
+	var helm: Node = (sea.get("boat") as Node).get("helm")
+	if int(helm.get("captain")) == who:
+		return        # (the captain's hands are on the wheel)
 	_host_set(i, who)
 
 
@@ -228,6 +233,11 @@ func _process(delta: float) -> void:
 	var me := Net.my_id()
 	var mine: Rod = null
 	_send_in -= delta
+	# the captain swinging her round swings every fish's bearing the other way (they stay where they are)
+	var helm: Node = boat.get("helm")
+	var heading := float(helm.get("heading"))
+	var turned := wrapf(heading - _last_heading, -PI, PI)
+	_last_heading = heading
 	for r in rods:
 		if r.hooked:
 			if r.holder == 0:
@@ -236,14 +246,19 @@ func _process(delta: float) -> void:
 				r.line_out = r.free_out + FREE_RUN * e * maxf(t - r.free_t, 0.0)
 				r.strain = 0.95
 				r.reeling = 0.0
-				r.bearing += delta * 0.05
+				r.bearing += delta * 0.05 - turned
 				r.depth = move_toward(r.depth, 15.0, delta * 3.0)
 				r.energy = minf(r.energy + delta * 0.01, 1.0)
 				if Net.is_host() and r.line_out >= Fight.CAPACITY:
 					_host_off(r.index, WHY["spooled"])
 			elif r.holder == me:
 				mine = r
-				_fight_mine(r, delta)
+				if r.fight != null:
+					(r.fight as Fight).bearing -= turned
+				r.bearing -= turned
+				_fight_mine(r, delta, float(helm.get("throttle")))
+			else:
+				r.bearing -= turned     # (till their next word, which has it)
 			# (someone else's: their peer sends how it's going)
 		else:
 			r.strain = 0.05
@@ -272,13 +287,30 @@ func _process(delta: float) -> void:
 	if mine != null and mine.hooked:
 		# the ring is how wrong you're fighting it, not how hard it pulls (that's the rod's bend)
 		var wrong := (mine.fight as Fight).strain if mine.fight != null else 0.0
-		hud.call("fight", str(Fight.TELLS.get(mine.move, "")), maxf(wrong, 0.02))
+		var tell: String = (mine.fight as Fight).tell() if mine.fight != null else str(Fight.TELLS.get(mine.move, ""))
+		hud.call("fight", tell, maxf(wrong, 0.02))
 	else:
 		hud.call("fight", "", 0.0)
+	# the captain's plotter: where each fish on is, round the boat
+	var fish := []
+	if bool(helm.call("is_mine")):
+		for r in rods:
+			if r.hooked:
+				var hd := sqrt(maxf(r.line_out * r.line_out - r.depth * r.depth, 0.0))
+				var b := absf(wrapf(r.bearing, -PI, PI))
+				fish.append([r.bearing, hd, smoothstep(Fight.CHAFE_FROM, Fight.CHAFE_ALL, b)])
+		if not fish.is_empty() and mine == null:
+			var worst := 0.0
+			for f: Array in fish:
+				worst = maxf(worst, float(f[2]))
+			hud.call("fight", "Keep the stern on it!" if worst < 0.3 else "It's on the hull! Swing her stern to it!",
+					0.0)
+	hud.call("plot", fish, float(helm.get("throttle")))
 
 
 ## Your rod with a fish on: you fight it here (left mouse cranks, right mouse heaves the rod up) and tell the rest.
-func _fight_mine(r: Rod, delta: float) -> void:
+## `throttle`: the captain's (fight.gd: backing down on it helps).
+func _fight_mine(r: Rod, delta: float, throttle: float) -> void:
 	var me := (sea.get("crew") as Node).get("me") as Node
 	var live := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or (me != null and bool(me.get("force_input")))
 	var crank := live and Input.is_action_pressed("use_primary")
