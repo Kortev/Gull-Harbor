@@ -43,13 +43,13 @@ repo, now `main`), tick it here.
     - Harder: slow to turn and to stop (she carries on after you let go); the captain can't see the fish (no
       plotter; someone calls it); a long hull and twin props; more lines to tangle; boatside needs three hands
       at once.
-- [ ] **Waiting for the tuna, the crew's busy** (all of it feeds the tuna fishing; skip it and you still get
+- [x] **Waiting for the tuna, the crew's busy** (chum, baits going off, the jig and the live well; not yet played) (all of it feeds the tuna fishing; skip it and you still get
   bites, just fewer):
-  - [ ] **Catch bait:** a small rod with a string of little hooks catches mackerel (quick, easy, chill), into the
+  - [x] **Catch bait:** a small rod with a string of little hooks catches mackerel (quick, easy, chill), into the
     live well.
-  - [ ] **Tend the baits:** baits go stale, wash out, or get stolen; swap in fresh live mackerel (more bites than
+  - [x] **Tend the baits:** baits go stale, wash out, or get stolen; swap in fresh live mackerel (more bites than
     dead bait).
-  - [ ] **Chum:** throw cut bait over the side; the slick pulls a school to the boat and keeps it there.
+  - [x] **Chum:** throw cut bait over the side; the slick pulls a school to the boat and keeps it there.
   - [ ] **Spot:** up the tower you see birds and schools far off; call them to the captain.
   - [ ] Maybe: a blue shark now and then steals a bait (cut it loose); a mako, very rarely.
 - [ ] **Green water:** spray over the bow and crests slopping over the rail in a storm; the deck streaming.
@@ -57,12 +57,12 @@ repo, now `main`), tick it here.
 - [ ] **Crew jobs: why it takes a crew.** One person can't land a big bluefin alone; while the fish is on, everyone else has a live job that decides whether you land it, and each can rescue the others' mistakes:
   - [x] **The captain at the wheel** (E on the helm, A/D to turn, S to back down): the tuna swings round the boat; let it get too far off the stern and the line rubs the hull (strain jumps), let it get under the boat and the props cut it. Backing down on the fish wins the angler line back fast and takes the strain off: the rescue when the angler's losing.
   - [x] **The angler tires:** cranking and pumping drain your arms; tired arms crank slower and pump weaker, and a giant outlasts one person, so you hand the rod off mid-fight (anyone grabs it).
-  - **Clear the other lines:** when a fish hits, the other baits are still out; a running tuna that crosses one tangles it (lost, or a fight with a tangle). Someone reels them in.
+  - [x] **Clear the other lines:** when a fish hits, the other baits are still out; a running tuna that crosses one tangles it (lost, or a fight with a tangle). Someone reels them in.
   - [x] **Boatside:** the beaten fish lies astern; someone grabs the harpoon (along the port side) and sticks it,
     then it's hauled in through a tuna door in the transom (hold E; alone a giant takes about 20 s, two or three
     make it quick). Leave it unstuck for 90 s and the hook pulls (`tuna/landing.gd`, `tests/landing_test.tscn`).
     Not yet played in Godot.
-  - **Boatside, still to do:** one keeps the line tight while one grabs the leader (the wire above the hook:
+  - [x] **Boatside, wiring:** one keeps the line tight while one grabs the leader (the wire above the hook:
     "wiring") before the stick, so it really takes three hands on the big boat.
   - [x] **After:** bleed it and ice it (E on the fish on deck, then E again into the fish box) for a better grade
     (`boat/fish_hold.gd`).

@@ -25,6 +25,8 @@ const Radar := preload("res://tuna/radar.gd")
 const Weather := preload("res://sea/weather.gd")
 const Landing := preload("res://tuna/landing.gd")
 const FishHold := preload("res://boat/fish_hold.gd")
+const Chum := preload("res://boat/chum.gd")
+const Jig := preload("res://boat/jig.gd")
 
 ## How rough the sea is (ocean.gd: 0 calm, 0.5 rain, 1 storm), the sun, and how thick the fog.
 const CONDITIONS := {
@@ -57,6 +59,9 @@ var schools: Schools
 ## Boatside to the deck (the harpoon, the tuna door), and the catch (on deck, in the hold, the money).
 var landing: Landing
 var fish_hold: FishHold
+## While you wait: the chum bucket, and the mackerel jig for the live well.
+var chum: Chum
+var jig: Jig
 var _args := {}
 var _frames := 0
 var _steered := false
@@ -97,6 +102,14 @@ func _ready() -> void:
 	schools.name = "Schools"
 	schools.sea = self
 	add_child(schools)
+	chum = Chum.new()
+	chum.name = "Chum"
+	chum.sea = self
+	add_child(chum)
+	jig = Jig.new()
+	jig.name = "Jig"
+	jig.sea = self
+	add_child(jig)
 	var sonar := Sonar.new()
 	sonar.name = "Sonar"
 	sonar.schools = schools

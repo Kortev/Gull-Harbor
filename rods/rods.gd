@@ -20,6 +20,14 @@ const WHY := {"broke": "The line parted! Too much strain: when the ring goes red
 const TANGLE_EVERY := 1.0
 const TANGLE_CHANCE := 0.2
 const BAITS_BACK := 20.0
+## A bait out goes off: washed out, chewed by little fish, swimming tired (s till it's no good: a dead bait, a live
+## mackerel); worse than STALE and it's worth putting a fresh one on (E on the rod: in, a new one, out in REBAIT s).
+## A fresh live bait gets LIVE_BITES times the bites; a washed-out one a quarter of a fresh one's.
+const BAIT_LIFE := 300.0
+const LIVE_LIFE := 600.0
+const STALE := 0.5
+const REBAIT := 4.0
+const LIVE_BITES := 1.5
 
 var sea: Node                 # sea/sea.gd
 var rods: Array[Rod] = []
@@ -76,6 +84,7 @@ func _lay_out() -> void:
 		r.name = "Rod%d" % i
 		r.index = i
 		r.spread = self
+		r.baited_t = _now()
 		add_child(r)
 		rods.append(r)
 
@@ -135,6 +144,9 @@ func _ask_grab(i: int) -> void:
 		if not fighting() and rods[i].bait_in:
 			_host_line(i, false)
 			return
+		if not fighting() and _wants_bait(i):
+			_host_rebait(i)
+			return
 	var helm: Node = (sea.get("boat") as Node).get("helm")
 	if int(helm.get("captain")) == who:
 		return        # (the captain's hands are on the wheel)
@@ -186,16 +198,21 @@ func fighting() -> bool:
 	return false
 
 
-## Host: rod i's line reeled in (cleared: no bait out, any tangle off it), or its bait put back out.
+## Host: rod i's line reeled in (cleared: no bait out, any tangle off it), or a fresh bait put back out on it (a live
+## mackerel if there's one in the well).
 func _host_line(i: int, reel_in: bool) -> void:
+	var live := false
+	if not reel_in:
+		var hold: Node = sea.get("fish_hold")
+		live = hold != null and bool(hold.call("host_take_live"))
 	if Net.in_session():
-		_line.rpc(i, reel_in)
+		_line.rpc(i, reel_in, _now(), live)
 	else:
-		_line(i, reel_in)
+		_line(i, reel_in, _now(), live)
 
 
 @rpc("authority", "call_local", "reliable")
-func _line(i: int, reel_in: bool) -> void:
+func _line(i: int, reel_in: bool, t := 0.0, live := false) -> void:
 	if i < 0 or i >= rods.size():
 		return
 	var r := rods[i]
@@ -205,6 +222,62 @@ func _line(i: int, reel_in: bool) -> void:
 		Sfx.play_point(self, r.global_position, "dock.reel", 0.9, 1.2 if reel_in else 0.9)
 	r.bait_in = reel_in
 	r.tangled = -1
+	if not reel_in:
+		r.baited_t = t
+		r.live = live
+
+
+## How good rod i's bait still is, 1 (just on) .. 0 (washed out).
+func freshness(i: int) -> float:
+	if i < 0 or i >= rods.size():
+		return 0.0
+	var r := rods[i]
+	return clampf(1.0 - (_now() - r.baited_t) / (LIVE_LIFE if r.live else BAIT_LIFE), 0.0, 1.0)
+
+
+## How readily rod i's bait gets eaten (tuna/schools.gd), against a fresh dead bait's 1.
+func bite_odds(i: int) -> float:
+	if i < 0 or i >= rods.size() or rods[i].bait_in:
+		return 0.0
+	return (0.25 + 0.75 * freshness(i)) * (LIVE_BITES if rods[i].live else 1.0)
+
+
+## Whether rod i's bait wants changing: gone off, or a dead one while there's a live mackerel in the well.
+func _wants_bait(i: int) -> bool:
+	var r := rods[i]
+	if r.hooked or r.bait_in or r.tangled >= 0:
+		return false
+	var hold: Node = sea.get("fish_hold")
+	var live_in_well := hold != null and bool(hold.call("has_gear", "bait")) and int(hold.get("well")) > 0
+	return freshness(i) < STALE or (not r.live and live_in_well)
+
+
+## Host: rod i's bait changed: reeled in, a fresh one on, out again REBAIT s later (unless a fish came on meanwhile).
+func _host_rebait(i: int) -> void:
+	var r := rods[i]
+	_host_line(i, true)
+	get_tree().create_timer(REBAIT).timeout.connect(func() -> void:
+		if is_instance_valid(r) and rods.has(r) and r.bait_in and not r.hooked and not fighting():
+			_host_line(r.index, false))
+
+
+## The E prompt on an idle rod (rod.gd): rebait it if it wants it, else just grab it.
+func rebait_prompt(i: int) -> String:
+	if not _wants_bait(i):
+		return "Grab the rod"
+	if freshness(i) < STALE:
+		return "Rebait: this one's washed out"
+	return "Rebait with a live mackerel"
+
+
+## For the HUD while nothing else wants doing: a bait gone off.
+func hint() -> String:
+	if fighting():
+		return ""
+	for r in rods:
+		if not r.hooked and not r.bait_in and r.tangled < 0 and freshness(r.index) < STALE:
+			return "The %s bait's washed out: E on that rod to rebait" % _name_of(r.index)
+	return ""
 
 
 @rpc("authority", "call_local", "reliable")
@@ -401,11 +474,11 @@ func host_clear() -> void:
 			_host_line(r.index, true)
 
 
-## Host, heading out: every bait out.
+## Host, heading out: a fresh bait out on every rod.
 func host_baits_out() -> void:
 	_quiet = 0.0
 	for r in rods:
-		if not r.hooked and (r.bait_in or r.tangled >= 0):
+		if not r.hooked:
 			_host_line(r.index, false)
 
 
@@ -453,13 +526,15 @@ func _sync(states: Array) -> void:
 		r.alongside = bool(st[10])
 		r.bait_in = bool(st[11])
 		r.tangled = int(st[12])
+		r.baited_t = float(st[13])
+		r.live = bool(st[14])
 
 
 func _states() -> Array:
 	var out := []
 	for r in rods:
 		out.append([r.holder, r.hooked, r.fish_kg, r.line_out, r.bearing, r.depth, r.energy, r.free_t, r.wear, r.move,
-				r.alongside, r.bait_in, r.tangled])
+				r.alongside, r.bait_in, r.tangled, r.baited_t, r.live])
 	return out
 
 
@@ -559,6 +634,8 @@ func _process(delta: float) -> void:
 		var todo := str(landing.call("hint"))
 		if todo.is_empty():
 			todo = str((sea.get("fish_hold") as Node).call("hint"))
+		if todo.is_empty() and not bool((sea.get("fish_hold") as Node).get("docked")):
+			todo = hint()
 		hud.call("fight", todo, 0.0)
 	# the captain's plotter: where each fish on is, round the boat
 	var fish := []

@@ -1,5 +1,30 @@
 # While you were away (newest first)
 
+## Things to do while you wait, crew jobs, sounds, and fixes
+**Not run in Godot yet.** New test: `tests/wait_test.tscn`.
+- **Chum** (`boat/chum.gd`): a bucket on her transom (24 scoops a trip). E throws a scoop: a splash astern and a
+  brown slick spreading on the water. The slick sinks back through the baits, and a school within about 450 m of
+  it comes up it and stays there working while you keep the chum coming (a scoop a minute or so); new schools turn
+  up nearer it too. So you can sit on a spot and bring them to you instead of chasing birds.
+- **Baits go off:** a dead bait's no good after about 5 minutes (a live one 10); a washed-out bait gets a quarter
+  of the bites. The HUD tells you when one's gone ("The port corner bait's washed out"); E on that rod reels it in
+  and puts a fresh one out a few seconds later (E on a fresh one still picks the rod up).
+- **Live bait and the jig** (`boat/jig.gd`): the live-bait well now holds mackerel: four aboard each trip, up to
+  eight. Baits go out live while there are any (half as many bites again, and they last twice as long). Run low?
+  Hold E on the light jig rod in the gunwale (slowed right down) and a mackerel comes up every few seconds, into
+  the well. The tally shows the chum and live bait left.
+- **Crew jobs:** while a fish is on, the other lines can tangle in it (a running fish crossing one): E on each other
+  rod reels it in ("clear the lines"); a tangle left alone saws the line through. On the sportfisher a fish
+  alongside must be wired (someone holds E at the tuna door: grab the leader) before the harpoon will stick it; the
+  skiff's low enough to reach it as it is.
+- **Sounds:** the harpoon's throw and stick, wiring, the fish coming aboard, bleeding (a wet slap), the fish box
+  lid, the till at the sale, the chandlery, lines reeled in and out, tangles, chum, mackerel.
+- **Fixes from a review:** nothing bites at the dock any more (fish were biting while you sat on the dock screen);
+  heading in cuts loose whatever's on and the baits go fresh when you head out; a friend joining no longer loses
+  track of who has the wheel; leaving a crew puts you at the dock on your own boat with the mouse free; tests use
+  their own save, never yours; the net test works on the skiff; the skiff's fish is lifted over the gunwale (it
+  went through the hull), and lightning goes for her T-top.
+
 ## The skiff, the dock and the day, gear, and a real crew
 **Not run in Godot yet.** Open the project in the editor once before running anything: it has two new models to
 import (`boat/skiff.glb`, `crew/crew.glb`). Blender works in this session now (its Python module, rendering on the
@@ -14,7 +39,7 @@ CPU), so the new art was checked in renders before it went in.
   boat's lights come on at dark, the clock's top left, and you get a word at dusk and at dark. Head in whenever
   (Esc): the catch sells, fuel comes off ($60 the skiff, $400 the sportfisher) and any charter, back to the dock.
 - **Gear** (the chandlery, once each, kept): a two-speed reel (winds a quarter faster, $3,000), heavier line (half
-  again on the hull and longer at full strain, $2,000), a live-bait well (half as many bites again, $1,500), a
+  again on the hull and longer at full strain, $2,000), a live-bait well (live mackerel: see above, $1,500), a
   fighting harness (arms tire a third slower, $2,500).
 - **The crew** (`art/crew.py`): a deckhand in oilskins, a navy hoodie, a red beanie, shades and stubble, orange
   gloves, white deck boots, each crew member's oilskins their own colour (yellow, orange, green, red). Legs and

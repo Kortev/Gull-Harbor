@@ -50,6 +50,9 @@ var alongside := false
 ## running fish has its line tangled (-1: none).
 var bait_in := false
 var tangled := -1
+## The bait on it: when it went out (sea clock) and whether it's a live mackerel from the well (rods.gd's freshness).
+var baited_t := 0.0
+var live := false
 var _scream: AudioStreamPlayer3D
 var _whir: AudioStreamPlayer3D
 var _sing: AudioStreamPlayer3D
@@ -224,7 +227,9 @@ func interact_prompt(player: Node) -> String:
 			return "Clear the tangle! (reel it in)"
 		if bool(spread.call("fighting")):
 			return "" if bait_in else "Reel it in (clear the lines)"
-		return "Put the bait back out" if bait_in else "Grab the rod"
+		if bait_in:
+			return "Put the bait back out"
+		return str(spread.call("rebait_prompt", index))
 	if hooked and holder != Net.my_id():
 		return "Take over the rod"
 	return ""

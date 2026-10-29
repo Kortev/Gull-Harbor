@@ -33,10 +33,16 @@ const GEAR := {
 	"reel": {"name": "A two-speed reel", "blurb": "Winds line in a quarter faster.", "price": 3000},
 	"line": {"name": "Heavier line", "blurb": "Takes half as much again rubbing the hull, and holds a moment longer "
 			+ "at full strain.", "price": 2000},
-	"bait": {"name": "A live-bait well", "blurb": "Live bait swims better: half as many bites again.", "price": 1500},
+	"bait": {"name": "A live-bait well", "blurb": "Keeps mackerel alive: four aboard each trip, and the ones you jig. "
+			+ "A live bait gets half as many bites again and lasts twice as long.", "price": 1500},
 	"harness": {"name": "A fighting harness", "blurb": "Your back takes the load: your arms tire a third slower.",
 			"price": 2500},
 }
+## Bait for the trip: live mackerel in the well (with the well: WELL_START each trip, WELL_MAX jigged), and scoops
+## of chum in the bucket (CHUM each trip: boat/chum.gd).
+const WELL_START := 4
+const WELL_MAX := 8
+const CHUM := 24
 ## Where fish lie on deck comes from the boat's kind (boat/kinds.gd's spots: x, y, z, and 1 across her or 0 along
 ## her), in turn; more than that and they're piled on top. Her fish box takes her kind's `hold` iced.
 
@@ -52,6 +58,9 @@ var trip_t0 := 0.0
 var kind := "skiff"
 var owned: Array = ["skiff"]
 var gear: Array = []
+## This trip's live mackerel in the well, and scoops of chum left.
+var well := 0
+var chum := 0
 var _dusk_noted := 0
 ## The last sale, shown till she heads back out: {lines: [[kg, grade, dollars]], total, bank, best}; empty: none.
 var sale := {}
@@ -266,6 +275,8 @@ func head_out(k := "") -> void:
 	sale = {}
 	docked = false
 	trip_t0 = _now()
+	well = WELL_START if has_gear("bait") else 0
+	chum = CHUM
 	(sea.get("boat") as Node).call("use_kind", kind)
 	_save()
 	_host_changed()
@@ -304,6 +315,33 @@ func buy(item: String) -> bool:
 	return true
 
 
+## Host: a live mackerel out of the well for a bait (false: none, or no well).
+func host_take_live() -> bool:
+	if docked or not has_gear("bait") or well <= 0:
+		return false
+	well -= 1
+	_host_changed()
+	return true
+
+
+## Host: a jigged mackerel into the well (false: no well, or it's full).
+func host_add_live() -> bool:
+	if docked or not has_gear("bait") or well >= WELL_MAX:
+		return false
+	well += 1
+	_host_changed()
+	return true
+
+
+## Host: a scoop of chum out of the bucket (false: it's empty).
+func host_take_chum() -> bool:
+	if docked or chum <= 0:
+		return false
+	chum -= 1
+	_host_changed()
+	return true
+
+
 func _host_changed() -> void:
 	if Net.in_session():
 		_sync.rpc(_state())
@@ -313,7 +351,7 @@ func _host_changed() -> void:
 
 func _state() -> Dictionary:
 	return {"fish": fish, "bank": bank, "best": best, "sale": sale, "next": _next_id, "docked": docked,
-			"trip_t0": trip_t0, "kind": kind, "owned": owned, "gear": gear}
+			"trip_t0": trip_t0, "kind": kind, "owned": owned, "gear": gear, "well": well, "chum": chum}
 
 
 @rpc("authority", "call_local", "reliable")
@@ -330,6 +368,8 @@ func _sync(state: Dictionary) -> void:
 	kind = str(state.get("kind", kind))
 	owned = state.get("owned", owned)
 	gear = state.get("gear", gear)
+	well = int(state.get("well", well))
+	chum = int(state.get("chum", chum))
 	_rebuild()
 	if docked != was:
 		_dock_changed(docked)
@@ -476,6 +516,8 @@ func _tally() -> void:
 		text += "   Deck %d" % deck
 	if not fish.is_empty():
 		text += "   %d kg, worth about $%s" % [roundi(kg), _money(worth())]
+	if not docked:
+		text += "\nChum %d" % chum + ("   Live bait %d/%d" % [well, WELL_MAX] if has_gear("bait") else "")
 	text += "\nBank $%s" % _money(bank)
 	hud.call("tally", text)
 

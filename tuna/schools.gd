@@ -10,6 +10,10 @@ extends Node3D
 ## sonar right under her. Run her to them, then troll the baits through: a feeding school over a bait eats it now
 ## and then (rods.gd hooks the fish, host only, strike()), but not with the baits skipping behind her at speed
 ## (BITE_SPEED), and run her right through a school fast and it goes down (SPOOK).
+##
+## Or bring them to you: chum (boat/chum.gd) lays a slick back through the baits, and while it's fresh (SLICK) a
+## school within SLICK_PULL of it comes up it (DRAW m/s) and stays on it, working, as long as the chum keeps coming;
+## and new schools turn up nearer it (SLICK_SPAWN).
 
 const Tuna := preload("res://tuna/tuna.gd")
 const GULLS: Array[AudioStream] = [preload("res://audio/fish/gull_1.wav"), preload("res://audio/fish/gull_2.wav"),
@@ -29,6 +33,13 @@ const CRUISE := Vector2(0.8, 2.2)
 const BITE_SPEED := 6.0
 const SPOOK_SPEED := 5.0
 const SPOOK := 40.0
+## The chum slick: how long a scoop keeps it fresh (s), how far off a school smells it (m), how fast it comes up it
+## (m/s), where new ones turn up while it's fresh (m from it), and how long one stays on it after the last scoop (s).
+const SLICK := 90.0
+const SLICK_PULL := 450.0
+const DRAW := 3.0
+const SLICK_SPAWN := Vector2(250.0, 500.0)
+const STAY := 60.0
 ## (tests and screenshots: the next school this close, m; 0: as usual)
 const FAR := 0.0
 
@@ -40,6 +51,10 @@ var _next := 6.0
 var start_far := FAR
 var _ids := 0
 var _first := true
+## Host: the chum slick's heart (world x, z) and when the last scoop went in (sea clock).
+var slick := Vector2.ZERO
+var slick_t := -1e9
+var _chum_in := 0.0
 
 
 static func hash1(a: float, b: float) -> float:
@@ -58,7 +73,7 @@ func _ready() -> void:
 	Net.peer_joined.connect(func(id: int) -> void:
 		if multiplayer.is_server():
 			for s in schools:
-				_start.rpc_id(id, s.id, s.seed, s.t0, s.start, s.heading, s.speed, s.kg, s.life)
+				_start.rpc_id(id, s.id, s.seed, s.t0, s.start, s.heading, s.speed, s.kg, s.life, s.run)
 				if s.spooked_until > now():
 					_spook.rpc_id(id, s.id, s.spooked_until))
 
@@ -96,6 +111,10 @@ func _process(delta: float) -> void:
 	if Net.is_host():
 		_strikes(delta)
 		_spooking()
+		_chum_in -= delta
+		if _chum_in <= 0.0:
+			_chum_in = 1.0
+			_chumming()
 
 
 ## Host: a feeding school over a bait eats it now and then (more than one rod can go: a double header); not with
@@ -110,9 +129,6 @@ func _strikes(delta: float) -> void:
 	for r: Node3D in spread.get("rods"):
 		on += 1 if bool(r.get("hooked")) else 0
 	var chance := 0.3 * (1.0 if on == 0 else 0.015)
-	var hold: Node = sea.get("fish_hold")
-	if hold and bool(hold.call("has_gear", "bait")):
-		chance *= 1.5           # (live bait from the well)
 	for s in schools:
 		if not s.feeding(t):
 			continue
@@ -121,9 +137,68 @@ func _strikes(delta: float) -> void:
 			if bool(r.get("hooked")) or bool(r.get("bait_in")):
 				continue
 			var bait: Vector3 = r.get("line_end")
-			if Vector2(bait.x, bait.z).distance_to(c) < s.radius + 6.0 and randf() < delta * chance:
+			# (a fresh bait more than a washed-out one, a live mackerel most: rods.gd's bite_odds)
+			var odds := chance * float(spread.call("bite_odds", int(r.get("index"))))
+			if Vector2(bait.x, bait.z).distance_to(c) < s.radius + 6.0 and randf() < delta * odds:
 				spread.call("strike", int(r.get("index")), clampf(s.kg * randf_range(0.8, 1.2), Tuna.MIN_KG,
 						Tuna.MAX_KG))
+
+
+## Host: a scoop of chum went in (boat/chum.gd); the slick's heart is back among the baits, at `at` (world x, z).
+func host_chum(at: Vector2) -> void:
+	slick = at
+	slick_t = now()
+	_chumming()
+
+
+func slick_fresh() -> bool:
+	return now() - slick_t < SLICK
+
+
+## Host, every second: schools that smell a fresh slick come up it and stay on it while the chum keeps coming.
+func _chumming() -> void:
+	if not slick_fresh():
+		return
+	var t := now()
+	for s in schools:
+		if s.scattering(t) > 0.0:
+			continue
+		var c := s.center(t)
+		var d := c.distance_to(slick)
+		var on_it := s.drawn_to.distance_to(slick) < 8.0
+		if not on_it and d < SLICK_PULL:
+			# up the slick to it, and it'll stay there (working the chum) a while after it gets there
+			var travel := d / DRAW
+			var heading := (slick - c).normalized() if d > 0.5 else s.heading
+			s.drawn_to = slick
+			_host_steer(s, t, c, heading, DRAW, travel, maxf(s.t0 + s.life - t, travel + STAY))
+		elif on_it and s.t0 + s.life - t < STAY:
+			# the chum keeps coming: it keeps working
+			_host_steer(s, t, c, s.heading, 0.0, 0.0, STAY + 30.0)
+
+
+## Host: school s from where it is now (`c` at sea clock t) on a new path: `heading` at `speed` m/s for `run` s, then
+## working where it got to; `life` s more of it.
+func _host_steer(s: School, t: float, c: Vector2, heading: Vector2, speed: float, run: float, life: float) -> void:
+	var side := Vector2(-heading.y, heading.x)
+	var start := c - side * sin(float(s.seed)) * 6.0      # (so it doesn't jump: its weave starts where it is)
+	var args := [s.id, t, start, heading, speed, run, life]
+	if Net.in_session():
+		_steer.rpc.callv(args)
+	else:
+		_steer.callv(args)
+
+
+@rpc("authority", "call_local", "reliable")
+func _steer(id: int, t0: float, start: Vector2, heading: Vector2, speed: float, run: float, life: float) -> void:
+	for s in schools:
+		if s.id == id:
+			s.t0 = t0
+			s.start = start
+			s.heading = heading.normalized()
+			s.speed = speed
+			s.run = run
+			s.life = life
 
 
 ## Host: run her fast right through a school and it goes down.
@@ -153,10 +228,14 @@ func _host_start() -> void:
 	_ids += 1
 	var ring := FIRST if _first else SPAWN
 	_first = false
+	var round_at := boat_at()
+	if slick_fresh():
+		ring = SLICK_SPAWN       # (the slick's spreading: they turn up nearer it, and come up it)
+		round_at = slick
 	var far := start_far if start_far > 0.0 else randf_range(ring.x, ring.y)
 	start_far = FAR
 	var bearing := randf_range(-PI, PI)
-	var start := boat_at() + Vector2(cos(bearing), sin(bearing)) * far
+	var start := round_at + Vector2(cos(bearing), sin(bearing)) * far
 	var heading := Vector2.from_angle(randf_range(-PI, PI))
 	var kg := randf_range(60.0, 330.0) if randf() < 0.85 else randf_range(330.0, 400.0)
 	var args := [_ids, randi(), now() + 0.5, start, heading, randf_range(CRUISE.x, CRUISE.y), kg,
@@ -169,7 +248,7 @@ func _host_start() -> void:
 
 @rpc("authority", "call_local", "reliable")
 func _start(id: int, seed: int, t0: float, start: Vector2, heading: Vector2, speed: float, kg: float,
-		life := 240.0) -> void:
+		life := 240.0, run := 1e9) -> void:
 	var s := School.new()
 	s.id = id
 	s.seed = seed
@@ -179,6 +258,7 @@ func _start(id: int, seed: int, t0: float, start: Vector2, heading: Vector2, spe
 	s.speed = speed
 	s.kg = kg
 	s.life = life
+	s.run = run
 	s.owner_node = self
 	add_child(s)
 	schools.append(s)
@@ -210,6 +290,10 @@ class School extends Node3D:
 	## How long it works (s), and till when it's down after a boat ran through it (sea clock).
 	var life := 240.0
 	var spooked_until := -1.0
+	## It travels `run` s along its heading, then stays working where it got to (a chum slick); and the slick it was
+	## drawn to (host only; INF: none).
+	var run := 1e9
+	var drawn_to := Vector2.INF
 	var owner_node: Node
 	var _birds: Array[MeshInstance3D] = []
 	var _bird_seed: Array[Vector4] = []
@@ -225,7 +309,7 @@ class School extends Node3D:
 	func center(t: float) -> Vector2:
 		var d := maxf(t - t0, 0.0)
 		var side := Vector2(-heading.y, heading.x)
-		return start + heading * speed * d + side * sin(d * 0.07 + seed) * 6.0
+		return start + heading * speed * minf(d, run) + side * sin(d * 0.07 + seed) * 6.0
 
 	## Feeding: in spells of a few seconds, more often than not; not once its birds are scattering, nor while it's
 	## down after a boat ran through it.
