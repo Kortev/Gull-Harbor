@@ -22,10 +22,21 @@ var _best_rtt := INF
 func _ready() -> void:
 	hud = Hud.new()
 	add_child(hud)
+	(sea.get("boat") as Node).connect("rebuilt", _on_rebuilt)
 	Net.peer_joined.connect(_on_peer_joined)
 	Net.peer_left.connect(_remove)
 	Net.joined.connect(_on_joined)
 	Net.dropped.connect(_on_dropped)
+
+
+## The boat was rebuilt as another kind (boat/boat.gd): everyone back to their spot on her new deck.
+func _on_rebuilt() -> void:
+	var boat := sea.get("boat") as Node
+	for id: int in slots:
+		var p := get_player(id)
+		if p:
+			var at: Transform3D = boat.call("spawn_local", int(slots[id]))
+			p.place(at.origin, at.basis.get_euler().y)
 
 
 func start_solo() -> void:

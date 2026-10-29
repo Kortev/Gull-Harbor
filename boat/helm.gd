@@ -9,9 +9,10 @@ extends Area3D
 ## Whoever's at the wheel moves her on their own machine, so it answers at once, and tells everyone where she is, her
 ## heading, speed and throttle; with nobody at the wheel the host lets her coast to a stop and tells everyone.
 
-## rad/s, hard over: twin screws, one ahead and one astern, spin her faster than a fish circles (tuna/fight.gd)
-const TURN := 0.45
 const SEND := 1.0 / 15.0
+## The 46 footer's handling (boat/kinds.gd has each boat's; configure() sets these from it):
+## rad/s hard over (twin screws, one ahead and one astern, spin her faster than a fish circles: tuna/fight.gd).
+const TURN := 0.45
 ## m/s flat out ahead (about 20 knots) and astern (backing down on a fish).
 const AHEAD := 10.0
 const ASTERN := 2.6
@@ -20,6 +21,14 @@ const ASTERN := 2.6
 const SPURT := 1.4
 const BACK := 2.2
 const COAST := 9.0
+
+## This boat's handling (boat/kinds.gd).
+var turn := TURN
+var ahead := AHEAD
+var astern := ASTERN
+var spurt := SPURT
+var back := BACK
+var coast := COAST
 
 var boat: Node3D          # boat/boat.gd
 ## The captain's peer id (0: nobody at the wheel).
@@ -153,19 +162,29 @@ func _state(at_heading: float, wheel: float, gas: float, where: Vector2, going: 
 		_net_age = 0.0
 
 
+## Her handling, from her kind (boat/kinds.gd).
+func configure(spec: Dictionary) -> void:
+	turn = float(spec.get("turn", TURN))
+	ahead = float(spec.get("ahead", AHEAD))
+	astern = float(spec.get("astern", ASTERN))
+	spurt = float(spec.get("spurt", SPURT))
+	back = float(spec.get("back", BACK))
+	coast = float(spec.get("coast", COAST))
+
+
 ## Which way her bow points (world x, z) at a heading.
 static func ahead_of(h: float) -> Vector2:
 	return Vector2(-sin(h), -cos(h))
 
 
 ## Her speed toward where she's going after `delta` s at throttle `gas` (-1 .. 1).
-static func next_speed(v: float, gas: float, delta: float) -> float:
-	var want := gas * AHEAD if gas > 0.0 else gas * ASTERN
+func next_speed(v: float, gas: float, delta: float) -> float:
+	var want := gas * ahead if gas > 0.0 else gas * astern
 	if absf(gas) < 0.02 or (signf(v) == signf(want) and absf(v) > absf(want)):
 		# easing off (or off altogether): she carries her way
-		return want + (v - want) * exp(-delta / COAST)
+		return want + (v - want) * exp(-delta / coast)
 	# getting going, or the screws thrown the other way to stop her
-	var rate := SPURT if gas > 0.0 else BACK
+	var rate := spurt if gas > 0.0 else back
 	return move_toward(v, want, rate * delta)
 
 
@@ -186,7 +205,7 @@ func _process(delta: float) -> void:
 		var want_gas := Input.get_axis("move_back", "move_forward") if live else 0.0
 		steer = move_toward(steer, want_steer, delta * 2.5)
 		throttle = move_toward(throttle, want_gas, delta * 1.5)
-		heading = wrapf(heading + steer * TURN * delta, -PI, PI)
+		heading = wrapf(heading + steer * turn * delta, -PI, PI)
 	elif captain == 0:
 		steer = move_toward(steer, 0.0, delta * 2.5)
 		throttle = 0.0

@@ -1,9 +1,11 @@
 extends Node
 ## Landing a fish: from boatside to the deck. A fish fought to the boat (tuna/fight.gd's boatside) lies beaten on the
-## surface just astern of the transom, still on the line. Someone sticks it with the harpoon (E on the harpoon along
-## the port side, aim at the fish, left mouse throws, Q puts it back), then it's hauled in through the tuna door in
-## the transom (hold E on the door: one person can, slowly; two or three make short work of a giant). Then it's on
-## deck (boat/fish_hold.gd). Leave it alongside too long without sticking it and the hook pulls.
+## surface, still on the line: astern of the sportfisher's transom, or along the skiff's side by her stern quarter.
+## Someone sticks it with the harpoon (E on the harpoon along the port side, aim at the fish, left mouse throws, Q
+## puts it back), then it's hauled aboard: through the sportfisher's tuna door in the transom, over the skiff's
+## gunwale (hold E there: one person can, slowly; two or three make short work of a giant). Then it's on deck
+## (boat/fish_hold.gd). Leave it alongside too long without sticking it and the hook pulls. Where all of that is comes
+## from the boat's kind (boat/kinds.gd).
 ##
 ## The host decides (who has the harpoon, a stick, how far the haul has got) and tells everyone. A throw is judged
 ## on the thrower's machine (it's their aim) and the host takes their word for it.
@@ -22,12 +24,6 @@ const FLY := 14.0
 ## each extra hand on it adds the same again.
 const HAUL_BASE := 2.0
 const HAUL_PER_KG := 0.05
-## Boat-local spots: the transom (where the lines go over), the harpoon lying in its rack along the inside of the
-## port bulwark (its point forward), and the tuna doors either side of the live well.
-const STERN_Z := 7.05
-const RACK := Vector3(-2.02, 1.2, 4.4)
-const DOOR_X := 1.0
-const DOOR := Vector3(0.0, 0.95, 6.82)
 
 var sea: Node                 # sea/sea.gd
 ## Fish alongside, by the rod they came up on: {kg, side (1 starboard, -1 port), hook_t (sea clock), t (s alongside),
@@ -39,6 +35,9 @@ var _pulling := {}            # host: peer id -> the fish they're hauling
 var _my_pull := -1
 var _harpoon: Node3D
 var _doors: Array[Action] = []      # [starboard, port]
+var _rack: Action
+## The boat's spots for all this (boat/kinds.gd).
+var spec: Dictionary = {}
 var _fly_t := 0.0
 var _fly_at := Transform3D.IDENTITY
 var _fly_dir := Vector3.ZERO
@@ -46,25 +45,11 @@ var _send_in := 0.0
 
 
 func _ready() -> void:
-	var boat := sea.get("boat") as Node3D
 	_harpoon = _make_harpoon()
 	_harpoon.name = "Harpoon"
 	add_child(_harpoon)
-	var rack := Action.new(Vector3(0.45, 0.45, 2.5))
-	rack.name = "HarpoonRack"
-	rack.position = RACK + Vector3(0.0, 0.0, -0.6)
-	rack.use = func(_p: Node) -> void: _request_harpoon(true)
-	rack.prompt = func() -> String: return _rack_prompt()
-	boat.add_child(rack)
-	for side: float in [1.0, -1.0]:
-		var door := Action.new(Vector3(0.8, 0.7, 0.35))
-		door.name = "TunaDoor" + ("Starboard" if side > 0.0 else "Port")
-		door.position = DOOR + Vector3(side * DOOR_X, 0.0, 0.0)
-		door.use = func(_p: Node) -> void: _start_pull(side)
-		door.prompt = func() -> String: return _door_prompt(side)
-		door.add_child(_make_door())
-		boat.add_child(door)
-		_doors.append(door)
+	_attach()
+	(sea.get("boat") as Node).connect("rebuilt", _attach)
 	Net.peer_joined.connect(func(id: int) -> void:
 		if multiplayer.is_server():
 			_sync.rpc_id(id, harpoon_holder, _states()))
@@ -85,6 +70,39 @@ func _ready() -> void:
 				_pulling.erase(peer))
 
 
+## The harpoon's rack and the haul spots, where her kind has them (again whenever she's rebuilt as another kind).
+func _attach() -> void:
+	var boat := sea.get("boat") as Node3D
+	spec = boat.get("spec")
+	_clear()
+	for n: Node in [_rack] + _doors:
+		if is_instance_valid(n):
+			n.get_parent().remove_child(n)
+			n.queue_free()
+	_doors.clear()
+	_rack = Action.new(Vector3(0.45, 0.45, 2.5))
+	_rack.name = "HarpoonRack"
+	_rack.position = rack_at() + Vector3(0.0, 0.0, -0.6)
+	_rack.use = func(_p: Node) -> void: _request_harpoon(true)
+	_rack.prompt = func() -> String: return _rack_prompt()
+	boat.add_child(_rack)
+	var haul: Vector3 = spec["haul"]
+	for side: float in [1.0, -1.0]:
+		var door := Action.new(spec["haul_box"])
+		door.name = ("TunaDoor" if bool(spec["door"]) else "Gunwale") + ("Starboard" if side > 0.0 else "Port")
+		door.position = Vector3(haul.x * side, haul.y, haul.z)
+		door.use = func(_p: Node) -> void: _start_pull(side)
+		door.prompt = func() -> String: return _door_prompt(side)
+		if bool(spec["door"]):
+			door.add_child(_make_door())
+		boat.add_child(door)
+		_doors.append(door)
+
+
+func rack_at() -> Vector3:
+	return spec.get("rack", Vector3(-2.02, 1.2, 4.4))
+
+
 # ------------------------------------------------------------------ what everyone sees
 
 func _process(delta: float) -> void:
@@ -100,7 +118,7 @@ func _process(delta: float) -> void:
 	else:
 		var p: Node3D = crew.call("get_player", harpoon_holder) if harpoon_holder != 0 else null
 		if p == null:
-			_harpoon.global_transform = boat.global_transform * Transform3D(Basis.IDENTITY, RACK)
+			_harpoon.global_transform = boat.global_transform * Transform3D(Basis.IDENTITY, rack_at())
 		else:
 			_harpoon.global_transform = _in_hands(p)
 	for i: int in fish:
@@ -119,17 +137,20 @@ func _process(delta: float) -> void:
 		_host_tick(delta)
 
 
-## Where a fish alongside is: across the stern on its side of her, in the water; hauled, it comes up through the
-## tuna door and rolls onto its side.
+## Where a fish alongside is, in the water on its side of her (across the sportfisher's stern, along the skiff's side);
+## hauled, it comes up aboard and rolls onto its side.
 func _fish_transform(f: Dictionary, boat: Node3D, ocean: Node) -> Transform3D:
 	var side := float(f["side"])
 	var k := smoothstep(0.0, 1.0, float(f["haul"]))
-	var water := boat.global_transform * Vector3(side * 1.1, 0.0, STERN_Z + 0.9)
+	var w: Vector3 = spec.get("fish_water", Vector3(1.1, 0.0, 7.95))
+	var water := boat.global_transform * Vector3(w.x * side, 0.0, w.z)
 	water.y = float(ocean.call("height_at", water)) - 0.12
-	var door := boat.global_transform * (DOOR + Vector3(side * DOOR_X, -0.15, -0.6))
-	var head := -boat.global_basis.x * side        # (its head toward her middle)
+	var a: Vector3 = spec.get("fish_aboard", Vector3(1.0, 0.8, 6.22))
+	var aboard := boat.global_transform * Vector3(a.x * side, a.y, a.z)
+	# across her stern its head toward her middle; along her side its head forward
+	var head := -boat.global_basis.x * side if bool(spec.get("fish_across", true)) else -boat.global_basis.z
 	var b := Basis.looking_at(head, boat.global_basis.y) * Basis(Vector3(0, 0, 1), k * PI * 0.5)
-	return Transform3D(b, water.lerp(door, k))
+	return Transform3D(b, water.lerp(aboard, k))
 
 
 ## The harpoon in someone's hands: at the shoulder, pointing where they look.
@@ -162,7 +183,7 @@ func hint() -> String:
 	if waiting:
 		return "Boatside! Stick it: the harpoon's along the port side"
 	if stuck:
-		return "Stuck! Haul it in: hold E on the tuna door"
+		return "Stuck! Haul it in: hold E on the %s" % ("tuna door" if bool(spec.get("door", true)) else "gunwale by it")
 	return ""
 
 
@@ -299,7 +320,8 @@ func _ask_throw_as(who: int, i: int) -> void:
 			_stuck.rpc(i)
 		else:
 			_stuck(i)
-		(sea.get("rods") as Node).call("host_off", i, "Stuck! Now haul it in: hold E on the tuna door")
+		(sea.get("rods") as Node).call("host_off", i, "Stuck! Now haul it in: hold E on the %s"
+				% ("tuna door" if bool(spec.get("door", true)) else "gunwale by it"))
 	elif Net.in_session():
 		_missed.rpc(who)
 	else:

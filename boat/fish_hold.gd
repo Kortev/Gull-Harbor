@@ -14,10 +14,8 @@ const Action := preload("res://core/action.gd")
 const SAVE := "user://bluefin.cfg"
 ## Dollars a kilo for a fish of quality 1 is 0.35 + 0.9 = 1.25 times this; quality 0, 0.35 times.
 const PRICE_PER_KG := 18.0
-## Where fish lie on deck, in turn (boat-local: across the cockpit, between the chair's footrest and the live well,
-## then forward of the chair, over the fish box). More than that and they're piled on top.
-const SPOTS: Array[Vector3] = [Vector3(0.0, 0.55, 5.75), Vector3(0.0, 0.55, 3.45), Vector3(0.0, 0.55, 2.55),
-		Vector3(0.0, 0.55, 1.85)]
+## Where fish lie on deck comes from the boat's kind (boat/kinds.gd's spots: x, y, z, and 1 across her or 0 along
+## her), in turn; more than that and they're piled on top. Her fish box takes her kind's `hold` iced.
 
 var sea: Node                 # sea/sea.gd
 ## This trip's fish: {id, kg, fight_s (hooked to aboard), aboard_t (sea clock), bled_s and iced_s (s after it came
@@ -36,6 +34,12 @@ var save_path := SAVE
 
 func _ready() -> void:
 	_load()
+	(sea.get("boat") as Node).connect("rebuilt", func() -> void:
+		# (another boat: lay what's on deck out again on her)
+		for id: int in _deck.keys():
+			(_deck[id] as Node).queue_free()
+		_deck.clear()
+		_rebuild())
 	Net.peer_joined.connect(func(id: int) -> void:
 		if multiplayer.is_server():
 			_sync.rpc_id(id, _state()))
@@ -120,10 +124,22 @@ func _work(id: int) -> void:
 		var since := _now() - float(f["aboard_t"])
 		if float(f["bled_s"]) < 0.0:
 			f["bled_s"] = since
-		elif float(f["iced_s"]) < 0.0:
+		elif float(f["iced_s"]) < 0.0 and iced() < capacity():
 			f["iced_s"] = since
 		_host_changed()
 		return
+
+
+## How many are iced in the fish box, and how many it takes (her kind's).
+func iced() -> int:
+	var n := 0
+	for f: Dictionary in fish:
+		n += 1 if float(f["iced_s"]) >= 0.0 else 0
+	return n
+
+
+func capacity() -> int:
+	return int(((sea.get("boat") as Node).get("spec") as Dictionary).get("hold", 12))
 
 
 ## Host: heads in and sells the catch; the slip stays up till she heads back out.
@@ -209,10 +225,13 @@ func _lay(f: Dictionary, boat: Node3D) -> Node3D:
 	t.name = "OnDeck%d" % id
 	t.posed = true
 	t.effort = 0.0
+	var spots: Array = (boat.get("spec") as Dictionary)["spots"]
 	var n := int(f["spot"])
-	var spot: Vector3 = SPOTS[n % SPOTS.size()] + Vector3(0.0, 0.3 * floorf(n / float(SPOTS.size())), 0.0)
-	# across the cockpit on its side, head to starboard
-	t.transform = Transform3D(Basis.looking_at(Vector3.RIGHT, Vector3.UP) * Basis(Vector3(0, 0, 1), PI * 0.5),
+	var at: Vector4 = spots[n % spots.size()]
+	var spot := Vector3(at.x, at.y, at.z) + Vector3(0.0, 0.3 * floorf(n / float(spots.size())), 0.0)
+	# on its side: across her, head to starboard, or along her, head forward
+	var head := Vector3.RIGHT if at.w > 0.5 else Vector3.FORWARD
+	t.transform = Transform3D(Basis.looking_at(head, Vector3.UP) * Basis(Vector3(0, 0, 1), PI * 0.5),
 			spot + Vector3(0.0, t.length * 0.07, 0.0))
 	boat.add_child(t)
 	var blood := MeshInstance3D.new()
@@ -250,7 +269,7 @@ func _prompt(id: int) -> String:
 			if float(f["bled_s"]) < 0.0:
 				return "Bleed it (%d kg)" % roundi(float(f["kg"]))
 			if float(f["iced_s"]) < 0.0:
-				return "Ice it: into the fish box"
+				return "Ice it: into the fish box" if iced() < capacity() else "The fish box is full: head in and sell"
 	return ""
 
 
@@ -261,6 +280,8 @@ func hint() -> String:
 			return "A fish on deck: bleed it (E on it), the sooner the better"
 	for f: Dictionary in fish:
 		if float(f["iced_s"]) < 0.0:
+			if iced() >= capacity():
+				return "The fish box is full: head in and sell (Esc), or it sells warm off the deck"
 			return "Ice it: E on the fish puts it in the fish box"
 	return ""
 
@@ -279,7 +300,7 @@ func _tally() -> void:
 		else:
 			deck += 1
 		kg += float(f["kg"])
-	var text := "Hold %d" % held
+	var text := "Fish box %d/%d" % [held, capacity()]
 	if deck > 0:
 		text += "   Deck %d" % deck
 	if not fish.is_empty():

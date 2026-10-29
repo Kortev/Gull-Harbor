@@ -7,12 +7,9 @@ extends Node3D
 const Helm := preload("res://boat/helm.gd")
 const Sfx := preload("res://audio/sfx.gd")
 const PUFF := preload("res://sea/textures/steam_puff.png")
-## Boat-local: her transom (where the wash boils up), the engine room under the cockpit sole, her bow's flare.
-const TRANSOM := Vector3(0.0, 0.0, 7.3)
-const ENGINES := Vector3(0.0, 0.3, 3.5)
-const BOW := Vector3(1.7, 0.6, -5.0)
-
 var boat: Node3D              # boat/boat.gd
+## Boat-local, from her kind (boat/kinds.gd): her transom (where the wash boils up), her engines, her bow's flare.
+var _transom := Vector3(0.0, 0.0, 7.3)
 var _wake: GPUParticles3D
 var _wash: GPUParticles3D
 var _spray: Array[GPUParticles3D] = []
@@ -23,6 +20,7 @@ var _over_in := 0.0
 
 
 func _ready() -> void:
+	boat.connect("rebuilt", _place)
 	_wake = _particles(260, 7.0, false, Vector3(1.0, 0.0, 0.0), 180.0, Vector2(0.0, 0.3), Vector3.ZERO, 2.4, 0.5)
 	_wake.name = "Wake"
 	add_child(_wake)
@@ -33,22 +31,32 @@ func _ready() -> void:
 		var s := _particles(90, 0.9, true, Vector3(side, 0.6, -0.2), 25.0, Vector2(3.0, 6.0), Vector3(0, -9.8, 0),
 				0.9, 0.7)
 		s.name = "BowSpray" + ("Starboard" if side > 0.0 else "Port")
-		s.position = Vector3(BOW.x * side, BOW.y, BOW.z)
+		s.set_meta("side", side)
 		add_child(s)
 		_spray.append(s)
 	_over = _particles(80, 1.4, true, Vector3(0.0, 1.0, -0.8), 30.0, Vector2(3.0, 5.5), Vector3(0, -9.8, 0), 1.0, 0.9)
 	_over.name = "OverTheTransom"
 	_over.one_shot = true
 	_over.explosiveness = 0.85
-	_over.position = TRANSOM + Vector3(0.0, 0.9, 0.0)
 	add_child(_over)
 	# the engines: a motor loop pitched down to a diesel's grumble, and a low rumble under it
 	var room := Node3D.new()
 	room.name = "Engines"
-	room.position = ENGINES
 	add_child(room)
 	_engine = Sfx.loop(room, "kit.motor", true, 0.3)
 	_rumble = Sfx.loop(room, "kit.rumble", false, 0.15)
+	_place()
+
+
+## Her spots from her kind (and again whenever she's rebuilt as another).
+func _place() -> void:
+	var spec: Dictionary = boat.get("spec")
+	_transom = spec.get("transom", _transom)
+	var bow: Vector3 = spec.get("bow", Vector3(1.7, 0.6, -5.0))
+	for s in _spray:
+		s.position = Vector3(bow.x * float(s.get_meta("side")), bow.y, bow.z)
+	_over.position = Vector3(0.0, 0.9, float(spec.get("stern", Vector3(0, 0, 7.05)).z))
+	(get_node("Engines") as Node3D).position = spec.get("engines", Vector3(0.0, 0.3, 3.5))
 
 
 func _process(delta: float) -> void:
@@ -64,7 +72,7 @@ func _process(delta: float) -> void:
 	Sfx.level(_engine, 0.3 + 0.7 * work, 0.55 + 0.4 * work + 0.02 * going)
 	Sfx.level(_rumble, 0.15 + 0.35 * work, 0.7 + 0.3 * work)
 	# the wake: foam left lying where she's been, at the transom's water
-	var stern := boat.global_transform * TRANSOM
+	var stern := boat.global_transform * _transom
 	stern.y = float(ocean.call("height_at", stern)) + 0.05
 	_wake.global_position = stern
 	_wake.emitting = going > 0.4
@@ -74,12 +82,13 @@ func _process(delta: float) -> void:
 	_wash.emitting = work > 0.15
 	_wash.amount_ratio = clampf(work, 0.2, 1.0)
 	# her bow throwing spray, flat out
+	var top := float(helm.get("ahead"))
 	for s in _spray:
-		s.emitting = v > Helm.AHEAD * 0.45
-		s.amount_ratio = clampf((v - Helm.AHEAD * 0.45) / (Helm.AHEAD * 0.4), 0.2, 1.0)
+		s.emitting = v > top * 0.45
+		s.amount_ratio = clampf((v - top * 0.45) / (top * 0.4), 0.2, 1.0)
 	# backing down hard: the sea slops in over the transom now and then, with a slap
 	_over_in -= delta
-	if gas < -0.6 and v < -Helm.ASTERN * 0.5 and _over_in <= 0.0:
+	if gas < -0.6 and v < -float(helm.get("astern")) * 0.5 and _over_in <= 0.0:
 		_over_in = randf_range(1.2, 2.6)
 		_over.restart()
 		_over.emitting = true

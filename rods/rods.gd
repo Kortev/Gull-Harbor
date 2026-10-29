@@ -1,19 +1,11 @@
 extends Node3D
-## The spread: four rods in the stern holders (the transom corners and the two aft on each side), each with its
-## bait out astern. Who holds which rod is the host's call: E on a rod asks it (request_grab), Q puts the one you
+## The spread: the boat's rods in their holders (boat/kinds.gd: the skiff's two aft corners, the sportfisher's four),
+## each with its bait out astern. Who holds which rod is the host's call: E on a rod asks it (request_grab), Q puts the one you
 ## hold back (request_return); the answer comes to every peer (_set_holder). A rod in someone's hands rides on
 ## them, its butt in their belt and the blank up ahead of them.
 
 const Rod := preload("res://rods/rod.gd")
 const Fight := preload("res://tuna/fight.gd")
-const Boat := preload("res://boat/boat.gd")
-## The boat's holders the rods sit in, and where each bait is (boat-local: x across, z astern of the transom).
-const HOLDERS: Array[int] = [6, 7, 0, 1]
-const BAITS: Array[Vector3] = [Vector3(5.5, 0, 39.0), Vector3(-5.5, 0, 39.0), Vector3(15.0, 0, 53.0),
-		Vector3(-15.0, 0, 53.0)]
-
-## Where the lines go over the transom (boat-local): bearings and line out are measured from here.
-const STERN := Vector3(0.0, 0.0, 7.05)
 ## A rod nobody's holding sits in its holder with the drag set: the host plays the fish against the drag (it takes
 ## line on its runs and tires doing it; between them nobody wins any back) and tells everyone how it's going.
 const WHY := {"broke": "The line parted! Too much strain: when the ring goes red, ease off.",
@@ -24,6 +16,12 @@ const WHY := {"broke": "The line parted! Too much strain: when the ring goes red
 
 var sea: Node                 # sea/sea.gd
 var rods: Array[Rod] = []
+## From the boat's kind (boat/kinds.gd): the holders the rods sit in, where each bait is (boat-local: x across, z
+## astern), each rod's name, and where the lines go over the transom (bearings and line out are measured from here).
+var holders: Array[int] = []
+var baits: Array[Vector3] = []
+var names: Array[String] = []
+var stern := Vector3(0.0, 0.0, 7.05)
 var _send_in := 0.0
 var _last_heading := 0.0
 ## Your rod's line out last frame, and how fast you're winning it back (m/s, smoothed; - while it takes line).
@@ -32,13 +30,8 @@ var _trend := 0.0
 
 
 func _ready() -> void:
-	for i in HOLDERS.size():
-		var r := Rod.new()
-		r.name = "Rod%d" % i
-		r.index = i
-		r.spread = self
-		add_child(r)
-		rods.append(r)
+	_lay_out()
+	(sea.get("boat") as Node).connect("rebuilt", _lay_out)
 	Net.peer_joined.connect(func(id: int) -> void:
 		if multiplayer.is_server():
 			_sync.rpc_id(id, _states()))
@@ -49,6 +42,33 @@ func _ready() -> void:
 					_host_set(r.index, 0))
 	Net.dropped.connect(func(_reason: String) -> void: _own_boat(false))
 	Net.left.connect(_own_boat)
+
+
+## Her rods, as her kind has them: new rods in her holders, baits out (and again whenever she's rebuilt as another
+## kind: at the dock, so nothing's on).
+func _lay_out() -> void:
+	var spec: Dictionary = (sea.get("boat") as Node).get("spec")
+	holders.clear()
+	baits.clear()
+	names.clear()
+	for h in spec["rods"]:
+		holders.append(int(h))
+	for b in spec["baits"]:
+		baits.append(b)
+	for n in spec["rod_names"]:
+		names.append(str(n))
+	stern = spec["stern"]
+	for r in rods:
+		remove_child(r)
+		r.queue_free()
+	rods.clear()
+	for i in holders.size():
+		var r := Rod.new()
+		r.name = "Rod%d" % i
+		r.index = i
+		r.spread = self
+		add_child(r)
+		rods.append(r)
 
 
 ## Back on your own boat (you left the crew, or the host went). `kept`: it was our boat (we were hosting), so our
@@ -126,6 +146,8 @@ func _host_set(i: int, who: int) -> void:
 
 @rpc("authority", "call_local", "reliable")
 func _set_holder(i: int, who: int) -> void:
+	if i < 0 or i >= rods.size():
+		return        # (a rod she hasn't got: a word from before she was rebuilt)
 	var r := rods[i]
 	var handed := r.holder != 0 and who != 0
 	if r.holder != 0:
@@ -141,10 +163,12 @@ func _set_holder(i: int, who: int) -> void:
 
 ## Host: a fish takes rod i's bait.
 func strike(i: int, kg: float) -> void:
+	if i < 0 or i >= rods.size():
+		return        # (a rod she hasn't got: a word from before she was rebuilt)
 	var r := rods[i]
 	if r.hooked or (sea.get("landing") as Node).get("fish").has(i):
 		return        # (its last fish is still astern on the harpoon: no bait out yet)
-	var bait := BAITS[i] - STERN
+	var bait := baits[i] - stern
 	var bearing := atan2(bait.x, bait.z) + randf_range(-0.5, 0.5)
 	if Net.in_session():
 		_strike.rpc(i, kg, _now(), bearing, randi())
@@ -154,6 +178,8 @@ func strike(i: int, kg: float) -> void:
 
 @rpc("authority", "call_local", "reliable")
 func _strike(i: int, kg: float, t: float, bearing: float, seed_value: int) -> void:
+	if i < 0 or i >= rods.size():
+		return        # (a rod she hasn't got: a word from before she was rebuilt)
 	var r := rods[i]
 	r.hooked = true
 	r.fish_kg = kg
@@ -162,7 +188,7 @@ func _strike(i: int, kg: float, t: float, bearing: float, seed_value: int) -> vo
 	r.depth = 2.0
 	r.energy = 1.0
 	r.move = "run"
-	r.line_out = (BAITS[i] - STERN).length()
+	r.line_out = (baits[i] - stern).length()
 	r.free_t = t
 	r.alongside = false
 	r.wrong = 0.0
@@ -170,11 +196,13 @@ func _strike(i: int, kg: float, t: float, bearing: float, seed_value: int) -> vo
 	r.fight = null
 	r.wear = 0.0
 	r.set_meta("seed", seed_value)
-	_hud_note("FISH ON!  The %s rod!" % ["starboard corner", "port corner", "starboard", "port"][i])
+	_hud_note("FISH ON!  The %s rod!" % (names[i] if i < names.size() else "a"))
 
 
 @rpc("authority", "call_local", "reliable")
 func _off(i: int, why: String) -> void:
+	if i < 0 or i >= rods.size():
+		return        # (a rod she hasn't got: a word from before she was rebuilt)
 	var r := rods[i]
 	r.hooked = false
 	r.alongside = false
@@ -189,6 +217,8 @@ func _off(i: int, why: String) -> void:
 @rpc("any_peer", "call_remote", "unreliable_ordered")
 func _fight_state(i: int, out: float, strain: float, bearing: float, depth: float, energy: float, lift: float,
 		move: String, wear: float, wrong: float, turn: float) -> void:
+	if i < 0 or i >= rods.size():
+		return        # (a rod she hasn't got: a word from before she was rebuilt)
 	var r := rods[i]
 	if r.holder == multiplayer.get_remote_sender_id() and r.hooked and not r.alongside:
 		r.line_out = out
@@ -207,6 +237,8 @@ func _fight_state(i: int, out: float, strain: float, bearing: float, depth: floa
 @rpc("authority", "call_remote", "unreliable_ordered")
 func _holder_state(i: int, out: float, strain: float, bearing: float, depth: float, energy: float, move: String,
 		wear: float, wrong: float, turn: float) -> void:
+	if i < 0 or i >= rods.size():
+		return        # (a rod she hasn't got: a word from before she was rebuilt)
 	var r := rods[i]
 	if r.holder == 0 and r.hooked and not r.alongside:
 		r.line_out = out
@@ -224,6 +256,8 @@ func _holder_state(i: int, out: float, strain: float, bearing: float, depth: flo
 ## last too: the fight can end on their machine while the rod's changing hands.
 @rpc("any_peer", "call_remote", "reliable")
 func _report_end(i: int, how: String) -> void:
+	if i < 0 or i >= rods.size():
+		return        # (a rod she hasn't got: a word from before she was rebuilt)
 	var r := rods[i]
 	var who := multiplayer.get_remote_sender_id()
 	if r.hooked and not r.alongside and (r.holder == who or r.last_holder == who):
@@ -241,6 +275,8 @@ func _host_end(i: int, how: String) -> void:
 
 ## Everyone (tuna/landing.gd): rod i's fish is up alongside, beaten: no more fight on it.
 func set_alongside(i: int) -> void:
+	if i < 0 or i >= rods.size():
+		return        # (a rod she hasn't got: a word from before she was rebuilt)
 	var r := rods[i]
 	r.hooked = true
 	r.alongside = true
@@ -265,6 +301,8 @@ func _hud_note(text: String) -> void:
 
 
 func _host_off(i: int, why: String) -> void:
+	if i < 0 or i >= rods.size():
+		return        # (a rod she hasn't got: a word from before she was rebuilt)
 	if Net.in_session():
 		_off.rpc(i, why)
 	else:
@@ -346,11 +384,11 @@ func _process(delta: float) -> void:
 		var p: Node3D = crew.call("get_player", r.holder) if r.holder != 0 else null
 		if p == null:
 			# in its holder: the holder's tube, the butt down in it
-			var ht: Transform3D = boat.call("holder_transform", HOLDERS[r.index])
+			var ht: Transform3D = boat.call("holder_transform", holders[r.index])
 			r.global_transform = ht.translated_local(Vector3(0, 0, -0.42))
 		else:
 			r.global_transform = _in_hands(p, r.lift)
-		var end := boat.global_transform * BAITS[r.index]
+		var end := boat.global_transform * baits[r.index]
 		var alongside: Vector3 = landing.call("fish_point", r.index) if r.alongside else Vector3.ZERO
 		if r.alongside and alongside != Vector3.ZERO:
 			end = alongside      # (straight to the fish lying astern)
@@ -358,7 +396,7 @@ func _process(delta: float) -> void:
 			# where the line goes in: toward the fish, closer to the boat the deeper it is (a straight line down)
 			var hd := sqrt(maxf(r.line_out * r.line_out - r.depth * r.depth, 0.0))
 			var entry := hd * 2.5 / (2.5 + r.depth * 0.5)
-			end = boat.global_transform * (STERN + Vector3(sin(r.bearing), 0.0, cos(r.bearing)) * entry)
+			end = boat.global_transform * (stern + Vector3(sin(r.bearing), 0.0, cos(r.bearing)) * entry)
 			end.y = ocean.call("height_at", end)
 		else:
 			end.y = ocean.call("height_at", end)
@@ -509,8 +547,8 @@ func _reach(p: Node, bearing: float) -> float:
 		return 0.0
 	var at: Vector3 = p.call("local_position")
 	var side := 1.0 if sin(bearing) >= 0.0 else -1.0      # (+ bearing: off the starboard quarter, + x)
-	var out := clampf((at.x * side - (Boat.BEAM * 0.5 - 1.5)) / 1.0, 0.0, 1.0)
-	var aft := smoothstep(STERN.z - 3.5, STERN.z - 1.5, at.z)
+	var out := clampf((at.x * side - (float((sea.get("boat") as Node).get("beam")) * 0.5 - 1.5)) / 1.0, 0.0, 1.0)
+	var aft := smoothstep(stern.z - 3.5, stern.z - 1.5, at.z)
 	return out * aft
 
 

@@ -106,6 +106,10 @@ func _ready() -> void:
 	radar.schools = schools
 	add_child(radar)
 	radar.attach(boat)
+	# (another boat at the dock: the screens are on her new dash)
+	boat.rebuilt.connect(func() -> void:
+		sonar.attach(boat)
+		radar.attach(boat))
 	var look := deg_to_rad(float(_args.get("look", "0")))
 	if look != 0.0:
 		crew.me_changed.connect(func(me: Node) -> void:
