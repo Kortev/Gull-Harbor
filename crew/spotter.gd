@@ -2,8 +2,8 @@ extends CanvasLayer
 ## Spotting flocks by eye (no binoculars: the user's call). Put a flock under your crosshair and the HUD says what you
 ## can make of it from where you are: from far off only that there are birds, which way and how far; closer than READ
 ## m, what they're doing (tuna/schools.gd's spot_text: diving on bluefin busting the water, gulls over little bait,
-## sitting on the water while the tuna are down). Left click calls it: marked on the radar for everyone. Not with a
-## fish on in your hands.
+## sitting on the water while the tuna are down). Not with a fish on in your hands. (No calling them out: the user's
+## call. The sportfisher's radar paints birds in the air on its own; the skiff has none.)
 
 const AIM := 0.06             # how close to the middle of your view a flock has to be (rad)
 const REACH := 4500.0         # the furthest a flock can be picked out (m)
@@ -56,16 +56,7 @@ func _process(_delta: float) -> void:
 	else:
 		text = "Birds, a long way off: too far to tell what they're on. Get closer"
 	text += "\n" + w.substr(0, 1).to_upper() + w.substr(1)
-	var marks: Dictionary = schools.get("marks")
-	var id := int(_looking.get("id"))
-	text += ("   (called by %s)" % str(marks[id])) if marks.has(id) else "   Left click: call it to the crew"
 	_read.text = text
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if _looking != null and event.is_action_pressed("use_primary"):
-		(sea.get("schools") as Node).call("call_out", int(_looking.get("id")))
-		get_viewport().set_input_as_handled()
 
 
 ## The flock nearest the middle of your view, if one's close enough to it and not too far off to pick out.

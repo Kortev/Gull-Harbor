@@ -1,7 +1,8 @@
 """The small boat: a weathered 28 ft (8.5 m) center console for one or two.
 
 An open fishing skiff: a deep-V glass hull, low sides you can gaff a fish over, a console amidships under a T-top with
-the wheel, the sonar and the radar on its aft face (a step from the rods), a leaning post behind it, a raised casting
+the wheel and the gauges on its aft face (a step from the rods; no radar, no sonar: a cheap boat, you find the birds
+by eye), a leaning post behind it, a raised casting
 deck at the bow, twin outboards hung on the transom, four rod holders in the gunwales (the two aft corners fish), a
 fish box in the deck forward of the console and a live well in the transom.
 
@@ -243,16 +244,9 @@ def console(m, col):
     # the windscreen on top, raked aft
     face(m, [(-w, y1 - 0.3, CON_H), (w, y1 - 0.3, CON_H), (w, y1 - 0.55, CON_H + 0.45), (-w, y1 - 0.55, CON_H + 0.45)],
          "glass", (0, 1, 0.5))
-    # the dash: the aft face's top, sloped back toward the skipper, the sonar and the radar side by side
+    # the dash: the aft face's top, sloped back toward the skipper (bare: no radar, no sonar on this boat)
     dz0, dz1 = CON_H - 0.42, CON_H
     face(m, [(-w, y0, dz0), (w, y0, dz0), (w, y0 + 0.28, dz1), (-w, y0 + 0.28, dz1)], "dash", (0, -1, 1))
-    for (x0, x1), mat in (((-0.48, -0.04), "sonar"), ((0.04, 0.48), "radar_scope")):
-        lift = Vector((0, -0.7, 0.7)) * 0.004
-        a = Vector((x0, y0 + 0.04, dz0 + 0.06)) + lift
-        b = Vector((x1, y0 + 0.04, dz0 + 0.06)) + lift
-        c = Vector((x1, y0 + 0.24, dz1 - 0.06)) + lift
-        d = Vector((x0, y0 + 0.24, dz1 - 0.06)) + lift
-        m.face([tuple(a), tuple(b), tuple(c), tuple(d)], mat, uvs=[(0, 0), (1, 0), (1, 1), (0, 1)])
     for x in (-0.42, -0.2):
         m.face([(x, y0 - 0.002, DECK + 0.55), (x + 0.16, y0 - 0.002, DECK + 0.55), (x + 0.16, y0 - 0.002, DECK + 0.71),
                 (x, y0 - 0.002, DECK + 0.71)], "gauge", uvs=[(1, 0), (0, 0), (0, 1), (1, 1)])
@@ -404,13 +398,7 @@ def lights(m, coll):
         e = psx.empty("deck_light_%d" % i, coll, tuple(p - Vector((0, 0, 0.05))))
         e.rotation_euler = (-0.25, 0.0, 0.0)
         out.append(e)
-    # the radar: a small open array on the T-top
-    cyl(m, (0, 0.3, TOP + 0.08), (0, 0.3, TOP + 0.3), 0.06, "steel")
-    r = psx.Mesh("radar", TILES)
-    rz = TOP + 0.3
-    r.box((-0.4, 0.22, rz), (0.4, 0.38, rz + 0.1), "house")
-    radar = r.finish(coll, origin=(0, 0.3, rz))
-    return out, radar
+    return out
 
 
 def main():
@@ -423,7 +411,7 @@ def main():
     console(m, col)
     fittings(m, col)
     hs = holders(m, coll)
-    floods, radar = lights(m, coll)
+    floods = lights(m, coll)
     wheel = wheel_obj(coll)
     boat = m.finish(coll, bevel=0.012)
     collider = col.finish(coll)
@@ -431,7 +419,7 @@ def main():
     for i, (x, y) in enumerate(((0.7, -2.3), (-0.7, -2.3), (0.8, -3.3), (-0.8, -3.3))):
         spawns.append(psx.empty("spawn_%d" % i, coll, (x, y, DECK), rot_z_deg=180.0))
     helm = psx.empty("helm", coll, (-0.02, CON_Y0 - 0.65, DECK), rot_z_deg=0.0)
-    objs = [boat, wheel, radar, collider, helm] + hs + floods + spawns
+    objs = [boat, wheel, collider, helm] + hs + floods + spawns
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     psx.export_glb(os.path.abspath(OUT), objs, ao=True)
     print("wrote", os.path.abspath(OUT), len(boat.data.polygons), "faces")

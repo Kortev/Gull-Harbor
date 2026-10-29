@@ -44,7 +44,6 @@ func _ready() -> void:
 	sea.crew.me.force_input = true
 	sea.boat.helm.request(true)
 	await get_tree().create_timer(0.5).timeout
-	sea.schools.call_out(school.id)
 	sea.crew.me.set("_pitch", -0.55)
 	sea.crew.me.set("_yaw", 0.0)
 	await get_tree().create_timer(2.5).timeout

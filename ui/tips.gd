@@ -13,7 +13,7 @@ const CALLER := "DALE, FIRST COASTAL SAVINGS & LOAN"
 ## Tip id -> what Dale says. (The alongside one depends on the boat: _alongside_text.)
 const TIPS := {
 	"out": "Morning, crew. Dale, from the bank. Quick refresher on how you pay us back: tuna feed under birds. Look "
-			+ "along the horizon for a flock. Crosshair on it, left click, and it goes on your radar. Over.",
+			+ "along the horizon for a flock and get over there. Look at it and you'll see what you're looking at. Over.",
 	"flock": "Let me save you some fuel. Birds diving on white water? Bluefin. Go. Birds sitting on the water? The "
 			+ "tuna went down, wait for them. Gulls over little splashes? No tuna. That's just birds having lunch.",
 	"fast": "Whoa whoa whoa. Under 10 knots near the birds. You run them over at full speed and they dive, and I "

@@ -33,8 +33,8 @@ const KINDS := {
 	"skiff": {
 		"name": "the skiff",
 		"title": "28 ft center console",
-		"blurb": "Quick and handy, one or two can fish her: two rods, the wheel a step from them. Rough in a blow, "
-				+ "and her fish box takes two.",
+		"blurb": "Quick and handy, one or two can fish her: two rods, the wheel a step from them. No radar, no "
+				+ "sonar: you find the birds by eye. Rough in a blow, and her fish box takes two.",
 		"model": "res://boat/skiff.glb",
 		"length": 8.5, "beam": 2.9, "deck": 0.45, "sink": 0.05,
 		"pitch_follow": 1.0, "roll_follow": 1.0,
@@ -56,7 +56,7 @@ const KINDS := {
 	"sportfisher": {
 		"name": "the sportfisher",
 		"title": "46 ft sportfisher",
-		"blurb": "Four rods, the fighting chair, the tower and a big fish hold: the money boat. Slow to turn and stop, "
+		"blurb": "Four rods, radar and sonar, the fighting chair, the tower and a big fish hold: the money boat. Slow to turn and stop, "
 				+ "and it takes a crew to fish her well.",
 		"model": "res://boat/boat.glb",
 		"length": 14.0, "beam": 4.8, "deck": 0.55, "sink": 0.12,

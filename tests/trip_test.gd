@@ -55,9 +55,7 @@ func _ready() -> void:
 	if spotter != null and spotter.get("_read") != null:
 		print("TRIP spotted: %s" % str((spotter.get("_read") as Label).text).replace("
 ", " | "))
-	sea.schools.call_out(school.id)
-	await _wait(0.3)
-	_check(sea.schools.marks.has(school.id), "called it: marked on the radar")
+	_check(spotter != null and spotter.get("_looking") == school, "spotted it: the crosshair's on it")
 	# the wheel: run to it, slow down near it
 	sea.crew.me.force_input = true
 	sea.boat.helm.request(true)

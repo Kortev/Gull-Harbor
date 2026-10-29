@@ -653,7 +653,7 @@ func _process(delta: float) -> void:
 			todo = hint()
 			var spotter: Node = sea.get("spotter")
 			if todo.is_empty() and spotter != null and int(spotter.get("used")) < 3:
-				todo = "Find the birds: look along the horizon for a flock, put it under the crosshair, left click to call it"
+				todo = "Find the birds: look along the horizon for a flock and head for it"
 		hud.call("fight", todo, 0.0)
 	# the captain's plotter: where each fish on is, round the boat
 	var fish := []
