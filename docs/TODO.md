@@ -9,7 +9,7 @@ repo until the new repo exists), tick it here.
 
 - [x] **The sea:** Fathom's ocean, weather (calm, sunny, fog, rain, heavy, storm), sky, rain, lightning, the PS1 look.
 - [x] **The boat:** a plain, weathered 41 ft tuna boat for four (`art/boat.py` -> `boat/boat.glb`, crunched CC0 photo textures): wheelhouse and hardtop, open cockpit, fighting chair, 8 rod holders, tuna tower, outriggers, floodlights; parked at the origin, heaving, pitching and rolling on the swell (`boat/boat.gd`).
-- [ ] **Sea polish:** the small white squares scattered on the water, and the sawtooth facets on big swells in low sun.
+- [x] **Sea polish:** the white squares on the water are now little rain rings; big swells are shaded smooth with a hint of the PS1 facets (`facets` in ocean.gdshader), no more sawtooth.
 - [x] **The crew:** a first-person player (walk, sprint, jump, look, E to interact) on the moving deck: you walk in the boat's still "deck space" and are carried by its pose, so nobody slides or jitters (`crew/player.gd`, `tests/deck_test.gd`).
 - [ ] **Green water:** spray over the bow and crests slopping over the rail in a storm; the deck streaming.
 - [ ] **Co-op:** host / join (ENet direct, then Steam lobbies), players spawn on deck, everyone sees the same sea.

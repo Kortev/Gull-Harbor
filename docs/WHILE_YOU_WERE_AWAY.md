@@ -1,5 +1,15 @@
 # While you were away (newest first)
 
+## Sea polish
+- **What changed:**
+  - The white squares all over the water in the rain were the ocean's raindrop dots. They're now little
+    rings that open and fade.
+  - Big swells in low light had a sawtooth look from long, thin triangles. They're now shaded smooth, with
+    only a hint of the PS1 facets left.
+  - Fixed: the wheelhouse night light never turned on.
+- **How it was checked:** `docs/shots/sea_rain_rings.png` and `sea_heavy_smooth.png` (a heavy sea from the
+  cockpit, a swell towering over the rail).
+
 ## Walking around on the boat
 - **What changed:** you're one of the crew now, in first person:
   - WASD, mouse look, Shift sprints, Space jumps, E uses things.

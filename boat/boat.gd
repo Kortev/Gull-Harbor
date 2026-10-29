@@ -24,7 +24,7 @@ var ocean: Ocean
 var spawns: Array[Transform3D] = []      # boat-local
 var holders: Array[Transform3D] = []     # boat-local; see holder_transform()
 var helm := Transform3D.IDENTITY
-var floods: Array[SpotLight3D] = []
+var floods: Array[Light3D] = []
 var chair: Node3D
 var wheel: Node3D
 var _radar: Node3D

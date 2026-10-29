@@ -36,6 +36,8 @@ uniform vec4 calm_rect = vec4(0.0);
 uniform float swell = 4.0;
 uniform float whitecaps = 0.3;
 uniform float rain = 0.6;
+// how much of the flat per-triangle facet look shows through the smooth shading (1: all facets)
+uniform float facets : hint_range(0.0, 1.0) = 0.35;
 // Where the wind blows (for the foam streaks a storm lays on the water).
 uniform vec2 wind = vec2(0.8, 0.6);
 // A hurricane tearing the crests into spray (ocean.gd, more in a gust): the streaks spread, the sea goes white.
@@ -135,6 +137,7 @@ void fragment() {
 	float k = (1.0 - smoothstep(fade_start, fade_end, length(q))) * calm_at(q);
 	float y = 0.0;
 	float jac = 0.0;
+	vec2 slope = vec2(0.0);
 	float g = group_at(q);
 	float sw = swell_at(q);
 	float wp = warp_at(q);
@@ -146,10 +149,20 @@ void fragment() {
 		vec4 b = waves_b[i];
 		bool sl = i < swell_count;
 		float a = w.w * (sl ? sw : g);
-		float s = sin(w.z * dot(w.xy, q) - b.x * wave_time + b.y + wp * (sl ? 1.0 : 0.5));
+		float th = w.z * dot(w.xy, q) - b.x * wave_time + b.y + wp * (sl ? 1.0 : 0.5);
+		float s = sin(th);
 		y += a * s;
 		jac += b.z * w.z * a * s;
+		slope += a * w.z * cos(th) * w.xy;
 	}
+	// the smooth surface's normal, blended with the flat facet: the PS1 facets stay, the sawtooth of long thin
+	// triangles on a big swell in low sun goes
+	vec3 smooth_n = normalize((VIEW_MATRIX * MODEL_MATRIX * vec4(-slope.x * k, 1.0, -slope.y * k, 0.0)).xyz);
+	if (dot(smooth_n, VIEW) < 0.0) {
+		smooth_n = -smooth_n;
+	}
+	n = normalize(mix(smooth_n, n, facets));
+	NORMAL = n;
 	float crest = jac * k / max(steep, 0.001);
 	float h = clamp(y * k / max(swell, 0.5) + 0.5, 0.0, 1.0);
 	vec3 col = mix(deep_color, crest_color, h);
@@ -182,11 +195,17 @@ void fragment() {
 		float ring = 1.0 - smoothstep(0.0, 1.5 + 2.5 * whitecaps + 0.15 * swell, dl);
 		foam = max(foam, step(0.45, ring * (0.55 + 0.6 * grain) + h * 0.2));
 	}
-	// rain hitting the water: dots that come and go
-	vec2 cell = floor(q * 4.0);
-	float slot = floor(wave_time * 5.0 + hash(cell) * 7.0);
-	float drop = step(1.0 - 0.035 * rain, hash(cell + slot * 0.37)) * (1.0 - smoothstep(0.03, 0.12, length(fwidth(q))));
-	col = mix(col, mix(col, foam_color, 0.35), drop);
+	// rain hitting the water: little rings that open and fade (one chance per 33 cm cell per drop slot)
+	vec2 rq = q * 3.0;
+	vec2 cell = floor(rq);
+	float phase = wave_time * 2.5 + hash(cell) * 7.0;
+	float slot = floor(phase);
+	float age = fract(phase);
+	float hit = step(1.0 - 0.06 * rain, hash(cell + slot * 0.37));
+	vec2 at = vec2(hash(cell + slot), hash(cell - slot)) * 0.5 + 0.25;
+	float ring = 1.0 - smoothstep(0.0, 0.035, abs(length(fract(rq) - at) - (0.04 + age * 0.22)));
+	float drop = hit * ring * (1.0 - age) * (1.0 - smoothstep(0.02, 0.06, length(fwidth(q))));
+	col = mix(col, mix(col, foam_color, 0.4), drop);
 	col = mix(col, foam_color, foam);
 	ALBEDO = col;
 	ROUGHNESS = mix(0.4, 0.95, foam);

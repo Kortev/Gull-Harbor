@@ -61,6 +61,12 @@ func _ready() -> void:
 		spawn_player(1, 0)
 	night = _args.has("night")
 	set_condition(str(_args.get("weather", "rain")))
+	for n in str(_args.get("hide", "")).split(",", false):   # (dev: --hide=Rain,SeaFx,... to find what's what)
+		for found in find_children(n, "", true, false):
+			if found is Node3D:
+				(found as Node3D).visible = false
+			elif found is CanvasLayer:
+				(found as CanvasLayer).visible = false
 
 
 func _process(_delta: float) -> void:
