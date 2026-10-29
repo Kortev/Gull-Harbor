@@ -6,8 +6,12 @@ a Python copy of `tuna/fight.gd` and the GDScript only by reading it. It's on th
 branch, not `main`; play it once before merging.
 - **A rod in its holder keeps fighting the fish on its drag.** It used to pour off 16 m of line a second nonstop, so
   every trip to the wheel lost a minute or more of cranking. Now the fish does what it does in your hands: it takes
-  line on its runs (and tires doing it), takes none between them, and gets its wind back while nobody pumps it. The
-  host plays it and tells everyone.
+  line on its runs (and tires doing it) and none between them. The host plays it and tells everyone.
+- **A hooked fish never gets its strength back** (your second playtest: "that doesn't make sense"). With the line
+  tight, in your hands or in the holder, doing nothing just doesn't tire it; only fighting it does.
+- **The boat out-turns the fish** (also your playtest: the fish circled as fast as she turned, so you could never
+  catch it up). A circling fish swung round her at up to 10 m/s; now about 5 m/s, a real circling giant's pace, and
+  she spins half again as fast (twin screws, one ahead and one astern). A captain hard over always gains on it.
 - **Picking the rod back up carries on the same fight:** the same move the fish was on (no more "always circling"
   when you come back), and your arms as tired as you left them (they used to reset every time you grabbed it).
 - **The corner works:** stand aft at the rail on the side the fish is on and the line stays off the hull longer.
@@ -19,18 +23,21 @@ branch, not `main`; play it once before merging.
   while it takes it.
 - **Pump hints:** "Pump it up" and "Pump" were the same thing; both now say "Pump: heave, then crank down".
 - **Fixed:** "FISH ON! The port corner rod!" named the wrong side (rod 0 is on the starboard corner).
-- **What it does for solo** (the Python copy, 40 fights each, fought right):
+- **What it does for solo** (the Python copy, 20 fights each, fought right; landed, and the usual time):
 
-  | Alone | 100 kg | 200 kg | 300 kg | 400 kg |
-  | --- | --- | --- | --- | --- |
-  | Before: stay in the middle of the cockpit | 37 | 10 | 0 | 0 |
-  | From the fish's corner | 39 | 17 | 1 | 0 |
-  | Corner, and a 3 s run to the 46 ft's wheel | 10 | 3 | 5 | 0 |
-  | Corner, and a wheel 1 s away (the small boat) | 38 | 31 | 22 | 13 |
+  | Alone | 150 kg | 300 kg | 400-450 kg |
+  | --- | --- | --- | --- |
+  | Before all this, any way | 20 of 20, 2.5 min | 0 | 0 |
+  | Now, from the middle of the cockpit | 20, 2.5 min | 11, 7 min | 11, 12.5 min |
+  | Now, from the fish's corner | 20 | 14, 7 min | 13, 11.5 min |
+  | Now, corner, and running to the wheel when it rubs | 20 | 20, 7.5 min | 20, 12 min |
 
-  So the 46 ft stays a crew boat, and the small boat (next) is what makes solo work: its wheel a step from the rods.
+  With a captain: 300 kg in about 2 minutes, 450 kg in about 4. So alone you can land a giant now, but it takes
+  the corner and runs to the wheel, and it's a long fight; a crew makes it quick.
 - **Tests:** `tests/fight_test.tscn` now also checks that a fish in the holder takes no line between its runs and is
-  still on after 30 s, that the corner lands more alone, and that a picked-up fight carries on its move.
+  still on after 30 s, that the corner lands more giants alone, and that a picked-up fight carries on its move. Two
+  old checks were loosened to match: "alone, a giant gets away" now only for 400 kg and up, and the props check runs
+  40 blind fights instead of 20.
 
 ## Brainstorm: playing with 1, 2 or 4 (your question; nothing built yet, pick what you like)
 The rule I'd hold to: **more hands make it easier, but no job is ever required.** Every job has a weaker

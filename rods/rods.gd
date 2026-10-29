@@ -15,7 +15,7 @@ const BAITS: Array[Vector3] = [Vector3(5.5, 0, 39.0), Vector3(-5.5, 0, 39.0), Ve
 ## Where the lines go over the transom (boat-local): bearings and line out are measured from here.
 const STERN := Vector3(0.0, 0.0, 7.05)
 ## A rod nobody's holding sits in its holder with the drag set: the host plays the fish against the drag (it takes
-## line on its runs and gets its wind back between them, nobody winning any back) and tells everyone how it's going.
+## line on its runs and tires doing it; between them nobody wins any back) and tells everyone how it's going.
 const WHY := {"broke": "The line parted!", "pulled": "Pulled the hook!",
 		"spooled": "Spooled! It took every metre of line.", "chafed": "The line chafed through on the hull!",
 		"cut": "It went under the boat: the props cut the line!"}
@@ -365,7 +365,7 @@ func _fight_mine(r: Rod, delta: float, throttle: float, send: bool) -> void:
 
 
 ## Host: a fish on a rod in its holder, nobody on it. The drag still works it: it takes line on its runs and tires
-## doing it, but nobody cranks or pumps, so it gains nothing back and gets its wind back between runs.
+## doing it, but nobody cranks or pumps, so between runs nobody wins line back and it doesn't tire.
 func _fight_holder(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	var fight := r.fight as Fight
 	if fight == null or not fight.in_holder:

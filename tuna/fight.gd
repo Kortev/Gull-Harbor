@@ -19,14 +19,15 @@ signal boatside
 
 ## answer: hold (don't crank: let the drag tire it), pump (lift, then crank down), tight (keep cranking or lifting,
 ## or the hook pulls), reel (crank). out: how fast it takes line (x the fish's run speed); pull: how hard;
-## turn: how fast it swings round the boat (rad/s at 20 m); depth: where it heads (m); dur: how long (s).
+## turn: how fast it swings round the boat (rad/s at 20 m: a circling giant's 5 m/s, slower than the boat turns, so
+## a captain can always catch it up); depth: where it heads (m); dur: how long (s).
 const MOVES := {
-	"run":    {"answer": "hold",  "out": 1.0,  "pull": 1.0,  "turn": 0.12, "depth": 20.0,  "dur": [5.0, 9.0]},
+	"run":    {"answer": "hold",  "out": 1.0,  "pull": 1.0,  "turn": 0.1,  "depth": 20.0,  "dur": [5.0, 9.0]},
 	"sound":  {"answer": "pump",  "out": 0.25, "pull": 0.85, "turn": 0.04, "depth": 110.0, "dur": [6.0, 10.0]},
-	"shake":  {"answer": "tight", "out": 0.0,  "pull": 0.55, "turn": 0.08, "depth": 15.0,  "dur": [1.6, 2.6]},
-	"circle": {"answer": "pump",  "out": 0.0,  "pull": 0.6,  "turn": 0.5,  "depth": 50.0,  "dur": [6.0, 10.0]},
+	"shake":  {"answer": "tight", "out": 0.0,  "pull": 0.55, "turn": 0.06, "depth": 15.0,  "dur": [1.6, 2.6]},
+	"circle": {"answer": "pump",  "out": 0.0,  "pull": 0.6,  "turn": 0.25, "depth": 50.0,  "dur": [6.0, 10.0]},
 	"rest":   {"answer": "reel",  "out": 0.0,  "pull": 0.3,  "turn": 0.03, "depth": 25.0,  "dur": [2.5, 4.0]},
-	"spiral": {"answer": "reel",  "out": 0.0,  "pull": 0.35, "turn": 0.9,  "depth": 2.0,   "dur": [6.0, 9.0]},
+	"spiral": {"answer": "reel",  "out": 0.0,  "pull": 0.35, "turn": 0.3,  "depth": 2.0,   "dur": [6.0, 9.0]},
 }
 const TELLS := {
 	"run": "It's running! Let it go", "sound": "It's sounding deep! Pump: heave, then crank down",
@@ -73,8 +74,8 @@ var throttle := 0.0
 ## where the angler stands.
 var reach := 0.0
 ## The rod's in its holder with nobody on it (rods.gd): the drag still works the fish and it still takes line on its
-## runs, but nobody cranks or pumps, so it gets its wind back between runs. The drag keeps the line tight, so a
-## headshake only throws the hook if she's backing down onto the fish (slack).
+## runs, but nobody cranks or pumps, so between runs it neither tires nor wins line. The drag keeps the line tight,
+## so a headshake only throws the hook if she's backing down onto the fish (slack).
 var in_holder := false
 ## The angler's arms, 1 fresh .. 0 spent (rods.gd keeps them on the person, so they carry over and rest up
 ## between fights). Cranking and heaving wear them, the heavier the fish the faster; a tired angler cranks slower
@@ -221,7 +222,8 @@ func step(dt: float, crank: bool, lift: float) -> void:
 		_end("spooled")
 		return
 
-	# Tiring: working against the drag and your pumping wears it down; left alone, it gets its wind back.
+	# Tiring: working against the drag and your pumping wears it down. With the line tight it never gets its wind
+	# back; doing nothing just doesn't tire it.
 	var drain := 1.0 / _goal_s
 	match ans:
 		"hold":
@@ -229,12 +231,12 @@ func step(dt: float, crank: bool, lift: float) -> void:
 		"pump":
 			drain *= 1.2 if lift > 0.5 or _pump > 0.0 else 0.3
 		_:
-			drain *= 1.0 if crank or lift > 0.5 else -0.4
+			drain *= 1.0 if crank or lift > 0.5 else 0.0
 	energy = clampf(energy - drain * dt, 0.0, 1.0)
 
 	# Where it is: swinging round the boat, heading for its depth (never deeper than the line reaches).
 	var hd := maxf(sqrt(maxf(line_out * line_out - depth * depth, 0.0)), 1.0)
-	bearing += float(m["turn"]) * _turn_sign * dt * clampf(20.0 / hd, 0.2, 2.0)
+	bearing += float(m["turn"]) * _turn_sign * dt * clampf(20.0 / hd, 0.2, 1.2)
 	# a big fish tows her stern round toward it, slowly
 	bearing -= sin(wrapf(bearing, -PI, PI)) * TOW * pull * dt
 	var want := minf(float(m["depth"]), line_out * 0.85)

@@ -6,7 +6,8 @@ extends Area3D
 ## through the fight (tuna/fight.gd: the boat coming back over the fish wins line and takes the strain).
 ## The captain's own machine steers, so it answers at once, and tells everyone her heading and throttle.
 
-const TURN := 0.3         # rad/s, hard over
+## rad/s, hard over: twin screws, one ahead and one astern, spin her faster than a fish circles (tuna/fight.gd)
+const TURN := 0.45
 const SEND := 1.0 / 15.0
 
 var boat: Node3D          # boat/boat.gd
