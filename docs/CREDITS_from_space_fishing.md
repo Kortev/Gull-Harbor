@@ -79,3 +79,8 @@ Cut, levelled and made mono by `assets/world/sounds/build_sounds.py`; the source
 | Interface Sounds, UI Audio, Digital Audio, RPG Audio, Impact Sounds, Music Jingles, www.kenney.nl | Kenney | CC0 | the menu clicks, ticks and chimes (`u_*`); the beeps and tones of the PA, the collars, Dock 07 and the kit |
 | BigSoundBank, https://bigsoundbank.com (each sound's number is in `docs/lane-b/sound-picks.md`) | Joseph Sardin | CC0 | the CRT, the tray drops, the locker glass, the START horn; the ship, the trip, the PA, the collars, Dock 07, Glimmer, Brine, Fathom (`a_*`, `b_*`, `c_*`, `d_*`, `f_*`, `g_*`, `k_*`, `s_*`, `t_*`) |
 | Made here: `assets/world/intro/build_holo_sounds.py` (synthesized, no samples) | this project | CC0 | the collar intro's hologram show: the projector, the jingle, the mascot's babble, the beeps, pop, rewind, ding and coins (`assets/world/intro/sounds/holo_*.wav`) |
+
+## The crew model kit
+
+`art/kit/` (suit_kit.py, psx.py and textures/) is the space fishing game's crew suit kit, copied in for
+`art/fisherman.py`. Its photos are the same CC0 Poly Haven crunches listed above.

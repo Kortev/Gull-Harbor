@@ -146,20 +146,29 @@ func _build_body() -> void:
 		_rest[n] = t.basis
 		for i in mi.mesh.get_surface_count():
 			var m := mi.mesh.surface_get_material(i)
-			if m != null and m.resource_name == "oilskin" and m is BaseMaterial3D:
-				var own := (m as BaseMaterial3D).duplicate() as BaseMaterial3D
+			if not m is BaseMaterial3D:
+				continue
+			# (art/fisherman.py's atlas is pixel art: crisp texels, as the space fishing game draws its crew)
+			var own := (m as BaseMaterial3D).duplicate() as BaseMaterial3D
+			own.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
+			if m.resource_name == "oilskin":
 				own.albedo_color = colour
-				mi.set_surface_override_material(i, own)
+			mi.set_surface_override_material(i, own)
 	src.free()
-	# the joints: head and arms ride the torso, forearms the arms, shins the thighs
+	# the joints: head and arms ride the torso, forearms the arms, shins the thighs. (Each worked out from where the
+	# pieces sit in the model, before any is moved: an arm already hung on the torso has a torso-local transform, and
+	# a forearm worked out against that sat 0.92 m too high, up beside the head.)
+	var where := {}
+	for n: String in _parts:
+		where[n] = (_parts[n] as Node3D).transform
 	for pair: Array in [["head", "torso"], ["arm_l", "torso"], ["arm_r", "torso"], ["fore_l", "arm_l"],
 			["fore_r", "arm_r"], ["shin_l", "leg_l"], ["shin_r", "leg_r"]]:
 		var c := _parts.get(pair[0]) as Node3D
 		var to := _parts.get(pair[1]) as Node3D
 		if c == null or to == null:
 			continue
-		var t := to.transform.affine_inverse() * c.transform
-		root.remove_child(c)
+		var t := (where[pair[1]] as Transform3D).affine_inverse() * (where[pair[0]] as Transform3D)
+		c.get_parent().remove_child(c)
 		to.add_child(c)
 		c.transform = t
 		_rest[pair[0]] = t.basis
