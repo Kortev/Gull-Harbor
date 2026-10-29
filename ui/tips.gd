@@ -12,8 +12,8 @@ const SAVE := "user://bluefin_tips.cfg"
 const CALLER := "DALE, FIRST COASTAL SAVINGS & LOAN"
 ## Tip id -> what Dale says. (The alongside one depends on the boat: _alongside_text.)
 const TIPS := {
-	"out": "Morning, crew. Dale, from the bank. Quick refresher on how you pay us back: tuna feed under birds. Hold B "
-			+ "for the binoculars and sweep the horizon. Left click a flock and it goes on your radar. Over.",
+	"out": "Morning, crew. Dale, from the bank. Quick refresher on how you pay us back: tuna feed under birds. Look "
+			+ "along the horizon for a flock. Crosshair on it, left click, and it goes on your radar. Over.",
 	"flock": "Let me save you some fuel. Birds diving on white water? Bluefin. Go. Birds sitting on the water? The "
 			+ "tuna went down, wait for them. Gulls over little splashes? No tuna. That's just birds having lunch.",
 	"fast": "Whoa whoa whoa. Under 10 knots near the birds. You run them over at full speed and they dive, and I "
@@ -147,9 +147,9 @@ func _watch() -> void:
 	var landing := sea.get("landing") as Node
 	var schools := sea.get("schools") as Node
 	var crew := sea.get("crew") as Node
-	# a flock read through the glasses
-	var glasses: Node = sea.get("binoculars")
-	if glasses != null and glasses.get("_looking") != null:
+	# the first flock picked out
+	var spotter: Node = sea.get("spotter")
+	if spotter != null and spotter.get("_looking") != null:
 		show_tip("flock")
 	# coming up on birds too fast
 	if speed > 4.5:

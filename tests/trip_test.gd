@@ -1,6 +1,6 @@
 extends Node
 ## A whole solo trip, played by a bot in a real window, with a screenshot at each stage (docs/shots/trip_*.png):
-## the dock, heading out in the skiff, a flock through the binoculars (called), running to it at the wheel, slowing
+## the dock, heading out in the skiff, a flock spotted on the horizon (called), running to it at the wheel, slowing
 ## to troll, the bite, the fight (the bot clears the other line first, and keeps her stern on the fish the way a
 ## captain would: solo you'd drop the rod in the holder to do it), boatside, the harpoon, the haul, bleeding and icing,
 ## heading in and the sale. Prints what happened at each step and fails if a step never comes.
@@ -47,17 +47,16 @@ func _ready() -> void:
 		return
 	print("TRIP the flock's %.0f m off; there are %d flocks" % [
 			_school_xz(school).distance_to(sea.boat.helm.at), sea.schools.schools.size()])
-	# the binoculars: look at it, hold B, call it
+	# spot it: look at it (crosshair on it), call it
 	await _face(school)
-	Input.action_press("binoculars")
-	await _wait(1.2)
-	await _shot("binoculars")
-	var read := sea.find_child("*inoculars*", true, false)
-	if read != null and read.get("_read") != null:
-		print("TRIP through the binoculars: %s" % str((read.get("_read") as Label).text).replace("\n", " | "))
+	await _wait(0.5)
+	await _shot("spotted")
+	var spotter := sea.find_child("Spotter", true, false)
+	if spotter != null and spotter.get("_read") != null:
+		print("TRIP spotted: %s" % str((spotter.get("_read") as Label).text).replace("
+", " | "))
 	sea.schools.call_out(school.id)
 	await _wait(0.3)
-	Input.action_release("binoculars")
 	_check(sea.schools.marks.has(school.id), "called it: marked on the radar")
 	# the wheel: run to it, slow down near it
 	sea.crew.me.force_input = true

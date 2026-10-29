@@ -41,7 +41,7 @@ var body_mesh: MeshInstance3D
 var force_input := false
 ## A fish pulling on the rod in your hands, 0..1 (rods.gd): your view trembles with it and gets tugged toward it.
 var shake := 0.0
-## Slower looking (crew/binoculars.gd: through them, a little mouse goes a long way).
+## Slower looking (a little mouse going a long way; 1 as things are).
 var look_scale := 1.0
 ## Your arms, 1 fresh .. 0 spent (tuna/fight.gd wears them in a fight; off the rod they come back at REST).
 var arms := 1.0
@@ -200,7 +200,7 @@ func _slot() -> int:
 ## the wheel, the harpoon) and what you send (`act`, gestures): walking and running (legs and arms swinging, knees
 ## and elbows bending, a bob), standing easy with the sea (breathing, knees soft), a rod in your hands (cranking:
 ## the reel arm going round; pumping: leaning back and dropping; braced against a run), the wheel (hands working it
-## as she turns), the harpoon (cocked, and the throw), binoculars up, hauling (leaning back, hand over hand), the jig,
+## as she turns), the harpoon (cocked, and the throw), hauling (leaning back, hand over hand), the jig,
 ## a scoop of chum, bleeding a fish, a stumble when she slams a wave. Pieces turn about x (forward, + raises a
 ## limb in front / bends an elbow; a knee bends with -), y (twist) and z (out to the side).
 func _pose_body(delta: float) -> void:
@@ -265,12 +265,6 @@ func _pose_body(delta: float) -> void:
 		p["arm_r"] = Vector3(1.15 - steer * 0.3, 0.0, 0.05)
 		p["fore_r"] = Vector3(0.75, 0.0, 0.0)
 		p["torso"] = Vector3(-0.04, steer * 0.12, 0.0)
-	if doing & ACT_GLASSES:
-		# binoculars up to the eyes, elbows out
-		p["arm_l"] = Vector3(1.35, 0.0, -0.55)
-		p["fore_l"] = Vector3(2.0, 0.0, 0.0)
-		p["arm_r"] = Vector3(1.35, 0.0, 0.55)
-		p["fore_r"] = Vector3(2.0, 0.0, 0.0)
 	if doing & ACT_HAUL:
 		# leaning back on it, hand over hand
 		_haul_ph += delta * 4.5
@@ -477,9 +471,6 @@ func _doing() -> int:
 	if sea == null:
 		return 0
 	var out := 0
-	var glasses: Node = sea.get("binoculars")
-	if glasses != null and float(glasses.get("_up")) > 0.3:
-		out |= ACT_GLASSES
 	var jig: Node = sea.get("jig")
 	if jig != null and bool(jig.get("_jigging")):
 		out |= ACT_JIG
@@ -546,10 +537,7 @@ func _process(delta: float) -> void:
 	head.position.y = move_toward(head.position.y, 1.62 - (SEAT_DROP if seated else 0.0), delta * 2.0)
 	var tilted := global_transform.basis.orthonormalized()
 	var level := Basis(Vector3.UP, tilted.get_euler(EULER_ORDER_YXZ).y)
-	# (through the binoculars the view holds level: steadied glasses, or you'd never keep a flock in them)
-	var glasses: Node = boat.get("sea").get("binoculars") if boat and boat.get("sea") else null
-	var up := float(glasses.get("_up")) if glasses != null and is_multiplayer_authority() else 0.0
-	var eyes := tilted.slerp(level, lerpf(STEADY, 1.0, up))
+	var eyes := tilted.slerp(level, STEADY)
 	head.global_basis = eyes * Basis(Vector3.RIGHT, _pitch)
 	if is_multiplayer_authority():
 		if shake <= 0.0:

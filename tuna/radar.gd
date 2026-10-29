@@ -2,7 +2,7 @@ extends Node
 ## The radar at the helm (the dash's right-hand screen, 96 x 96): heading up, RANGE m to the edge, the sweep going
 ## round with the bar on the hardtop, and birds in the air painted as a blob where the sweep last crossed them, fading
 ## till it comes round again (birds sitting on the water don't paint, and it can't tell gulls over little bait from
-## birds over bluefin: that's the binoculars' job). Flocks the crew have called (tuna/schools.gd's marks) show as a
+## birds over bluefin: you have to get closer and look, crew/spotter.gd). Flocks the crew have called (tuna/schools.gd's marks) show as a
 ## mark wherever they are, pinned to the edge if they're further than the radar reaches. Every peer paints its own
 ## from the shared schools.
 

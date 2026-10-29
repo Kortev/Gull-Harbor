@@ -5,9 +5,9 @@ extends PanelContainer
 const CHAPTERS := [
 	["1. Controls", "WASD walk (at the wheel: throttle and steer). Mouse look. Shift sprint, Space jump.\n"
 		+ "E: use whatever's under the crosshair. Hold E to haul, wire, jig.\n"
-		+ "Left mouse: crank the reel. Throw the harpoon. Through the binoculars: call a flock.\n"
+		+ "Left mouse: crank the reel. Throw the harpoon. A flock under the crosshair: call it.\n"
 		+ "Right mouse: heave the rod up (a pump is heave, then crank on the way down).\n"
-		+ "B or middle mouse: binoculars. Q: put the rod or the harpoon back. Esc: this menu."],
+		+ "Q: put the rod or the harpoon back. Esc: this menu."],
 	["2. The loan", "Congratulations on your boat, which belongs to First Coastal Savings & Loan.\n\n"
 		+ "Every 3 days (3 trips) the bank wants a payment: the quota. $5,000 first, then half as much again "
 		+ "each time. Every fish you sell counts toward it, and the money's yours to spend at the dock too.\n\n"
@@ -16,11 +16,11 @@ const CHAPTERS := [
 		+ "sportfisher)."],
 	["3. Finding tuna", "Bluefin feed under birds. Flocks turn up a mile or more off, and from the deck they're a "
 		+ "speck on the horizon.\n\n"
-		+ "Binoculars (hold B) tell you what a flock is:\n"
+		+ "Get within about 700 m and you can tell what a flock is (crosshair on it):\n"
 		+ "- Birds diving on white water: BLUEFIN. Go.\n"
 		+ "- Birds sitting on the water: the tuna are down. They come up again in a minute or so. Wait.\n"
 		+ "- Gulls over little splashes: no tuna. About a third of flocks are just gulls.\n\n"
-		+ "Left click through the binoculars calls the flock: a cross on the radar for everyone. The radar shows "
+		+ "Left click on a flock calls it: a cross on the radar for everyone. The radar shows "
 		+ "birds in the air out to 1.5 km, but it can't tell gulls from tuna birds."],
 	["4. Coming up on them", "DO NOT RUN OVER THE FISH. Faster than about 10 knots through a school and it dives "
 		+ "for 40 seconds.\n\n"

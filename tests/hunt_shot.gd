@@ -1,6 +1,6 @@
 extends Node
 ## What the hunt looks like to a player (docs/shots/hunt_*.png): a flock about FAR m off with the naked eye, the
-## same through the binoculars, and the skiff's dash (the radar) from the wheel.
+## the spotter's read of it, and the skiff's dash (the radar) from the wheel.
 ## Run (needs a window): godot --path . res://tests/hunt_shot.tscn
 
 const Sea := preload("res://sea/sea.gd")
@@ -37,10 +37,8 @@ func _ready() -> void:
 	var c: Vector2 = school.center(sea.schools.now())
 	await _face(Vector3(c.x, 2.0, c.y))
 	await _shot("hunt_eye")
-	Input.action_press("binoculars")
-	await get_tree().create_timer(1.5).timeout
-	await _shot("hunt_binoculars")
-	Input.action_release("binoculars")
+	await get_tree().create_timer(0.5).timeout
+	await _shot("hunt_eye_read")
 	print("HUNT the flock is %.0f m off" % c.distance_to(sea.boat.helm.at))
 	# the dash from the wheel
 	sea.crew.me.force_input = true

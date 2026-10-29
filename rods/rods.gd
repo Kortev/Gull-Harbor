@@ -651,9 +651,9 @@ func _process(delta: float) -> void:
 			todo = str((sea.get("fish_hold") as Node).call("hint"))
 		if todo.is_empty() and not bool((sea.get("fish_hold") as Node).get("docked")):
 			todo = hint()
-			var glasses: Node = sea.get("binoculars")
-			if todo.is_empty() and glasses != null and int(glasses.get("used")) < 3:
-				todo = "Find the birds: hold B for the binoculars, look along the horizon, left click to call a flock"
+			var spotter: Node = sea.get("spotter")
+			if todo.is_empty() and spotter != null and int(spotter.get("used")) < 3:
+				todo = "Find the birds: look along the horizon for a flock, put it under the crosshair, left click to call it"
 		hud.call("fight", todo, 0.0)
 	# the captain's plotter: where each fish on is, round the boat
 	var fish := []

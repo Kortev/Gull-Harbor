@@ -6,7 +6,7 @@ extends Node3D
 ## sees the same birds and the same busting water.
 ##
 ## How you find them (a hunt: it takes a while): birds, far off. With the naked eye a flock's a smudge on the horizon;
-## through the binoculars (crew/binoculars.gd) you see what they're doing: diving on bluefin busting white water, or
+## closer in (crew/spotter.gd) you can tell what they're doing: diving on bluefin busting white water, or
 ## working little bait with no tuna under them (BAIT_ONLY of flocks: not worth the run), or sitting on the water
 ## because the tuna have gone down (they feed in spells, SPELL s at a time: wait and they'll come up). Call a flock
 ## and it's marked on the radar for everyone (call_out); the radar itself paints birds in the air within its range
@@ -28,7 +28,7 @@ const SPLASH := preload("res://audio/fish/splash.wav")
 const PUFF := preload("res://sea/textures/steam_puff.png")
 ## How many work at once, how far off they turn up (m: the first one quickly and closer), how long one lasts (s),
 ## the last of which its birds spend lifting and scattering, and how fast it cruises (m/s).
-const MAX_SCHOOLS := 4
+const MAX_SCHOOLS := 6
 const SPAWN := Vector2(800.0, 2600.0)
 const FIRST := Vector2(600.0, 1000.0)
 const LIFE := Vector2(360.0, 720.0)
@@ -101,6 +101,8 @@ func _ready() -> void:
 					_spook.rpc_id(id, s.id, s.spooked_until))
 
 
+## How many pixels across a far-off bird is drawn, at least (so a flock reads on the horizon).
+const BIRD_PX := 5.0
 const BIRD_SHADER := """
 shader_type spatial;
 render_mode unshaded, cull_disabled, fog_disabled;
@@ -139,13 +141,13 @@ func _process(delta: float) -> void:
 		var k := 0.25 if env.fog_mode == Environment.FOG_MODE_DEPTH else env.fog_density * 0.12
 		var cam := get_viewport().get_camera_3d()
 		if cam:
-			k *= clampf(cam.fov / 75.0, 0.35, 1.0)     # (the binoculars see through the haze better)
+			k *= clampf(cam.fov / 75.0, 0.35, 1.0)     # (a narrower view sees through the haze better)
 		bird_mat.set_shader_parameter("haze", env.fog_light_color)
 		bird_mat.set_shader_parameter("haze_k", k)
 	if Net.is_host() and not _docked():
 		_next -= delta
 		if _next <= 0.0:
-			_next = randf_range(15.0, 40.0)
+			_next = randf_range(10.0, 25.0)
 			if schools.size() < MAX_SCHOOLS:
 				_host_start()
 	for s in schools.duplicate():
@@ -345,7 +347,7 @@ func _start(id: int, seed: int, t0: float, start: Vector2, heading: Vector2, spe
 	schools.append(s)
 
 
-## Calling a flock (crew/binoculars.gd): marked on the radar for everyone, and the crew told where it is.
+## Calling a flock (crew/spotter.gd): marked on the radar for everyone, and the crew told where it is.
 func call_out(id: int) -> void:
 	if Net.is_host():
 		_ask_mark_as(Net.my_id(), id)
@@ -401,7 +403,7 @@ func where(p: Vector2) -> String:
 	return "about %s %s" % [far, dir]
 
 
-## What you'd make of a flock through the binoculars (crew/binoculars.gd).
+## What you'd make of a flock close enough to tell (crew/spotter.gd).
 func spot_text(s: School) -> String:
 	var t := now()
 	if s.scattering(t) > 0.0:
@@ -534,14 +536,13 @@ class School extends Node3D:
 		var going := scattering(t)
 		var sitting := not feed and going <= 0.0 and t >= spooked_until
 		# a bird far off is drawn no smaller than a few pixels on the screen: a cluster of dots you can pick out on the
-		# horizon with the naked eye, a flock of birds you can make out through the binoculars (the zoomed-in view
-		# wants them bigger, or they'd shrink back to their true size, a pixel at a kilometre)
+		# horizon with the naked eye (at its true size a bird a kilometre off would be under a pixel, and invisible)
 		var cam := get_viewport().get_camera_3d()
 		var speck := 1.0
 		if cam:
-			var px := 2.0 * tan(deg_to_rad(cam.fov) * 0.5) * cam.global_position.distance_to(c) 					/ maxf(get_viewport().get_visible_rect().size.y, 1.0)
-			var want := lerpf(9.0, 3.0, clampf((cam.fov - 10.0) / 40.0, 0.0, 1.0))
-			speck = maxf(1.0, want * px / 0.5)
+			var dist := cam.global_position.distance_to(c)
+			var px := 2.0 * tan(deg_to_rad(cam.fov) * 0.5) * dist / maxf(get_viewport().get_visible_rect().size.y, 1.0)
+			speck = maxf(1.0, BIRD_PX * px / 0.5)
 		for i in _birds.size():
 			var bs := _bird_seed[i]
 			var b := _birds[i]
