@@ -533,12 +533,15 @@ class School extends Node3D:
 		# down (high and circling if a boat ran them down); at the end lifting, spreading and gone
 		var going := scattering(t)
 		var sitting := not feed and going <= 0.0 and t >= spooked_until
-		# a bird far off is drawn no smaller than a speck on the screen (or the horizon'd be empty)
+		# a bird far off is drawn no smaller than a few pixels on the screen: a cluster of dots you can pick out on the
+		# horizon with the naked eye, a flock of birds you can make out through the binoculars (the zoomed-in view
+		# wants them bigger, or they'd shrink back to their true size, a pixel at a kilometre)
 		var cam := get_viewport().get_camera_3d()
 		var speck := 1.0
 		if cam:
-			var view := 2.0 * tan(deg_to_rad(cam.fov) * 0.5) * cam.global_position.distance_to(c)
-			speck = maxf(1.0, view / 200.0 / 1.6)
+			var px := 2.0 * tan(deg_to_rad(cam.fov) * 0.5) * cam.global_position.distance_to(c) 					/ maxf(get_viewport().get_visible_rect().size.y, 1.0)
+			var want := lerpf(9.0, 3.0, clampf((cam.fov - 10.0) / 40.0, 0.0, 1.0))
+			speck = maxf(1.0, want * px / 0.5)
 		for i in _birds.size():
 			var bs := _bird_seed[i]
 			var b := _birds[i]

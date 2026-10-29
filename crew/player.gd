@@ -546,7 +546,10 @@ func _process(delta: float) -> void:
 	head.position.y = move_toward(head.position.y, 1.62 - (SEAT_DROP if seated else 0.0), delta * 2.0)
 	var tilted := global_transform.basis.orthonormalized()
 	var level := Basis(Vector3.UP, tilted.get_euler(EULER_ORDER_YXZ).y)
-	var eyes := tilted.slerp(level, STEADY)
+	# (through the binoculars the view holds level: steadied glasses, or you'd never keep a flock in them)
+	var glasses: Node = boat.get("sea").get("binoculars") if boat and boat.get("sea") else null
+	var up := float(glasses.get("_up")) if glasses != null and is_multiplayer_authority() else 0.0
+	var eyes := tilted.slerp(level, lerpf(STEADY, 1.0, up))
 	head.global_basis = eyes * Basis(Vector3.RIGHT, _pitch)
 	if is_multiplayer_authority():
 		if shake <= 0.0:
