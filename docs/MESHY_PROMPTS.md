@@ -5,10 +5,11 @@ Free models are CC BY 4.0: fine to use, credit "Models made with Meshy (meshy.ai
 
 ## Steps, for each model below
 
-1. Sign up at meshy.ai (free). Open **Text to 3D**.
-2. Paste the **Prompt**. If there's a pose option, pick **A-pose** (people only). Generate, and pick the best of
-   the results.
-3. Texture it: paste the **Texture prompt**. Generate.
+1. Sign up at meshy.ai (free). In the left sidebar click **Model**, then the **Text to 3D** tab at the top of
+   the panel. Pick **High Detail** with **Meshy 6 Lite** (the one the free plan can download).
+2. Paste the **Prompt** into the Prompt box. Under **Pose** pick **A-Pose** (people only). Click **Generate**
+   (about a minute). It comes out grey: that's normal.
+3. Texture it with the texture tool in the toolbar over the model: paste the **Texture prompt**, generate.
 4. People only: **Rig** it (Animate / Rigging), height as given. Keep the walk and run if it offers them.
 5. **Download as GLB** and save it as `art/generated/<name>/<name>.glb` in this repo (the rigged one if you
    rigged it). Tell me, and I take it from there: clean it, fit it, wire it into the game, screenshot it.
