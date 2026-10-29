@@ -72,6 +72,11 @@ repo, now `main`), tick it here.
     you're gaining. Not yet played in Godot.
   - **Solo** works: you drop the rod in the holder to run to the wheel. It's meant to feel desperate, and a giant
     alone takes about twelve minutes (see the table in WHILE_YOU_WERE_AWAY).
+  - **Your rules for crew size** (2026-10-29): solo must be possible and fun, but harder than with friends. No
+    numbers that change with how many are aboard (arms don't tire slower alone, fish don't shrink). The
+    differences come from the game itself: the small boat (easier alone, less money: fewer rods, a small hold)
+    against the big one (more money, needs hands), and what each extra pair of hands can do. A CPU crew member,
+    if we add one, is a person, not an autopilot: maybe a deckhand you hire for a share of the catch.
 - [x] **The tally:** top left, the hold, the deck, the weight, what it's worth and the bank. Esc, "Head in and sell
   the catch" sells it by the kilo at its grade (#1, #2, #3: landed fast, bled soon, iced soon), shows the slip,
   and banks the money (kept between games); "Head back out" starts the next trip (`boat/fish_hold.gd`,

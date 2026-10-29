@@ -46,13 +46,13 @@ const SPIRAL_IN := 30.0
 const RUN_SPEED := 9.0          # m/s, a fresh bluefin's first run
 ## The boat (the captain at the wheel turns her and sets `throttle`). Swung forward of her beam, the line lies along
 ## the hull and wears (CHAFE_LIFE s of full rubbing parts it); under her with the props turning, it's cut in
-## PROP_GRACE s. Backing down on a fish astern runs the boat back over it at BACK_SPEED, takes the strain off and
+## PROP_GRACE s (long enough to hear "out of gear!" and do it). Backing down on a fish astern runs the boat back over it at BACK_SPEED, takes the strain off and
 ## slows a run. Left alone, a big fish slowly tows her stern round to it (TOW).
 const CHAFE_FROM := 1.6
 const CHAFE_ALL := 2.4
 const CHAFE_LIFE := 14.0
 const UNDER := 2.5
-const PROP_GRACE := 0.6
+const PROP_GRACE := 1.5
 const BACK_SPEED := 2.2
 const TOW := 0.06
 const ARMS_CRANK := 0.0075      # per s cranking, x (0.2 + how outgunned, squared)
@@ -88,9 +88,9 @@ var reach := 0.0
 ## line either (nobody's winding in the slack): the slack only lets a headshake throw the hook.
 var in_holder := false
 ## The angler's arms, 1 fresh .. 0 spent (rods.gd keeps them on the person, so they carry over and rest up
-## between fights). Cranking and heaving wear them, the heavier the fish the faster; a tired angler cranks slower
-## and pumps weaker, and with nothing left can't heave at all. Easing off rests them, slowly. A giant outlasts
-## one pair of arms: hand the rod to a crewmate.
+## between fights). Cranking and heaving wear them, the heavier the fish the faster, and fighting it the wrong way
+## (cranking against a run, cranking a deep fish without pumping) much faster than the right way. Tired arms only
+## reel slower and pump weaker: they never stop you. Easing off rests them; so does handing the rod to a crewmate.
 var arms := 1.0
 ## How worn the line is from rubbing the hull, 0..1 (1: it parts), and how hard it's rubbing right now (0..1).
 var wear := 0.0
@@ -131,6 +131,12 @@ func answer() -> String:
 
 
 func tell() -> String:
+	# worst first: the props about to cut it, then it under her, then the line rubbing her side
+	if _prop_t > 0.0:
+		return "OUT OF GEAR! It's under the props!"
+	# (a spiral goes under her every lap: its own hints say when)
+	if move != "spiral" and b_now() > UNDER - 0.2 and depth < 25.0:
+		return "It's under the boat! No throttle: steer her stern round to it (A/D)"
 	# (in a spiral it brushes her every lap: only a real rub, or a worn line, outranks the spiral's own hints)
 	var warn := chafe > (0.18 if move == "spiral" else 0.08) or (chafe > 0.0 and wear > 0.3)
 	if warn:
@@ -140,7 +146,7 @@ func tell() -> String:
 			return "The line's rubbing the hull! Swing her stern to it (the wheel)"
 		return "The line's rubbing the hull! Take it to the %s corner, or swing her stern to it" % side
 	if arms < 0.25:
-		return "Your arms are gone! Ease off and rest them, or hand it off"
+		return "Your arms are tired: you're reeling slow. Fight it right and they come back"
 	if move == "spiral":
 		return "Death spiral! Ease off, it's going under her" if answer() == "ease" \
 				else "Death spiral! Crank, it's coming up"
@@ -176,13 +182,13 @@ func step(dt: float, crank: bool, lift: float) -> void:
 		line_out += (1.5 * ahead - (0.0 if in_holder else BACK_SPEED * back)) * dt
 	var b := absf(wrapf(bearing, -PI, PI))
 	var power := 0.35 + 0.65 * arms
-	if arms < 0.08:
-		lift = minf(lift, 0.5)
 	var heavy := 0.2 + big * big
+	# fighting it the wrong way wears you out: cranking against its run, or a deep fish without pumping it
+	var waste := 3.0 if ans == "hold" else (2.0 if (ans == "pump" and _pump <= 0.0) or ans == "ease" else 0.7)
 	if crank:
-		arms -= ARMS_CRANK * heavy * dt
+		arms -= ARMS_CRANK * heavy * dt * waste
 	if lift > 0.3:
-		arms -= ARMS_HEAVE * heavy * dt
+		arms -= ARMS_HEAVE * heavy * dt * (1.0 if ans == "pump" else 1.5)
 	if not crank and lift <= 0.3:
 		arms += ARMS_REST * dt
 	arms = clampf(arms, 0.0, 1.0)
@@ -299,6 +305,11 @@ func step(dt: float, crank: bool, lift: float) -> void:
 	if energy < 0.25 and line_out <= BOATSIDE:
 		done = true
 		boatside.emit()
+
+
+## How far round from dead astern it is (0 .. PI: PI is right under her bow).
+func b_now() -> float:
+	return absf(wrapf(bearing, -PI, PI))
 
 
 ## How far astern and to the side it is, flat (boat-local x, z from the stern), from its bearing and line.

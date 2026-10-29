@@ -403,9 +403,19 @@ func _process(delta: float) -> void:
 				worst = maxf(worst, float(f[2]))
 			for r in rods:
 				spiral = spiral or (r.hooked and not r.alongside and r.move == "spiral")
+			var under := false
+			var cutting := false
+			for r in rods:
+				if r.hooked and not r.alongside and absf(wrapf(r.bearing, -PI, PI)) > Fight.UNDER - 0.2 and r.depth < 25.0:
+					under = true
+					cutting = cutting or absf(float(helm.get("throttle"))) > 0.05
 			var say := "Keep the stern on it!"
-			if spiral:
+			if cutting:
+				say = "OUT OF GEAR! It's under the props!"
+			elif spiral:
 				say = "Death spiral! Out of gear: it's going under her"
+			elif under:
+				say = "It's under her! Out of gear: steer her stern round to it, A/D only"
 			elif worst >= 0.3:
 				say = "It's on the hull! Swing her stern to it!"
 			hud.call("fight", say, 0.0)

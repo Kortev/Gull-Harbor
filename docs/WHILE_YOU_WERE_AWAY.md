@@ -1,5 +1,22 @@
 # While you were away (newest first)
 
+## Tired arms that don't stop you, and the fish under the boat
+**Not run in Godot yet.**
+- **Tired arms only slow you down now.** They used to stop you pumping at all, so alone you had to stand and wait.
+  Now tired arms reel slower and pump weaker, but always work. And they tire mostly from fighting it wrong:
+  cranking against a run costs about four times what cranking a resting fish does, and pumping a deep fish
+  properly costs little. Fight it right and you barely notice them. Nothing changes with how many are aboard.
+- **Solo is possible now without breathers** (the Python copy, fought right, from the middle of the cockpit):
+  300 kg, 18 of 20 landed in about 10 minutes; 450 kg, 13 of 20 in about 13. With a captain it's still 2 to 3
+  minutes, so a crew is much easier.
+- **The fish under the boat:** the moment it goes under her, the hint says "It's under the boat! No throttle:
+  steer her stern round to it (A/D)", and the captain sees "It's under her! Out of gear: steer her stern round to
+  it, A/D only". Steering never cuts the line; only the throttle does. If anyone touches W or S while it's under
+  her, everyone gets "OUT OF GEAR! It's under the props!" and has a second and a half to let go (was half a
+  second).
+- `tests/fight_test.tscn`: "two anglers taking turns beat one" is now "taking turns is never slower" (fought right,
+  arms barely tire any more).
+
 ## She really moves, and birds anywhere
 **Not run in Godot yet** (same as below). Pull the branch and try `tests/sail_test.tscn` too.
 - **Driving her:** take the wheel (E). Hold W and she gets going, about 20 knots flat out; let go and she carries
