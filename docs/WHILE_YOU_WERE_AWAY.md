@@ -8,6 +8,11 @@ round her and "Keep the stern on it!". Taking it off the big boat makes calling 
 corner!") a real job for the crew. Alone in the big boat, though, you'd be steering blind. My pick: keep it on the
 skiff and take it off the big boat. Say yes and I'll do it, or say keep it.
 
+**Where things stand:** the Chekhov audit is done (everything on both boats is usable now). That leaves only the
+big boat's plotter (above), the "maybe" blue shark (a new feature, so it waits for your OK), and the art overhaul.
+The art needs your computer: if you add the tuna folder to Remote Control (Claude desktop app: Settings, Claude
+Code, Remote Control; the folder must be the repo's root), a session can use it.
+
 ## The live well and the fish box open
 
 - **What:** both boats' fish box hatches and live well lids are their own hinged pieces now. The box lid swings
