@@ -8,6 +8,21 @@ round her and "Keep the stern on it!". Taking it off the big boat makes calling 
 corner!") a real job for the crew. Alone in the big boat, though, you'd be steering blind. My pick: keep it on the
 skiff and take it off the big boat. Say yes and I'll do it, or say keep it.
 
+## The live well and the fish box open
+
+- **What:** both boats' fish box hatches and live well lids are their own hinged pieces now. The box lid swings
+  up as a fish goes in, then shuts. The well lid opens whenever a mackerel goes in or comes out, and when you
+  press E on it ("Look in the live well (5 mackerel)"). Inside it, dark water with the mackerel slowly circling,
+  one for each you have. The chum bucket moved off the well lid (it'd fall off) onto the deck beside it.
+- **Checked:** `tests/lids_test.tscn`, on both boats:
+  - both lids are there, and the box lid opens and shuts around a fish going in;
+  - the well lid opens on a new mackerel, and the right number swim in it;
+  - the prompt and crosshair work, and the free edge swings up, not down;
+  - the chum bucket sits on the deck within reach.
+
+  All the other tests still pass. Screenshot: `docs/shots/live_well.png` (the skiff's well, open).
+- **Try:** jig a few mackerel and watch the well; ice a tuna and watch the hatch.
+
 ## The outriggers fish now (the big boat)
 
 - **What:** the sportfisher's two wide lines run from the rod tips up to a release clip near each outrigger's

@@ -127,8 +127,8 @@ repo, now `main`), tick it here.
   - [x] The leaning post, the skipper's seat, the bench: sit or lean (E), just to chill. (`boat/seat.gd`: the
     skiff's cooler seat and leaning post, the sportfisher's skipper's seat and bench; `tests/chair_test.tscn`.)
   - [x] The cooler: grab a drink (`boat/cooler.gd`, the sportfisher's; the skiff's cooler is her seat).
-  - [ ] The live well: see the mackerel in it. The fish box: the lid opens (needs the lids as their own pieces in
-    the models).
+  - [x] The live well: see the mackerel in it. The fish box: the lid opens (`boat/lids.gd`, `boat/live_well.gd`;
+    the lids are their own pieces in the models now. `tests/lids_test.tscn`.)
   - [x] The radio: Dale's voice comes from it. (`audio/radio_voice.gd`: a made-up mumbling voice over VHF static,
     from the dash; the card says the words. `tests/radio_test.tscn`.)
   - [x] The outriggers: the sportfisher's wide lines run through their clips; a strike pops them out (`rods.gd`'s

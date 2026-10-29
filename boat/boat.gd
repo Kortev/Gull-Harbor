@@ -21,6 +21,7 @@ const Tower := preload("res://boat/tower.gd")
 const GreenWater := preload("res://boat/green_water.gd")
 const Seat := preload("res://boat/seat.gd")
 const Cooler := preload("res://boat/cooler.gd")
+const Lids := preload("res://boat/lids.gd")
 
 ## Under way: her bow up (rad) flat out ahead, and how far her stern digs in (rad, m down) backing down flat out.
 const SQUAT := 0.07
@@ -52,6 +53,8 @@ var green: GreenWater
 ## Her fighting chair to sit in, if she has one (boat/seat.gd; `chair` is its model), and her other seats.
 var seat: Seat
 var seats: Array[Seat] = []
+## Her fish box's hatch and her live well's lid (boat/lids.gd).
+var lids: Lids
 ## Her tuna tower's ladder, if she has one (boat/tower.gd).
 var tower: Tower
 var floods: Array[Light3D] = []
@@ -143,7 +146,7 @@ func _build() -> void:
 	visual.name = "Visual"
 	add_child(visual)
 	_built.append(visual)
-	for n: String in ["boat", "chair", "wheel", "radar"]:
+	for n: String in ["boat", "chair", "wheel", "radar", "box_lid", "well_lid"]:
 		var mi := src.find_child(n, true, false) as Node3D
 		if mi:
 			var t := _src_transform(mi, src)
@@ -205,6 +208,12 @@ func _build() -> void:
 		add_child(s)
 		_built.append(s)
 		seats.append(s)
+	lids = Lids.new()
+	lids.name = "Lids"
+	lids.boat = self
+	lids.setup(visual.get_node_or_null("box_lid") as Node3D, visual.get_node_or_null("well_lid") as Node3D)
+	add_child(lids)
+	_built.append(lids)
 	if spec.has("cooler"):
 		var c := Cooler.new()
 		c.name = "Cooler"

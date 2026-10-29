@@ -20,7 +20,7 @@ feature in player terms, and what the player must be taught), `docs/TODO.md` (th
 
 `fight_test`, `strike_test`, `rods_test`, `landing_test`, `wait_test` (chum, baits, jig, the quota), `sail_test`
 (the moving boat), `helm_test`, `deck_test`, `hull_test`, `look_test`, `weather_test`, `code_test`,
-`tower_test`, `chair_test`, `radio_test`, `steam_test` (+ `tools/steam_test.sh`), and `tools/net_test.sh` (two instances over ENet). Each prints PASSED or
+`tower_test`, `chair_test`, `radio_test`, `lids_test`, `steam_test` (+ `tools/steam_test.sh`), and `tools/net_test.sh` (two instances over ENet). Each prints PASSED or
 FAILED lines. Tests use their own save (`user://bluefin_test.cfg`), never the player's.
 
 ## The user (how to work with them)
@@ -105,7 +105,7 @@ Everything big enough to look usable must be usable, or go. Today:
 | The fighting chair (sportfisher) | **yes:** E to sit; with a rod, it goes in the gimbal (`boat/seat.gd`) | Done: arms wear half as fast from it; stuck on the centreline (no corner); it turns with your look. |
 | The tuna tower (sportfisher) | **yes:** E on the ladder at the hardtop's aft edge (`boat/tower.gd`) | Done: from up there the binoculars read the water under a flock about 2 km off (1.2 km from the deck). |
 | The leaning post / skipper's seat / bench | **yes:** E to sit, or lean on the leaning post (`boat/seat.gd`) | Done. |
-| The cooler (sportfisher), the live well, the fish box | the box takes fish (as a whole: E on the fish) | Cooler: grab a drink (funny; maybe a little arm rest). Live well: see the mackerel in it. Fish box: the lid opens as fish go in. |
+| The cooler (sportfisher), the live well, the fish box | **yes:** E on the cooler for a drink (`boat/cooler.gd`); E on the well to look in (`boat/live_well.gd`); the box takes fish | Done: the mackerel swim in the open well; the box lid swings up as a fish goes in (`boat/lids.gd`). |
 | The radio on the dash | **yes:** Dale's voice comes from the dash by the wheel (`audio/radio_voice.gd`) | Done: a garbled VHF voice (no real words; the card has them). Music on it: maybe later. |
 | Rod holders that never fish (sportfisher's 2-5, skiff's 2-3) | the jig uses one | Kept: small, and real boats have spare holders. |
 | Outriggers (sportfisher) | **yes:** the wide lines run through their release clips | Done: a strike pops the line out of the clip. |

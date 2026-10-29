@@ -8,6 +8,7 @@ extends Node3D
 ##   [--frames=<n>] [--cam=x,y,z,lookx,looky,lookz] [--look=<degrees round from aft>] [--wheel] [--strike=<rod>]
 ##   [--boat=skiff|sportfisher (out in her)] [--tower (up her tower)] [--green (a sea comes aboard just before the shot)]
 ##   [--chair (in the fighting chair, with the rod --hold gives you)] [--sit=<n> (in her seat n)]
+##   [--well (the live well stocked and its lid up)]
 ## Without --cam you're one of the crew, standing in the cockpit: WASD, mouse, Shift, Space, E; Esc for the menu.
 ## Co-op: --host, or --join=<address> (or from the Esc menu).
 
@@ -173,6 +174,11 @@ func _ready() -> void:
 		rods.request_grab(int(_args["hold"]))
 	if _args.has("chair") and boat.seat != null and crew.me != null:   # (screenshots: in the fighting chair)
 		boat.seat.sit(crew.me)
+	if _args.has("well"):     # (screenshots: the live well stocked, its lid up for a look)
+		if not fish_hold.has_gear("bait"):
+			fish_hold.gear.append("bait")
+		fish_hold.well = 5
+		boat.lids.set("_well_for", 1e9)       # (held up: a slow renderer's first frames can take seconds each)
 	if _args.has("sit") and crew.me != null and int(_args["sit"]) < boat.seats.size():   # (screenshots: in a seat)
 		boat.seats[int(_args["sit"])].sit(crew.me)
 	if _args.has("host"):

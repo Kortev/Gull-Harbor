@@ -335,13 +335,18 @@ def wheel_obj(coll):
 # ------------------------------------------------------------------------------------------ the cockpit
 
 def cockpit(m, col, coll):
-    # the fish box: a hatch flush in the sole with a lifting handle
-    m.box((-0.65, -2.95, DECK), (0.65, -2.05, DECK + 0.03), "hatch")
-    m.box((-0.12, -2.15, DECK + 0.03), (0.12, -2.1, DECK + 0.05), "steel")
-    # the live well built into the transom, with a lid
+    # the fish box: a hatch flush in the sole with a lifting handle, hinged at its forward edge (its own piece: it
+    # opens, boat/lids.gd)
+    bl = psx.Mesh("box_lid", TILES)
+    bl.box((-0.65, -2.95, DECK), (0.65, -2.05, DECK + 0.03), "hatch")
+    bl.box((-0.12, -2.9, DECK + 0.03), (0.12, -2.85, DECK + 0.05), "steel")
+    box_lid = bl.finish(coll, origin=(0, -2.05, DECK + 0.03))
+    # the live well built into the transom, with a lid hinged at its after edge
     yi = Y0 + LINER
     m.box((-0.55, yi, DECK), (0.55, yi + 0.6, DECK + 0.72), "liner")
-    m.box((-0.5, yi + 0.03, DECK + 0.72), (0.5, yi + 0.57, DECK + 0.75), "inside")
+    wl = psx.Mesh("well_lid", TILES)
+    wl.box((-0.5, yi + 0.03, DECK + 0.72), (0.5, yi + 0.57, DECK + 0.75), "inside")
+    well_lid = wl.finish(coll, origin=(0, yi + 0.03, DECK + 0.75))
     col.box((-0.55, yi, DECK), (0.55, yi + 0.6, DECK + 0.75), "collider")
     # a cooler and a coil of rope, buoys tied off by the house
     m.box((-1.75, -1.6, DECK), (-1.05, -1.15, DECK + 0.5), "inside")
@@ -371,7 +376,7 @@ def cockpit(m, col, coll):
     ch.cylinder((0, cy - 0.3, DECK + 0.5), (0, cy - 0.3, DECK + 0.6), 0.03, "steel", seg=6)  # the gimbal
     chair = ch.finish(coll, origin=(0, cy, DECK))
     col.box((-0.15, cy - 0.15, DECK), (0.15, cy + 0.15, DECK + 0.5), "collider")
-    return chair
+    return chair, box_lid, well_lid
 
 
 def holders(m, coll):
@@ -482,7 +487,7 @@ def main():
     col = psx.Mesh("collider", TILES)
     hull(m, col)
     house(m, col)
-    chair = cockpit(m, col, coll)
+    chair, box_lid, well_lid = cockpit(m, col, coll)
     hs = holders(m, coll)
     floods, radar = rigging(m, coll)
     wheel = wheel_obj(coll)
@@ -492,7 +497,7 @@ def main():
     for i, (x, y) in enumerate(((1.0, -1.4), (-1.0, -1.4), (1.3, -3.4), (-1.3, -3.4))):
         spawns.append(psx.empty("spawn_%d" % i, coll, (x, y, DECK), rot_z_deg=180.0))
     helm = psx.empty("helm", coll, (0.9, 1.55, DECK), rot_z_deg=0.0)
-    objs = [boat, chair, wheel, radar, collider, helm] + hs + floods + spawns
+    objs = [boat, chair, wheel, radar, collider, helm, box_lid, well_lid] + hs + floods + spawns
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     psx.export_glb(os.path.abspath(OUT), objs)
     print("wrote", os.path.abspath(OUT), len(boat.data.polygons), "faces")

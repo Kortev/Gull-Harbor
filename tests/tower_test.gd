@@ -43,8 +43,8 @@ func _ready() -> void:
 	Input.action_release("move_forward")
 	_check(me.local_position().distance_to(at) < 0.05, "W doesn't walk you off it")
 	var top_read := Binoculars.read_range(cam)
-	# (your eye rides up and down with the swell: these move a little with it)
-	_check(deck_read > 900.0 and deck_read < 1600.0 and top_read > 1850.0 and top_read > deck_read * 1.35,
+	# (your eye rides up and down with the swell, a metre or more in a big sea: these move with it)
+	_check(deck_read > 600.0 and deck_read < 1700.0 and top_read > 1800.0 and top_read > deck_read * 1.35,
 			"you can read the water under a flock %.0f m off from the deck, %.0f m from up here" % [deck_read, top_read])
 	# a feeding school between the two: what's under the birds only from up here
 	var c: Vector3 = sea.boat.global_position

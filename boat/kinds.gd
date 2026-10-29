@@ -24,7 +24,8 @@ extends RefCounted
 ##   transom, engines, bow: the wake's spots (wash, engine sound, bow spray)
 ##   cabin_light   the dim red night light at the helm; crown: her highest point (the lightning goes for it)
 ##   haul_lift     m the fish is lifted over her gunwale as it's hauled in (0 through a tuna door)
-##   chum          where the chum bucket stands (boat/chum.gd); jig: the holder the mackerel jig sits in (boat/jig.gd)
+##   chum          where the chum bucket stands, on deck by the live well (not on its lid: that opens; boat/chum.gd);
+##                 jig: the holder the mackerel jig sits in (boat/jig.gd)
 ##   rail          points along her starboard rail (port mirrors them) and across her transom, where a big sea can
 ##                 come aboard (boat/green_water.gd)
 ##   seats         somewhere to sit (boat/seat.gd): the middle of its seat, which way you face, its name, and lean
@@ -58,7 +59,7 @@ const KINDS := {
 		"ahead": 11.0, "astern": 2.6, "spurt": 2.4, "back": 3.0, "coast": 4.5, "turn": 0.75,
 		"transom": Vector3(0.0, 0.0, 4.9), "engines": Vector3(0.0, 0.9, 4.7), "bow": Vector3(0.5, 0.45, -3.3),
 		"cabin_light": Vector3(0.0, 2.3, 0.4), "crown": Vector3(0.0, 2.75, 0.0),
-		"chum": Vector3(-0.25, 1.03, 3.92), "jig": 2,
+		"chum": Vector3(-0.8, 0.46, 3.45), "jig": 2,
 		"seats": [{"at": Vector3(0.0, 0.99, -1.2), "face": 0.0, "name": "the cooler seat"},
 				{"at": Vector3(0.0, 0.95, 1.45), "face": 0.0, "name": "the leaning post", "lean": true}],
 		"rail": [Vector3(1.37, 1.15, 3.83), Vector3(1.43, 1.15, 2.13), Vector3(1.45, 1.15, 0.43),
@@ -88,7 +89,7 @@ const KINDS := {
 		"ahead": 10.0, "astern": 2.6, "spurt": 1.4, "back": 2.2, "coast": 9.0, "turn": 0.45,
 		"transom": Vector3(0.0, 0.0, 7.3), "engines": Vector3(0.0, 0.3, 3.5), "bow": Vector3(1.7, 0.6, -5.0),
 		"cabin_light": Vector3(0.0, 2.45, -1.3), "crown": Vector3(0.0, 7.6, -1.3),
-		"chum": Vector3(-0.3, 1.3, 6.6), "jig": 4,
+		"chum": Vector3(-1.5, 0.56, 5.9), "jig": 4,
 		"rail": [Vector3(2.22, 1.45, 6.3), Vector3(2.35, 1.45, 4.2), Vector3(2.4, 1.45, 1.4),
 				Vector3(2.39, 1.49, -1.4), Vector3(2.02, 1.97, -4.2), Vector3(0.0, 1.45, 7.0),
 				Vector3(1.1, 1.45, 7.0)],

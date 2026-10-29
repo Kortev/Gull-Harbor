@@ -302,14 +302,19 @@ def wheel_obj(coll):
 
 # ------------------------------------------------------------------------------------------ the deck and the stern
 
-def fittings(m, col):
-    # the fish box forward of the console, flush in the deck
-    m.box((-0.6, 1.55, DECK), (0.6, 2.35, DECK + 0.03), "hatch")
-    m.box((-0.1, 2.2, DECK + 0.03), (0.1, 2.25, DECK + 0.05), "steel")
-    # the live well in the transom, lid on top
+def fittings(m, col, coll):
+    # the fish box forward of the console, flush in the deck, hinged at its forward edge (its own piece: it opens,
+    # boat/lids.gd)
+    bl = psx.Mesh("box_lid", TILES)
+    bl.box((-0.6, 1.55, DECK), (0.6, 2.35, DECK + 0.03), "hatch")
+    bl.box((-0.1, 1.6, DECK + 0.03), (0.1, 1.65, DECK + 0.05), "steel")
+    box_lid = bl.finish(coll, origin=(0, 2.35, DECK + 0.03))
+    # the live well in the transom, its lid hinged at its after edge
     yi = Y0 + LINER
     m.box((-0.5, yi, DECK), (0.5, yi + 0.5, DECK + 0.55), "liner")
-    m.box((-0.46, yi + 0.03, DECK + 0.55), (0.46, yi + 0.47, DECK + 0.58), "inside")
+    wl = psx.Mesh("well_lid", TILES)
+    wl.box((-0.46, yi + 0.03, DECK + 0.55), (0.46, yi + 0.47, DECK + 0.58), "inside")
+    well_lid = wl.finish(coll, origin=(0, yi + 0.03, DECK + 0.58))
     col.box((-0.5, yi, DECK), (0.5, yi + 0.5, DECK + 0.58), "collider")
     # twin outboards hung on the transom: the cowl, the leg, the cavitation plate (props under the water)
     for sx in (0.55, -0.55):
@@ -344,6 +349,7 @@ def fittings(m, col):
             prev = p
     cyl(m, (pts[-1][0], pts[-1][1], pts[-1][2] + 0.5), (-pts[-1][0], pts[-1][1], pts[-1][2] + 0.5), 0.02,
         "steel", seg=5)
+    return box_lid, well_lid
 
 
 def holders(m, coll):
@@ -405,7 +411,7 @@ def main():
     col = psx.Mesh("collider", TILES)
     hull(m, col)
     console(m, col)
-    fittings(m, col)
+    box_lid, well_lid = fittings(m, col, coll)
     hs = holders(m, coll)
     floods, radar = lights(m, coll)
     wheel = wheel_obj(coll)
@@ -415,7 +421,7 @@ def main():
     for i, (x, y) in enumerate(((0.7, -2.3), (-0.7, -2.3), (0.8, -3.3), (-0.8, -3.3))):
         spawns.append(psx.empty("spawn_%d" % i, coll, (x, y, DECK), rot_z_deg=180.0))
     helm = psx.empty("helm", coll, (-0.02, CON_Y0 - 0.65, DECK), rot_z_deg=0.0)
-    objs = [boat, wheel, radar, collider, helm] + hs + floods + spawns
+    objs = [boat, wheel, radar, collider, helm, box_lid, well_lid] + hs + floods + spawns
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     psx.export_glb(os.path.abspath(OUT), objs)
     print("wrote", os.path.abspath(OUT), len(boat.data.polygons), "faces")
