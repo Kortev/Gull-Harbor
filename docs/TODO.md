@@ -87,7 +87,9 @@ repo, now `main`), tick it here.
     flock onto the radar; the sportfisher's ladder takes you up the tower, where you can read the water under a
     flock about 2 km off, against about 1.2 km from the deck: `boat/tower.gd`, `tests/tower_test.tscn`.)
   - [ ] Maybe: a blue shark now and then steals a bait (cut it loose); a mako, very rarely.
-- [ ] **Green water:** spray over the bow and crests slopping over the rail in a storm; the deck streaming.
+- [x] **Green water:** spray over the bow and crests slopping over the rail in a storm; the deck streaming.
+  (`boat/green_water.gd`: wherever a crest tops her rail, white water bursts inboard with a crash and the deck
+  streams foam for a few seconds; `hull_test` checks it comes aboard exactly when the sea's over the rail.)
 - [x] **The bigger boat:** 46 ft with a wider cockpit, so four of you and the fighting chair have room.
 - [ ] **Crew jobs: why it takes a crew.** One person can't land a big bluefin alone; while the fish is on, everyone else has a live job that decides whether you land it, and each can rescue the others' mistakes:
   - [x] **The captain at the wheel** (E on the helm, A/D to turn, S to back down): the tuna swings round the boat; let it get too far off the stern and the line rubs the hull (strain jumps), let it get under the boat and the props cut it. Backing down on the fish wins the angler line back fast and takes the strain off: the rescue when the angler's losing.

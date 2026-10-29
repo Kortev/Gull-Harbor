@@ -655,7 +655,7 @@ func _process(delta: float) -> void:
 			if todo.is_empty() and glasses != null and int(glasses.get("used")) < 3:
 				todo = "Find the birds: hold B for the binoculars, look along the horizon, left click to call a flock"
 				if (sea.get("boat") as Node).get("tower") != null:
-					todo += " (from up the tower you can see what's under them much further off)"
+					todo = "Find the birds: climb the tower, hold B for the binoculars, left click to call a flock"
 		hud.call("fight", todo, 0.0)
 	# the captain's plotter: where each fish on is, round the boat
 	var fish := []

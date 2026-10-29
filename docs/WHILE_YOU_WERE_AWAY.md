@@ -8,6 +8,19 @@ round her and "Keep the stern on it!". Taking it off the big boat makes calling 
 corner!") a real job for the crew. Alone in the big boat, though, you'd be steering blind. My pick: keep it on the
 skiff and take it off the big boat. Say yes and I'll do it, or say keep it.
 
+## Green water: big seas come aboard in a storm
+
+- **What:** in heavy weather or a storm, a crest now and then tops her rail. Where it does, a sheet of white water
+  bursts in over the rail with a crash (the wave and spray sounds), and the deck streams with foam running aft
+  for a few seconds. Both boats; the skiff's rail is lower, so she takes more of it.
+- **Checked:**
+  - `hull_test` now also checks that a sea comes aboard whenever one really tops her rail, and never otherwise.
+    In a test minute that was 2 times in a storm, once in heavy weather and never when sunny.
+  - Screenshot: `docs/shots/green_water.png` (forced with the new dev flag `--green`).
+- **Also:** on the big boat, the "find the birds" tip now says to climb the tower. It was too long and ran off
+  the screen; that's fixed too.
+- **Try:** wait for (or Esc-menu into) a storm and stand at the rail.
+
 ## Climb the tuna tower (the big boat)
 
 The tower on the sportfisher was just scenery; now you can climb it.

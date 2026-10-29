@@ -18,6 +18,7 @@ const Helm := preload("res://boat/helm.gd")
 const Wake := preload("res://boat/wake.gd")
 const Kinds := preload("res://boat/kinds.gd")
 const Tower := preload("res://boat/tower.gd")
+const GreenWater := preload("res://boat/green_water.gd")
 
 ## Under way: her bow up (rad) flat out ahead, and how far her stern digs in (rad, m down) backing down flat out.
 const SQUAT := 0.07
@@ -44,6 +45,8 @@ var holders: Array[Transform3D] = []     # boat-local; see holder_transform()
 var helm_spot := Transform3D.IDENTITY   # where the captain stands (boat-local)
 ## The wheel and the captain at it (boat/helm.gd): her heading.
 var helm: Helm
+## Big seas coming aboard over her rail (boat/green_water.gd).
+var green: GreenWater
 ## Her tuna tower's ladder, if she has one (boat/tower.gd).
 var tower: Tower
 var floods: Array[Light3D] = []
@@ -88,6 +91,10 @@ func _ready() -> void:
 	wake.boat = self
 	add_child(wake)
 	_build()
+	green = GreenWater.new()
+	green.name = "GreenWater"
+	green.boat = self
+	add_child(green)
 
 
 ## The skipper picks her (the dock, ui/menu.gd): the host tells everyone, and every peer rebuilds her.

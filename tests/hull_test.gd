@@ -64,6 +64,13 @@ func _tick() -> void:
 			ok = share < 0.05 and worst < 0.75
 		elif sea.condition == "heavy":
 			ok = share < 0.02 and worst < 0.4
+		# whenever a crest really topped her rail, it came aboard (boat/green_water.gd: the burst, the deck awash)
+		var aboard := int(sea.boat.green.bursts)
+		print("HULL green water came aboard %d times" % aboard)
+		if worst > 0.1 and aboard == 0:
+			ok = false
+		if frames_over == 0 and aboard > 0:
+			ok = false
 		print("HULL %s: over the rail %.1f%% of the time, worst %.2f m (closest the rest of the time: see worst<0)" % [sea.condition, share * 100.0, worst])
 		print("HULL TEST " + ("PASSED" if ok else "FAILED"))
 		get_tree().quit(0 if ok else 1)

@@ -6,7 +6,7 @@ extends Node3D
 ## The weather comes and goes on its own (sea/weather.gd): sunny, calm, fog, rain, heavy, storm. Nobody picks it.
 ## Screenshots: <godot> --path . -- --shot=<png> [--weather=calm|sunny|fog|rain|heavy|storm (pinned)] [--night]
 ##   [--frames=<n>] [--cam=x,y,z,lookx,looky,lookz] [--look=<degrees round from aft>] [--wheel] [--strike=<rod>]
-##   [--boat=skiff|sportfisher (out in her)] [--tower (up her tower)]
+##   [--boat=skiff|sportfisher (out in her)] [--tower (up her tower)] [--green (a sea comes aboard just before the shot)]
 ## Without --cam you're one of the crew, standing in the cockpit: WASD, mouse, Shift, Space, E; Esc for the menu.
 ## Co-op: --host, or --join=<address> (or from the Esc menu).
 
@@ -239,6 +239,10 @@ func _process(_delta: float) -> void:
 			print("  crew %d at %s (on deck %s) visible=%s layers=%d" % [id, p.global_position, p.local_position(),
 					p.body_mesh.is_visible_in_tree(), p.body_mesh.layers])
 		get_tree().create_timer(3.0).timeout.connect(get_tree().quit)
+	if _args.has("green") and _frames == int(_args.get("frames", "120")) - 9:
+		var spec_rail: Array = boat.spec.get("rail", [])
+		if not spec_rail.is_empty():
+			boat.green._aboard(spec_rail[1], 0.6)
 	if _args.has("shot") and _frames == int(_args.get("frames", "120")):
 		var img := get_viewport().get_texture().get_image()
 		img.save_png(str(_args["shot"]))

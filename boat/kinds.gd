@@ -25,6 +25,8 @@ extends RefCounted
 ##   cabin_light   the dim red night light at the helm; crown: her highest point (the lightning goes for it)
 ##   haul_lift     m the fish is lifted over her gunwale as it's hauled in (0 through a tuna door)
 ##   chum          where the chum bucket stands (boat/chum.gd); jig: the holder the mackerel jig sits in (boat/jig.gd)
+##   rail          points along her starboard rail (port mirrors them) and across her transom, where a big sea can
+##                 come aboard (boat/green_water.gd)
 ##   tower, ladder where you stand up her tuna tower (your feet), and the foot of the ladder up to it on deck (boat/tower.gd;
 ##                 only the sportfisher has one)
 ##   price         what she costs to buy at the dock; fuel: what a trip in her costs (taken from the sale)
@@ -53,6 +55,9 @@ const KINDS := {
 		"transom": Vector3(0.0, 0.0, 4.9), "engines": Vector3(0.0, 0.9, 4.7), "bow": Vector3(0.5, 0.45, -3.3),
 		"cabin_light": Vector3(0.0, 2.3, 0.4), "crown": Vector3(0.0, 2.75, 0.0),
 		"chum": Vector3(-0.25, 1.03, 3.92), "jig": 2,
+		"rail": [Vector3(1.37, 1.15, 3.83), Vector3(1.43, 1.15, 2.13), Vector3(1.45, 1.15, 0.43),
+				Vector3(1.41, 1.26, -1.28), Vector3(1.06, 1.54, -2.98), Vector3(0.0, 1.15, 4.25),
+				Vector3(0.8, 1.15, 4.25)],
 		"price": 0, "fuel": 60,
 	},
 	"sportfisher": {
@@ -78,6 +83,9 @@ const KINDS := {
 		"transom": Vector3(0.0, 0.0, 7.3), "engines": Vector3(0.0, 0.3, 3.5), "bow": Vector3(1.7, 0.6, -5.0),
 		"cabin_light": Vector3(0.0, 2.45, -1.3), "crown": Vector3(0.0, 7.6, -1.3),
 		"chum": Vector3(-0.3, 1.3, 6.6), "jig": 4,
+		"rail": [Vector3(2.22, 1.45, 6.3), Vector3(2.35, 1.45, 4.2), Vector3(2.4, 1.45, 1.4),
+				Vector3(2.39, 1.49, -1.4), Vector3(2.02, 1.97, -4.2), Vector3(0.0, 1.45, 7.0),
+				Vector3(1.1, 1.45, 7.0)],
 		"tower": Vector3(0.0, 5.46, -0.75), "ladder": Vector3(-1.2, 0.55, 2.1),
 		"price": 20000, "fuel": 400,
 	},
