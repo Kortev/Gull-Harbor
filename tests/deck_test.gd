@@ -23,12 +23,12 @@ func _initialize() -> void:
 
 ## Where the player you SEE stands, in the boat's frame (should be the deck-space spot, exactly).
 func _local() -> Vector3:
-	return sea.boat.global_transform.affine_inverse() * sea.player.global_position
+	return sea.boat.global_transform.affine_inverse() * sea.crew.me.global_position
 
 
 func _tick() -> void:
 	frame += 1
-	var p := sea.player
+	var p := sea.crew.me
 	p.force_input = true
 	var l := _local()
 	if frame == 60:

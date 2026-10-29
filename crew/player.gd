@@ -36,6 +36,11 @@ var _pitch := 0.0
 var _prompt := ""
 var _prev_local := Vector3.ZERO
 var _local := Vector3.ZERO
+## A crewmate's last reported spot and look (their own peer moves them; we ease toward it).
+var _net_at := Vector3.ZERO
+var _net_yaw := 0.0
+var _net_pitch := 0.0
+var _send_in := 0
 
 
 func _enter_tree() -> void:
@@ -100,7 +105,9 @@ func place(local: Vector3, yaw: float) -> void:
 	body.position = local
 	_prev_local = local
 	_local = local
+	_net_at = local
 	_yaw = yaw
+	_net_yaw = yaw
 
 
 func local_position() -> Vector3:
@@ -129,7 +136,23 @@ func _physics_process(delta: float) -> void:
 	_prev_local = body.position
 	if is_multiplayer_authority():
 		_walk(delta)
+		_send_in -= 1
+		if Net.in_session() and _send_in <= 0:
+			_send_in = 2      # 30 a second
+			_state.rpc(body.position, _yaw, _pitch)
+	else:
+		body.position = body.position.lerp(_net_at, 0.4)
+		_yaw = lerp_angle(_yaw, _net_yaw, 0.4)
+		_pitch = lerpf(_pitch, _net_pitch, 0.4)
 	_local = body.position
+
+
+## Where a crew member is on deck and where they look: sent by their own peer to everyone else.
+@rpc("authority", "call_remote", "unreliable_ordered")
+func _state(at: Vector3, yaw: float, pitch: float) -> void:
+	_net_at = at
+	_net_yaw = yaw
+	_net_pitch = pitch
 
 
 func _walk(delta: float) -> void:

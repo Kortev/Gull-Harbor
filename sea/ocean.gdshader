@@ -37,7 +37,7 @@ uniform float swell = 4.0;
 uniform float whitecaps = 0.3;
 uniform float rain = 0.6;
 // how much of the flat per-triangle facet look shows through the smooth shading (1: all facets)
-uniform float facets : hint_range(0.0, 1.0) = 0.35;
+uniform float facets : hint_range(0.0, 1.0) = 0.15;
 // Where the wind blows (for the foam streaks a storm lays on the water).
 uniform vec2 wind = vec2(0.8, 0.6);
 // A hurricane tearing the crests into spray (ocean.gd, more in a gust): the streaks spread, the sea goes white.

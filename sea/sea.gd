@@ -6,7 +6,8 @@ extends Node3D
 ## Conditions (one per trip): calm, sunny, fog, rain, heavy, storm; day or night.
 ## Screenshots: <godot> --path . -- --shot=<png> [--weather=calm|sunny|fog|rain|heavy|storm] [--night]
 ##   [--frames=<n>] [--cam=x,y,z,lookx,looky,lookz] [--look=<degrees round from aft>]
-## Without --cam you're one of the crew, standing in the cockpit: WASD, mouse, Shift, Space, E; Esc frees the mouse.
+## Without --cam you're one of the crew, standing in the cockpit: WASD, mouse, Shift, Space, E; Esc for the menu.
+## Co-op: --host, or --join=<address> (or from the Esc menu).
 
 const Ocean := preload("res://sea/ocean.gd")
 const SeaFx := preload("res://sea/sea_fx.gd")
@@ -15,8 +16,8 @@ const SKY_SHADER := preload("res://sea/sky.gdshader")
 const NOISE := preload("res://sea/textures/sky_noise.png")
 const SCREEN_LOOK := preload("res://screen/screen_look.tscn")
 const Boat := preload("res://boat/boat.gd")
-const Player := preload("res://crew/player.gd")
-const Hud := preload("res://ui/hud.gd")
+const Crew := preload("res://crew/crew.gd")
+const Menu := preload("res://ui/menu.gd")
 
 ## How rough the sea is (ocean.gd: 0 calm, 0.5 rain, 1 storm), the sun, and how thick the fog.
 const CONDITIONS := {
@@ -40,9 +41,10 @@ var visor: VisorRain
 var rain: GPUParticles3D
 var cam: Camera3D
 var boat: Boat
-var player: Player
+var crew: Crew
 var _args := {}
 var _frames := 0
+var _reported := false
 
 
 func _ready() -> void:
@@ -57,10 +59,23 @@ func _ready() -> void:
 	add_child(cam)
 	cam.make_current()
 	add_child(SCREEN_LOOK.instantiate())
+	crew = Crew.new()
+	crew.name = "Crew"
+	crew.sea = self
+	add_child(crew)
+	var look := deg_to_rad(float(_args.get("look", "0")))
+	if look != 0.0:
+		crew.me_changed.connect(func(me: Node) -> void:
+			me.call("place", me.call("local_position"), float(me.get("_yaw")) + look))
 	if not _args.has("cam"):
-		spawn_player(1, 0)
+		crew.start_solo()
 	night = _args.has("night")
 	set_condition(str(_args.get("weather", "rain")))
+	add_child(Menu.new())
+	if _args.has("host"):
+		Net.host()
+	elif _args.has("join"):
+		Net.join(str(_args["join"]))
 	for n in str(_args.get("hide", "")).split(",", false):   # (dev: --hide=Rain,SeaFx,... to find what's what)
 		for found in find_children(n, "", true, false):
 			if found is Node3D:
@@ -77,25 +92,25 @@ func _process(_delta: float) -> void:
 		at.y += ocean.height_at(Vector3(at.x, 0.0, at.z))
 		cam.global_position = at
 		cam.look_at(Vector3(v[3], v[4], v[5]))
+	if _args.has("net-report") and Time.get_ticks_msec() > int(float(_args["net-report"]) * 1000.0) \
+			and not _reported:
+		_reported = true
+		# (tests/net_test.sh: who's aboard, and the sea clock, then quit)
+		var ids: Array = crew.slots.keys()
+		ids.sort()
+		print("NET fps=%d me=%d host=%s crew=%s clock=%.2f cond=%s skew=%.3f" % [Engine.get_frames_per_second(), Net.my_id(), Net.is_host(), ids,
+				ocean.wave_time, condition,
+				Time.get_ticks_msec() / 1000.0 + ocean.clock_offset - Time.get_unix_time_from_system()])
+		for id: int in ids:
+			var p := crew.get_player(id)
+			print("  crew %d at %s (on deck %s) visible=%s layers=%d" % [id, p.global_position, p.local_position(),
+					p.body_mesh.is_visible_in_tree(), p.body_mesh.layers])
+		get_tree().create_timer(3.0).timeout.connect(get_tree().quit)
 	if _args.has("shot") and _frames == int(_args.get("frames", "120")):
 		var img := get_viewport().get_texture().get_image()
 		img.save_png(str(_args["shot"]))
 		print("SHOT ", _args["shot"])
 		get_tree().quit()
-
-
-## Puts a crew member on deck at spawn point `slot`, facing aft (or --look=<degrees> round from there).
-func spawn_player(id: int, slot: int) -> Player:
-	player = Player.new()
-	player.name = str(id)
-	player.boat = boat
-	add_child(player)
-	var at := boat.spawn_local(slot)
-	player.place(at.origin, at.basis.get_euler().y + deg_to_rad(float(_args.get("look", "0"))))
-	var hud := Hud.new()
-	add_child(hud)
-	hud.follow(player)
-	return player
 
 
 func set_condition(c: String) -> void:
