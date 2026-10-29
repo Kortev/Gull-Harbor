@@ -105,13 +105,25 @@ func _ready() -> void:
 	# Alone, following the fish to its corner and holding the rod out keeps the line off the hull longer.
 	var plain := 0
 	var corner := 0
+	# (alone with a giant your arms go; a patient angler takes a breather, and with the line tight it can't recover)
+	var spiral_out := 0.0
+	var solo_t: Array[float] = []
 	for s in 40:
-		if _fight(400.0, s, "right")[0] == "boatside":
+		var a := _fight(400.0, s, "patient")
+		if a[0] == "boatside":
 			plain += 1
-		if _fight(400.0, s, "right", false, false, 1, 1.0)[0] == "boatside":
+		var c := _fight(400.0, s, "patient", false, false, 1, 1.0)
+		if c[0] == "boatside":
 			corner += 1
-	print("FIGHT 400 kg alone: landed %d of 40 from the middle, %d of 40 from its corner" % [plain, corner])
-	_check(corner >= plain + 2, "alone, taking it to the corner lands more (%d vs %d of 40)" % [corner, plain])
+			solo_t.append(float(c[1]))
+		spiral_out = maxf(spiral_out, maxf(float(a[2]), float(c[2])))
+	solo_t.sort()
+	print("FIGHT 400 kg alone, taking breathers: landed %d of 40 from the middle, %d of 40 from its corner (median %.0f s)"
+			% [plain, corner, solo_t[int(solo_t.size() / 2.0)] if not solo_t.is_empty() else 0.0])
+	_check(corner >= plain + 3, "alone, taking it to the corner lands more (%d vs %d of 40)" % [corner, plain])
+	_check(corner >= 20, "alone, with breathers, from the corner, you land most giants (%d of 40)" % corner)
+	_check(spiral_out <= Fight.SPIRAL_IN + 0.5,
+			"a beaten fish only goes into its death spiral close in (furthest %.0f m)" % spiral_out)
 	# Picking a fight up where it was: the fish carries on with what it was doing.
 	var mid := Fight.new(200.0, 80.0, 0.5, 7)
 	mid.carry_on("circle")
@@ -122,7 +134,9 @@ func _ready() -> void:
 	get_tree().quit(1 if not fails.is_empty() else 0)
 
 
-## Fights one fish with a style of angler; returns [how it ended, seconds].
+## Fights one fish with a style of angler; returns [how it ended, seconds, the most line out in a death spiral (m)].
+## style: right (each move's answer, flat out), patient (the same, but with spent arms takes a breather till they're
+## back, keeping it tight through headshakes), crank (cranks whatever it does), idle (nothing).
 ## captain: someone at the wheel keeps the stern on it and backs down on it when it's astern (blind: backs down
 ## all the time and steers anywhere).
 ## reach: the angler at the fish's corner with the rod held out (0 .. 1, rods.gd's _reach).
@@ -135,28 +149,35 @@ func _fight(kg: float, seed_value: int, style: String, captain := false, blind :
 		rested.append(1.0)
 	var f := Fight.new(kg, 45.0, 1.0, seed_value)
 	f.reach = reach
-	var end := ["timeout", 0.0]
+	var end := ["timeout", 0.0, 0.0]
 	f.lost.connect(func(why: String) -> void: end[0] = why)
 	f.boatside.connect(func() -> void: end[0] = "boatside")
 	var t := 0.0
 	var lifting := 0.0
-	while not f.done and t < 900.0:
+	var resting := false
+	while not f.done and t < 1800.0:
 		var crank := false
 		var lift := 0.0
-		match style:
-			"crank":
-				crank = true
-			"right":
-				match f.answer():
-					"hold":
-						crank = false
-					"pump":
-						# heave for a second, then crank down for a second and a half
-						lifting = fmod(t, 2.5)
-						lift = 1.0 if lifting < 1.0 else 0.0
-						crank = lifting >= 1.0
-					_:
-						crank = true
+		if style == "patient":
+			if f.arms < 0.15:
+				resting = true
+			elif f.arms > 0.6:
+				resting = false
+		if style == "crank":
+			crank = true
+		elif style == "patient" and resting:
+			crank = f.answer() == "tight"
+		elif style == "right" or style == "patient":
+			match f.answer():
+				"hold", "ease":
+					crank = false
+				"pump":
+					# heave for a second, then crank down for a second and a half
+					lifting = fmod(t, 2.5)
+					lift = 1.0 if lifting < 1.0 else 0.0
+					crank = lifting >= 1.0
+				_:
+					crank = true
 		if captain:
 			var b := wrapf(f.bearing, -PI, PI)
 			if blind:
@@ -173,6 +194,8 @@ func _fight(kg: float, seed_value: int, style: String, captain := false, blind :
 			var fresh: float = rested.pop_front()
 			rested.append(f.arms)
 			f.arms = fresh
+		if f.move == "spiral":
+			end[2] = maxf(float(end[2]), f.line_out)
 	end[1] = t
 	return end
 

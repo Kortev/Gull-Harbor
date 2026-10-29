@@ -331,10 +331,17 @@ func _process(delta: float) -> void:
 				fish.append([r.bearing, hd, smoothstep(Fight.CHAFE_FROM, Fight.CHAFE_ALL, b)])
 		if not fish.is_empty() and mine == null:
 			var worst := 0.0
+			var spiral := false
 			for f: Array in fish:
 				worst = maxf(worst, float(f[2]))
-			hud.call("fight", "Keep the stern on it!" if worst < 0.3 else "It's on the hull! Swing her stern to it!",
-					0.0)
+			for r in rods:
+				spiral = spiral or (r.hooked and r.move == "spiral")
+			var say := "Keep the stern on it!"
+			if worst >= 0.3:
+				say = "It's on the hull! Swing her stern to it!"
+			elif spiral:
+				say = "Death spiral! Out of gear: it's going under her"
+			hud.call("fight", say, 0.0)
 	hud.call("plot", fish, float(helm.get("throttle")))
 
 
@@ -359,7 +366,8 @@ func _fight_mine(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	if not r.hooked:
 		return       # (it ended this step)
 	_take(r, fight)
-	r.reeling = Fight.CRANK if crank and fight.answer() != "hold" else 0.0
+	var ans := fight.answer()
+	r.reeling = 0.0 if not crank or ans == "hold" else (Fight.CRANK * 0.2 if ans == "ease" else Fight.CRANK)
 	if send:
 		_fight_state.rpc(r.index, r.line_out, r.strain, r.bearing, r.depth, r.energy, r.lift, r.move, r.wear)
 

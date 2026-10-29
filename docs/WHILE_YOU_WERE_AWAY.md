@@ -1,5 +1,32 @@
 # While you were away (newest first)
 
+## The death spiral, only close in (from your third playtest)
+**Not run in Godot yet** (same as below: checked in a Python copy of the fight; on the working branch, not `main`).
+- **Why you spiralled from 60 m out, from halfway through:** a fish is tired out about halfway through the fight's
+  time, usually long before you've won the line back, and from then on nearly every move it picked was a spiral,
+  however far off it was.
+- **Now a beaten fish far off stops running and circles slow and wide** ("It's circling! Pump"), with rests
+  ("Crank"), giving line to the pump. It only goes into its death spiral within 30 m.
+- **The spiral is the real thing:** deep under her, the same way round lap after lap, coming up as you win line.
+  The hint follows the lap: "Crank, it's coming up" while it's astern, "Ease off, it's going under her" while it's
+  forward (cranking then strains it and wins next to nothing). The line still rubs the hull on the pass under her,
+  so the corner and the stern still matter. Whoever's at the wheel sees "Death spiral! Out of gear: it's going
+  under her": in gear with it under her, the props cut it.
+- **Alone with a giant your arms go,** and spent arms can't heave, so you can't pump. Ease off for half a minute
+  and they come back; a hooked fish can't recover meanwhile, so a breather costs only time. The hint says so now.
+- **How long it takes now** (the Python copy, 20 fights each, fought right, taking breathers when the arms go):
+
+  | Alone | 150 kg | 200 kg | 300 kg | 400 kg |
+  | --- | --- | --- | --- | --- |
+  | From the middle of the cockpit | 20, 3.5 min | 20, 6 min | 15, 12 min | 11, 23 min |
+  | From the fish's corner | 20, 3.5 min | 20, 6 min | 19, 12 min | 15, 22 min |
+  | Corner, and running to the wheel when it rubs | 20, 4 min | 19, 6 min | 20, 12 min | 20, 22 min |
+
+  With a captain: 150 kg about 1 minute, 300 kg about 2, 450 kg about 4. Alone a giant is a long, real fight
+  now; a crew makes it quick.
+- **Tests:** `tests/fight_test.tscn` adds a patient angler (breathers), checks that alone from the corner you land
+  most giants and more than from the middle, and that no spiral starts further out than 30 m.
+
 ## The rod in the holder, the corner, and seeing your progress (from your playtest)
 **Not run in Godot yet:** this session had no Godot (its downloads were blocked), so the fight rules were checked in
 a Python copy of `tuna/fight.gd` and the GDScript only by reading it. It's on the `claude/zealous-mendel-h2udij`

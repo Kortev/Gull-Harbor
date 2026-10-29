@@ -39,6 +39,10 @@ const SLACK_GRACE := 1.6        # s of slack in a headshake before the hook pull
 const CRANK := 2.4              # m/s of line a stand-up reel winds in, flat out
 const CAPACITY := 500.0         # m of line on the reel
 const BOATSIDE := 7.0           # m of line out: alongside
+## A beaten fish only goes into its death spiral this close (m of line): further off it's tired but still fighting,
+## weaker. In the spiral it circles deep under her, the same way round lap after lap, coming up as you win line:
+## crank while it's astern coming up to you, ease off while it's forward going under her (cranking then strains).
+const SPIRAL_IN := 30.0
 const RUN_SPEED := 9.0          # m/s, a fresh bluefin's first run
 ## The boat (the captain at the wheel turns her and sets `throttle`). Swung forward of her beam, the line lies along
 ## the hull and wears (CHAFE_LIFE s of full rubbing parts it); under her with the props turning, it's cut in
@@ -112,6 +116,8 @@ func _init(weight_kg: float, out: float, fresh := 1.0, seed_value := -1) -> void
 
 
 func answer() -> String:
+	if move == "spiral" and cos(bearing) < 0.0:
+		return "ease"
 	return str(MOVES[move]["answer"])
 
 
@@ -121,7 +127,10 @@ func tell() -> String:
 			return "The line's on the hull! Swing her stern to it"
 		return "The line's on the hull! Take it to the %s corner" % ("starboard" if sin(bearing) > 0.0 else "port")
 	if arms < 0.25:
-		return "Your arms are gone! Hand it off"
+		return "Your arms are gone! Ease off and rest them, or hand it off"
+	if move == "spiral":
+		return "Death spiral! Ease off, it's going under her" if answer() == "ease" \
+				else "Death spiral! Crank, it's coming up"
 	return str(TELLS.get(move, ""))
 
 
@@ -164,6 +173,8 @@ func step(dt: float, crank: bool, lift: float) -> void:
 				gain = minf(_pump, CRANK * dt * 1.3 * power)
 				_pump -= gain
 				gain += CRANK * dt * 0.12
+			"ease":
+				gain = CRANK * dt * 0.15 * power
 			_:
 				gain = CRANK * dt * (1.0 - float(m["pull"]) * 0.45 * e) * power
 	# a heave of the rod banks line to crank back on the way down (less, the heavier the fish)
@@ -183,6 +194,8 @@ func step(dt: float, crank: bool, lift: float) -> void:
 			target = 0.45 * big if crank and _pump <= 0.0 else 0.0
 		"tight":
 			target = 0.0
+		"ease":
+			target = 0.6 * big if crank else 0.0
 		_:
 			target = 0.25 * big * float(m["pull"]) if crank else 0.0
 	target = target * (1.0 - 0.6 * back) + 0.5 * ahead
@@ -240,7 +253,10 @@ func step(dt: float, crank: bool, lift: float) -> void:
 	# a big fish tows her stern round toward it, slowly
 	bearing -= sin(wrapf(bearing, -PI, PI)) * TOW * pull * dt
 	var want := minf(float(m["depth"]), line_out * 0.85)
-	if energy < 0.25 and line_out < 30.0:
+	if move == "spiral":
+		# circling deep under her, the line steep; up it comes as you win line, and it's up for the last few metres
+		want = line_out * 0.8 if line_out > 12.0 else 3.0
+	elif energy < 0.25 and line_out < SPIRAL_IN:
 		want = minf(want, 3.0)
 	depth = move_toward(depth, want, dt * 6.0)
 	pull = clampf(float(m["pull"]) * e + strain * 0.4, 0.15, 1.0)
@@ -262,8 +278,11 @@ func _end(reason: String) -> void:
 
 
 func _next_move() -> void:
-	if energy < 0.25:
+	if energy < 0.25 and line_out <= SPIRAL_IN:
 		_set_move("spiral" if move != "spiral" or rng.randf() < 0.7 else "shake")
+	elif energy < 0.25:
+		# beaten but still well off: no more runs, it hangs and circles slow and wide, giving line to the pump
+		_set_move("rest" if move == "circle" and rng.randf() < 0.5 else "circle")
 	elif move != "rest" and rng.randf() < 0.25 * (1.0 - energy):
 		_set_move("rest")
 	else:
@@ -295,10 +314,12 @@ func carry_on(m: String) -> void:
 
 
 func _set_move(m: String) -> void:
+	var again := m == move
 	move = m
 	move_t = 0.0
 	var d: Array = MOVES[m]["dur"]
 	_len = rng.randf_range(float(d[0]), float(d[1])) * (0.6 + 0.4 * energy)
-	if m in ["run", "circle", "spiral"] and rng.randf() < 0.5:
+	# (a spiral carries on the same way round; anything else that swings may swing back)
+	if m in ["run", "circle", "spiral"] and not (again and m == "spiral") and rng.randf() < 0.5:
 		_turn_sign = -_turn_sign
 	move_started.emit(m)
