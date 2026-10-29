@@ -270,7 +270,9 @@ func _process(delta: float) -> void:
 		var surge := 1.0 if mine != null and mine.move in ["run", "shake"] else 0.6
 		me_node.set("shake", mine.strain * surge if mine != null and mine.hooked else 0.0)
 	if mine != null and mine.hooked:
-		hud.call("fight", str(Fight.TELLS.get(mine.move, "")), mine.strain)
+		# the ring is how wrong you're fighting it, not how hard it pulls (that's the rod's bend)
+		var wrong := (mine.fight as Fight).strain if mine.fight != null else 0.0
+		hud.call("fight", str(Fight.TELLS.get(mine.move, "")), maxf(wrong, 0.02))
 	else:
 		hud.call("fight", "", 0.0)
 

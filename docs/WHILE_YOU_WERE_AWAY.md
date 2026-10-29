@@ -1,12 +1,11 @@
 # While you were away (newest first)
 
-## Questions for you (I'm carrying on meanwhile)
-1. **When your router won't open the port by itself:** add Steam's free relay as the fallback (you both just
-   have Steam open; the game doesn't need to be on Steam)? I can't test Steam here, so you'd try it first.
-2. **The boat:** keep it at 41 ft for up to four (bigger than most boats on the TV shows), with VS as two boats
-   racing for pounds? Or stretch it to about 46 ft?
-3. **The old Gull Harbor game** is still on `main` (nothing deleted). Replace `main` with the tuna game, make
-   `bluefin` the default branch, or move the tuna game to a new repo?
+## Your answers (thanks!)
+- Steam's relay: yes, as the main way to play together (the join code stays as the backup). In progress.
+- The boat: my call. Stretching it to about 46 ft with a wider cockpit. In progress.
+- `main` is now the tuna game; the old Gull Harbor game is gone from it. A leftover `bluefin` branch (an older
+  copy of the tuna game) is still there: I wasn't allowed to delete branches from here, so delete it on
+  GitHub (Branches, the trash icon) whenever.
 
 ## The fight
 - **What changed:** hooked bluefin now fight. Every fish opens with the screaming run, then plays moves. Each
@@ -34,6 +33,8 @@
 - **Birds and busting:** schools now feed most of the time near the boat. The birds are bigger, darker
   shearwaters lower over the water, and the splashes are bigger.
 - **How it was checked:**
+  - Shots: `docs/shots/fight_running.png` (the tell and the ring), `school_busting.png` and
+    `school_birds.png` (the shearwaters, the busting water, a tuna clearing it).
   - `tests/fight_test.tscn` fights 160 fish headless. Fought right, every size comes boatside. Just cranking
     breaks the 150 and 400 kg ones every time. Doing nothing never lands one.
   - `tests/strike_test.tscn`: a school bites, the drag screams, the test grabs the rod and fights it right. A
