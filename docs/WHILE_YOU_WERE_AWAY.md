@@ -1,5 +1,19 @@
 # While you were away (newest first)
 
+## Dale from the bank, the owner's manual, and a clearer end of the fight
+**Not run in Godot yet.**
+- **Dale** (the bank's loan officer) comes on the VHF the first time each thing happens: heading out, your first
+  flock in the binoculars, coming up on birds too fast, the first bite, the first fight, fishing alone, at the wheel,
+  the other lines, the death spiral, the fish alongside, on deck, a washed-out bait, a long quiet spell. Once each,
+  remembered on your machine (`ui/tips.gd`).
+- **The owner's manual** (Esc, "The owner's manual"): every rule in ten short chapters, and a button to have Dale
+  explain it all again (`ui/manual.gd`). `docs/FEATURES.md` has the full list; `docs/VISION.md` keeps your words on
+  what the game's meant to be.
+- **The end of the fight:** the death spiral's two halves are spelled out and coloured: green "it's coming up.
+  CRANK!", amber "it's going under her. EASE OFF". Inside 40 m the readout counts the metres to boatside. Danger
+  lines (under the boat, out of gear) are red.
+- **The dock** says the stakes plainly: "Sell $X more by the end of day 3, or the bank takes the boat."
+
 ## The hunt, the baits on the water, and the quota
 **Not run in Godot yet.** `tests/wait_test.tscn` covers the new rules.
 - **The quota** (Lethal Company's): the bank wants a sum within three trips (one a day). Every fish you sell counts

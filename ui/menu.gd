@@ -8,6 +8,7 @@ extends CanvasLayer
 
 const FishHold := preload("res://boat/fish_hold.gd")
 const Kinds := preload("res://boat/kinds.gd")
+const Manual := preload("res://ui/manual.gd")
 
 var _panel: PanelContainer
 var _status: Label
@@ -27,6 +28,9 @@ var _back: Button
 ## The dock: the slip, the bank, the boats, the gear, Head out (built again whenever any of it changes: _dock_of).
 var _dock: VBoxContainer
 var _dock_of := []
+## The boat's owner's manual (ui/manual.gd), open instead of the menu.
+var _manual: Manual
+var _reading := false
 
 
 func _ready() -> void:
@@ -58,6 +62,21 @@ func _ready() -> void:
 	col.add_child(_status)
 	_back = _button("Back to the deck", _resume)
 	col.add_child(_back)
+	col.add_child(_button("The owner's manual", func() -> void: _reading = true))
+	_manual = Manual.new(get_parent().get("tips") as Node)
+	_manual.set_anchors_preset(Control.PRESET_CENTER)
+	_manual.custom_minimum_size = Vector2(820, 560)
+	_manual.position = Vector2(-410, -280)
+	_manual.visible = false
+	add_child(_manual)
+	var shut := Button.new()
+	shut.text = "Close the manual"
+	shut.pressed.connect(func() -> void: _reading = false)
+	shut.set_anchors_preset(Control.PRESET_CENTER)
+	shut.position = Vector2(-70, 290)
+	shut.visible = false
+	shut.name = "CloseManual"
+	add_child(shut)
 	_dock = VBoxContainer.new()
 	_dock.add_theme_constant_override("separation", 6)
 	col.add_child(_dock)
@@ -150,7 +169,10 @@ func _resume() -> void:
 
 func _process(_delta: float) -> void:
 	var open := Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not _headless_shot()
-	_panel.visible = open
+	_reading = _reading and open
+	_panel.visible = open and not _reading
+	_manual.visible = _reading
+	(get_node("CloseManual") as Control).visible = _reading
 	if not open:
 		return
 	var session := Net.in_session()
@@ -238,6 +260,9 @@ func _fill_dock(hold: Node, docked: bool) -> void:
 	bar.show_percentage = false
 	bar.custom_minimum_size = Vector2(0, 10)
 	_dock.add_child(bar)
+	if earned < quota:
+		_dock.add_child(_slip_line("Sell $%s more by the end of day %d, or the bank takes the boat." % [
+				_money(quota - earned), FishHold.DAYS], 15, Color(0.85, 0.75, 0.7)))
 	_dock.add_child(_slip_line("Bank $%s   (best run: %d quotas)" % [_money(int(hold.get("bank"))),
 			int(hold.get("best_run"))]))
 	# the boats

@@ -3,6 +3,9 @@ extends CanvasLayer
 ## the fish is doing (the tell, which says what to do), a ring round the dot that fills and reddens with the strain,
 ## and under the tell the line out, whether you're winning it back, and how tired the fish feels.
 
+## Line out when a fish is alongside (tuna/fight.gd's BOATSIDE).
+const BOATSIDE := 7.0
+
 var _prompt: Label
 var _tell: Label
 var _line: Label
@@ -165,12 +168,22 @@ func _process(delta: float) -> void:
 ## `wear`: how worn the line is from rubbing the hull, 0..1 (shown once it starts).
 func fight(tell: String, strain: float, arms := 1.0, line := -1.0, gain := 0.0, fresh := 1.0, wear := 0.0) -> void:
 	_tell.text = tell
+	# the spiral's two halves, coloured so you can't miss which: green crank, amber ease off
+	var tc := Color(1.0, 0.92, 0.7)
+	if tell.begins_with("DEATH SPIRAL"):
+		tc = Color(1.0, 0.7, 0.3) if tell.contains("EASE OFF") else Color(0.5, 1.0, 0.5)
+	elif tell.begins_with("OUT OF GEAR") or tell.contains("under the boat"):
+		tc = Color(1.0, 0.4, 0.3)
+	_tell.add_theme_color_override("font_color", tc)
 	if line < 0.0:
 		_line.text = ""
 	else:
 		var how := "gaining" if gain > 0.25 else ("it's taking line" if gain < -0.25 else "holding")
 		var fish := "fresh" if fresh > 0.7 else ("tiring" if fresh > 0.45 else ("tired" if fresh > 0.25 else "beat"))
 		_line.text = "%d m out  ·  %s  ·  fish %s" % [roundi(line), how, fish]
+		if line < 40.0:
+			# the end: how close it is to alongside (where the harpoon takes over)
+			_line.text = "%d m to boatside  ·  %s  ·  fish %s" % [maxi(roundi(line - BOATSIDE), 0), how, fish]
 		if wear > 0.02:
 			_line.text += "  ·  line %d%% worn" % roundi(wear * 100.0)
 		var col := Color(0.85, 0.85, 0.82)

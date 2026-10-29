@@ -160,8 +160,8 @@ func tell() -> String:
 	if arms < 0.25:
 		return "Your arms are tired: you're reeling slow. Fight it right and they come back"
 	if move == "spiral":
-		return "Death spiral! Ease off, it's going under her" if answer() == "ease" \
-				else "Death spiral! Crank, it's coming up"
+		return "DEATH SPIRAL: it's going under her. EASE OFF, stop cranking" if answer() == "ease" \
+				else "DEATH SPIRAL: it's coming up. CRANK!"
 	return str(TELLS.get(move, ""))
 
 
