@@ -8,6 +8,23 @@ round her and "Keep the stern on it!". Taking it off the big boat makes calling 
 corner!") a real job for the crew. Alone in the big boat, though, you'd be steering blind. My pick: keep it on the
 skiff and take it off the big boat. Say yes and I'll do it, or say keep it.
 
+## Dale talks on the radio now
+
+- **What:** when Dale from the bank calls with a tip, you now *hear* him, from the radio on the dash by the
+  wheel: a crackle of static as he keys the mike, then a man's voice talking over VHF hiss, then static as he
+  lets go. It's a made-up voice (buzzing vowels, his pitch wandering, phrase by phrase): you can't make out the
+  words, just like a real boat radio, and the card on screen still says what he said. Further from the dash he's
+  quieter. It's made as it plays (no recordings), and costs about 2% of a CPU while he talks.
+- **Checked:** `tests/radio_test.tscn`:
+  - the tip's voice comes from the dash by the wheel;
+  - 20 words take about 8 s to say;
+  - there's static, talking and breaths between phrases;
+  - it's fast enough.
+
+  Listen to a sample: `docs/sounds/dale_on_the_radio.wav`.
+- **Try:** Esc menu, "Have Dale explain it all again", and stand by the wheel. If the voice sounds bad, say so: it's
+  easy to change (or to swap in real recorded lines later).
+
 ## Grab a drink from the cooler (the big boat)
 
 - **What:** E on the cooler by the sportfisher's wheelhouse. You crack a can and take a long swig (your crew see

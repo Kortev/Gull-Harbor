@@ -129,7 +129,8 @@ repo, now `main`), tick it here.
   - [x] The cooler: grab a drink (`boat/cooler.gd`, the sportfisher's; the skiff's cooler is her seat).
   - [ ] The live well: see the mackerel in it. The fish box: the lid opens (needs the lids as their own pieces in
     the models).
-  - [ ] The radio: Dale's voice comes from it.
+  - [x] The radio: Dale's voice comes from it. (`audio/radio_voice.gd`: a made-up mumbling voice over VHF static,
+    from the dash; the card says the words. `tests/radio_test.tscn`.)
   - [ ] The rod holders that never fish, and the outriggers: use them or take them out of the models.
 - Later: **longer fights.** Real ones on heavy tackle run twenty minutes to over an hour for a giant; ours are a
   few. Raise the tiring time (`_goal_s` in `tuna/fight.gd`) once the crew has enough to do during one.

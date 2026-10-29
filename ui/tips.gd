@@ -6,6 +6,7 @@ extends CanvasLayer
 ## docs/FEATURES.md is where these come from.
 
 const Sfx := preload("res://audio/sfx.gd")
+const RadioVoice := preload("res://audio/radio_voice.gd")
 const SAVE := "user://bluefin_tips.cfg"
 ## Who's on the radio: Dale, the bank's loan officer. You're his investment, so he keeps an eye on you, and he's
 ## not shy about it. Each line is what to do, said the way Dale would say it.
@@ -122,10 +123,28 @@ func _process(delta: float) -> void:
 		_title.text = "VHF 16   " + CALLER
 		_body.text = _alongside_text() if id == "alongside" else str(TIPS[id])
 		Sfx.play("pa.click", 0.6)
+		_on_the_radio(_body.text)
 		_left = maxf(7.0, _body.text.split(" ").size() / 4.0)
 	_left -= delta
 	var want := 1.0 if _left > 0.0 and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED else 0.0
 	_card.modulate.a = move_toward(_card.modulate.a, want, delta * 3.0)
+
+
+## Dale's voice, from the radio on her dash (by the wheel): you hear him talking, the card says what he said.
+var voice: RadioVoice
+
+
+func _on_the_radio(text: String) -> void:
+	var boat: Node3D = sea.get("boat")
+	if boat == null:
+		return
+	if voice == null or not is_instance_valid(voice):
+		voice = RadioVoice.new()
+		voice.name = "Radio"
+		boat.add_child(voice)
+	var helm: Node3D = boat.get("helm")
+	voice.position = helm.position + Vector3(0.0, 0.25, 0.0)
+	voice.say(text.split(" ", false).size())
 
 
 ## What's going on, and whether it's the first time for any of it.
