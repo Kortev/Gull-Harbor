@@ -81,6 +81,40 @@ func _ready() -> void:
 		print("FIGHT %3d kg just cranking: broke %d of 20; doing nothing: %s" % [kg, broke, idle])
 		_check(broke >= 15, "%d kg: cranking against its runs breaks it off (%d of 20)" % [kg, broke])
 		_check(not idle.has("boatside"), "%d kg: doing nothing never lands it" % kg)
+	# A rod in its holder with nobody on it: the drag works the fish. It takes line on its runs and none between
+	# them, and it's still on half a minute later (it used to pour line off nonstop and spool the reel).
+	var on := 0
+	var between := 0.0
+	for s in 20:
+		var f := Fight.new(200.0, 45.0, 1.0, s)
+		f.in_holder = true
+		var t := 0.0
+		while not f.done and t < 30.0:
+			var before := f.line_out
+			f.step(DT, false, 0.0)
+			if f.move in ["rest", "shake", "circle", "spiral"]:
+				between = maxf(between, f.line_out - before)
+			t += DT
+		if not f.done:
+			on += 1
+	print("FIGHT in its holder: still on after 30 s %d of 20; most line taken between runs in a step %.3f m"
+			% [on, between])
+	_check(on >= 18, "in its holder, the fish is still on after 30 s (%d of 20)" % on)
+	_check(between <= 0.001, "in its holder, it takes no line between its runs (%.3f m)" % between)
+	# Alone, following the fish to its corner and holding the rod out keeps the line off the hull longer.
+	var plain := 0
+	var corner := 0
+	for s in 40:
+		if _fight(200.0, s, "right")[0] == "boatside":
+			plain += 1
+		if _fight(200.0, s, "right", false, false, 1, 1.0)[0] == "boatside":
+			corner += 1
+	print("FIGHT 200 kg alone: landed %d of 40 from the middle, %d of 40 from its corner" % [plain, corner])
+	_check(corner >= plain + 3, "alone, taking it to the corner lands more (%d vs %d of 40)" % [corner, plain])
+	# Picking a fight up where it was: the fish carries on with what it was doing.
+	var mid := Fight.new(200.0, 80.0, 0.5, 7)
+	mid.carry_on("circle")
+	_check(mid.move == "circle", "a fight picked up mid-move carries on with it (%s)" % mid.move)
 	for f in fails:
 		print("FAIL ", f)
 	print("FIGHT TEST ", "PASSED" if fails.is_empty() else "FAILED")
@@ -90,13 +124,16 @@ func _ready() -> void:
 ## Fights one fish with a style of angler; returns [how it ended, seconds].
 ## captain: someone at the wheel keeps the stern on it and backs down on it when it's astern (blind: backs down
 ## all the time and steers anywhere).
+## reach: the angler at the fish's corner with the rod held out (0 .. 1, rods.gd's _reach).
 ## anglers: how many take turns on the rod (a fresh one takes over when the holder's arms are going; off the rod
 ## you rest up at OFF_REST).
-func _fight(kg: float, seed_value: int, style: String, captain := false, blind := false, anglers := 1) -> Array:
+func _fight(kg: float, seed_value: int, style: String, captain := false, blind := false, anglers := 1,
+		reach := 0.0) -> Array:
 	var rested: Array[float] = []
 	for i in anglers - 1:
 		rested.append(1.0)
 	var f := Fight.new(kg, 45.0, 1.0, seed_value)
+	f.reach = reach
 	var end := ["timeout", 0.0]
 	f.lost.connect(func(why: String) -> void: end[0] = why)
 	f.boatside.connect(func() -> void: end[0] = "boatside")

@@ -1,5 +1,37 @@
 # While you were away (newest first)
 
+## The rod in the holder, the corner, and seeing your progress (from your playtest)
+**Not run in Godot yet:** this session had no Godot (its downloads were blocked), so the fight rules were checked in
+a Python copy of `tuna/fight.gd` and the GDScript only by reading it. It's on the `claude/zealous-mendel-h2udij`
+branch, not `main`; play it once before merging.
+- **A rod in its holder keeps fighting the fish on its drag.** It used to pour off 16 m of line a second nonstop, so
+  every trip to the wheel lost a minute or more of cranking. Now the fish does what it does in your hands: it takes
+  line on its runs (and tires doing it), takes none between them, and gets its wind back while nobody pumps it. The
+  host plays it and tells everyone.
+- **Picking the rod back up carries on the same fight:** the same move the fish was on (no more "always circling"
+  when you come back), and your arms as tired as you left them (they used to reset every time you grabbed it).
+- **The corner works:** stand aft at the rail on the side the fish is on and the line stays off the hull longer.
+  The note further down said this was in, but nothing ever set it. When the line's on the hull the hint now says
+  which corner to take it to.
+- **Backing down actually works in the game.** The captain's throttle never reached the fight (only the test set
+  it), so backing down did nothing while you played.
+- **You can see progress:** under the hint, "84 m out · gaining · fish tiring", green while you're winning line, red
+  while it takes it.
+- **Pump hints:** "Pump it up" and "Pump" were the same thing; both now say "Pump: heave, then crank down".
+- **Fixed:** "FISH ON! The port corner rod!" named the wrong side (rod 0 is on the starboard corner).
+- **What it does for solo** (the Python copy, 40 fights each, fought right):
+
+  | Alone | 100 kg | 200 kg | 300 kg | 400 kg |
+  | --- | --- | --- | --- | --- |
+  | Before: stay in the middle of the cockpit | 37 | 10 | 0 | 0 |
+  | From the fish's corner | 39 | 17 | 1 | 0 |
+  | Corner, and a 3 s run to the 46 ft's wheel | 10 | 3 | 5 | 0 |
+  | Corner, and a wheel 1 s away (the small boat) | 38 | 31 | 22 | 13 |
+
+  So the 46 ft stays a crew boat, and the small boat (next) is what makes solo work: its wheel a step from the rods.
+- **Tests:** `tests/fight_test.tscn` now also checks that a fish in the holder takes no line between its runs and is
+  still on after 30 s, that the corner lands more alone, and that a picked-up fight carries on its move.
+
 ## Brainstorm: playing with 1, 2 or 4 (your question; nothing built yet, pick what you like)
 The rule I'd hold to: **more hands make it easier, but no job is ever required.** Every job has a weaker
 fallback, so one or two people can play the whole game.

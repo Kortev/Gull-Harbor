@@ -29,8 +29,9 @@ const MOVES := {
 	"spiral": {"answer": "reel",  "out": 0.0,  "pull": 0.35, "turn": 0.9,  "depth": 2.0,   "dur": [6.0, 9.0]},
 }
 const TELLS := {
-	"run": "It's running! Let it go", "sound": "It's sounding! Pump it up", "shake": "Head shakes! Keep it tight",
-	"circle": "It's circling! Pump", "rest": "It's resting! Crank", "spiral": "Death spiral! Crank!",
+	"run": "It's running! Let it go", "sound": "It's sounding deep! Pump: heave, then crank down",
+	"shake": "Head shakes! Keep it tight", "circle": "It's circling! Pump: heave, then crank down",
+	"rest": "It's resting! Crank", "spiral": "Death spiral! Crank!",
 }
 const STRAIN_GRACE := 1.2       # s at full strain before the line parts
 const SLACK_GRACE := 1.6        # s of slack in a headshake before the hook pulls
@@ -57,7 +58,7 @@ var kg := 150.0
 ## Line out from the rod tip to the fish (m), and how fresh it is (1 .. 0, played out).
 var line_out := 40.0
 var energy := 1.0
-## Where it is: its bearing round the boat (radians, 0 dead astern, + to port) and its depth (m).
+## Where it is: its bearing round the boat (radians, 0 dead astern, + to starboard) and its depth (m).
 var bearing := 0.0
 var depth := 5.0
 ## 0..1: how hard you're fighting it wrong (the rod's bend, the ring round the crosshair).
@@ -68,8 +69,13 @@ var move := ""
 ## The helm: -1 backing down hard .. 0 neutral .. 1 ahead (rods.gd sets it from the captain).
 var throttle := 0.0
 ## How far the angler's got the rod out over the side the fish is on, 0..1 (standing at that corner, leaning out):
-## buys a little room before the line touches the hull, never as much as swinging the boat.
+## buys a little room before the line touches the hull, never as much as swinging the boat. rods.gd sets it from
+## where the angler stands.
 var reach := 0.0
+## The rod's in its holder with nobody on it (rods.gd): the drag still works the fish and it still takes line on its
+## runs, but nobody cranks or pumps, so it gets its wind back between runs. The drag keeps the line tight, so a
+## headshake only throws the hook if she's backing down onto the fish (slack).
+var in_holder := false
 ## The angler's arms, 1 fresh .. 0 spent (rods.gd keeps them on the person, so they carry over and rest up
 ## between fights). Cranking and heaving wear them, the heavier the fish the faster; a tired angler cranks slower
 ## and pumps weaker, and with nothing left can't heave at all. Easing off rests them, slowly. A giant outlasts
@@ -110,7 +116,9 @@ func answer() -> String:
 
 func tell() -> String:
 	if chafe > 0.3:
-		return "The line's on the hull!"
+		if reach > 0.6:
+			return "The line's on the hull! Swing her stern to it"
+		return "The line's on the hull! Take it to the %s corner" % ("starboard" if sin(bearing) > 0.0 else "port")
 	if arms < 0.25:
 		return "Your arms are gone! Hand it off"
 	return str(TELLS.get(move, ""))
@@ -202,7 +210,8 @@ func step(dt: float, crank: bool, lift: float) -> void:
 	else:
 		_over_t = maxf(_over_t - dt * 2.0, 0.0)
 	if ans == "tight":
-		_slack_t = _slack_t + dt if not crank and lift < 0.4 else 0.0
+		var slack: bool = throttle < -0.05 if in_holder else (not crank and lift < 0.4)
+		_slack_t = _slack_t + dt if slack else 0.0
 		if _slack_t > SLACK_GRACE:
 			_end("pulled")
 			return
@@ -274,6 +283,13 @@ func _pick() -> String:
 		if r <= 0.0:
 			return k
 	return "rest"
+
+
+## Picking up a fight where it was (the rod changing hands, or going into its holder): the fish carries on with
+## what it was doing instead of starting a new move.
+func carry_on(m: String) -> void:
+	if MOVES.has(m) and m != move:
+		_set_move(m)
 
 
 func _set_move(m: String) -> void:

@@ -1,9 +1,11 @@
 extends CanvasLayer
 ## The whole HUD, kept minimal: a dot in the middle of the view and the "E: ..." prompt under it; in a fight, what
-## the fish is doing (the tell, which says what to do) and a ring round the dot that fills and reddens with the strain.
+## the fish is doing (the tell, which says what to do), a ring round the dot that fills and reddens with the strain,
+## and under the tell the line out, whether you're winning it back, and how tired the fish feels.
 
 var _prompt: Label
 var _tell: Label
+var _line: Label
 var _ring: Control
 var _strain := 0.0
 var _arms := 1.0
@@ -37,8 +39,8 @@ func _ready() -> void:
 	add_child(_prompt)
 	_tell = Label.new()
 	_tell.set_anchors_preset(Control.PRESET_CENTER)
-	_tell.position += Vector2(-200, 56)
-	_tell.size = Vector2(400, 30)
+	_tell.position += Vector2(-360, 56)
+	_tell.size = Vector2(720, 30)
 	_tell.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_tell.add_theme_font_size_override("font_size", 20)
 	_tell.add_theme_color_override("font_color", Color(1.0, 0.92, 0.7))
@@ -46,6 +48,16 @@ func _ready() -> void:
 	_tell.add_theme_constant_override("shadow_offset_x", 1)
 	_tell.add_theme_constant_override("shadow_offset_y", 1)
 	add_child(_tell)
+	_line = Label.new()
+	_line.set_anchors_preset(Control.PRESET_CENTER)
+	_line.position += Vector2(-300, 84)
+	_line.size = Vector2(600, 24)
+	_line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_line.add_theme_font_size_override("font_size", 16)
+	_line.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.85))
+	_line.add_theme_constant_override("shadow_offset_x", 1)
+	_line.add_theme_constant_override("shadow_offset_y", 1)
+	add_child(_line)
 	_ring = Control.new()
 	_ring.set_anchors_preset(Control.PRESET_CENTER)
 	_ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -115,9 +127,22 @@ func _process(delta: float) -> void:
 
 
 ## In a fight: the tell ("It's running! Let it go") and the strain 0..1 ("" and 0 when there's no fight).
-## `arms`: yours, 0..1 (a thin inner ring once they start to go).
-func fight(tell: String, strain: float, arms := 1.0) -> void:
+## `arms`: yours, 0..1 (a thin inner ring once they start to go). `line`: metres out (< 0 hides it), `gain`: how fast
+## you're winning it back (m/s, - while it takes line), `fresh`: the fish, 1 fresh .. 0 beat.
+func fight(tell: String, strain: float, arms := 1.0, line := -1.0, gain := 0.0, fresh := 1.0) -> void:
 	_tell.text = tell
+	if line < 0.0:
+		_line.text = ""
+	else:
+		var how := "gaining" if gain > 0.25 else ("it's taking line" if gain < -0.25 else "holding")
+		var fish := "fresh" if fresh > 0.7 else ("tiring" if fresh > 0.45 else ("tired" if fresh > 0.25 else "beat"))
+		_line.text = "%d m out  ·  %s  ·  fish %s" % [roundi(line), how, fish]
+		var col := Color(0.85, 0.85, 0.82)
+		if gain > 0.25:
+			col = Color(0.55, 1.0, 0.55)
+		elif gain < -0.25:
+			col = Color(1.0, 0.5, 0.4)
+		_line.add_theme_color_override("font_color", col)
 	if absf(strain - _strain) > 0.01 or (strain == 0.0) != (_strain == 0.0) or absf(arms - _arms) > 0.01:
 		_strain = strain
 		_arms = arms

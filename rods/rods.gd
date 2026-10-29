@@ -6,6 +6,7 @@ extends Node3D
 
 const Rod := preload("res://rods/rod.gd")
 const Fight := preload("res://tuna/fight.gd")
+const Boat := preload("res://boat/boat.gd")
 ## The boat's holders the rods sit in, and where each bait is (boat-local: x across, z astern of the transom).
 const HOLDERS: Array[int] = [6, 7, 0, 1]
 const BAITS: Array[Vector3] = [Vector3(5.5, 0, 39.0), Vector3(-5.5, 0, 39.0), Vector3(15.0, 0, 53.0),
@@ -13,8 +14,8 @@ const BAITS: Array[Vector3] = [Vector3(5.5, 0, 39.0), Vector3(-5.5, 0, 39.0), Ve
 
 ## Where the lines go over the transom (boat-local): bearings and line out are measured from here.
 const STERN := Vector3(0.0, 0.0, 7.05)
-## How fast a fish on an unattended rod strips line (m/s, fresh): nobody to stop it, the reel's empty in half a minute.
-const FREE_RUN := 16.0
+## A rod nobody's holding sits in its holder with the drag set: the host plays the fish against the drag (it takes
+## line on its runs and gets its wind back between them, nobody winning any back) and tells everyone how it's going.
 const WHY := {"broke": "The line parted!", "pulled": "Pulled the hook!",
 		"spooled": "Spooled! It took every metre of line.", "chafed": "The line chafed through on the hull!",
 		"cut": "It went under the boat: the props cut the line!"}
@@ -23,6 +24,9 @@ var sea: Node                 # sea/sea.gd
 var rods: Array[Rod] = []
 var _send_in := 0.0
 var _last_heading := 0.0
+## Your rod's line out last frame, and how fast you're winning it back (m/s, smoothed; - while it takes line).
+var _trend_out := -1.0
+var _trend := 0.0
 
 
 func _ready() -> void:
@@ -106,9 +110,8 @@ func _set_holder(i: int, who: int) -> void:
 	r.holder = who
 	r.fight = null
 	r.lift = 0.0
-	# let go with a fish on: it runs from where it is
+	# (changing hands: the fight carries on from where it is, on the new holder's machine or the host's)
 	r.free_t = _now()
-	r.free_out = r.line_out
 	if handed and r.hooked and who == Net.my_id():
 		_hud_note("You've got it!")
 
@@ -138,11 +141,10 @@ func _strike(i: int, kg: float, t: float, bearing: float, seed_value: int) -> vo
 	r.move = "run"
 	r.line_out = (BAITS[i] - STERN).length()
 	r.free_t = t
-	r.free_out = r.line_out
 	r.fight = null
 	r.wear = 0.0
 	r.set_meta("seed", seed_value)
-	_hud_note("FISH ON!  The %s rod!" % ["port corner", "starboard corner", "port", "starboard"][i])
+	_hud_note("FISH ON!  The %s rod!" % ["starboard corner", "port corner", "starboard", "port"][i])
 
 
 @rpc("authority", "call_local", "reliable")
@@ -168,6 +170,21 @@ func _fight_state(i: int, out: float, strain: float, bearing: float, depth: floa
 		r.depth = depth
 		r.energy = energy
 		r.lift = lift
+		r.move = move
+		r.wear = wear
+
+
+## The host's word on a fish on a rod in its holder (nobody holding it: the host plays it against the drag).
+@rpc("authority", "call_remote", "unreliable_ordered")
+func _holder_state(i: int, out: float, strain: float, bearing: float, depth: float, energy: float, move: String,
+		wear: float) -> void:
+	var r := rods[i]
+	if r.holder == 0 and r.hooked:
+		r.line_out = out
+		r.strain = strain
+		r.bearing = bearing
+		r.depth = depth
+		r.energy = energy
 		r.move = move
 		r.wear = wear
 
@@ -216,14 +233,14 @@ func _sync(states: Array) -> void:
 		r.depth = float(st[5])
 		r.energy = float(st[6])
 		r.free_t = float(st[7])
-		r.free_out = float(st[8])
-		r.wear = float(st[9])
+		r.wear = float(st[8])
+		r.move = str(st[9])
 
 
 func _states() -> Array:
 	var out := []
 	for r in rods:
-		out.append([r.holder, r.hooked, r.fish_kg, r.line_out, r.bearing, r.depth, r.energy, r.free_t, r.free_out, r.wear])
+		out.append([r.holder, r.hooked, r.fish_kg, r.line_out, r.bearing, r.depth, r.energy, r.free_t, r.wear, r.move])
 	return out
 
 
@@ -238,10 +255,12 @@ func _process(delta: float) -> void:
 	var boat := sea.get("boat") as Node3D
 	var ocean := sea.get("ocean") as Node
 	var crew := sea.get("crew") as Node
-	var t := _now()
 	var me := Net.my_id()
 	var mine: Rod = null
 	_send_in -= delta
+	var send := _send_in <= 0.0 and Net.in_session()
+	if send:
+		_send_in = 0.1
 	# the captain swinging her round swings every fish's bearing the other way (they stay where they are)
 	var helm: Node = boat.get("helm")
 	var heading := float(helm.get("heading"))
@@ -249,23 +268,18 @@ func _process(delta: float) -> void:
 	_last_heading = heading
 	for r in rods:
 		if r.hooked:
+			if r.fight != null:
+				(r.fight as Fight).bearing -= turned
 			if r.holder == 0:
-				# nobody on it: the fish runs, line pours off, and when the reel's empty it's gone
-				var e := 0.4 + 0.6 * r.energy
-				r.line_out = r.free_out + FREE_RUN * e * maxf(t - r.free_t, 0.0)
-				r.strain = 0.95
+				# nobody on it: in its holder, the drag working the fish (the host plays it, everyone else draws it)
 				r.reeling = 0.0
-				r.bearing += delta * 0.05 - turned
-				r.depth = move_toward(r.depth, 15.0, delta * 3.0)
-				r.energy = minf(r.energy + delta * 0.01, 1.0)
-				if Net.is_host() and r.line_out >= Fight.CAPACITY:
-					_host_off(r.index, WHY["spooled"])
+				r.bearing -= turned
+				if Net.is_host():
+					_fight_holder(r, delta, float(helm.get("throttle")), send)
 			elif r.holder == me:
 				mine = r
-				if r.fight != null:
-					(r.fight as Fight).bearing -= turned
 				r.bearing -= turned
-				_fight_mine(r, delta, float(helm.get("throttle")))
+				_fight_mine(r, delta, float(helm.get("throttle")), send)
 			else:
 				r.bearing -= turned     # (till their next word, which has it)
 			# (someone else's: their peer sends how it's going)
@@ -297,8 +311,15 @@ func _process(delta: float) -> void:
 		# the ring is how wrong you're fighting it, not how hard it pulls (that's the rod's bend)
 		var wrong := (mine.fight as Fight).strain if mine.fight != null else 0.0
 		var tell: String = (mine.fight as Fight).tell() if mine.fight != null else str(Fight.TELLS.get(mine.move, ""))
-		hud.call("fight", tell, maxf(wrong, 0.02), float(me_node.get("arms")))
+		# the line out, and whether you're winning it back: the angler's sense of how it's going
+		if _trend_out >= 0.0:
+			var rate := (_trend_out - mine.line_out) / maxf(delta, 1e-4)
+			_trend = lerpf(_trend, rate, minf(delta * 2.0, 1.0))
+		_trend_out = mine.line_out
+		hud.call("fight", tell, maxf(wrong, 0.02), float(me_node.get("arms")), mine.line_out, _trend, mine.energy)
 	else:
+		_trend_out = -1.0
+		_trend = 0.0
 		hud.call("fight", "", 0.0)
 	# the captain's plotter: where each fish on is, round the boat
 	var fish := []
@@ -319,37 +340,79 @@ func _process(delta: float) -> void:
 
 ## Your rod with a fish on: you fight it here (left mouse cranks, right mouse heaves the rod up) and tell the rest.
 ## `throttle`: the captain's (fight.gd: backing down on it helps).
-func _fight_mine(r: Rod, delta: float, throttle: float) -> void:
+func _fight_mine(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	var me := (sea.get("crew") as Node).get("me") as Node
 	var live := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or (me != null and bool(me.get("force_input")))
 	var crank := live and Input.is_action_pressed("use_primary")
 	var heave := live and Input.is_action_pressed("use_secondary")
 	r.lift = move_toward(r.lift, 1.0 if heave else 0.0, delta * 3.5)
-	if r.fight == null:
-		var f := Fight.new(r.fish_kg, r.line_out, r.energy, int(r.get_meta("seed", 0)) + int(r.free_t))
-		f.bearing = r.bearing
-		f.depth = r.depth
-		f.wear = r.wear
-		f.lost.connect(func(how: String) -> void: _end_mine(r, how))
-		f.boatside.connect(func() -> void: _end_mine(r, "boatside"))
-		r.fight = f
 	var fight := r.fight as Fight
+	if fight == null or fight.in_holder:
+		fight = _new_fight(r)
+		if me != null:
+			fight.arms = float(me.get("arms"))      # (your arms are as tired as you left them)
+	fight.throttle = throttle
+	fight.reach = _reach(me, fight.bearing)
 	fight.step(delta, crank, r.lift)
 	if me != null:
 		me.set("arms", fight.arms)
 	if not r.hooked:
 		return       # (it ended this step)
-	r.wear = fight.wear
+	_take(r, fight)
 	r.reeling = Fight.CRANK if crank and fight.answer() != "hold" else 0.0
+	if send:
+		_fight_state.rpc(r.index, r.line_out, r.strain, r.bearing, r.depth, r.energy, r.lift, r.move, r.wear)
+
+
+## Host: a fish on a rod in its holder, nobody on it. The drag still works it: it takes line on its runs and tires
+## doing it, but nobody cranks or pumps, so it gains nothing back and gets its wind back between runs.
+func _fight_holder(r: Rod, delta: float, throttle: float, send: bool) -> void:
+	var fight := r.fight as Fight
+	if fight == null or not fight.in_holder:
+		fight = _new_fight(r)
+		fight.in_holder = true
+	fight.throttle = throttle
+	fight.step(delta, false, 0.0)
+	if not r.hooked:
+		return       # (it ended this step)
+	_take(r, fight)
+	if send:
+		_holder_state.rpc(r.index, r.line_out, r.strain, r.bearing, r.depth, r.energy, r.move, r.wear)
+
+
+## The fight for rod r, picked up from where it is (whoever had it, or its holder): the same fish, as tired as it
+## was, doing what it was doing.
+func _new_fight(r: Rod) -> Fight:
+	var f := Fight.new(r.fish_kg, r.line_out, r.energy, int(r.get_meta("seed", 0)) + int(r.free_t))
+	f.bearing = r.bearing
+	f.depth = r.depth
+	f.wear = r.wear
+	f.carry_on(r.move)
+	f.lost.connect(func(how: String) -> void: _end_mine(r, how))
+	f.boatside.connect(func() -> void: _end_mine(r, "boatside"))
+	r.fight = f
+	return f
+
+
+func _take(r: Rod, fight: Fight) -> void:
+	r.wear = fight.wear
 	r.line_out = fight.line_out
 	r.strain = maxf(fight.pull, fight.strain)
 	r.bearing = fight.bearing
 	r.depth = fight.depth
 	r.energy = fight.energy
 	r.move = fight.move
-	if _send_in <= 0.0 and Net.in_session():
-		_send_in = 0.1
-		_fight_state.rpc(r.index, r.line_out, r.strain, r.bearing, r.depth, r.energy, r.lift, r.move, r.wear)
+
+
+## How far out over the fish's side the angler's got the rod, 0..1: standing aft at the rail on the side it's on.
+func _reach(p: Node, bearing: float) -> float:
+	if p == null:
+		return 0.0
+	var at: Vector3 = p.call("local_position")
+	var side := 1.0 if sin(bearing) >= 0.0 else -1.0      # (+ bearing: off the starboard quarter, + x)
+	var out := clampf((at.x * side - (Boat.BEAM * 0.5 - 1.5)) / 1.0, 0.0, 1.0)
+	var aft := smoothstep(STERN.z - 3.5, STERN.z - 1.5, at.z)
+	return out * aft
 
 
 func _end_mine(r: Rod, how: String) -> void:

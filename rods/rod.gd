@@ -22,7 +22,7 @@ var line_end := Vector3.ZERO
 var reeling := 0.0
 var spread: Node              # rods.gd
 ## A fish on (tuna/fight.gd): its weight, when it bit (sea clock), the line from the tip to it (m), where it is
-## (bearing round the stern, 0 dead astern, + to port; depth, m), how fresh it is, what it's doing (a move).
+## (bearing round the stern, 0 dead astern, + to starboard; depth, m), how fresh it is, what it's doing (a move).
 var hooked := false
 var fish_kg := 0.0
 var hook_t := 0.0
@@ -33,11 +33,10 @@ var energy := 1.0
 var move := ""
 ## How far the holder has heaved the rod up, 0..1 (a pump).
 var lift := 0.0
-## The fight itself, on the holder's machine only.
+## The fight itself: on the holder's machine, or the host's while it sits in its holder (fight.gd's in_holder).
 var fight: RefCounted
-## While nobody holds it: when it was let go (sea clock) and the line out then (it runs from there).
+## When it last changed hands (sea clock): seeds the fight picked up from there.
 var free_t := 0.0
-var free_out := 0.0
 ## How worn the line is from rubbing the hull (fight.gd), kept when the rod changes hands.
 var wear := 0.0
 var _scream: AudioStreamPlayer3D
