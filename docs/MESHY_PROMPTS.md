@@ -13,7 +13,9 @@ Free models are CC BY 4.0: fine to use, credit "Models made with Meshy (meshy.ai
 5. **Download as GLB** and save it as `art/generated/<name>/<name>.glb` in this repo (the rigged one if you
    rigged it). Tell me, and I take it from there: clean it, fit it, wire it into the game, screenshot it.
 
-Start with **crew_yellow**. If you like it, do the rest; if not, tell me what's off and I'll rewrite the prompts.
+**For now, only crew_yellow and the bluefin.** Everyone plays the same fisherman for now; the colour of each
+player's oilskins is changed in game. The other three people below are kept for later (body types for
+customization), not needed now.
 
 ---
 
@@ -34,7 +36,7 @@ skin, clean smooth surfaces with a slight sheen, no photographic noise or pores.
 a few fish-blood smudges and salt marks on the oilskins. Bright yellow oilskins, navy jumper, red knit cap, orange
 gloves, dark green boots.
 
-## crew_orange (height 1.92 m)
+## Later, not now: crew_orange (height 1.92 m)
 
 **Prompt:**
 Stylized realism, like a high-end animated adventure game: a believable adult human with real anatomy and
@@ -50,7 +52,7 @@ skin, clean smooth surfaces with a slight sheen, no photographic noise or pores.
 a few fish-blood smudges and salt marks on the oilskins. Orange oilskins and sou'wester, grey hoodie, white boots,
 yellow gloves.
 
-## crew_green (height 1.84 m)
+## Later, not now: crew_green (height 1.84 m)
 
 **Prompt:**
 Stylized realism, like a high-end animated adventure game: a believable adult human with real anatomy and
@@ -66,7 +68,7 @@ skin, clean smooth surfaces with a slight sheen, no photographic noise or pores.
 a few fish-blood smudges and salt marks on the oilskins. Green oilskins, white vest, faded blue-black tattoos on the
 forearms, blue gloves, black boots.
 
-## crew_red (height 1.64 m)
+## Later, not now: crew_red (height 1.64 m)
 
 **Prompt:**
 Stylized realism, like a high-end animated adventure game: a believable adult human with real anatomy and

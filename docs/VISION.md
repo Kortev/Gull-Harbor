@@ -29,6 +29,19 @@ without the thing, make it usable; don't keep it as a prop.
 - **The owner's manual** in the Esc menu: everything, in the voice of a manual nobody proofread (`ui/manual.gd`).
 - Later, maybe: a cheesy 90s training tape ("So You Bought a Tuna Boat") on a TV in the dock shack, skippable.
 
+## Customization (later; build the art so it's possible)
+
+Your words (2026-10-29): skins and clothes you can customize, "trillions of options" from base pieces times
+colours, and maybe loot boxes later (for clothes and maybe other things). Not now, but the art is built for it:
+
+- **One base body, one skeleton.** Everyone shares it now. Body types can come later on the same skeleton.
+- **Clothes as separate pieces** on that skeleton (hat, top, oilskins, gloves, boots, extras like the knife or
+  a towel), each with a few base shapes. Swapping one never touches the rest.
+- **Colours from masks:** each piece's texture marks which parts take the player's colours (the oilskins, the
+  stripe, the cap), so every shape comes in any colour. Base pieces times colours is where the huge number of
+  combinations comes from.
+- **Parked:** the wardrobe screen, unlocking, loot boxes.
+
 ## Ideas to come back to (parked, not built)
 
 - **Losing the boat means a crap job.** Instead of a game over when the bank takes the boat (or you're broke), the
