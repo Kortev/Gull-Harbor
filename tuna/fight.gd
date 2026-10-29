@@ -51,6 +51,9 @@ const RUN_SPEED := 9.0          # m/s, a fresh bluefin's first run
 const CHAFE_FROM := 1.6
 const CHAFE_ALL := 2.4
 const CHAFE_LIFE := 14.0
+## Another rod's line tangled in this one (rods.gd: its run crossed a line still out): the lines saw at each other
+## and it parts in TANGLE_LIFE s unless someone clears it, and the strain's up while they're crossed.
+const TANGLE_LIFE := 45.0
 const UNDER := 2.5
 const PROP_GRACE := 1.5
 const BACK_SPEED := 2.2
@@ -93,6 +96,7 @@ var crank_mul := 1.0
 var chafe_mul := 1.0
 var grace_add := 0.0
 var arms_mul := 1.0
+var tangled := false
 ## The angler's arms, 1 fresh .. 0 spent (rods.gd keeps them on the person, so they carry over and rest up
 ## between fights). Cranking and heaving wear them, the heavier the fish the faster, and fighting it the wrong way
 ## (cranking against a run, cranking a deep fish without pumping) much faster than the right way. Tired arms only
@@ -143,6 +147,8 @@ func tell() -> String:
 	# (a spiral goes under her every lap: its own hints say when)
 	if move != "spiral" and b_now() > UNDER - 0.2 and depth < 25.0:
 		return "It's under the boat! No throttle: steer her stern round to it (A/D)"
+	if tangled:
+		return "TANGLED in another line! Get it cleared: E on that rod"
 	# (in a spiral it brushes her every lap: only a real rub, or a worn line, outranks the spiral's own hints)
 	var warn := chafe > (0.18 if move == "spiral" else 0.08) or (chafe > 0.0 and wear > 0.3)
 	if warn:
@@ -243,9 +249,13 @@ func step(dt: float, crank: bool, lift: float) -> void:
 	if move == "spiral":
 		chafe *= 0.5        # (deep under her, the line goes down steep and only brushes the hull)
 	target = maxf(target, 0.6 * chafe)
+	if tangled:
+		target += 0.25
 	wear += chafe * (0.4 + 0.6 * pull) * dt / (CHAFE_LIFE * chafe_mul)
+	if tangled:
+		wear += dt / (TANGLE_LIFE * chafe_mul)
 	if wear >= 1.0:
-		_end("chafed")
+		_end("tangle" if tangled and chafe < 0.05 else "chafed")
 		return
 	# Under her with the props turning: cut.
 	if b > UNDER and absf(throttle) > 0.05 and depth < 25.0 and hd0 < 35.0:

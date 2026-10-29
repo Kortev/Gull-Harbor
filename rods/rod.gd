@@ -46,6 +46,10 @@ var turn_sign := 0.0
 var last_holder := 0
 ## Its fish is beaten and up alongside (tuna/landing.gd): no more fighting, just the line to it till it's stuck.
 var alongside := false
+## Its line reeled in (cleared while another rod's fighting a fish: no bait out, nothing bites), and the rod whose
+## running fish has its line tangled (-1: none).
+var bait_in := false
+var tangled := -1
 var _scream: AudioStreamPlayer3D
 var _whir: AudioStreamPlayer3D
 var _sing: AudioStreamPlayer3D
@@ -214,7 +218,13 @@ func interact_prompt(player: Node) -> String:
 	if holder == 0:
 		if alongside:
 			return ""          # (its fish is astern for the harpoon: nothing to do with the rod)
-		return "GRAB IT! Fish on!" if hooked else "Grab the rod"
+		if hooked:
+			return "GRAB IT! Fish on!"
+		if tangled >= 0:
+			return "Clear the tangle! (reel it in)"
+		if bool(spread.call("fighting")):
+			return "" if bait_in else "Reel it in (clear the lines)"
+		return "Put the bait back out" if bait_in else "Grab the rod"
 	if hooked and holder != Net.my_id():
 		return "Take over the rod"
 	return ""

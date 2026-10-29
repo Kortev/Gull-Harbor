@@ -1,6 +1,7 @@
 extends Node
-## The spread: grabbing a rod, not grabbing a second one, putting it back. Run: godot --headless --path .
-## res://tests/rods_test.tscn
+## The spread: grabbing a rod, not grabbing a second one, putting it back. And clearing the lines: with a fish on,
+## E on an empty rod reels its line in (no bites on it), a tangle in a running fish's line is cleared the same way,
+## and with nothing on, E puts a bait back out. Run: godot --headless --path . res://tests/rods_test.tscn
 
 const Sea := preload("res://sea/sea.gd")
 
@@ -30,6 +31,25 @@ func _ready() -> void:
 	_check(rods.rods[2].holder == 0, "Q: back in its holder")
 	rods.request_grab(0)
 	_check(rods.rods[0].holder == 1, "then another one: yours")
+	rods.request_return(0)
+	# clearing the lines: a fish on rod 0, a line tangled in it
+	sea.schools.set("_next", 9999.0)
+	rods.strike(0, 150.0)
+	await get_tree().process_frame
+	_check(rods.fighting(), "a fish on")
+	rods._tangle(1, 0)
+	_check(rods.is_tangled(0) and str(rods.rods[1].call("interact_prompt", null)).begins_with("Clear the tangle"),
+			"tangled: rod 1's line across its run (%s)" % rods.rods[1].call("interact_prompt", null))
+	rods.request_grab(1)
+	_check(not rods.is_tangled(0) and rods.rods[1].bait_in and rods.rods[1].holder == 0, "E on rod 1: cleared, reeled in")
+	rods.request_grab(2)
+	_check(rods.rods[2].bait_in and rods.rods[2].holder == 0, "E on another empty rod while it fights: reeled in")
+	rods.strike(2, 150.0)
+	_check(not rods.rods[2].hooked, "nothing bites a reeled-in line")
+	rods._host_off(0, "(the test lets it go)")
+	_check(not rods.fighting(), "the fish gone")
+	rods.request_grab(2)
+	_check(not rods.rods[2].bait_in, "with nothing on, E puts the bait back out")
 	for f in fails:
 		print("FAIL ", f)
 	print("RODS TEST ", "PASSED" if fails.is_empty() else "FAILED")

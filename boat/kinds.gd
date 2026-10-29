@@ -17,6 +17,8 @@ extends RefCounted
 ##                 fish_aboard: where it comes up to as it's hauled
 ##   spots         where fish lie on deck, in turn: x, y, z, and w 1 lying across her, 0 along her
 ##   hold          how many fish her fish box takes iced (one more on deck sells warm)
+##   wire          a fish alongside must be wired (someone holding the leader) before it can be stuck: her high
+##                 transom (the sportfisher); over the skiff's low gunwale you can reach it with the harpoon as it is
 ##   ahead, astern m/s flat out; spurt, back: m/s each second getting going ahead, astern; coast: s she carries her way
 ##   turn          rad/s hard over
 ##   transom, engines, bow: the wake's spots (wash, engine sound, bow spray)
@@ -42,7 +44,7 @@ const KINDS := {
 		"haul": Vector3(1.15, 0.95, 3.2), "haul_box": Vector3(0.55, 0.6, 1.1), "door": false,
 		"fish_water": Vector3(1.95, 0.0, 3.0), "fish_across": false, "fish_aboard": Vector3(0.9, 0.85, 3.0),
 		"spots": [Vector4(0.95, 0.45, 2.6, 0.0), Vector4(-0.95, 0.45, 2.6, 0.0)],
-		"hold": 2,
+		"hold": 2, "wire": false,
 		"ahead": 11.0, "astern": 2.6, "spurt": 2.4, "back": 3.0, "coast": 4.5, "turn": 0.75,
 		"transom": Vector3(0.0, 0.0, 4.9), "engines": Vector3(0.0, 0.9, 4.7), "bow": Vector3(1.1, 0.45, -3.3),
 		"cabin_light": Vector3(0.0, 2.3, 0.4),
@@ -66,7 +68,7 @@ const KINDS := {
 		"fish_water": Vector3(1.1, 0.0, 7.95), "fish_across": true, "fish_aboard": Vector3(1.0, 0.8, 6.22),
 		"spots": [Vector4(0.0, 0.55, 5.75, 1.0), Vector4(0.0, 0.55, 3.45, 1.0), Vector4(0.0, 0.55, 2.55, 1.0),
 				Vector4(0.0, 0.55, 1.85, 1.0)],
-		"hold": 12,
+		"hold": 12, "wire": true,
 		"ahead": 10.0, "astern": 2.6, "spurt": 1.4, "back": 2.2, "coast": 9.0, "turn": 0.45,
 		"transom": Vector3(0.0, 0.0, 7.3), "engines": Vector3(0.0, 0.3, 3.5), "bow": Vector3(1.7, 0.6, -5.0),
 		"cabin_light": Vector3(0.0, 2.45, -1.3),

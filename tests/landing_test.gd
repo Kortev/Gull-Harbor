@@ -59,6 +59,12 @@ func _ready() -> void:
 	landing._ask_throw_as(1, -1)
 	_check(landing.harpoon_holder == 0 and not bool(landing.fish[0]["stuck"]),
 			"a miss: the harpoon's back in its rack, the fish still alongside")
+	# the sportfisher's high transom: too lively to stick till it's wired
+	landing._request_harpoon(true)
+	landing._ask_throw_as(1, 0)
+	_check(not bool(landing.fish[0]["stuck"]) and landing.needs_wire(0), "unwired, the throw doesn't stick")
+	landing._ask_wire_as(0)
+	_check(not landing.needs_wire(0) and landing.wire_left(0) > 10.0, "E at the transom: wired")
 	landing._request_harpoon(true)
 	landing._ask_throw_as(1, 0)
 	await get_tree().process_frame

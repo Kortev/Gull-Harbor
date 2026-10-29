@@ -112,7 +112,7 @@ func _strikes(delta: float) -> void:
 			continue
 		var c := s.center(t)
 		for r: Node3D in spread.get("rods"):
-			if bool(r.get("hooked")):
+			if bool(r.get("hooked")) or bool(r.get("bait_in")):
 				continue
 			var bait: Vector3 = r.get("line_end")
 			if Vector2(bait.x, bait.z).distance_to(c) < s.radius + 6.0 and randf() < delta * chance:

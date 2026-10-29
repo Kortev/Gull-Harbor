@@ -15,6 +15,9 @@ const Action := preload("res://core/action.gd")
 
 ## Seconds a fish lies alongside before the hook pulls, if nobody sticks it.
 const HOOK_HOLDS := 90.0
+## On a boat whose kind says `wire` (the sportfisher's high transom), someone has to wire the fish (E at the transom:
+## grab the leader) before it can be stuck; the wire holds it this long (s), then it's thrashing free again.
+const WIRE_HOLD := 15.0
 ## A throw: how far it reaches (m from your eyes), and how far off the fish's middle it can pass and still stick
 ## (times the fish's length).
 const REACH := 9.0
@@ -176,10 +179,22 @@ func hint() -> String:
 			stuck = true
 		else:
 			waiting = true
+	var unwired := false
+	var wired := false
+	for i: int in fish:
+		if not bool(fish[i]["stuck"]) and bool(spec.get("wire", false)):
+			unwired = unwired or needs_wire(i)
+			wired = wired or not needs_wire(i)
 	if harpoon_holder == Net.my_id():
+		if waiting and unwired and not wired:
+			return "Wire it first (E at the transom), or it's too lively to stick  (Q puts the harpoon back)"
 		return "Aim at the fish, left mouse throws  (Q puts it back)" if waiting else "Q puts the harpoon back"
 	if waiting and (sea.get("rods") as Node).call("held_by", Net.my_id()) != null:
 		return "Boatside! Q puts the rod back, then grab the harpoon (port side)"
+	if waiting and wired:
+		return "Wired! Stick it now: the harpoon's along the port side"
+	if waiting and unwired:
+		return "Boatside! Wire it (E at the transom), then stick it: the harpoon's along the port side"
 	if waiting:
 		return "Boatside! Stick it: the harpoon's along the port side"
 	if stuck:
@@ -202,10 +217,35 @@ func _door_prompt(side: float) -> String:
 	var i := _stuck_on(side)
 	if i >= 0:
 		return "Hold to haul it aboard (%d%%)" % roundi(float(fish[i]["haul"]) * 100.0)
-	for j: int in fish:
-		if float(fish[j]["side"]) == side:
-			return "Stick it first (the harpoon)"
+	var j := _waiting_on(side)
+	if j >= 0:
+		if needs_wire(j):
+			return "Wire it: grab the leader"
+		if bool(spec.get("wire", false)):
+			return "Wired! Stick it now (%d s)" % ceili(wire_left(j))
+		return "Stick it first (the harpoon)"
 	return ""
+
+
+## The fish alongside on that side not stuck yet (-1: none).
+func _waiting_on(side: float) -> int:
+	for j: int in fish:
+		if not bool(fish[j]["stuck"]) and float(fish[j]["side"]) == side:
+			return j
+	return -1
+
+
+## Whether fish i still has to be wired before it can be stuck (her kind says so, and nobody's holding the leader).
+func needs_wire(i: int) -> bool:
+	return bool(spec.get("wire", false)) and fish.has(i) and wire_left(i) <= 0.0
+
+
+func wire_left(i: int) -> float:
+	return float(fish[i].get("wired_until", -1.0)) - _now() if fish.has(i) else 0.0
+
+
+func _now() -> float:
+	return float((sea.get("ocean") as Node).get("wave_time"))
 
 
 func _stuck_on(side: float) -> int:
@@ -315,7 +355,12 @@ func _ask_throw_as(who: int, i: int) -> void:
 	if who != harpoon_holder:
 		return
 	_host_set_harpoon(0)
-	if fish.has(i) and not bool(fish[i]["stuck"]):
+	if fish.has(i) and not bool(fish[i]["stuck"]) and needs_wire(i):
+		if Net.in_session():
+			_missed.rpc(who, "Too lively to stick: wire it first (E at the transom)")
+		else:
+			_missed(who, "Too lively to stick: wire it first (E at the transom)")
+	elif fish.has(i) and not bool(fish[i]["stuck"]):
 		if Net.in_session():
 			_stuck.rpc(i)
 		else:
@@ -323,9 +368,9 @@ func _ask_throw_as(who: int, i: int) -> void:
 		(sea.get("rods") as Node).call("host_off", i, "Stuck! Now haul it in: hold E on the %s"
 				% ("tuna door" if bool(spec.get("door", true)) else "gunwale by it"))
 	elif Net.in_session():
-		_missed.rpc(who)
+		_missed.rpc(who, "Missed! Grab the harpoon and try again")
 	else:
-		_missed(who)
+		_missed(who, "Missed! Grab the harpoon and try again")
 
 
 @rpc("authority", "call_local", "reliable")
@@ -360,9 +405,9 @@ func _stuck(i: int) -> void:
 
 
 @rpc("authority", "call_local", "reliable")
-func _missed(who: int) -> void:
+func _missed(who: int, why: String) -> void:
 	if who == Net.my_id():
-		_note("Missed! Grab the harpoon and try again")
+		_note(why)
 
 
 # ------------------------------------------------------------------ the haul
@@ -370,6 +415,13 @@ func _missed(who: int) -> void:
 func _start_pull(side: float) -> void:
 	var i := _stuck_on(side)
 	if i < 0:
+		# not stuck yet: on a boat that wants it, E here wires it (grabs the leader)
+		var j := _waiting_on(side)
+		if j >= 0 and needs_wire(j):
+			if Net.is_host():
+				_ask_wire_as(j)
+			else:
+				_ask_wire.rpc_id(1, j)
 		return
 	_my_pull = i
 	if Net.is_host():
@@ -384,6 +436,28 @@ func _stop_pull() -> void:
 		_ask_pull_as(Net.my_id(), -1)
 	else:
 		_ask_pull.rpc_id(1, -1)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _ask_wire(i: int) -> void:
+	_ask_wire_as(i)
+
+
+func _ask_wire_as(i: int) -> void:
+	if not fish.has(i) or bool(fish[i]["stuck"]):
+		return
+	var until := _now() + WIRE_HOLD
+	if Net.in_session():
+		_wired.rpc(i, until)
+	else:
+		_wired(i, until)
+
+
+@rpc("authority", "call_local", "reliable")
+func _wired(i: int, until: float) -> void:
+	if fish.has(i):
+		fish[i]["wired_until"] = until
+		_note("Wired! Stick it before it shakes free (%d s)" % roundi(WIRE_HOLD))
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -460,7 +534,8 @@ func _add(i: int, kg: float, side: float, hook_t: float, on_rod := true) -> void
 	node.posed = true
 	node.effort = 0.35
 	add_child(node)
-	fish[i] = {"kg": kg, "side": side, "hook_t": hook_t, "t": 0.0, "stuck": false, "haul": 0.0, "node": node}
+	fish[i] = {"kg": kg, "side": side, "hook_t": hook_t, "t": 0.0, "stuck": false, "haul": 0.0, "node": node,
+			"wired_until": -1.0}
 	if on_rod:
 		(sea.get("rods") as Node).call("set_alongside", i)
 
@@ -520,7 +595,7 @@ func _states() -> Array:
 	var out := []
 	for i: int in fish:
 		var f: Dictionary = fish[i]
-		out.append([i, f["kg"], f["side"], f["hook_t"], f["t"], f["stuck"], f["haul"]])
+		out.append([i, f["kg"], f["side"], f["hook_t"], f["t"], f["stuck"], f["haul"], f.get("wired_until", -1.0)])
 	return out
 
 
@@ -534,6 +609,7 @@ func _sync(holder: int, states: Array) -> void:
 		_add(i, float(s[1]), float(s[2]), float(s[3]), not bool(s[5]))
 		fish[i]["t"] = float(s[4])
 		fish[i]["haul"] = float(s[6])
+		fish[i]["wired_until"] = float(s[7]) if s.size() > 7 else -1.0
 		if bool(s[5]):
 			_stuck(i)
 

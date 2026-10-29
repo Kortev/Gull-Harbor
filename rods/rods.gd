@@ -12,7 +12,13 @@ const WHY := {"broke": "The line parted! Too much strain: when the ring goes red
 		"pulled": "Pulled the hook! Keep the line tight through its headshakes.",
 		"spooled": "Spooled! It took every metre of line. Don't crank against a run; back down on it.",
 		"chafed": "The line wore through on the hull! It swung forward of her side: take it to that corner, or swing her stern to it.",
-		"cut": "It went under the boat: the props cut the line! Out of gear when it's under her."}
+		"cut": "It went under the boat: the props cut the line! Out of gear when it's under her.",
+		"tangle": "The lines tangled and sawed through! Clear the other lines when a fish is on (E on each rod)."}
+## While a fish is on, how often (s) the host looks for its run crossing another line that's still out, and the
+## chance each time it does that tangles them; quiet this long after a fish (s) and the baits go back out.
+const TANGLE_EVERY := 1.0
+const TANGLE_CHANCE := 0.2
+const BAITS_BACK := 20.0
 
 var sea: Node                 # sea/sea.gd
 var rods: Array[Rod] = []
@@ -27,6 +33,8 @@ var _last_heading := 0.0
 ## Your rod's line out last frame, and how fast you're winning it back (m/s, smoothed; - while it takes line).
 var _trend_out := -1.0
 var _trend := 0.0
+var _tangle_in := 0.0
+var _quiet := 0.0
 
 
 func _ready() -> void:
@@ -118,6 +126,14 @@ func _ask_grab(i: int) -> void:
 	# a free rod, or taking over a crewmate's fish (their arms are going); not one whose fish is up alongside
 	if rods[i].holder != 0 and not rods[i].hooked or rods[i].alongside:
 		return
+	# an empty rod while a fish is on: E clears its line (reels it in); with nothing on, puts its bait back out
+	if not rods[i].hooked and rods[i].holder == 0:
+		if fighting() and not rods[i].bait_in:
+			_host_line(i, true)
+			return
+		if not fighting() and rods[i].bait_in:
+			_host_line(i, false)
+			return
 	var helm: Node = (sea.get("boat") as Node).get("helm")
 	if int(helm.get("captain")) == who:
 		return        # (the captain's hands are on the wheel)
@@ -161,12 +177,92 @@ func _set_holder(i: int, who: int) -> void:
 		_hud_note("You've got it!")
 
 
+## A fish is on somewhere (hooked, still fighting: not up alongside).
+func fighting() -> bool:
+	for r in rods:
+		if r.hooked and not r.alongside:
+			return true
+	return false
+
+
+## Host: rod i's line reeled in (cleared: no bait out, any tangle off it), or its bait put back out.
+func _host_line(i: int, reel_in: bool) -> void:
+	if Net.in_session():
+		_line.rpc(i, reel_in)
+	else:
+		_line(i, reel_in)
+
+
+@rpc("authority", "call_local", "reliable")
+func _line(i: int, reel_in: bool) -> void:
+	if i < 0 or i >= rods.size():
+		return
+	var r := rods[i]
+	if r.tangled >= 0 and reel_in:
+		_hud_note("Cleared the %s line!" % _name_of(i))
+	r.bait_in = reel_in
+	r.tangled = -1
+
+
+@rpc("authority", "call_local", "reliable")
+func _tangle(i: int, with_rod: int) -> void:
+	if i < 0 or i >= rods.size():
+		return
+	rods[i].tangled = with_rod
+	_hud_note("TANGLED! The fish ran across the %s line: clear it, E on that rod" % _name_of(i))
+
+
+func _name_of(i: int) -> String:
+	return names[i] if i >= 0 and i < names.size() else "other"
+
+
+## Whether another rod's line is tangled in rod i's fish.
+func is_tangled(i: int) -> bool:
+	for r in rods:
+		if r.tangled == i:
+			return true
+	return false
+
+
+## Host, while a fish is on: its run crossing a line that's still out tangles them now and then; quiet a while after
+## a fish, the crew put the baits back out.
+func _host_lines(delta: float) -> void:
+	var landing: Node = sea.get("landing")
+	if fighting() or (landing != null and not (landing.get("fish") as Dictionary).is_empty()):
+		_quiet = 0.0
+	else:
+		_quiet += delta
+		if _quiet > BAITS_BACK:
+			_quiet = 0.0
+			for r in rods:
+				if r.bait_in or r.tangled >= 0:
+					_host_line(r.index, false)
+	_tangle_in -= delta
+	if _tangle_in > 0.0:
+		return
+	_tangle_in = TANGLE_EVERY
+	for a in rods:
+		if not a.hooked or a.alongside:
+			continue
+		var hd := sqrt(maxf(a.line_out * a.line_out - a.depth * a.depth, 0.0))
+		for b in rods:
+			if b == a or b.hooked or b.bait_in or b.tangled >= 0:
+				continue
+			var bait := baits[b.index] - stern
+			var crossing := absf(wrapf(a.bearing - atan2(bait.x, bait.z), -PI, PI)) < 0.3
+			if crossing and hd > bait.length() * 0.6 and randf() < TANGLE_CHANCE:
+				if Net.in_session():
+					_tangle.rpc(b.index, a.index)
+				else:
+					_tangle(b.index, a.index)
+
+
 ## Host: a fish takes rod i's bait.
 func strike(i: int, kg: float) -> void:
 	if i < 0 or i >= rods.size():
 		return        # (a rod she hasn't got: a word from before she was rebuilt)
 	var r := rods[i]
-	if r.hooked or (sea.get("landing") as Node).get("fish").has(i):
+	if r.hooked or r.bait_in or (sea.get("landing") as Node).get("fish").has(i):
 		return        # (its last fish is still astern on the harpoon: no bait out yet)
 	var bait := baits[i] - stern
 	var bearing := atan2(bait.x, bait.z) + randf_range(-0.5, 0.5)
@@ -208,6 +304,11 @@ func _off(i: int, why: String) -> void:
 	r.alongside = false
 	r.fight = null
 	r.line_out = 0.0
+	# (the lines that were tangled in it: free, reeled in)
+	for other in rods:
+		if other.tangled == i:
+			other.tangled = -1
+			other.bait_in = true
 	r.strain = 0.05
 	r.move = ""
 	_hud_note(why)
@@ -326,13 +427,15 @@ func _sync(states: Array) -> void:
 		r.wear = float(st[8])
 		r.move = str(st[9])
 		r.alongside = bool(st[10])
+		r.bait_in = bool(st[11])
+		r.tangled = int(st[12])
 
 
 func _states() -> Array:
 	var out := []
 	for r in rods:
 		out.append([r.holder, r.hooked, r.fish_kg, r.line_out, r.bearing, r.depth, r.energy, r.free_t, r.wear, r.move,
-				r.alongside])
+				r.alongside, r.bait_in, r.tangled])
 	return out
 
 
@@ -350,6 +453,8 @@ func _process(delta: float) -> void:
 	var landing := sea.get("landing") as Node
 	var me := Net.my_id()
 	var mine: Rod = null
+	if Net.is_host():
+		_host_lines(delta)
 	_send_in -= delta
 	var send := _send_in <= 0.0 and Net.in_session()
 	if send:
@@ -389,6 +494,7 @@ func _process(delta: float) -> void:
 		else:
 			r.global_transform = _in_hands(p, r.lift)
 		var end := boat.global_transform * baits[r.index]
+		var tangled_in := r.tangled >= 0 and r.tangled < rods.size()
 		var alongside: Vector3 = landing.call("fish_point", r.index) if r.alongside else Vector3.ZERO
 		if r.alongside and alongside != Vector3.ZERO:
 			end = alongside      # (straight to the fish lying astern)
@@ -398,6 +504,10 @@ func _process(delta: float) -> void:
 			var entry := hd * 2.5 / (2.5 + r.depth * 0.5)
 			end = boat.global_transform * (stern + Vector3(sin(r.bearing), 0.0, cos(r.bearing)) * entry)
 			end.y = ocean.call("height_at", end)
+		elif tangled_in:
+			end = rods[r.tangled].line_end      # (across the running fish's line)
+		elif r.bait_in:
+			end = r.tip_position() + Vector3(0.0, -0.3, 0.0)     # (reeled in: just the leader hanging)
 		else:
 			end.y = ocean.call("height_at", end)
 		r.line_end = end
@@ -477,6 +587,7 @@ func _fight_mine(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	fight.moving = true
 	fight.boat_vel = _boat_vel()
 	fight.reach = _reach(me, fight.bearing)
+	fight.tangled = is_tangled(r.index)
 	fight.step(delta, crank, r.lift)
 	if me != null:
 		me.set("arms", fight.arms)
@@ -500,6 +611,7 @@ func _fight_holder(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	fight.throttle = throttle
 	fight.moving = true
 	fight.boat_vel = _boat_vel()
+	fight.tangled = is_tangled(r.index)
 	fight.step(delta, false, 0.0)
 	if not r.hooked or r.alongside:
 		return       # (it ended this step: lost, or up alongside)

@@ -131,6 +131,17 @@ func _ready() -> void:
 	mid.carry_on(was, 0.7, -1.0)
 	_check(mid.move == was and is_equal_approx(mid.strain, 0.7) and mid.turn_sign() < 0.0,
 			"a fight picked up mid-move carries on with it: %s, the same strain and the same way round" % mid.move)
+	# a tangled line saws through if nobody clears it
+	var tangle := Fight.new(150.0, 60.0, 0.6, 11)
+	tangle.tangled = true
+	var how := [""]
+	tangle.lost.connect(func(why: String) -> void: how[0] = why)
+	var tt := 0.0
+	while not tangle.done and tt < 120.0:
+		tangle.step(DT, tangle.answer() == "tight", 0.0)      # (keeping it tight through its headshakes)
+		tt += DT
+	_check(how[0] == "tangle" and tt < Fight.TANGLE_LIFE + 5.0,
+			"a tangle left alone saws through (%s after %.0f s)" % [how[0], tt])
 	for f in fails:
 		print("FAIL ", f)
 	print("FIGHT TEST ", "PASSED" if fails.is_empty() else "FAILED")
