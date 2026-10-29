@@ -8,11 +8,11 @@ const Rod := preload("res://rods/rod.gd")
 const Fight := preload("res://tuna/fight.gd")
 ## The boat's holders the rods sit in, and where each bait is (boat-local: x across, z astern of the transom).
 const HOLDERS: Array[int] = [6, 7, 0, 1]
-const BAITS: Array[Vector3] = [Vector3(5.0, 0, 38.0), Vector3(-5.0, 0, 38.0), Vector3(14.0, 0, 52.0),
-		Vector3(-14.0, 0, 52.0)]
+const BAITS: Array[Vector3] = [Vector3(5.5, 0, 39.0), Vector3(-5.5, 0, 39.0), Vector3(15.0, 0, 53.0),
+		Vector3(-15.0, 0, 53.0)]
 
 ## Where the lines go over the transom (boat-local): bearings and line out are measured from here.
-const STERN := Vector3(0.0, 0.0, 6.3)
+const STERN := Vector3(0.0, 0.0, 7.05)
 ## How fast a fish on an unattended rod strips line (m/s, fresh): nobody to stop it, the reel's empty in half a minute.
 const FREE_RUN := 16.0
 const WHY := {"broke": "The line parted!", "pulled": "Pulled the hook!",

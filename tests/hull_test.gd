@@ -7,7 +7,8 @@ extends Node
 ## ocean.gdshader's hull, so what comes over is a slap at the rail, not a wave through the cockpit.)
 
 const Sea := preload("res://sea/sea.gd")
-const L := 12.5
+const L := 14.0
+const BW := 4.8 / 4.3
 
 var sea: Sea
 var frame := 0
@@ -20,25 +21,25 @@ var sampled := 0
 func _ready() -> void:
 	sea = (load("res://sea/sea.tscn") as PackedScene).instantiate() as Sea
 	add_child(sea)
-	var z := -6.1
-	while z <= 6.25:
+	var z := -L * 0.5 + 0.15
+	while z <= L * 0.5:
 		var u := (-z + L * 0.5) / L
 		var y := 1.45 + 0.95 * pow(smoothstep(0.5, 1.0, u), 1.4)
 		rail.append(Vector3(_s_half(u), y, z))
 		rail.append(Vector3(-_s_half(u), y, z))
 		z += 0.25
 	for i in 9:
-		rail.append(Vector3(-1.9 + i * 0.475, 1.45, 6.25))
+		rail.append(Vector3((-1.9 + i * 0.475) * BW, 1.45, L * 0.5))
 	get_tree().physics_frame.connect(_tick)
 
 
 func _s_half(u: float) -> float:
 	if u < 0.3:
-		return 1.98 + 0.17 * smoothstep(0.0, 0.3, u)
+		return BW * (1.98 + 0.17 * smoothstep(0.0, 0.3, u))
 	if u < 0.55:
-		return 2.15
+		return BW * 2.15
 	var t := (u - 0.55) / 0.45
-	return 0.07 + 2.08 * pow(maxf(0.0, 1.0 - pow(t, 2.2)), 0.55)
+	return BW * (0.07 + 2.08 * pow(maxf(0.0, 1.0 - pow(t, 2.2)), 0.55))
 
 
 func _tick() -> void:

@@ -1,4 +1,4 @@
-"""The boat: a weathered 41 ft (12.5 m) tuna boat for a crew of four.
+"""The boat: a weathered 46 ft (14 m) tuna boat for a crew of four.
 
 A plain working sportfisher, nothing fancy: a white glass hull gone grey and rust-streaked, a green boot stripe
 and red bottom paint, teak covering boards, an open-backed wheelhouse forward under a hardtop that runs aft over
@@ -29,13 +29,13 @@ from mathutils import Vector  # noqa: E402
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "boat", "boat.glb")
 
-L = 12.5
+L = 14.0                # 46 ft
 Y0 = -L / 2             # transom
 DECK = 0.55             # cockpit sole above the waterline
 FORE = 1.7              # foredeck over the cuddy
 HOUSE_FRONT = 3.0       # the wheelhouse front / cuddy bulkhead (y)
 HOUSE_BACK = -0.4       # where the wheelhouse side walls end (y)
-HOUSE_W = 1.75          # wheelhouse half width
+HOUSE_W = 1.95          # wheelhouse half width
 ROOF = DECK + 2.05      # hardtop underside
 ROOF_AFT = -2.0         # hardtop's aft edge (y)
 LINER = 0.1             # bulwark thickness (covering board width)
@@ -50,22 +50,25 @@ def u_of(y):
     return (y - Y0) / L
 
 
+BW = 2.4 / 2.15          # the beam: 4.8 m (16 ft) at the widest, a 46 ft sportfisher's
+
+
 def s_half(u):
     """Half-beam at the sheer."""
     if u < 0.3:
-        return 1.98 + 0.17 * ss(0.0, 0.3, u)
+        return BW * (1.98 + 0.17 * ss(0.0, 0.3, u))
     if u < 0.55:
-        return 2.15
+        return BW * 2.15
     t = (u - 0.55) / 0.45
-    return 0.07 + 2.08 * max(0.0, 1.0 - t ** 2.2) ** 0.55
+    return BW * (0.07 + 2.08 * max(0.0, 1.0 - t ** 2.2) ** 0.55)
 
 
 def wl_half(u):
     """Half-beam at the waterline."""
     if u < 0.5:
-        return 1.85 + 0.1 * ss(0.0, 0.4, u)
+        return BW * (1.85 + 0.1 * ss(0.0, 0.4, u))
     t = (u - 0.5) / 0.47
-    return 0.03 + 1.92 * max(0.0, 1.0 - t ** 1.8) ** 0.8 if t < 1.0 else 0.03
+    return BW * (0.03 + 1.92 * max(0.0, 1.0 - t ** 1.8) ** 0.8 if t < 1.0 else 0.03)
 
 
 def z_sheer(u):
@@ -167,8 +170,11 @@ def cyl(mesh, p0, p1, r, mat, seg=6, r1=None):
 # ------------------------------------------------------------------------------------------ the hull
 
 def hull(m, col):
-    ys = [Y0, Y0 + 0.4, -5.0, -4.0, -3.0, -2.0, -1.0, 0.0, 1.0, 2.0, HOUSE_FRONT - 0.001, HOUSE_FRONT, 3.6,
-          4.2, 4.7, 5.15, 5.5, 5.8, 6.0, 6.15, L / 2]
+    # stations along her: even in the cockpit, closer together toward the bow (as fractions of her length)
+    ys = [Y0, Y0 + 0.4] + [Y0 + f * L for f in (0.1, 0.18, 0.26, 0.34, 0.42, 0.5, 0.58, 0.66)] \
+        + [HOUSE_FRONT - 0.001, HOUSE_FRONT] + [Y0 + f * L for f in (0.788, 0.836, 0.876, 0.912, 0.94, 0.964,
+                                                                      0.98, 0.992, 1.0)]
+    ys = sorted(set(round(y, 4) for y in ys))
     rows = [(y, *section(y)) for y in ys]
     for (ya, pa, bands), (yb, pb, _) in zip(rows, rows[1:]):
         for side in (1, -1):
@@ -340,17 +346,17 @@ def cockpit(m, col, coll):
     m.box((-1.77, -1.62, DECK + 0.5), (-1.03, -1.13, DECK + 0.56), "liner")
     col.box((-1.77, -1.62, DECK), (-1.03, -1.13, DECK + 0.56), "collider")
     for i in range(3):
-        m.torus((1.45, -5.4, DECK + 0.03 + i * 0.045), (0, 0, 1), 0.26 - i * 0.02, 0.025, "rope", seg=12, rseg=4)
+        m.torus((1.65, -6.1, DECK + 0.03 + i * 0.045), (0, 0, 1), 0.26 - i * 0.02, 0.025, "rope", seg=12, rseg=4)
     for x, y in ((-1.65, -0.8), (-1.65, -0.35)):
         m.sphere((x, y, DECK + 0.25), 0.25, "buoy", seg=8, rings=6)
     # cleats on the covering boards
-    for y in (-5.6, -0.5):
+    for y in (-6.3, -0.5):
         for sx in (1, -1):
             s, zs = s_half(u_of(y)), z_sheer(u_of(y))
             m.box((sx * (s - 0.07) - 0.025, y - 0.12, zs), (sx * (s - 0.07) + 0.025, y + 0.12, zs + 0.06), "steel")
     # the fighting chair, on its own object so it can swivel
     ch = psx.Mesh("chair", TILES)
-    cy = -4.0
+    cy = -4.4
     ch.cylinder((0, cy, DECK), (0, cy, DECK + 0.42), 0.11, "steel", seg=8)
     ch.cylinder((0, cy, DECK), (0, cy, DECK + 0.03), 0.3, "steel", seg=8)
     ch.box((-0.32, cy - 0.3, DECK + 0.42), (0.32, cy + 0.3, DECK + 0.55), "liner")
@@ -369,7 +375,7 @@ def cockpit(m, col, coll):
 def holders(m, coll):
     """Rod holders in the covering boards: three a side and two in the transom corners."""
     spots = []
-    for y in (-5.4, -4.2, -3.0):
+    for y in (-6.0, -4.7, -3.4):
         for sx in (1, -1):
             spots.append((sx, y, Vector((sx * 0.25, -0.35, 1.0))))
     for sx in (1, -1):
@@ -377,7 +383,7 @@ def holders(m, coll):
     out = []
     for i, (sx, y, d) in enumerate(spots):
         u = u_of(y)
-        x = sx * (s_half(u) - LINER * 0.5) if y > Y0 + 0.2 else sx * 1.55
+        x = sx * (s_half(u) - LINER * 0.5) if y > Y0 + 0.2 else sx * 1.75
         zs = z_sheer(u) if y > Y0 + 0.2 else z_sheer(0.0)
         if y <= Y0 + 0.2:
             y = Y0 + LINER * 0.5
@@ -397,7 +403,7 @@ def rigging(m, coll):
     top = ROOF + 0.12
     # the tuna tower: four legs leaning in to a small platform, a rail round it
     plat = 5.4
-    feet = [(1.55, -1.7), (-1.55, -1.7), (1.55, 2.5), (-1.55, 2.5)]
+    feet = [(1.7, -1.7), (-1.7, -1.7), (1.7, 2.5), (-1.7, 2.5)]
     heads = [(0.7, 0.35), (-0.7, 0.35), (0.7, 1.45), (-0.7, 1.45)]
     for (fx, fy), (hx, hy) in zip(feet, heads):
         cyl(m, (fx, fy, top), (hx, hy, plat + 0.95), 0.04, "steel")
@@ -435,7 +441,7 @@ def rigging(m, coll):
     # outriggers: bases on the hardtop's sides, long poles spread out and up over the water
     for sx in (1, -1):
         base = Vector((sx * (HOUSE_W + 0.1), 1.2, top - 0.05))
-        tip = Vector((sx * 6.8, -4.8, 8.6))
+        tip = Vector((sx * 7.2, -5.3, 8.8))
         m.box(tuple(base - Vector((0.08, 0.12, 0.1))), tuple(base + Vector((0.08, 0.12, 0.1))), "steel")
         cyl(m, tuple(base), tuple(tip), 0.045, "steel", r1=0.016)
         cyl(m, tuple(base + Vector((0, 0, 0.1))), tuple(base.lerp(tip, 0.55)), 0.01, "steel", seg=4)
@@ -445,7 +451,7 @@ def rigging(m, coll):
         cyl(m, (sx * 1.6, 2.8, top), (sx * 1.9, 2.6, top + 3.2), 0.02, "house", seg=4, r1=0.008)
     # the bow rail
     pts = []
-    for y in (3.4, 4.2, 4.9, 5.5, 6.0):
+    for y in (3.6, 4.6, 5.5, 6.2, 6.75):
         u = u_of(y)
         pts.append((s_half(u) - 0.06, y, z_sheer(u)))
     for sx in (1, -1):
@@ -481,7 +487,7 @@ def main():
     boat = m.finish(coll)
     collider = col.finish(coll)
     spawns = []
-    for i, (x, y) in enumerate(((0.9, -1.3), (-0.9, -1.3), (1.1, -3.2), (-1.1, -3.2))):
+    for i, (x, y) in enumerate(((1.0, -1.4), (-1.0, -1.4), (1.3, -3.4), (-1.3, -3.4))):
         spawns.append(psx.empty("spawn_%d" % i, coll, (x, y, DECK), rot_z_deg=180.0))
     helm = psx.empty("helm", coll, (0.9, 1.55, DECK), rot_z_deg=0.0)
     objs = [boat, chair, wheel, radar, collider, helm] + hs + floods + spawns

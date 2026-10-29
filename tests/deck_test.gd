@@ -55,7 +55,7 @@ func _tick() -> void:
 	elif frame == 1080:
 		_check(max_drift < 0.05, "stood still: drifted %.3f m across the deck" % max_drift)
 		_check(min_y > 0.5 and max_y < 0.62, "stood still: feet between %.3f and %.3f (deck 0.55)" % [min_y, max_y])
-		_check(max_z > 5.0 and max_z < 6.2, "walked aft to the transom: got to z %.2f (transom 6.15)" % max_z)
+		_check(max_z > 5.8 and max_z < 6.95, "walked aft to the transom: got to z %.2f (transom 6.9)" % max_z)
 		_check(jumped_high > 0.4, "jumped %.2f m" % jumped_high)
 		_check(absf(l.y - 0.55) < 0.06, "landed back on deck at %.3f" % l.y)
 		for f in fails:

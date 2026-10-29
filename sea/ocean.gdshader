@@ -64,6 +64,9 @@ uniform bool hull_on = false;
 uniform mat4 hull_xf = mat4(1.0);
 uniform mat4 hull_inv = mat4(1.0);
 uniform float hull_floor = 0.35;
+// her length (m) and how much beamier than 4.3 m she is (ocean.gd sets both from boat.gd)
+uniform float hull_length = 14.0;
+uniform float hull_beam = 1.1163;
 
 varying vec3 local;
 varying vec3 moved;
@@ -89,20 +92,21 @@ float warp_at(vec2 p) {
 	return (textureLod(swirl, p / 120.0 + vec2(0.37, 0.11), 0.0).r - 0.5) * 3.8;
 }
 
-// her half-beam at the rail, at z along her (art/boat.py's s_half: bow toward -z, 12.5 m long)
+// her half-beam at the rail, at z along her (art/boat.py's s_half: bow toward -z; boat.gd's LENGTH, and her beam
+// as a scale of the 41 footer's 4.3 m)
 float hull_half(float z) {
-	float u = (6.25 - z) / 12.5;
+	float u = (hull_length * 0.5 - z) / hull_length;
 	if (u < 0.0 || u > 1.0) {
 		return -1.0;
 	}
 	if (u < 0.3) {
-		return 1.98 + 0.17 * smoothstep(0.0, 0.3, u);
+		return hull_beam * (1.98 + 0.17 * smoothstep(0.0, 0.3, u));
 	}
 	if (u < 0.55) {
-		return 2.15;
+		return hull_beam * 2.15;
 	}
 	float t = (u - 0.55) / 0.45;
-	return 0.07 + 2.08 * pow(max(0.0, 1.0 - pow(t, 2.2)), 0.55);
+	return hull_beam * (0.07 + 2.08 * pow(max(0.0, 1.0 - pow(t, 2.2)), 0.55));
 }
 
 float hash(vec2 p) {
@@ -137,7 +141,8 @@ void vertex() {
 		vec3 b = (hull_inv * vec4(VERTEX, 1.0)).xyz;
 		if (b.y > hull_floor) {
 			float hh = hull_half(b.z);
-			float in_k = smoothstep(hh + 0.02, hh - 0.18, abs(b.x)) * smoothstep(6.4, 6.15, b.z) * smoothstep(-6.4, -6.0, b.z);
+			float hl = hull_length * 0.5;
+			float in_k = smoothstep(hh + 0.02, hh - 0.18, abs(b.x)) * smoothstep(hl + 0.15, hl - 0.1, b.z) * smoothstep(-hl - 0.15, -hl + 0.25, b.z);
 			if (in_k > 0.0) {
 				b.y = mix(b.y, hull_floor, in_k);
 				VERTEX = (hull_xf * vec4(b, 1.0)).xyz;

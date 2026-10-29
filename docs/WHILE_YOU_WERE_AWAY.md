@@ -1,8 +1,22 @@
 # While you were away (newest first)
 
+## A bigger boat: 46 ft
+- She's 14 m long and 4.8 m across (was 12.5 by 4.3), so the cockpit is about 0.75 m longer and half a metre wider.
+  That's room for four of you round the fighting chair.
+  - The wheelhouse is wider too.
+  - The rod holders, the chair, the cleats, the outriggers, the bow rail and the spawn spots all moved out to suit.
+  - The baits stream a little further back.
+- The sea still stays out of her: the water's hull cut-out now reads her length and beam from the boat, so the next
+  resize is one number.
+- **How it was checked:**
+  - The hull test (green water over the rail in a storm) and the deck test (walk to the transom) pass.
+  - The rods, strike, fight, look and net tests pass.
+  - Screenshots: `docs/shots/boat46_outside.png` and `docs/shots/boat46_cockpit.png`.
+- **Next:** crew jobs, starting with the captain at the wheel.
+
 ## Your answers (thanks!)
 - Steam's relay: yes, as the main way to play together (the join code stays as the backup). In progress.
-- The boat: my call. Stretching it to about 46 ft with a wider cockpit. In progress.
+- The boat: my call. She's 46 ft now (below).
 - `main` is now the tuna game; the old Gull Harbor game is gone from it. A leftover `bluefin` branch (an older
   copy of the tuna game) is still there: I wasn't allowed to delete branches from here, so delete it on
   GitHub (Branches, the trash icon) whenever.

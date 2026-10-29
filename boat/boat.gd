@@ -1,5 +1,5 @@
 extends AnimatableBody3D
-## The boat (art/boat.py -> boat.glb): a 41 ft tuna boat for a crew of four. It never goes anywhere: it sits at
+## The boat (art/boat.py -> boat.glb): a 46 ft tuna boat for a crew of four. It never goes anywhere: it sits at
 ## the origin and rides the swell, heaving, pitching and rolling with the sea under it. Its pose comes only from
 ## the ocean's wave clock, so every peer computes the same deck under the same feet. (The pattern is Gull Harbor's
 ## TunaBoat, on Fathom's ocean.)
@@ -12,8 +12,8 @@ extends AnimatableBody3D
 const Ocean := preload("res://sea/ocean.gd")
 const MODEL := preload("res://boat/boat.glb")
 
-const LENGTH := 12.5
-const BEAM := 4.3
+const LENGTH := 14.0
+const BEAM := 4.8
 const DECK := 0.55          # the cockpit sole above the model's origin (its waterline)
 const SINK := 0.12          # loaded with ice, fuel and crew she sits a little below her painted waterline
 ## How much of the sea's slope the hull follows: a long, heavy hull bridges the short chop.
@@ -156,7 +156,7 @@ func _process(delta: float) -> void:
 		return
 	global_transform = pose()
 	# her hull pushes the sea down where she sits: no crest shows up through her deck
-	ocean.set_hull(global_transform)
+	ocean.set_hull(global_transform, LENGTH, BEAM)
 
 
 ## Where the hull sits on the swell right now: a plane fitted to the water under her (five stations along, three

@@ -284,11 +284,14 @@ func normal_at(at: Vector3) -> Vector3:
 ## all in this node's space. A zero `half` turns it off.
 ## The boat, where she is right now (her global transform): the sea is drawn pushed down inside her hull, so a
 ## crest never shows through her deck (ocean.gdshader). Only the drawing: height_at is the open sea.
-func set_hull(boat: Transform3D) -> void:
+## Keeps the sea out of her: where she is, her length and her beam (m; art/boat.py's hull shape, stretched to fit).
+func set_hull(boat: Transform3D, length := 14.0, beam := 4.8) -> void:
 	_hull_on = true
 	_hull = global_transform.affine_inverse() * boat
 	if _mat != null:
 		_mat.set_shader_parameter("hull_on", true)
+		_mat.set_shader_parameter("hull_length", length)
+		_mat.set_shader_parameter("hull_beam", beam / 4.3)
 		_mat.set_shader_parameter("hull_xf", Projection(_hull))
 		_mat.set_shader_parameter("hull_inv", Projection(_hull.affine_inverse()))
 
