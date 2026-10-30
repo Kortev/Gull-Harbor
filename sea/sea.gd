@@ -295,10 +295,64 @@ func arrive() -> void:
 
 var _fade: CanvasLayer
 var _came_alongside := false
+## The race home at dusk (solo and co-op; Rivals runs its own, vs/vs.gd): when time's up (the sea clock; -1 before
+## dusk). Brought in alongside the fish pier before it (_tie_up) she sells as ever; after it she's towed in and the
+## cannery pays half (fish_hold.gd's head_in(late)). HOME s, the same as Rivals.
+var home_by := -1.0
+const HOME := 360.0
+var _home_ui: Control
 var _alongside_for := 0.0
 var _been_out := false        # (this trip she's been out past the breakwaters: coming back in alongside ties her up)
 ## Brought in alongside her berth this slow for this long (s), she's tied up and the catch is sold there.
 const TIE_UP := 2.0
+
+
+## Host: dusk starts the race home; time up and she's not in, she's towed in and sells at half. (Not in Rivals, not in
+## tests: vs/vs.gd and the test drive their own.)
+func _race_home() -> void:
+	if _home_ui != null:
+		_home_ui.queue_redraw()
+	if not Net.is_host() or get_parent() != get_tree().root or (vs != null and vs.on):
+		return
+	if fish_hold.docked:
+		if home_by >= 0.0:
+			_set_home.rpc(-1.0) if Net.in_session() else _set_home(-1.0)
+		return
+	var now := float(ocean.get("wave_time"))
+	if home_by < 0.0 and float(fish_hold.day_fraction()) >= 1.0:
+		_set_home.rpc(now + HOME) if Net.in_session() else _set_home(now + HOME)
+	elif home_by > 0.0 and now >= home_by:
+		fish_hold.head_in(true)
+
+
+@rpc("authority", "call_local", "reliable")
+func _set_home(by: float) -> void:
+	home_by = by
+	if _home_ui == null:
+		var layer := CanvasLayer.new()
+		layer.layer = 11
+		add_child(layer)
+		_home_ui = Control.new()
+		_home_ui.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_home_ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_home_ui.draw.connect(_draw_home)
+		layer.add_child(_home_ui)
+
+
+## The clock at the top: DUSK: BRING HER HOME 5:12, and how.
+func _draw_home() -> void:
+	if home_by < 0.0 or fish_hold.docked:
+		return
+	var left := maxi(ceili(home_by - float(ocean.get("wave_time"))), 0)
+	var text := "DUSK: BRING HER HOME  %d:%02d" % [left / 60, left % 60]
+	var col := Color(1.0, 0.78, 0.34) if left > 60 else Color(1.0, 0.45, 0.3)
+	var at := Vector2((_home_ui.size.x - PixFont.width(text, 4)) * 0.5, 40.0)
+	PixFont.draw(_home_ui, at + Vector2(3, 3), text, Color(0, 0, 0, 0.8), 4)
+	PixFont.draw(_home_ui, at, text, col, 4)
+	var sub := "ALONGSIDE THE FISH PIER, SLOW. LATE: THE CANNERY PAYS HALF."
+	var sa := Vector2((_home_ui.size.x - PixFont.width(sub, 2)) * 0.5, 72.0)
+	PixFont.draw(_home_ui, sa + Vector2(2, 2), sub, Color(0, 0, 0, 0.8), 2)
+	PixFont.draw(_home_ui, sa, sub, Color(0.9, 0.93, 0.96), 2)
 
 
 ## Host: she's been brought in alongside the fish pier and stopped: tie her up, sell.
@@ -323,6 +377,7 @@ func _tie_up(delta: float) -> void:
 func _process(_delta: float) -> void:
 	_frames += 1
 	_tie_up(_delta)
+	_race_home()
 	_follow_weather()
 	# the day going by: the light redone as it changes, the sun moved
 	var dark := _dark()

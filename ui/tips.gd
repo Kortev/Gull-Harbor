@@ -33,7 +33,7 @@ const TIPS := {
 	"drive": "Wheel's on the console. E to take it, W and S throttle, A and D steer.",
 	"radar": "On the radar, birds are the speck that stays put sweep after sweep. Closer, it goes orange. Get ahead of it.",
 	"rival": "That's them. Cross their stern and you'll part their lines. The horn's on the dash: E.",
-	"dusk": "Light's going. At dusk, race her home to your berth. Six minutes, or your fish weigh half.",
+	"dusk": "Light's going. At dusk, race her home to the fish pier. Six minutes, or your catch counts half.",
 }
 
 var sea: Node                 # sea/sea.gd
@@ -235,14 +235,14 @@ func _watch() -> void:
 	for s: Node in schools.get("schools"):
 		if (s.call("center", now) as Vector2).distance_to(at) < 1900.0 and bool(s.call("feeding", now)) 				and now - _out_since > 20.0:
 			show_tip("radar")
-	# rivals: the other boat close, and the light going
+	# rivals: the other boat close; and the light going (every game: the race home)
 	if rivals:
 		for side: Object in vs.get("sides"):
 			var other := side.get("boat") as Node3D
 			if other != boat and (other.get("helm").get("at") as Vector2).distance_to(at) < 90.0:
 				show_tip("rival")
-		if float(hold.call("day_fraction")) > 0.85:
-			show_tip("dusk")
+	if float(hold.call("day_fraction")) > 0.85:
+		show_tip("dusk")
 	# a fish on
 	var on := false
 	var mine: Node = rods.call("held_by", me)

@@ -8,8 +8,9 @@ extends CanvasLayer
 ## CAST OFF (the skipper's: a crewmate sees WAITING FOR THE SKIPPER). In Rivals (vs/vs.gd) there's no board: the
 ## countdown lets both boats go, and Esc gives the pause card.
 ##
-## Out there (Esc), a small pause card: back to the deck, head in and sell (not in Rivals: the day ends at dusk for
-## both), the owner's manual, the crew (the join code to send, a Steam invite), leave the crew, quit.
+## Out there (Esc), a small pause card: back to the deck, the owner's manual, the crew (the join code to send, a Steam
+## invite), leave the crew, quit. No heading in from a menu, in any game: you drive her home and tie her up alongside
+## the fish pier (sea/sea.gd's race home at dusk).
 ##
 ## The one pixel font (ui/pixfont.gd) at whole sizes, few words, dark cards over the harbour behind.
 
@@ -35,7 +36,6 @@ var _pause: PanelContainer
 var _dock: VBoxContainer
 var _dock_of := []
 var _status: Label
-var _head_in: Button
 var _crew_box: VBoxContainer
 var _code: Label
 ## The boat's owner's manual (ui/manual.gd), open instead of the menu.
@@ -59,11 +59,6 @@ func _ready() -> void:
 	_status = _label("", SMALL, DIM)
 	col.add_child(_status)
 	col.add_child(_button("BACK TO THE DECK", _resume, true))
-	_head_in = _button("HEAD IN AND SELL", func() -> void:
-		var hold := _fish_hold()
-		if hold:
-			hold.call("head_in"))
-	col.add_child(_head_in)
 	col.add_child(_button("THE OWNER'S MANUAL", func() -> void: _reading = true))
 	_crew_box = VBoxContainer.new()
 	_crew_box.add_theme_constant_override("separation", 6)
@@ -182,7 +177,6 @@ func _process(_delta: float) -> void:
 	(get_node("CloseManual") as Control).visible = _reading
 	if not open:
 		return
-	_head_in.visible = hold != null and Net.is_host() and not docked and not vs_on
 	_crew_box.visible = Net.in_session_or_hosting() and multiplayer.is_server()
 	_code.text = "JOIN CODE: " + Net.code if Net.mode == "code" and not Net.code.is_empty() else ""
 	(_crew_box.get_child(1) as Control).visible = Net.mode == "code" and not Net.code.is_empty()
@@ -260,6 +254,8 @@ func _fill_board(hold: Node, docked: bool) -> void:
 		slip.add_child(_label("FIRST LIGHT. FUELLED, BAITED, READY.", SMALL, DIM))
 	else:
 		var lines: Array = sold.get("lines", [])
+		if bool(sold.get("late", false)):
+			slip.add_child(_label("TOWED IN LATE: THE CANNERY PAID HALF", SMALL, BAD))
 		if bool(sold.get("abandoned", false)):
 			slip.add_child(_label("LEFT HER OUT THERE: THE DAY'S GONE", SMALL, BAD))
 		if lines.is_empty():

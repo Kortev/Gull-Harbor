@@ -325,14 +325,15 @@ func capacity() -> int:
 
 
 ## Host: heads in and sells the catch, the fuel and any charter taken off; back at the dock with the slip up.
-func head_in() -> void:
+## `late`: she missed the race home at dusk (sea/sea.gd) and was towed in: the buyers have gone, the cannery pays half.
+func head_in(late := false) -> void:
 	if not Net.is_host() or docked:
 		return
 	var lines := []
 	var total := 0
 	for f: Dictionary in fish:
 		var q := _quality_of(f)
-		var dollars := price(float(f["kg"]), q)
+		var dollars := price(float(f["kg"]), q) / (2 if late else 1)
 		lines.append([float(f["kg"]), grade(q), dollars])
 		total += dollars
 	var costs := []
@@ -353,7 +354,7 @@ func head_in() -> void:
 	best = maxi(best, total)
 	earned += gross
 	sale = {"lines": lines, "costs": costs, "total": total, "bank": bank, "best": best,
-			"quota": [quota_n, earned, quota, day], "verdict": ""}
+			"quota": [quota_n, earned, quota, day], "verdict": "", "late": late}
 	fish = []
 	docked = true
 	_settle()
