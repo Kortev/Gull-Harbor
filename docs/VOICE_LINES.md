@@ -38,6 +38,11 @@ a bit nervous about his money: a car salesman who's been put in charge of a fish
 | `deck` | first fish on deck | Bleed it, ice it. Quick. A cold fish pays double. |
 | `stale` | a bait washed out | That bait's washed out. Bait in hand, E on the rod, cast it again. |
 | `wait` | out a long while with nothing | Slow? Chum off the transom brings them to you. |
+| `rivals` | Rivals, the countdown at the dock | Rivals: most pounds aboard at dusk wins the day, first to two days. Both boats go on GO. |
+| `drive` | the first time out (or the Rivals countdown) | Wheel's on the console. E to take it, W and S throttle, A and D steer. |
+| `radar` | the first flock painting on the radar | Orange blob on the radar, dragging a tail? Birds over fish. Run out ahead of where it's going. |
+| `rival` | Rivals, the other boat close | That's them. Cross their stern and you'll part their lines. The horn's on the dash: E. |
+| `dusk` | Rivals, the light going | Light's going. Whatever's aboard at dusk is what they weigh. |
 
 More voices (the other boats' skippers chattering on 16, the fish buyer at the dock) come later, and they'll be
 listed here as they're added.

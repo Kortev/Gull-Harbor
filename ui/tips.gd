@@ -28,6 +28,11 @@ const TIPS := {
 	"stale": "That bait's washed out. Bait in hand, E on the rod, cast it again.",
 	"cast": "Get some baits out. Pick up a rod, hold the click, let go.",
 	"wait": "Slow? Chum off the transom brings them to you.",
+	"rivals": "Rivals: most pounds aboard at dusk wins the day, first to two days. Both boats go on GO.",
+	"drive": "Wheel's on the console. E to take it, W and S throttle, A and D steer.",
+	"radar": "Orange blob on the radar, dragging a tail? Birds over fish. Run out ahead of where it's going.",
+	"rival": "That's them. Cross their stern and you'll part their lines. The horn's on the dash: E.",
+	"dusk": "Light's going. Whatever's aboard at dusk is what they weigh.",
 }
 
 var sea: Node                 # sea/sea.gd
@@ -182,6 +187,11 @@ func _process(delta: float) -> void:
 ## What's going on, and whether it's the first time for any of it.
 func _watch() -> void:
 	var hold: Node = sea.get("fish_hold")
+	var vs: Node = sea.get("vs")
+	var rivals := vs != null and bool(vs.get("on"))
+	if rivals and float(vs.get("count_end")) > 0.0:
+		show_tip("rivals")
+		show_tip("drive")
 	if hold == null or bool(hold.get("docked")):
 		_out_since = -1.0
 		_had_fish = false
@@ -190,6 +200,7 @@ func _watch() -> void:
 	if _out_since < 0.0:
 		_out_since = now
 		show_tip("out")
+		show_tip("drive")
 	var me := Net.my_id()
 	var boat := sea.get("boat") as Node
 	var helm: Node = boat.get("helm")
@@ -211,6 +222,18 @@ func _watch() -> void:
 		if speed > 6.0 and d < 250.0:
 			show_tip("fast")
 			break
+	# a flock painting on the radar (in its range, its birds up)
+	for s: Node in schools.get("schools"):
+		if (s.call("center", now) as Vector2).distance_to(at) < 1900.0 and bool(s.call("feeding", now)) 				and now - _out_since > 20.0:
+			show_tip("radar")
+	# rivals: the other boat close, and the light going
+	if rivals:
+		for side: Object in vs.get("sides"):
+			var other := side.get("boat") as Node3D
+			if other != boat and (other.get("helm").get("at") as Vector2).distance_to(at) < 90.0:
+				show_tip("rival")
+		if float(hold.call("day_fraction")) > 0.85:
+			show_tip("dusk")
 	# a fish on
 	var on := false
 	var mine: Node = rods.call("held_by", me)
