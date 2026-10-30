@@ -52,18 +52,18 @@ static func make(seed: int) -> Node3D:
 ## What you'd see of it from far off (crew/spotter.gd), or "" when there's nothing to see right now.
 static func far_text(lead: Node3D, dist: float) -> String:
 	if lead is Whale and (lead as Whale).blowing > 0.0:
-		return "A whale blowing, a long way off. There's bait where the whales feed: worth a look"
+		return "A whale blowing"
 	if lead is Pod and dist < POD_SEEN:
-		return "Splashes, a long way off: dolphins? Too far to tell what else is there"
+		return "Splashes"
 	return ""
 
 
 ## What it says about the school close up (put before the birds' story).
 static func near_text(lead: Node3D) -> String:
 	if lead is Whale:
-		return "A whale feeding here: there's bait about."
+		return "Whale feeding."
 	if lead is Pod:
-		return "Dolphins working through it."
+		return "Dolphins."
 	return ""
 
 

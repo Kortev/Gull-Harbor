@@ -84,8 +84,8 @@ func _prompt() -> String:
 		return ""
 	var left := int(hold.get("chum"))
 	if left <= 0:
-		return "The chum bucket's empty"
-	return "Throw chum (%d scoops left): a slick back through the baits brings the tuna up it" % left
+		return "Bucket empty"
+	return "Chum  %d" % left
 
 
 @rpc("any_peer", "call_remote", "reliable")

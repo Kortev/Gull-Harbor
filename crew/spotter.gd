@@ -21,13 +21,13 @@ func _ready() -> void:
 	layer = 5
 	_read = Label.new()
 	_read.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	_read.position = Vector2(-400, -190)
-	_read.size = Vector2(800, 80)
+	_read.position = Vector2(-300, -250)
+	_read.size = Vector2(600, 30)
 	_read.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_read.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_read.add_theme_font_size_override("font_size", 20)
-	_read.add_theme_constant_override("outline_size", 6)
-	_read.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	_read.add_theme_font_size_override("font_size", 17)
+	_read.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.85))
+	_read.add_theme_constant_override("shadow_offset_x", 1)
+	_read.add_theme_constant_override("shadow_offset_y", 1)
 	_read.visible = false
 	add_child(_read)
 
@@ -58,8 +58,8 @@ func _process(_delta: float) -> void:
 		var lead: Node3D = _looking.get("lead")
 		text = Leads.far_text(lead, at.distance_to(here)) if lead != null else ""
 		if text == "":
-			text = "Birds, a long way off: too far to tell what they're on. Get closer"
-	text += "\n" + w.substr(0, 1).to_upper() + w.substr(1)
+			text = "Birds"
+	text += "   " + w.trim_prefix("about ")
 	_read.text = text
 
 

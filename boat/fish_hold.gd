@@ -139,10 +139,7 @@ func _process(_delta: float) -> void:
 	var t := day_fraction()
 	if t > 0.85 and _dusk_noted < 1:
 		_dusk_noted = 1
-		_note("The sun's getting low. Head in to sell before dark (Esc), or fish on into the night")
-	elif t > 1.0 and _dusk_noted < 2:
-		_dusk_noted = 2
-		_note("Night. Head in when you're ready (Esc)")
+		_note("Sun's going down   Esc to head in")
 	_tally()
 
 
@@ -465,7 +462,6 @@ func _sync(state: Dictionary) -> void:
 	elif not _sold_noted:
 		_sold_noted = true
 		Sfx.play("kit.coins")
-		_note("Sold: %d fish for $%s." % [(sale["lines"] as Array).size(), _money(int(sale["total"]))])
 
 
 ## The sounds of the work on deck, from what's newly done to each fish since last time: a bleed (a wet slap), the
@@ -564,9 +560,9 @@ func _prompt(id: int) -> String:
 	for f: Dictionary in fish:
 		if int(f["id"]) == id:
 			if float(f["bled_s"]) < 0.0:
-				return "Bleed it (%d kg)" % roundi(float(f["kg"]))
+				return "Bleed it  %d kg" % roundi(float(f["kg"]))
 			if float(f["iced_s"]) < 0.0:
-				return "Ice it: into the fish box" if iced() < capacity() else "The fish box is full: head in and sell"
+				return "Ice it" if iced() < capacity() else "Fish box full"
 	return ""
 
 
@@ -574,12 +570,12 @@ func _prompt(id: int) -> String:
 func hint() -> String:
 	for f: Dictionary in fish:
 		if float(f["bled_s"]) < 0.0:
-			return "A fish on deck: bleed it (E on it), the sooner the better"
+			return "Bleed it"
 	for f: Dictionary in fish:
 		if float(f["iced_s"]) < 0.0:
 			if iced() >= capacity():
-				return "The fish box is full: head in and sell (Esc), or it sells warm off the deck"
-			return "Ice it: E on the fish puts it in the fish box"
+				return "Fish box full   Esc to sell"
+			return "Ice it"
 	return ""
 
 
@@ -588,29 +584,18 @@ func _tally() -> void:
 	if crew == null or crew.get("hud") == null:
 		return
 	var hud := crew.get("hud") as Node
+	if docked:
+		hud.call("tally", {})       # (the dock's menu has the lot)
+		return
 	var held := 0
-	var kg := 0.0
 	var deck := 0
 	for f: Dictionary in fish:
 		if float(f["iced_s"]) >= 0.0:
 			held += 1
 		else:
 			deck += 1
-		kg += float(f["kg"])
-	var text := "Fish box %d/%d" % [held, capacity()]
-	if not docked:
-		text = "Day %d of %d   %s   %s" % [day, DAYS, clock_text(), text]
-	if deck > 0:
-		text += "   Deck %d" % deck
-	if not fish.is_empty():
-		text += "   %d kg, worth about $%s" % [roundi(kg), _money(worth())]
-	if not docked:
-		text += "\nChum %d" % chum + ("   Live bait %d/%d" % [well, WELL_MAX] if has_gear("bait") else "")
-	text += "\nQuota $%s / $%s" % [_money(earned), _money(quota)]
-	if not fish.is_empty() and earned < quota:
-		text += "  (+$%s aboard)" % _money(worth())
-	text += "   Bank $%s" % _money(bank)
-	hud.call("tally", text)
+	hud.call("tally", {"day": day, "days": DAYS, "box": held, "cap": capacity(), "deck": deck, "earned": earned,
+			"quota": quota, "aboard": worth(), "earned_text": "$" + _money(earned), "quota_text": "$" + _money(quota)})
 
 
 # ------------------------------------------------------------------ odds and ends

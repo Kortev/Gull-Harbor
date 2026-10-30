@@ -301,7 +301,7 @@ func _spook(id: int, until: float) -> void:
 			s.spooked_until = until
 			if fresh and sea.get("crew") != null:
 				((sea.get("crew") as Node).get("hud") as Node).call("notify",
-						"You ran right over them! They've gone deep. Come up on the next ones slow, under 10 knots")
+						"Too fast: they've gone deep")
 
 
 ## Host: a new school somewhere round her, cruising its own way.
@@ -392,7 +392,7 @@ func _mark(id: int, who: String, quiet: bool) -> void:
 	var s := find(id)
 	if quiet or s == null or sea.get("crew") == null:
 		return
-	((sea.get("crew") as Node).get("hud") as Node).call("notify", "%s: \"Birds! %s\" (marked on the radar)"
+	((sea.get("crew") as Node).get("hud") as Node).call("notify", "%s: birds, %s"
 			% [who, where(s.center(now()))])
 
 
@@ -427,16 +427,16 @@ func spot_text(s: School) -> String:
 func _birds_text(s: School) -> String:
 	var t := now()
 	if s.scattering(t) > 0.0:
-		return "The birds are lifting and scattering: whatever was there has moved on"
+		return "Scattering: moved on"
 	if s.bait_only:
 		if s.feeding(t):
-			return "Gulls picking at little bait: no big splashes, no tuna under them"
-		return "Gulls sitting on the water. Nothing doing"
+			return "Just gulls"
+		return "Just gulls"
 	if t < s.spooked_until:
-		return "Birds circling high: the tuna went down. Give them a minute"
+		return "Tuna down: wait"
 	if s.feeding(t):
-		return "Birds diving, white water busting under them: BLUEFIN!"
-	return "Birds sitting on the water, waiting: the tuna are down. They'll come up again"
+		return "BLUEFIN!"
+	return "Tuna down: wait"
 
 
 ## The schools within `reach` m of a point (world), for the sonar and the strikes.

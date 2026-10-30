@@ -1,41 +1,30 @@
 extends CanvasLayer
 ## First-time tips, on the radio: the first time each thing comes up (heading out, the first flock in the glasses,
 ## nearing birds too fast, the first bite, the first fight, the first fish alongside, on deck ...), Dale from the bank
-## comes on the VHF and tells you what to do, once. Which you've seen is kept on this machine (SAVE), so each player gets them once, whoever's boat
+## comes on the VHF and says what to do in a line, once. Which you've seen is kept on this machine (SAVE), so each player gets them once, whoever's boat
 ## they're on; the field guide in the Esc menu (ui/menu.gd) has the lot, and can show them all again (reset()).
 ## docs/FEATURES.md is where these come from.
 
 const Sfx := preload("res://audio/sfx.gd")
 const SAVE := "user://bluefin_tips.cfg"
-## Who's on the radio: Dale, the bank's loan officer. You're his investment, so he keeps an eye on you, and he's
-## not shy about it. Each line is what to do, said the way Dale would say it.
-const CALLER := "DALE, FIRST COASTAL SAVINGS & LOAN"
+const Hud := preload("res://ui/hud.gd")
+## Who's on the radio: Dale, the bank's loan officer. You're his investment, so he keeps an eye on you. Each tip is
+## a line or two of what to do, said the way Dale would say it: the world shows the rest.
+const CALLER := "VHF 16 \u00b7 Dale, the bank"
 ## Tip id -> what Dale says. (The alongside one depends on the boat: _alongside_text.)
 const TIPS := {
-	"out": "Morning, crew. Dale, from the bank. Quick refresher on how you pay us back: tuna feed under birds. Look "
-			+ "along the horizon for a flock and get over there. Look at it and you'll see what you're looking at. Over.",
-	"flock": "Let me save you some fuel. Birds diving on white water? Bluefin. Go. Birds sitting on the water? The "
-			+ "tuna went down, wait for them. Gulls over little splashes? No tuna. That's just birds having lunch.",
-	"fast": "Whoa whoa whoa. Under 10 knots near the birds. You run them over at full speed and they dive, and I "
-			+ "watch my money sink. Get within about 150 metres, troll slow, they'll find your baits.",
-	"bite": "Is that a reel screaming? That's the sound of the loan getting paid. GRAB THE ROD. E on it. Anybody. "
-			+ "You can hand it off mid-fight too, press E on it.",
-	"fight": "Rod bent, he's pulling. Reel screaming, hands off the crank. Reel grinding, stop winding and pump: "
-			+ "lift slow, wind as you drop. Lay the rod over against the way he's swimming and you'll turn his head. "
-			+ "He jumps, drop the tip.",
-	"alone": "Fishing alone? Brave. Cheap, but brave. Put the rod back in its holder, Q, it'll fight on its drag. "
-			+ "Run to the wheel, swing the stern to the fish, run back, grab it. Cardio.",
-	"captain": "Whoever's driving: keep the stern pointed at the fish, A and D. Back down, S, to win your angler some "
-			+ "line. If it goes under the boat, HANDS OFF THE THROTTLE. Props cut lines. And lines are money.",
-	"lines": "Reel the other lines in while that one's on, E on each rod. A running tuna will tangle everything, and "
-			+ "then you've got spaghetti, not sushi.",
-	"deck": "Beautiful. Now bleed it, E on it, and get it on ice, E again. Fast. A number one grade fish pays twice "
-			+ "what a warm one does, and twice is my favourite number.",
-	"spiral": "Colour! Wind while he comes up, ease off while he goes under her. Captain, out of gear.",
-	"stale": "One of your baits is washed out. Nothing's eating that. E on the rod, fresh one goes on. Live mackerel "
-			+ "get the most bites, if you sprang for the well.",
-	"wait": "Quiet out there. Here's a tip, free of charge for once: chum. The bucket on your transom. Keep a slick "
-			+ "going and the fish come to you. Got a live well? Jig some mackerel off the gunwale, hold E.",
+	"out": "Dale, from the bank. Tuna feed under birds. Find a flock.",
+	"flock": "Diving birds, white water? Bluefin. Go. Birds sitting? Wait for them.",
+	"fast": "Easy! Under 10 knots near the birds, or they dive.",
+	"bite": "That's a reel screaming. Grab the rod!",
+	"fight": "Reel screaming? Hands off. Grinding? Pump: lift slow, wind as you drop. He jumps, drop the tip.",
+	"alone": "Alone? Rod in the holder, Q. Steer, then grab it again.",
+	"captain": "Captain: stern to the fish. S backs down. Under the boat? Hands off the throttle.",
+	"lines": "Reel the other lines in before they tangle.",
+	"deck": "Bleed it, ice it. Quick. A cold fish pays double.",
+	"spiral": "Colour! Wind while he comes up, ease off while he goes under.",
+	"stale": "That bait's washed out. E on the rod for a fresh one.",
+	"wait": "Slow? Chum off the transom brings them to you.",
 }
 
 var sea: Node                 # sea/sea.gd
@@ -61,8 +50,8 @@ func _ready() -> void:
 				_seen[k] = true
 	_card = PanelContainer.new()
 	_card.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
-	_card.custom_minimum_size = Vector2(360, 0)
-	_card.position = Vector2(-380, -170)
+	_card.custom_minimum_size = Vector2(320, 0)
+	_card.position = Vector2(-340, -170)
 	var box := StyleBoxFlat.new()
 	box.bg_color = Color(0.03, 0.05, 0.06, 0.82)
 	box.border_color = Color(1.0, 0.75, 0.3, 0.9)
@@ -76,13 +65,13 @@ func _ready() -> void:
 	col.add_theme_constant_override("separation", 6)
 	_card.add_child(col)
 	_title = Label.new()
-	_title.add_theme_font_size_override("font_size", 13)
+	_title.add_theme_font_size_override("font_size", Hud.SMALL)
 	_title.add_theme_color_override("font_color", Color(1.0, 0.78, 0.36))
 	col.add_child(_title)
 	_body = Label.new()
 	_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_body.custom_minimum_size = Vector2(332, 0)
-	_body.add_theme_font_size_override("font_size", 15)
+	_body.custom_minimum_size = Vector2(292, 0)
+	_body.add_theme_font_size_override("font_size", Hud.BODY)
 	_body.add_theme_color_override("font_color", Color(0.92, 0.92, 0.88))
 	col.add_child(_body)
 	_card.modulate.a = 0.0
@@ -114,13 +103,13 @@ func _process(delta: float) -> void:
 	if _in <= 0.0:
 		_in = 0.25
 		_watch()
-	# the card: one tip at a time, up long enough to read (a second for every four words), fading in and out
+	# the card: one tip at a time, up long enough to read (a second for every three words), fading in and out
 	if _left <= 0.0 and not _queue.is_empty():
 		var id: String = _queue.pop_front()
-		_title.text = "VHF 16   " + CALLER
+		_title.text = CALLER
 		_body.text = _alongside_text() if id == "alongside" else str(TIPS[id])
 		Sfx.play("pa.click", 0.6)
-		_left = maxf(7.0, _body.text.split(" ").size() / 4.0)
+		_left = maxf(5.0, _body.text.split(" ").size() / 3.0)
 	_left -= delta
 	var want := 1.0 if _left > 0.0 and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED else 0.0
 	_card.modulate.a = move_toward(_card.modulate.a, want, delta * 3.0)
@@ -193,8 +182,5 @@ func _watch() -> void:
 func _alongside_text() -> String:
 	var spec: Dictionary = (sea.get("boat") as Node).get("spec")
 	if bool(spec.get("wire", false)):
-		return "It's beat! Now don't blow it. Somebody wire it: hold E at the tuna door, grab the leader. Somebody " \
-				+ "else grab the harpoon off the rack, port side, aim, left click. Then everybody hold E at the door " \
-				+ "and haul. You've got 90 seconds before the hook pulls. I'm counting."
-	return "It's beat! Grab the harpoon off the rack, port side, aim, left click. Then hold E at the gunwale and " \
-			+ "haul it in. 90 seconds before the hook pulls. No pressure. Some pressure."
+		return "Wire it at the door, harpoon it off the port rack, haul. Ninety seconds."
+	return "Harpoon off the port rack, then haul it in. Ninety seconds."

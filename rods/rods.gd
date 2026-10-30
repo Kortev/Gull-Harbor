@@ -204,7 +204,6 @@ func _set_holder(i: int, who: int) -> void:
 	if i < 0 or i >= rods.size():
 		return        # (a rod she hasn't got: a word from before she was rebuilt)
 	var r := rods[i]
-	var handed := r.holder != 0 and who != 0
 	if r.holder != 0:
 		r.last_holder = r.holder
 	r.holder = who
@@ -215,8 +214,6 @@ func _set_holder(i: int, who: int) -> void:
 	_look_off = 0.0
 	# (changing hands: the fight carries on from where it is, on the new holder's machine or the host's)
 	r.free_t = _now()
-	if handed and r.hooked and who == Net.my_id():
-		_hud_note("You've got it!")
 
 
 ## A fish is on somewhere (hooked, still fighting: not up alongside).
@@ -245,8 +242,6 @@ func _line(i: int, reel_in: bool, t := 0.0, live := false) -> void:
 	if i < 0 or i >= rods.size():
 		return
 	var r := rods[i]
-	if r.tangled >= 0 and reel_in:
-		_hud_note("Cleared the %s line!" % _name_of(i))
 	if reel_in != r.bait_in:
 		Sfx.play_point(self, r.global_position, "dock.reel", 0.9, 1.2 if reel_in else 0.9)
 	r.bait_in = reel_in
@@ -296,8 +291,8 @@ func rebait_prompt(i: int) -> String:
 	if not _wants_bait(i):
 		return "Grab the rod"
 	if freshness(i) < STALE:
-		return "Rebait: this one's washed out"
-	return "Rebait with a live mackerel"
+		return "Rebait (washed out)"
+	return "Rebait: live mackerel"
 
 
 ## For the HUD while nothing else wants doing: a bait gone off.
@@ -306,7 +301,7 @@ func hint() -> String:
 		return ""
 	for r in rods:
 		if not r.hooked and not r.bait_in and r.tangled < 0 and freshness(r.index) < STALE:
-			return "The %s bait's washed out: E on that rod to rebait" % _name_of(r.index)
+			return "%s bait washed out" % _name_of(r.index).capitalize()
 	return ""
 
 
@@ -316,7 +311,7 @@ func _tangle(i: int, with_rod: int) -> void:
 		return
 	rods[i].tangled = with_rod
 	Sfx.play_point(self, rods[i].global_position, "kit.jolt")
-	_hud_note("TANGLED! The fish ran across the %s line: clear it, E on that rod" % _name_of(i))
+	_hud_note("%s line tangled" % _name_of(i).capitalize())
 
 
 func _name_of(i: int) -> String:
@@ -404,7 +399,7 @@ func _strike(i: int, kg: float, t: float, bearing: float, seed_value: int) -> vo
 	r.fight = null
 	r.wear = 0.0
 	r.set_meta("seed", seed_value)
-	_hud_note("FISH ON!  The %s rod!" % (names[i] if i < names.size() else "a"))
+	_hud_note("Fish on!")
 
 
 @rpc("authority", "call_local", "reliable")
@@ -705,9 +700,6 @@ func _process(delta: float) -> void:
 			todo = str((sea.get("fish_hold") as Node).call("hint"))
 		if todo.is_empty() and not bool((sea.get("fish_hold") as Node).get("docked")):
 			todo = hint()
-			var spotter: Node = sea.get("spotter")
-			if todo.is_empty() and spotter != null and int(spotter.get("used")) < 3:
-				todo = "Find the birds: look along the horizon for a flock and head for it"
 		hud.call("fight", todo, 0.0)
 	# the captain's plotter: where each fish on is, round the boat
 	var fish := []
@@ -732,17 +724,15 @@ func _process(delta: float) -> void:
 				if r.hooked and not r.alongside and absf(wrapf(r.bearing, -PI, PI)) > Fight.UNDER - 0.2 and r.depth < 25.0:
 					under = true
 					cutting = cutting or absf(float(helm.get("throttle"))) > 0.05
-			var say := "Keep the stern on it!"
+			var say := ""
 			if cutting:
-				say = "OUT OF GEAR! It's under the props!"
-			elif spiral:
-				say = "Death spiral! Out of gear: it's going under her"
-			elif under:
-				say = "It's under her! Out of gear: steer her stern round to it, A/D only"
+				say = "OUT OF GEAR!"
+			elif spiral or under:
+				say = "Under her: out of gear"
 			elif worst >= 0.3:
-				say = "It's on the hull! Swing her stern to it!"
+				say = "On the hull: swing her stern"
 			hud.call("fight", say, 0.0)
-	hud.call("plot", fish, float(helm.get("throttle")))
+	hud.call("plot", fish)
 
 
 ## The fish on rod r, seen: mostly it's down there out of sight, but it boils the water where the line goes in when it
