@@ -56,7 +56,7 @@ func _ready() -> void:
 		print("TRIP spotted: %s" % str((spotter.get("_read") as Label).text).replace("
 ", " | "))
 	# (the deck's rolling: give the crosshair a few seconds to sit on it, the way you'd hold your look)
-	var held := spotter != null and spotter.get("_looking") == school
+	var held: bool = spotter != null and spotter.get("_looking") == school
 	var tries := 0
 	while not held and spotter != null and tries < 6:
 		tries += 1
