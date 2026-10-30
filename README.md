@@ -1,4 +1,4 @@
-# Bluefin (working title)
+# Wicked Catch
 
 A co-op tuna fishing game: you and up to three friends on one boat, endless open sea, sometimes huge waves,
 catching as many bluefin as you can. Creepy only because of the sea and the weather; mostly action. Real tuna,

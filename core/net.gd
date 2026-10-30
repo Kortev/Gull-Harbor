@@ -175,7 +175,7 @@ func _open_port(port: int) -> void:
 			and u.get_gateway().is_valid_gateway()
 	var ip := ""
 	if ok:
-		ok = u.add_port_mapping(port, port, "Bluefin", "UDP", 0) == UPNP.UPNP_RESULT_SUCCESS
+		ok = u.add_port_mapping(port, port, "Wicked Catch", "UDP", 0) == UPNP.UPNP_RESULT_SUCCESS
 		ip = u.query_external_address()
 		ok = ok and not ip.is_empty()
 	_opened.call_deferred(ok, ip, u if ok else null)

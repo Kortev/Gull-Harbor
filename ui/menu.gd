@@ -52,7 +52,7 @@ func _ready() -> void:
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(col)
 	var title := Label.new()
-	title.text = "BLUEFIN"
+	title.text = "WICKED CATCH"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 28)
 	col.add_child(title)

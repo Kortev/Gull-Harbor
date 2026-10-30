@@ -10,7 +10,7 @@ config_version=5
 
 [application]
 
-config/name="Bluefin"
+config/name="Wicked Catch"
 run/main_scene="res://sea/sea.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
