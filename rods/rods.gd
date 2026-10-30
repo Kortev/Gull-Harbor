@@ -187,6 +187,10 @@ func _ask_grab(i: int) -> void:
 	var who := _sender()
 	if i < 0 or i >= rods.size() or held_by(who) != null:
 		return
+	# (VS: aboard the other boat, her rods are her crew's)
+	var vs: Node = sea.get("vs")
+	if vs != null and bool(vs.get("on")) and vs.call("boat_of", who) != sea.get("boat"):
+		return
 	# a free rod, or taking over a crewmate's fish; one whose fish is up alongside only if nobody's on it (to hold
 	# it up for the harpoon: tuna/landing.gd)
 	if rods[i].holder != 0 and (not rods[i].hooked or rods[i].alongside):

@@ -88,6 +88,7 @@ var _frames := 0
 var _steered := false
 var _took := false
 var _cast := false
+var _swum := false
 var _reported := false
 var _last_dark := -1.0
 
@@ -312,6 +313,22 @@ func _process(_delta: float) -> void:
 		at.y += ocean.height_at(Vector3(at.x, 0.0, at.z))
 		cam.global_position = at
 		cam.look_at(Vector3(v[3], v[4], v[5]))
+	elif _args.has("bcam"):
+		# (screenshots: a camera in her frame, --bcam=x,y,z,lx,ly,lz boat-local)
+		var v := str(_args["bcam"]).split_floats(",")
+		cam.make_current()
+		cam.global_position = boat.global_transform * Vector3(v[0], v[1], v[2])
+		cam.look_at(boat.global_transform * Vector3(v[3], v[4], v[5]))
+	if _args.has("swim") and crew.me != null and not _swum and _frames > 20:
+		# (screenshots: you in the sea off her stern, --swim=x,z boat-local, facing her ladder)
+		_swum = true
+		var w := str(_args["swim"]).split_floats(",")
+		var at := boat.global_transform * Vector3(w[0] if w.size() > 1 else 0.6, 0.0, w[1] if w.size() > 1 else 6.0)
+		crew.me.call("overboard", at, boat.ladder.global_position if boat.ladder else boat.global_position)
+	if _args.has("climb") and _swum and _frames == 30 and boat.ladder:
+		# (screenshots: and up her ladder, --climb)
+		boat.ladder.interact(crew.me)
+		crew.me.set("force_climb", true)
 	if _args.has("run") and crew.me != null:
 		# (screenshots: out on open water at the wheel, throttle up (--run=0..1), a chase camera astern and above her;
 		# --turn=-1..1 holds the wheel over)

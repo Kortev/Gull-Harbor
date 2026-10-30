@@ -18,6 +18,7 @@ const Helm := preload("res://boat/helm.gd")
 const Chair := preload("res://boat/chair.gd")
 const Wake := preload("res://boat/wake.gd")
 const Kinds := preload("res://boat/kinds.gd")
+const Ladder := preload("res://boat/ladder.gd")
 
 ## Under way: her bow up (rad) flat out ahead, and how far her stern digs in (rad, m down) backing down flat out.
 const SQUAT := 0.07
@@ -52,6 +53,8 @@ var chair: Node3D
 ## The fighting chair you can sit in (boat/chair.gd), if she has one.
 var seat: Chair
 var wheel: Node3D
+## The boarding ladder over her transom (boat/ladder.gd): up it out of the sea.
+var ladder: Ladder
 var _radar: Node3D
 ## The still world the crew walk in (see above): add crew bodies under deck_root.
 var deck_space: SubViewport
@@ -66,6 +69,7 @@ var _built: Array[Node] = []
 func _ready() -> void:
 	# Posed by hand every frame; this body is only for things in the world (lines, raycasts), not the crew.
 	sync_to_physics = false
+	add_to_group("boats")
 	collision_layer = 1
 	collision_mask = 0
 	deck_space = SubViewport.new()
@@ -210,6 +214,14 @@ func _build() -> void:
 		add_child(l)
 		_built.append(l)
 		floods.append(l)
+	ladder = null
+	if spec.has("ladder"):
+		ladder = Ladder.new()
+		ladder.name = "Ladder"
+		ladder.boat = self
+		ladder.spot = spec["ladder"]
+		add_child(ladder)
+		_built.append(ladder)
 	# a dim red night light at the helm, so it isn't a black hole
 	var cabin := OmniLight3D.new()
 	cabin.name = "CabinLight"

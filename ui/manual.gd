@@ -7,7 +7,9 @@ const CHAPTERS := [
 		+ "E: use what's under the crosshair. Hold E to haul, wire, jig.\n"
 		+ "Left mouse: crank. Throw the harpoon.\n"
 		+ "Fish on: the mouse is the rod. Up and down lifts and drops it, sideways lays it over. Scroll: the drag.\n"
-		+ "Q: put the rod or the harpoon back. Esc: the menu."],
+		+ "Q: put the rod or the harpoon back. Esc: the menu.\n"
+		+ "F: shove whoever's in front of you. Space into the rail: over it (onto a boat alongside, or into the sea).\n"
+		+ "In the sea: WASD swim. Hold E on a boarding ladder to climb out."],
 	["2. The loan", "Your boat belongs to First Coastal Savings & Loan.\n\n"
 		+ "Every 3 days (3 trips) the bank wants a payment: the quota. $5,000, then half as much again each time. "
 		+ "Every fish sold counts, and the money's yours to spend too. The bar top left is the quota.\n\n"

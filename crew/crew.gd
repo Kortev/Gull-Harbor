@@ -34,8 +34,8 @@ func _on_rebuilt() -> void:
 	for id: int in slots:
 		var p := get_player(id)
 		if p:
-			var at: Transform3D = p.boat.call("spawn_local", int(slots[id]))
-			p.place(at.origin, at.basis.get_euler().y)
+			var at: Transform3D = p.home.call("spawn_local", int(slots[id]))
+			p.place(at.origin, at.basis.get_euler().y, p.home)
 
 
 ## Which boat crew member `id` is on: the one boat, or in VS (vs/vs.gd) their side's.
@@ -46,10 +46,11 @@ func boat_of(id: int) -> Node3D:
 	return sea.get("boat") as Node3D
 
 
-## Crew member `id`'s boat changed (VS): made again on her, at their spot.
-func reseat(id: int) -> void:
+## Crew member `id`'s boat changed (VS): made again on her, at their spot. (Their crew's boat: aboard the other
+## one, over her rail or up her ladder, they're still hers; `away` brings them home anyway: the other boat's going.)
+func reseat(id: int, away := false) -> void:
 	var p := get_player(id)
-	if p == null or p.boat == boat_of(id):
+	if p == null or (p.home == boat_of(id) and not (away and p.boat != p.home)):
 		return
 	remove_child(p)
 	p.queue_free()
@@ -166,6 +167,7 @@ func _add(id: int, slot: int) -> void:
 	var p := Player.new()
 	p.name = str(id)
 	p.boat = boat_of(id)
+	p.home = p.boat
 	add_child(p)
 	var at: Transform3D = p.boat.call("spawn_local", slot)
 	p.place(at.origin, at.basis.get_euler().y)

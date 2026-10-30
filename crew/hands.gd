@@ -57,7 +57,8 @@ func shown_item() -> String:
 	return item if player.is_multiplayer_authority() else str(player.get("_net_item"))
 
 
-## Your hands are full of something bigger (a rod, the harpoon, the wheel) or you're ashore: the kit's put away.
+## Your hands are full of something bigger (a rod, the harpoon, the wheel), you're in the sea or up a ladder, or
+## you're ashore: the kit's put away.
 func stowed() -> bool:
 	var sea: Node = _sea()
 	if sea == null:
@@ -66,7 +67,8 @@ func stowed() -> bool:
 	var rods: Node = sea.get("rods")
 	var landing: Node = sea.get("landing")
 	var hold: Node = sea.get("fish_hold")
-	return bool(player.get("steering")) or (rods != null and rods.call("held_by", id) != null) \
+	return bool(player.get("steering")) or int(player.get("mode")) != 0 \
+			or (rods != null and rods.call("held_by", id) != null) \
 			or (landing != null and int(landing.get("harpoon_holder")) == id) \
 			or (hold != null and bool(hold.get("docked")))
 

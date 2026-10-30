@@ -32,6 +32,8 @@ bigger. Miss it and the bank takes the boat, and the run's over.
 | Right mouse | raise the rod |
 | Scroll, with a fish on | the drag, a notch at a time |
 | Q | put the rod (or the harpoon) back |
+| F | shove whoever's in front of you |
+| Space, into the rail | over it: onto a boat lying alongside, or into the sea |
 | Esc | the menu: head in and sell, host / join, Steam friends |
 
 **Teach it:** the HUD prompt (an E key cap and a word or two: "Grab it!", "Bleed it") names every action under
@@ -295,6 +297,16 @@ rules.
   difference is what extra hands can do, and the boats (the skiff for one or two, the sportfisher wants a crew).
 - The jobs: captain, angler, line-clearer, spotter (binoculars), wirer, harpooner, haulers, the one who bleeds and
   ices, chum and jig while you wait.
+- **Over the side** (`crew/player.gd`): Space into the rail and you're over it, into the sea with a splash. You float
+  at the real waves' height (the height the boats ride), your eyes just out of the water, bobbing up after the
+  swell a beat late and drifting down wind; go in hard and you go right under and come up gasping. WASD swims,
+  slowly; you can't jump out. Whatever you had hold of is let go: a rod goes back in its holder, fish and all.
+- **The boarding ladder** (`boat/ladder.gd`) hooked over every boat's transom, beside the engines: swim to it and
+  hold E, and you climb it a step at a time, over the cap and down onto her deck (let go of E and you hang there).
+- **Shoving** (F, either mode): arms back and a grunt first (0.4 s: everyone sees it coming and can step aside),
+  then both hands out. Whoever's in front then staggers off across the deck; into the rail hard and they're over
+  it. Braced (a fish on the rod in your hands, the wheel, the chair) you go half as far. One shove every 6 s, never
+  from the water or the ladder. The host decides every push.
 
 ### VS: two boats racing for the same birds (`vs/vs.gd`)
 
@@ -322,6 +334,9 @@ rules.
 - **The air horn** (`vs/horn.gd`), on the dash beside each wheel (E): a twin-tone blast heard a mile off. Within
   about 120 m of the other boat it rattles her crew's view and jerks any fish on her lines (the rod tip snaps, a
   little shock in the fight, never enough on its own to lose it). One blast every couple of seconds.
+- **Boarding her:** alongside, jump her rail (Space into it) and you're over both onto her deck, riding her; or up
+  her ladder from the sea. Her wheel and rods aren't yours to take, but you can shove her crew about, and over.
+  The cost: your own boat's a hand short while you're over there.
 - **Cutting her off:** run across her stern while her baits are out and your hull cuts her lines (her fish too, if
   one's on): "Cut off.", the bait's gone, what's left lies out to be wound in.
 - **The tally**, top left under your own: a bar and the pounds aboard for each boat (yours on top, each in its
