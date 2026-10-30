@@ -661,14 +661,16 @@ class School extends Node3D:
 			_gull.pitch_scale = randf_range(0.85, 1.15)
 			_gull.position = _birds[randi() % _birds.size()].position
 			_gull.play()
-		# busting: a burst of white water every half second or so while it feeds; every third, a tuna clears it
+		# busting: a burst of white water every half second or so while it feeds, at its head (they feed going forward:
+		# the white water shows which way it's headed); every third, a tuna clears it, leaping the way it's going
 		# (over little bait, only now and then, small, and nothing clears the water)
 		var slot := int(floorf((t - t0) / (1.4 if bait_only else 0.45)))
 		if feed and slot != _bust_slot:
 			_bust_slot = slot
-			var r := radius * sqrt(owner_node.call("hash1", float(seed % 991), float(slot)))
+			var r := radius * 0.65 * sqrt(owner_node.call("hash1", float(seed % 991), float(slot)))
 			var ang := TAU * float(owner_node.call("hash1", float(slot), float(seed % 983)))
-			var p := c + Vector3(cos(ang) * r, 0.0, sin(ang) * r)
+			var head := Vector3(heading.x, 0.0, heading.y) * radius * (0.6 if speed > 0.2 else 0.0)
+			var p := c + head + Vector3(cos(ang) * r, 0.0, sin(ang) * r)
 			p.y = float(o.call("height_at", p))
 			_bust(p, slot % 3 == 0 and not bait_only)
 		for i in _jumpers.size():
@@ -696,7 +698,7 @@ class School extends Node3D:
 				var j := _jumpers[i]
 				if j.visible:
 					continue
-				var dir := Vector3(heading.x, 0.0, heading.y).rotated(Vector3.UP, randf_range(-1.2, 1.2))
+				var dir := Vector3(heading.x, 0.0, heading.y).rotated(Vector3.UP, randf_range(-0.45, 0.45))
 				j.position = p
 				_jump_v[i] = dir * randf_range(4.0, 7.0) + Vector3.UP * randf_range(4.0, 6.0)
 				j.velocity = _jump_v[i]
