@@ -27,9 +27,8 @@ void fragment() {
 	// the land goes the haze's grey-blue as it gets further off, then thins into whatever sky is behind it)
 	float h = clamp(1.0 - exp(-dist / visibility), 0.0, 1.0);
 	// (the haze is the air between you and it, lit already: it glows its own colour rather than taking the sun again)
-	// (a touch under the horizon's own colour, so far hills stay a shade darker than the sky they stand against)
 	ALBEDO = COLOR.rgb * (1.0 - h) * (1.0 - h);
-	EMISSION = haze_color * h * 0.82;
+	EMISSION = haze_color * h;
 	ALPHA = 1.0 - smoothstep(0.55, 0.97, h);
 	ROUGHNESS = 0.85;
 	SPECULAR = 0.2;

@@ -63,7 +63,8 @@ func _ready() -> void:
 
 ## The weather and the light (sea.gd's _apply_look): the colour far things fade into and how far you can see (m).
 func set_look(haze: Color, visibility: float, dark: float, lamps: bool) -> void:
-	_land_mat.set_shader_parameter("haze_color", Vector3(haze.r, haze.g, haze.b))
+	# (a Color, not a Vector3: so it's turned from sRGB to linear like the sky's own colours)
+	_land_mat.set_shader_parameter("haze_color", haze)
 	_land_mat.set_shader_parameter("visibility", visibility)
 	_light_mat.set_shader_parameter("visibility", visibility)
 	night = dark

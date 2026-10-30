@@ -157,7 +157,11 @@ func day_fraction() -> float:
 func daylight() -> float:
 	if docked:
 		return 0.55
-	var t := day_fraction()
+	return daylight_at(day_fraction())
+
+
+## How light it is at day fraction t (0 dawn .. 1 dusk; past 1 it's getting dark).
+static func daylight_at(t: float) -> float:
 	if t < 0.08:
 		return lerpf(0.4, 1.0, t / 0.08)
 	if t < 0.85:

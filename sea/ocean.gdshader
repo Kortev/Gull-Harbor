@@ -271,6 +271,11 @@ void fragment() {
 	float through = pow(clamp(dot(-VIEW, to_light) * 0.5 + 0.5, 0.0, 1.0), 3.0);
 	float thin = smoothstep(0.45, 1.0, h) * (0.4 + 0.6 * pow(1.0 - clamp(dot(n, VIEW), 0.0, 1.0), 1.5));
 	EMISSION += glass_color * glass * through * thin * (1.0 - foam) * (1.0 - far * 0.5);
+	// the sea going pale into the distance: the air between you and it, a gradient up to the horizon, where it meets
+	// the sky in a blur instead of a ruled line (the sky's own colour at the horizon: sea.gd's set_sky_color)
+	float away = smoothstep(20.0, 520.0, length(local.xz));
+	ALBEDO *= 1.0 - 0.7 * away;
+	EMISSION = mix(EMISSION, sky_color * 0.95, 0.75 * away);
 	if (glow_spot.w > 0.001) {
 		// long and slow, a body with a glow round it, under the waves
 		vec2 dv = q - glow_spot.xy;

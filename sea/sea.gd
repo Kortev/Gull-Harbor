@@ -4,7 +4,8 @@ extends Node3D
 ## from Fathom in the space fishing game (ocean.gd, sea_fx.gd, visor_rain.gd, sky.gdshader).
 ##
 ## The weather comes and goes on its own (sea/weather.gd): sunny, calm, fog, rain, heavy, storm. Nobody picks it.
-## Screenshots: <godot> --path . -- --shot=<png> [--weather=calm|sunny|fog|rain|heavy|storm (pinned)] [--night|--noon]
+## Screenshots: <godot> --path . -- --shot=<png> [--weather=calm|sunny|fog|rain|heavy|storm (pinned)] [--night|--noon|
+## --day=<0 dawn .. 1 dusk, 1.2 dark>]
 ##   [--frames=<n>] [--cam=x,y,z,lookx,looky,lookz] [--look=<degrees round from aft>] [--wheel] [--strike=<rod>]
 ## Without --cam you're one of the crew, standing in the cockpit: WASD, mouse, Shift, Space, E; Esc for the menu.
 ## Co-op: --host, or --join=<address> (or from the Esc menu).
@@ -351,18 +352,39 @@ func _dark() -> float:
 		return 1.0
 	if _args.has("noon"):
 		return 0.0         # (screenshots: --noon pins the middle of the day)
+	if _args.has("day"):
+		return 1.0 - FishHold.daylight_at(float(_args["day"]))
 	return 1.0 - float(fish_hold.daylight()) if fish_hold != null else 0.0
 
 
 ## The sun across the sky with the day: low in the east at dawn, high at noon, low in the west at dusk.
 func _move_sun() -> void:
-	if fish_hold == null or night:
+	if fish_hold == null:
+		return
+	if night:
+		_light_sky_and_sea()
 		return
 	var t := clampf(float(fish_hold.day_fraction()), 0.0, 1.0) if not fish_hold.docked else 0.04
 	if _args.has("noon"):
 		t = 0.4
+	if _args.has("day"):
+		t = clampf(float(_args["day"]), 0.0, 1.0)
 	var up := sin(PI * t)
 	sun.rotation_degrees = Vector3(-(5.0 + 55.0 * up), lerpf(80.0, -80.0, t), 0.0)
+	_light_sky_and_sea()
+
+
+func _light_sky_and_sea() -> void:
+	# the sky's sun where the light comes from (a disc and a glow round it, the clouds lit from that side), hidden by
+	# thick weather; the sea's light from the same side, and its colours with the day
+	var toward := sun.global_transform.basis.z
+	var dark := _dark()
+	var thick := clampf(1.0 - _share("sunny") - 0.5 * _share("calm"), 0.0, 1.0)
+	sky_mat.set_shader_parameter("sun_dir", toward)
+	sky_mat.set_shader_parameter("sun_color", sun.light_color)
+	sky_mat.set_shader_parameter("sun_energy", (1.0 - dark) * (1.0 - 0.85 * thick))
+	sky_mat.set_shader_parameter("stars", smoothstep(0.6, 1.0, dark) * (1.0 - thick))
+	ocean.set_light(toward, sun.light_color, dark)
 
 
 func _build_world() -> void:

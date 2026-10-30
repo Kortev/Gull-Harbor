@@ -32,8 +32,8 @@ const CHOP_LENGTHS := Vector2(2.6, 20.0)
 const CHOP_POWER := 0.78
 const SEA_SEED := 20261029
 ## Calm, the usual rain, a storm: (swell crest to trough m, chop, steepness 0..1, whitecaps 0..1).
-const CALM := [2.2, 0.5, 0.5, 0.1]
-const RAIN := [4.5, 0.6, 0.68, 0.45]
+const CALM := [3.2, 0.5, 0.5, 0.1]
+const RAIN := [5.8, 0.6, 0.68, 0.45]
 const STORM := [12.0, 0.9, 0.9, 1.0]
 ## How fast the rough patches drift with the wind (m/s), calm to storm.
 const GUSTS := Vector2(4.0, 12.0)
@@ -330,6 +330,22 @@ func set_hull(boat: Transform3D, length := 14.0, beam := 4.8) -> void:
 		_mat.set_shader_parameter("hull_beam", beam / 4.3)
 		_mat.set_shader_parameter("hull_xf", Projection(_hull))
 		_mat.set_shader_parameter("hull_inv", Projection(_hull.affine_inverse()))
+
+
+## Where the sun is (toward it, world), its colour, how dark it is (0 day .. 1 night): the water's shading and the
+## light through the crests come from the sun's side; the water's own colours dim and warm with it (no teal glow at
+## night, the crests catching the low sun's colour at dawn and dusk).
+func set_light(toward: Vector3, color: Color, dark: float) -> void:
+	if _mat == null:
+		return
+	_mat.set_shader_parameter("shade_from", toward.normalized())
+	var day := 1.0 - dark
+	_mat.set_shader_parameter("glass", 0.55 * day * day)
+	_mat.set_shader_parameter("glass_color", Color(0.1, 0.62, 0.55).lerp(Color(color.r, color.g, color.b) * 0.6, 0.35 * (1.0 - color.b)))
+	# (only once it's really getting dark: at dawn and dusk the water's still the sky's colour, not black)
+	var dim := smoothstep(0.5, 1.0, dark)
+	_mat.set_shader_parameter("deep_color", Color(0.02, 0.09, 0.14).lerp(Color(0.006, 0.018, 0.03), dim))
+	_mat.set_shader_parameter("crest_color", Color(0.07, 0.36, 0.4).lerp(Color(0.015, 0.05, 0.07), dim))
 
 
 func set_sky_color(c: Color) -> void:
