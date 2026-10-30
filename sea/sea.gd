@@ -75,6 +75,7 @@ var _args := {}
 var _frames := 0
 var _steered := false
 var _took := false
+var _cast := false
 var _reported := false
 var _last_dark := -1.0
 
@@ -168,10 +169,12 @@ func _ready() -> void:
 		boat.helm.request(true)
 	if _args.has("hold"):      # (screenshots: start with rod <n> in your hands)
 		rods.request_grab(int(_args["hold"]))
+	# (--port=: another port than Net.PORT, for running the tests beside another game that has it)
+	var port := int(_args.get("port", Net.PORT))
 	if _args.has("host"):
-		Net.host()
+		Net.host(port)
 	elif _args.has("join"):
-		Net.join(str(_args["join"]))
+		Net.join(str(_args["join"]), port)
 	for n in str(_args.get("hide", "")).split(",", false):   # (dev: --hide=Rain,SeaFx,... to find what's what)
 		for found in find_children(n, "", true, false):
 			if found is Node3D:
@@ -221,6 +224,17 @@ func _process(_delta: float) -> void:
 		if i < rods.rods.size() and rods.rods[i].holder != 0 and rods.rods[i].hooked:
 			_took = true
 			rods.request_grab(i)
+	if _args.has("cast") and crew.me != null and not _cast and Time.get_ticks_msec() > 2500:
+		# (tests/net_test.sh: once aboard, pick up a rod, wind its line in if it's out, and cast it)
+		var r: Node = rods.rods[int(_args["cast"])]
+		if r.get("holder") == 0:
+			rods.request_grab(int(_args["cast"]))
+		elif r.get("holder") == Net.my_id():
+			if not r.get("bait_in"):
+				rods.request_reel_in(int(_args["cast"]))
+			else:
+				_cast = true
+				rods.cast_mine(0.6)
 	if _args.has("net-report") and Time.get_ticks_msec() > int(float(_args["net-report"]) * 1000.0) \
 			and not _reported:
 		_reported = true
@@ -232,6 +246,8 @@ func _process(_delta: float) -> void:
 				"%s>%s@%.2f" % _mix, Time.get_ticks_msec() / 1000.0 + ocean.clock_offset - Time.get_unix_time_from_system(),
 				int(boat.helm.captain), boat.helm.heading])
 		print("NET rods holders=%s" % ",".join(rods.rods.map(func(r: Node) -> String: return str(r.get("holder")))))
+		print("NET casts %s" % " ".join(rods.rods.map(func(r: Node) -> String:
+				return "%s:%.1f,%.1f" % ["in" if r.get("bait_in") else "out", r.get("land").x, r.get("land").z])))
 		for id: int in ids:
 			var p := crew.get_player(id)
 			print("  crew %d at %s (on deck %s) visible=%s layers=%d" % [id, p.global_position, p.local_position(),
