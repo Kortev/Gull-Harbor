@@ -13,9 +13,9 @@ extends Node3D
 ## (tuna/radar.gd), and the sonar marks what's right under her. Run her to them, then set up a pass: a school
 ## travels its own way and feeds at its head, so a bait gets eaten (rods.gd hooks the fish, host only, strike()) only
 ## where it's out in front of the school (AHEAD m ahead of its middle, within its width and a bit: SIDE), never with
-## the baits skipping behind her at speed (BITE_SPEED). The baits trail behind her, so she never needs to go over the
-## fish: cut across its nose and drag them through, run alongside just ahead of it, or stop in its path and cast.
-## Run her hull over a school faster than a crawl (DOWN_SPEED) and it goes down (SPOOK s).
+## the baits skipping behind her at speed (BITE_SPEED). The baits trail behind her: cut across its nose and drag them
+## through, run alongside just ahead of it, or stop in its path and cast. (Running over a school does nothing to it:
+## the user's call, 2026-10-30, it only punished you for what you couldn't see.)
 ##
 ## Or bring them to you: chum (boat/chum.gd) lays a slick back through the baits, and while it's fresh (SLICK) a
 ## school within SLICK_PULL of it comes up it (DRAW m/s) and stays on it, working, as long as the chum keeps coming;
@@ -38,14 +38,8 @@ const CRUISE := Vector2(0.8, 2.2)
 ## lasts (s: a spell's up or down by the seed's dice).
 const BAIT_ONLY := 0.35
 const SPELL := 40.0
-## Faster than this (m/s) the baits skip and nothing bites; run her through a school faster than SPOOK_SPEED and it
-## goes down for SPOOK s.
+## Faster than this (m/s) the baits skip and nothing bites.
 const BITE_SPEED := 6.0
-const SPOOK_SPEED := 5.0
-const SPOOK := 40.0
-## Her hull over a school (within its width and DOWN_REACH m) going faster than this (m/s, about 2.5 knots) puts it down.
-const DOWN_SPEED := 1.3
-const DOWN_REACH := 6.0
 ## Where a travelling school eats: from AHEAD.x m behind its middle to AHEAD.y m ahead of its edge, within SIDE m of its
 ## edge to either side. Working a slick (not going anywhere) it eats all round.
 const AHEAD := Vector2(4.0, 35.0)
@@ -186,7 +180,6 @@ func _process(delta: float) -> void:
 			s.queue_free()
 	if Net.is_host():
 		_strikes(delta)
-		_spooking()
 		_chum_in -= delta
 		if _chum_in <= 0.0:
 			_chum_in = 1.0
@@ -301,23 +294,6 @@ func _steer(id: int, t0: float, start: Vector2, heading: Vector2, speed: float, 
 			s.speed = speed
 			s.run = run
 			s.life = life
-
-
-## Host: run her hull over a school (faster than a crawl) and it goes down: over it fast, from further out.
-func _spooking() -> void:
-	var v := absf(boat_speed())
-	if v < DOWN_SPEED:
-		return
-	var t := now()
-	var at := boat_at()
-	var reach := DOWN_REACH + (9.0 if v > SPOOK_SPEED else 0.0)
-	for s in schools:
-		if s.spooked_until < t and not s.bait_only and s.center(t).distance_to(at) < s.radius + reach:
-			var until := t + SPOOK
-			if Net.in_session():
-				_spook.rpc(s.id, until)
-			else:
-				_spook(s.id, until)
 
 
 @rpc("authority", "call_local", "reliable")

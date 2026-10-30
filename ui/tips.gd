@@ -17,7 +17,7 @@ const CALLER := "VHF 16 \u00b7 Dale, the bank"
 const TIPS := {
 	"out": "Dale, from the bank. Tuna feed under birds. Find a flock.",
 	"flock": "Diving birds, white water? Bluefin. Go. Birds sitting? Wait for them.",
-	"fast": "Don't run over them, they'll go down. Get out ahead, slow down, drag your baits across their nose.",
+	"fast": "Ease her down to troll: nothing bites at speed. Get out ahead of them, drag your baits across their nose.",
 	"bite": "That's a reel screaming. Grab the rod!",
 	"fight": "Reel screaming? Hands off. Grinding? Pump: lift slow, wind as you drop. He jumps, drop the tip.",
 	"alone": "Alone? Rod in the holder, Q. Steer, then grab it again.",
@@ -208,7 +208,7 @@ func _watch() -> void:
 		if bool(s.get("bait_only")):
 			continue
 		var d := (s.call("center", now) as Vector2).distance_to(at)
-		if (speed > 4.5 and d < 350.0) or (float(s.get("spooked_until")) > now and d < 120.0):
+		if speed > 6.0 and d < 250.0:
 			show_tip("fast")
 			break
 	# a fish on

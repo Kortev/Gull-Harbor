@@ -242,7 +242,6 @@ func _others_fish(delta: float) -> void:
 	var keep: Node = schools.get("sea")
 	schools.set("sea", sides[1 - my_team])
 	schools.call("_strikes", delta)
-	schools.call("_spooking")
 	_draw_in -= delta
 	if _draw_in <= 0.0:
 		_draw_in = 1.0

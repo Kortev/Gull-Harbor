@@ -138,9 +138,7 @@ sitting.
 - **A school travels its own way** (watch which way the birds go) **and feeds at its head**: only a bait out in front
   of it (from just behind its middle to about 35 m ahead of its edge, within about 16 m of its width) gets eaten. Your
   baits don't draw it to them; chum does (below).
-- **Never run your hull over it.** Over a school faster than a crawl (about **2.5 knots**) and it **goes down for
-  40 s**: the white water stops, the birds sit ("Gone deep"). Fast (over 10 knots), from further off.
-- **Your baits trail behind you, so you never need to go over the fish:** cut across ahead of it and drag the baits
+- **Your baits trail behind you:** cut across ahead of it and drag the baits
   through its path, run alongside just ahead of it at its pace, or stop in its way and cast, and let it swim into
   them. Setting up the pass is the captain's job.
 - **No bites above about 12 knots** (6 m/s): the baits skip along the top.
@@ -148,8 +146,7 @@ sitting.
   on is rare (a double header).
 - Working a chum slick (going nowhere) a school eats all round.
 
-**Teach it:** Dale, as you near birds fast or the first time you put a school down ("Don't run over them... drag your
-baits across their nose"); the manual's "Working a school".
+**Teach it:** Dale, as you near birds fast ("Ease her down to troll... drag your baits across their nose"); the manual's "Working a school".
 
 ## Baits
 

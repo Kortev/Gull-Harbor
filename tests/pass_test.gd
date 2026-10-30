@@ -1,7 +1,6 @@
 extends Node
 ## Working a school (tuna/schools.gd): it travels its own way and feeds at its head, so a bait eats only out in front
-## of it, not behind it or off to the side; her baits don't pull it to them; run her hull over it and it goes down,
-## slow or not (only a crawl doesn't); working a slick it eats all round.
+## of it, not behind it or off to the side; her baits don't pull it to them; working a slick it eats all round.
 ## Run: godot --headless --path . res://tests/pass_test.tscn
 
 const Sea := preload("res://sea/sea.gd")
@@ -39,15 +38,6 @@ func _ready() -> void:
 	await get_tree().create_timer(2.0).timeout
 	var went: Vector2 = s.center(schools.now()) - was
 	_check(went.normalized().dot(Vector2(1, 0)) > 0.9, "it keeps its own heading (%.1f, %.1f)" % [went.x, went.y])
-	# a crawl over it doesn't put it down; trolling speed over it does
-	var helm: Node = sea.boat.helm
-	helm.set("at", s.center(schools.now()))
-	helm.set("speed", 0.6)
-	schools._spooking()
-	_check(s.spooked_until < schools.now(), "a crawl over it doesn't put it down")
-	helm.set("speed", 2.5)
-	schools._spooking()
-	_check(s.spooked_until > schools.now(), "her hull over it at trolling speed puts it down")
 	# working a slick (going nowhere) it eats all round
 	schools._start(8, seed, schools.now(), at + Vector2(0, -200), Vector2(1, 0), 0.0, 200.0)
 	var w = schools.schools[-1]
