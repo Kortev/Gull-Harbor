@@ -90,8 +90,8 @@ var save_path := SAVE
 
 
 func _ready() -> void:
-	if sea.get_parent() != get_tree().root:
-		# (a test, which builds the sea under its own node: a clean bank of its own, never yours)
+	if sea.get_parent() != get_tree().root or "--shot" in " ".join(OS.get_cmdline_user_args()):
+		# (a test, which builds the sea under its own node, or a screenshot: a clean bank of its own, never yours)
 		save_path = TEST_SAVE
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(TEST_SAVE))
 	_load()
