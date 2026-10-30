@@ -74,6 +74,30 @@ func _reset() -> void:
 
 
 ## Whether you're jigging (your line's in the water).
+## What to do now with the jig rod in your hands, in words under your sight (rods.gd shows them; "" none): how to
+## start, to work it, the knock to strike on, the wind up; why nothing's happening (under way, not at the rail).
+func hint() -> String:
+	var me := (sea.get("crew") as Node).get("me") as Node
+	var hands: Node = me.get("hands") if me else null
+	if hands == null or str(hands.get("item")) != "jig":
+		return ""
+	if absf(_speed()) > JIG_SPEED:
+		return "STOP THE BOAT TO JIG: IT STREAMS OUT BEHIND HER"
+	match state:
+		"up":
+			return "CLICK: DROP THE JIG" if _over_water(me) else "GO TO THE RAIL, ROD OUT OVER THE WATER"
+		"down":
+			return "LET IT SINK..." if depth < KNOCK_DEEP else "TAP LEFT MOUSE: WORK IT. WAIT FOR A KNOCK"
+		"knock":
+			return "KNOCK! TAP NOW TO HOOK IT!"
+		"on":
+			var hold: Node = sea.get("fish_hold")
+			if hold != null and not bool(hold.call("has_gear", "bait")):
+				return "HOLD LEFT MOUSE: WIND IT UP (NO LIVE WELL: IT GOES BACK)"
+			return "MACKEREL ON! HOLD LEFT MOUSE: WIND IT UP"
+	return ""
+
+
 func active() -> bool:
 	return state != "up" or depth > 0.0
 

@@ -1007,6 +1007,8 @@ func _process(delta: float) -> void:
 		var todo := str(landing.call("hint"))
 		if todo.is_empty():
 			todo = str((sea.get("fish_hold") as Node).call("hint"))
+		if todo.is_empty() and sea.get("jig") != null:
+			todo = str((sea.get("jig") as Node).call("hint"))
 		if todo.is_empty() and not bool((sea.get("fish_hold") as Node).get("docked")):
 			todo = hint()
 		# (how-to words show the first couple of times; then you know)

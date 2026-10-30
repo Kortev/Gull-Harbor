@@ -113,8 +113,11 @@ func _ready() -> void:
 	add_child(_card)
 
 
-## `text` (a how-to under the crosshair), or "" once it's been taught: TEACH times it's come up.
+## `text` (a how-to under the crosshair), or "" once it's been taught: TEACH times it's come up. A warning (it ends
+## with "!": KNOCK! TAP NOW TO HOOK IT!) always shows.
 func teach(text: String) -> String:
+	if text.ends_with("!"):
+		return text
 	if text != _teaching:
 		_teaching = text
 		_teach_now = _count(text)
