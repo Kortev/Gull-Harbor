@@ -14,6 +14,7 @@ const Rod := preload("res://rods/rod.gd")
 const Fight := preload("res://tuna/fight.gd")
 const Sfx := preload("res://audio/sfx.gd")
 const FightHud := preload("res://ui/fight_hud.gd")
+const FightTutor := preload("res://ui/fight_tutor.gd")
 const Tuna := preload("res://tuna/tuna.gd")
 const Splash := preload("res://sea/splash.gd")
 ## A rod nobody's holding sits in its holder with the drag set: the host plays the fish against the drag (it takes
@@ -78,6 +79,8 @@ var _splash: Splash
 var _fresh_press := false
 var _shook := false
 var _fight_hud: FightHud
+## The first fish you ever hook, taught a step at a time (ui/fight_tutor.gd): made with the fight HUD.
+var tutor: FightTutor
 var _whoosh: AudioStreamPlayer3D
 
 
@@ -761,16 +764,23 @@ func _show_fight_hud(hud: Node, mine: Rod) -> void:
 		_fight_hud = FightHud.new()
 		_fight_hud.name = "FightHud"
 		hud.add_child(_fight_hud)
+		tutor = FightTutor.new()
+		tutor.name = "FightTutor"
+		tutor.rods = self
+		tutor.sea = sea
+		hud.add_child(tutor)
 	if _fight_hud == null:
 		return
+	tutor.tick(get_process_delta_time(), mine)
+	_fight_hud.teaching = tutor.busy()
 	if mine == null or not mine.hooked or mine.alongside or mine.fight == null:
 		_fight_hud.show_fight({})
 		return
 	var f := mine.fight as Fight
-	_fight_hud.show_fight({"tension": f.strain + f.shock, "danger": clampf(float(f.get("_over_t")) / Fight.BREAK_HOLD,
+	_fight_hud.show_fight({"tension": f.load_now(), "danger": clampf(float(f.get("_over_t")) / Fight.BREAK_HOLD,
 			0.0, 1.0), "drag": mine.drag, "line_out": mine.line_out, "spool": mine.line_out / Fight.CAPACITY,
 			"energy": f.energy, "hold": f.hold, "move": f.move, "slipping": f.slipping, "grinding": f.grinding,
-			"airborne": f.airborne})
+			"airborne": f.airborne, "under": f.going_under(), "paused": f.paused})
 
 
 ## Everyone (tuna/landing.gd): rod i's fish is up alongside, beaten: no more fight on it.
@@ -1023,7 +1033,9 @@ func _process(delta: float) -> void:
 			todo = hint()
 		# (how-to words show the first couple of times; then you know)
 		var tips: Node = sea.get("tips")
-		if tips != null:
+		if tutor != null and tutor.busy():
+			todo = ""          # (the first fish's lesson card is saying it, a step at a time)
+		elif tips != null:
 			todo = str(tips.call("teach", todo))
 		hud.call("fight", todo, 0.0)
 	# the captain's plotter: where each fish on is, round the boat
@@ -1084,6 +1096,8 @@ func _show_fish(r: Rod, boat: Node3D, ocean: Node, delta: float) -> void:
 	if r.move == "jump":
 		if r.seen_move != "jump":
 			r.set_meta("jump_t", t)
+		elif r.fight != null and (r.fight as Fight).paused:
+			r.set_meta("jump_t", float(r.get_meta("jump_t", t)) + delta)     # (held still mid-jump: so is he)
 		var jt := t - float(r.get_meta("jump_t", t))
 		if jt >= 0.5 and jt < 1.2:
 			air = (jt - 0.5) / 0.7

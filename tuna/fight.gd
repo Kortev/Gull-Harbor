@@ -174,6 +174,10 @@ var _jumped := false
 var _sweep := 0.0
 ## After it changes hands: no shock, no hook lost, no break for this long (s).
 var grace := 0.0
+## Held still (ui/fight_tutor.gd, the first fish you ever hook, one lesson at a time): the fish doesn't move, the line
+## neither stretches nor slips, the hook doesn't wear. It runs where the fight runs (the holder's machine), so the
+## pause is the fight's own word, not a cheat on anyone else's.
+var paused := false
 var _going_under := false
 
 
@@ -198,9 +202,15 @@ static func size_of(w: float) -> float:
 	return minf(0.35 + w / 285.0, 1.9)
 
 
-## One tick of the fight.
+## One tick of the fight (none while it's `paused`).
 func step(dt: float, crank: float, rod_pitch: float, side: float, drag_set: float) -> void:
 	if done or dt <= 0.0:
+		return
+	if paused:
+		# the first fish's lesson (ui/fight_tutor.gd): it all holds still, the reel quiet, nothing to lose
+		wind = 0.0
+		paying = 0.0
+		grinding = false
 		return
 	drag = drag_set
 	grace = maxf(grace - dt, 0.0)
@@ -431,6 +441,12 @@ func cues() -> Dictionary:
 			"drag": drag, "slack": stretch < 0.0, "line_out": line_out, "bearing": bearing}
 
 
+## Everything the line's taking right now, as the break test adds it up (1: it's going): the tension, cranking into a
+## slipping drag, a jolt, a crossed line, the rub on her. For the fight HUD's needle, so the red there is the truth.
+func load_now() -> float:
+	return strain + bind + shock + (0.15 if tangled else 0.0) + 0.25 * chafe
+
+
 ## How far round from dead astern it is (0 .. PI: PI is right under her bow).
 func b_now() -> float:
 	return absf(wrapf(bearing, -PI, PI))
@@ -488,6 +504,12 @@ func carry_on(m: String, stretch_was := 0.0, turn := 0.0, hold_was := 1.0) -> vo
 		_turn_sign = signf(turn)
 	_going_under = cos(bearing) < 0.0
 	grace = 0.5
+
+
+## In the spiral: whether it's on the half of the lap that takes it under her (ease off) rather than coming up toward
+## you (wind).
+func going_under() -> bool:
+	return _going_under
 
 
 ## Which way round it's swinging (+1 or -1), for carry_on when the rod changes hands.

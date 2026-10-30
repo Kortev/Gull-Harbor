@@ -60,6 +60,9 @@ var _fly_t := 0.0
 var _fly_at := Transform3D.IDENTITY
 var _fly_dir := Vector3.ZERO
 var _send_in := 0.0
+## Host: fish whose hook clock stands still (rod index -> the peer who asked): the first fish someone ever lands,
+## while ui/fight_tutor.gd walks them through it one step at a time. It never runs the other way.
+var _clock_held := {}
 
 
 var _splash: Splash
@@ -79,6 +82,9 @@ func _ready() -> void:
 			_sync.rpc_id(id, harpoon_holder, _states()))
 	Net.peer_left.connect(func(id: int) -> void:
 		_pulling.erase(id)
+		for i: int in _clock_held.keys():
+			if int(_clock_held[i]) == id:
+				_clock_held.erase(i)
 		if Net.is_host() and harpoon_holder == id:
 			_host_set_harpoon(0))
 	Net.dropped.connect(func(_reason: String) -> void: _clear())
@@ -576,7 +582,8 @@ func _host_tick(delta: float) -> void:
 		_send_in = 0.1
 	for i: int in fish.keys():
 		var f: Dictionary = fish[i]
-		f["t"] = float(f["t"]) + delta
+		if not _clock_held.has(i):
+			f["t"] = float(f["t"]) + delta
 		if not bool(f["stuck"]):
 			if float(f["t"]) > HOOK_HOLDS:
 				_host_gone(i, "The hook pulled")
@@ -595,6 +602,27 @@ func _host_tick(delta: float) -> void:
 func _haul_state(i: int, haul: float) -> void:
 	if fish.has(i):
 		fish[i]["haul"] = haul
+
+
+## The hook clock on fish i held still (`on`) or let run again: asked of the host by whoever's being shown how to land
+## their first fish (ui/fight_tutor.gd).
+func hold_clock(i: int, on: bool) -> void:
+	if Net.is_host():
+		_ask_hold_as(Net.my_id(), i, on)
+	else:
+		_ask_hold.rpc_id(1, i, on)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _ask_hold(i: int, on: bool) -> void:
+	_ask_hold_as(multiplayer.get_remote_sender_id(), i, on)
+
+
+func _ask_hold_as(who: int, i: int, on: bool) -> void:
+	if on and fish.has(i):
+		_clock_held[i] = who
+	elif not on and int(_clock_held.get(i, -1)) == who:
+		_clock_held.erase(i)
 
 
 # ------------------------------------------------------------------ comes alongside, comes aboard, gets away
@@ -669,6 +697,7 @@ func _gone(i: int) -> void:
 
 
 func _drop(i: int) -> void:
+	_clock_held.erase(i)
 	if fish.has(i):
 		var n := fish[i]["node"] as Node
 		if is_instance_valid(n):
@@ -681,6 +710,7 @@ func _drop(i: int) -> void:
 func _clear() -> void:
 	for i: int in fish.keys():
 		_drop(i)
+	_clock_held.clear()
 	harpoon_holder = 0
 	_pulling.clear()
 	_my_pull = -1

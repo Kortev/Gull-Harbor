@@ -10,6 +10,7 @@ const Sfx := preload("res://audio/sfx.gd")
 const SAVE := "user://bluefin_tips.cfg"
 const Hud := preload("res://ui/hud.gd")
 const Radio := preload("res://ui/radio.gd")
+const FightTutor := preload("res://ui/fight_tutor.gd")
 ## Who's on the radio: Dale, the bank's loan officer. You're his investment, so he keeps an eye on you. Each tip is
 ## a line or two of what to do, said the way Dale would say it: the world shows the rest.
 const CALLER := "VHF 16 \u00b7 Dale, the bank"
@@ -144,11 +145,19 @@ func reset() -> void:
 	_taught.clear()
 	if _keep:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE))
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(FightTutor.SAVE))
+	var tutor: Node = (sea.get("rods") as Node).get("tutor")
+	if tutor != null:
+		tutor.call("_load")
 
 
 ## Tip `id` now, unless it's been seen (or it's already waiting).
 func show_tip(id: String) -> void:
 	if _seen.has(id) or _queue.has(id) or not (TIPS.has(id) or id == "alongside"):
+		return
+	# (the first fish's lesson, ui/fight_tutor.gd, shows it step by step: Dale needn't say it over the top)
+	var tutor: Node = (sea.get("rods") as Node).get("tutor")
+	if tutor != null and bool(tutor.call("covers", id)):
 		return
 	_seen[id] = true
 	_queue.append(id)
