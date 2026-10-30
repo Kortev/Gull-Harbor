@@ -6,8 +6,11 @@ extends Node
 ## (DUSK_H) in DAY seconds, then it's night; head in whenever you like (Esc) and the catch is sold, the fuel and any
 ## charter taken off, and you're back at the dock.
 ##
-## A fish hauled aboard (tuna/landing.gd) lies across the cockpit. Bleed it (E on it), then ice it (E again: into the
-## fish box). A bluefin's price is all in how it was handled, so the sooner the better. Heading in (the Esc menu)
+## A fish hauled aboard (tuna/landing.gd) lies across the cockpit. Bleed it: the knife in your hands (crew/hands.gd),
+## left mouse on it. Then into the fish box (her kind's `box`, a hatch in her sole): E on the lid opens it, the gaff in
+## your hands and left mouse on the fish hooks it, and you drag it across the deck (slow going with a big one) and
+## let go over the open box: it drops in on the ice. A bluefin's price is all in how it was handled, so the sooner
+## the better. Heading in (the Esc menu)
 ## sells the lot by the kilo at its grade, #1, #2 or #3, worked out from how fast it was landed and how soon it was
 ## bled and iced; one still on deck sells as it is, warm. The money goes in the bank (kept between games on the
 ## host's machine) and she heads back out with an empty hold.
@@ -83,6 +86,15 @@ var _next_id := 1
 var _deck := {}               # fish id -> its Tuna on deck
 var _sold_noted := false
 var _heard := {}              # fish id -> [bled, iced] last time (_hear_work)
+## The fish box's lid, open or shut (the host's word), as drawn (0 shut .. 1 open); and the fish being dragged on the
+## gaff: yours (its id, -1 none) and everyone's, as their peers last said ({id: [at (boat-local), yaw]}).
+var box_open := false
+var _lid_k := 0.0
+var _lid: Node3D
+var _inside: Node3D
+var _dragging := -1
+var _drag_send := 0.0
+var _dragged := {}
 ## The last game ended out at sea (quit, or the host dropped): that day's gone, settled as an empty trip (_ready).
 var _abandoned := false
 ## Where the bank's kept (tests point it somewhere else so they don't touch yours).
@@ -96,11 +108,14 @@ func _ready() -> void:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(TEST_SAVE))
 	_load()
 	(sea.get("boat") as Node).connect("rebuilt", func() -> void:
-		# (another boat: lay what's on deck out again on her)
+		# (another boat: lay what's on deck out again on her, and her fish box)
 		for id: int in _deck.keys():
 			(_deck[id] as Node).queue_free()
 		_deck.clear()
+		_dragging = -1
+		_attach_box()
 		_rebuild())
+	_attach_box()
 	Net.peer_joined.connect(func(id: int) -> void:
 		if multiplayer.is_server():
 			_sync.rpc_id(id, _state()))
@@ -132,7 +147,9 @@ func _own_boat() -> void:
 	(sea.get("boat") as Node).call("use_kind", kind)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_drag(delta)
+	_show_box(delta)
 	# the light going: once at dusk, once at dark
 	if docked:
 		return
@@ -251,6 +268,51 @@ func _work(id: int) -> void:
 			f["iced_s"] = since
 		_host_changed()
 		return
+
+
+## Bleeds fish `id` (the knife), or drops it in the fish box (`ice`: it was let go over the open box) (host).
+func _bleed(id: int) -> void:
+	for f: Dictionary in fish:
+		if int(f["id"]) == id and float(f["bled_s"]) < 0.0:
+			f["bled_s"] = _now() - float(f["aboard_t"])
+			_host_changed()
+			return
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _ask_bleed(id: int) -> void:
+	_bleed(id)
+
+
+## Host: fish `id` let go off the gaff at `at` (boat-local), lying `yaw`: in the fish box if it's open and that's
+## over it (and there's room), else on the deck there.
+@rpc("any_peer", "call_remote", "reliable")
+func _ask_drop(id: int, at: Vector3, yaw: float) -> void:
+	for f: Dictionary in fish:
+		if int(f["id"]) != id or float(f["iced_s"]) >= 0.0:
+			continue
+		if box_open and over_box(at) and iced() < capacity():
+			f["iced_s"] = _now() - float(f["aboard_t"])
+		else:
+			f["at"] = at
+			f["yaw"] = yaw
+		_host_changed()
+		return
+
+
+## Host: the fish box's lid opened or shut.
+@rpc("any_peer", "call_remote", "reliable")
+func _ask_lid(open: bool) -> void:
+	box_open = open
+	_host_changed()
+
+
+## Whether a spot on deck (boat-local) is over the fish box, near enough to drop a fish in.
+func over_box(at: Vector3) -> bool:
+	var spec: Dictionary = (sea.get("boat") as Node).get("spec")
+	var c: Vector3 = spec.get("box", Vector3.INF)
+	var size: Vector2 = spec.get("box_size", Vector2.ZERO)
+	return c != Vector3.INF and absf(at.x - c.x) < size.x * 0.5 + 0.45 and absf(at.z - c.z) < size.y * 0.5 + 0.45
 
 
 ## How many are iced in the fish box, and how many it takes (her kind's).
@@ -428,7 +490,7 @@ func _host_changed() -> void:
 
 
 func _state() -> Dictionary:
-	return {"fish": fish, "bank": bank, "best": best, "sale": sale, "next": _next_id, "docked": docked,
+	return {"fish": fish, "bank": bank, "best": best, "sale": sale, "next": _next_id, "docked": docked, "box": box_open,
 			"trip_t0": trip_t0, "kind": kind, "owned": owned, "gear": gear, "well": well, "chum": chum,
 			"quota_n": quota_n, "quota": quota, "earned": earned, "day": day, "run_fish": run_fish,
 			"run_biggest": run_biggest, "best_run": best_run}
@@ -444,6 +506,7 @@ func _sync(state: Dictionary) -> void:
 	var was := docked
 	_hear_work()
 	docked = bool(state.get("docked", docked))
+	box_open = bool(state.get("box", box_open))
 	trip_t0 = float(state.get("trip_t0", trip_t0))
 	kind = str(state.get("kind", kind))
 	owned = state.get("owned", owned)
@@ -502,8 +565,11 @@ func _rebuild() -> void:
 			continue
 		var id := int(f["id"])
 		keep[id] = true
+		_dragged.erase(id)
 		if not _deck.has(id):
 			_deck[id] = _lay(f, boat)
+		elif f.has("at") and id != _dragging:
+			(_deck[id] as Node3D).transform = _lying(_deck[id] as Node3D, f["at"], float(f["yaw"]))
 		var blood := (_deck[id] as Node).get_node_or_null("Blood") as Node3D
 		if blood:
 			blood.visible = float(f["bled_s"]) >= 0.0
@@ -511,6 +577,8 @@ func _rebuild() -> void:
 		if not keep.has(id):
 			(_deck[id] as Node).queue_free()
 			_deck.erase(id)
+			if id == _dragging:
+				_let_go(false)
 	_tally()
 
 
@@ -524,10 +592,13 @@ func _lay(f: Dictionary, boat: Node3D) -> Node3D:
 	var n := int(f["spot"])
 	var at: Vector4 = spots[n % spots.size()]
 	var spot := Vector3(at.x, at.y, at.z) + Vector3(0.0, 0.3 * floorf(n / float(spots.size())), 0.0)
-	# on its side: across her, head to starboard, or along her, head forward
+	# on its side: across her, head to starboard, or along her, head forward (or where it was dragged to)
 	var head := Vector3.RIGHT if at.w > 0.5 else Vector3.FORWARD
 	t.transform = Transform3D(Basis.looking_at(head, Vector3.UP) * Basis(Vector3(0, 0, 1), PI * 0.5),
 			spot + Vector3(0.0, t.length * 0.07, 0.0))
+	if f.has("at"):
+		t.transform = _lying(t, f["at"], float(f["yaw"]))
+		spot = f["at"]
 	boat.add_child(t)
 	var blood := MeshInstance3D.new()
 	blood.name = "Blood"
@@ -548,38 +619,214 @@ func _lay(f: Dictionary, boat: Node3D) -> Node3D:
 	blood.global_transform = boat.global_transform * Transform3D(Basis.IDENTITY, spot + Vector3(0.0, 0.003, 0.0))
 	var act := Action.new(Vector3(0.6, 0.5, t.length))
 	act.name = "Handle"
-	act.use = func(p: Node) -> void:
-		if p != null:
-			p.call("gesture", "bleed")
-		if Net.is_host():
-			_work(id)
-		else:
-			_ask_work.rpc_id(1, id)
-	act.prompt = func() -> String: return _prompt(id)
+	act.use_with = func(p: Node, item: String, pressed: bool) -> bool: return _handle(id, p, item, pressed)
+	act.prompt = func() -> String: return ""
 	t.add_child(act)
+	# (the blood stays where it was bled, not under a fish dragged off it)
+	blood.top_level = true
+	blood.global_transform = boat.global_transform * Transform3D(Basis.IDENTITY, spot + Vector3(0.0, 0.003, 0.0))
 	return t
 
 
-func _prompt(id: int) -> String:
-	for f: Dictionary in fish:
-		if int(f["id"]) == id:
-			if float(f["bled_s"]) < 0.0:
-				return "Bleed it (%d kg)" % roundi(float(f["kg"]))
-			if float(f["iced_s"]) < 0.0:
-				return "Ice it: into the fish box" if iced() < capacity() else "The fish box is full: head in and sell"
-	return ""
+## A fish lying on its side on her deck at `at` (boat-local), its head toward `yaw` + PI (toward you, dragging it).
+func _lying(t: Node3D, at: Vector3, yaw: float) -> Transform3D:
+	var head := Basis(Vector3.UP, yaw) * Vector3(0.0, 0.0, 1.0)
+	var deck := float(((sea.get("boat") as Node).get("spec") as Dictionary).get("deck", 0.5))
+	return Transform3D(Basis.looking_at(head, Vector3.UP) * Basis(Vector3(0, 0, 1), PI * 0.5),
+			Vector3(at.x, deck, at.z) + Vector3(0.0, float(t.get("length")) * 0.07, 0.0))
 
 
-## What to do now, for the HUD (rods.gd shows it when nothing else needs doing).
+## Left mouse on fish `id` with something in your hands: the knife bleeds it; the gaff hooks it to drag (let go to
+## drop it).
+func _handle(id: int, p: Node, item: String, pressed: bool) -> bool:
+	match item:
+		"knife":
+			if not pressed:
+				return true
+			for f: Dictionary in fish:
+				if int(f["id"]) == id and float(f["bled_s"]) < 0.0:
+					p.call("gesture", "bleed")
+					if Net.is_host():
+						_bleed(id)
+					else:
+						_ask_bleed.rpc_id(1, id)
+			return true
+		"gaff":
+			if pressed:
+				_dragging = id
+				var node := _deck.get(id) as Node3D
+				if node:
+					Sfx.play_point(self, node.global_position, "kit.thud", 0.6, 1.4)
+				p.call("gesture", "reach")
+			elif _dragging == id:
+				_let_go(true)
+			return true
+	return false
+
+
+## Your fish on the gaff, this frame: it slides along the deck ahead of you, its head toward you, and slows you down
+## (a giant a lot); and everyone else's, where their peers say.
+func _drag(delta: float) -> void:
+	var boat := sea.get("boat") as Node3D
+	for id: int in _dragged.keys():
+		if id != _dragging and _deck.has(id):
+			var w: Array = _dragged[id]
+			var node := _deck[id] as Node3D
+			node.transform = node.transform.interpolate_with(_lying(node, w[0], float(w[1])), minf(1.0, delta * 12.0))
+	if _dragging < 0:
+		return
+	var me := (sea.get("crew") as Node).get("me") as Node3D
+	var node := _deck.get(_dragging) as Node3D
+	if me == null or node == null or docked:
+		_let_go(false)
+		return
+	var yaw := float(me.get("_yaw"))
+	var spec: Dictionary = boat.get("spec")
+	var reach := 0.5 + float(node.get("length")) * 0.5
+	var at: Vector3 = me.call("local_position") + Basis(Vector3.UP, yaw) * Vector3(0.0, 0.0, -reach)
+	var half := float(spec["beam"]) * 0.5 - 0.45
+	at.x = clampf(at.x, -half, half)
+	node.transform = node.transform.interpolate_with(_lying(node, at, yaw), minf(1.0, delta * 10.0))
+	var kg := float(node.get("kg")) if node.get("kg") != null else 150.0
+	me.set("burden", clampf(1.15 - kg / 350.0, 0.3, 1.0))
+	_drag_send -= delta
+	if Net.in_session() and _drag_send <= 0.0:
+		_drag_send = 0.1
+		_drag_state.rpc(_dragging, at, yaw)
+
+
+@rpc("any_peer", "call_remote", "unreliable_ordered")
+func _drag_state(id: int, at: Vector3, yaw: float) -> void:
+	_dragged[id] = [at, yaw]
+
+
+## Off the gaff: dropped where it is (`drop`), into the box if it's open under it; or just lost from your hands.
+func _let_go(drop: bool) -> void:
+	var id := _dragging
+	_dragging = -1
+	var me := (sea.get("crew") as Node).get("me") as Node3D
+	if me:
+		me.set("burden", 1.0)
+	var node := _deck.get(id) as Node3D
+	if not drop or node == null:
+		return
+	var boat := sea.get("boat") as Node3D
+	var at := boat.global_transform.affine_inverse() * node.global_position
+	at.y = 0.0
+	var yaw := float(me.get("_yaw")) if me else 0.0
+	Sfx.play_point(self, node.global_position, "kit.bodyfall", 0.7, 0.8)
+	if Net.is_host():
+		_ask_drop(id, at, yaw)
+	else:
+		_ask_drop.rpc_id(1, id, at, yaw)
+
+
+## The fish box: its lid over the hatch in her sole (E on it to open or shut it), and inside, ice and the tails of
+## the fish iced down in it (again whenever she's rebuilt).
+func _attach_box() -> void:
+	for n: Node in [_lid, _inside]:
+		if is_instance_valid(n):
+			n.get_parent().remove_child(n)
+			n.queue_free()
+	_lid = null
+	_inside = null
+	var boat := sea.get("boat") as Node3D
+	var spec: Dictionary = boat.get("spec")
+	if not spec.has("box"):
+		return
+	var c: Vector3 = spec["box"]
+	var size: Vector2 = spec["box_size"]
+	var white := StandardMaterial3D.new()
+	white.albedo_color = Color(0.88, 0.87, 0.82)
+	white.roughness = 0.6
+	# the lid: hinged along its forward edge
+	_lid = Node3D.new()
+	_lid.name = "FishBoxLid"
+	_lid.position = Vector3(c.x, c.y + 0.035, c.z - size.y * 0.5)
+	boat.add_child(_lid)
+	var slab := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(size.x, 0.04, size.y)
+	slab.mesh = bm
+	slab.material_override = white
+	slab.position = Vector3(0.0, 0.0, size.y * 0.5)
+	_lid.add_child(slab)
+	var handle := MeshInstance3D.new()
+	var hm := BoxMesh.new()
+	hm.size = Vector3(0.25, 0.03, 0.04)
+	handle.mesh = hm
+	handle.material_override = _flat(Color(0.6, 0.62, 0.64))
+	handle.position = Vector3(0.0, 0.035, size.y - 0.06)
+	_lid.add_child(handle)
+	var act := Action.new(Vector3(size.x, 0.25, size.y))
+	act.name = "Lid"
+	act.position = Vector3(0.0, 0.1, size.y * 0.5)
+	act.use = func(_p: Node) -> void:
+		if Net.is_host():
+			_ask_lid(not box_open)
+		else:
+			_ask_lid.rpc_id(1, not box_open)
+	act.prompt = func() -> String: return "" if docked else ("Shut" if box_open else "Open")
+	_lid.add_child(act)
+	# inside: the dark of the box, the ice, and a tail up out of the ice for each fish in it
+	_inside = Node3D.new()
+	_inside.name = "FishBoxInside"
+	_inside.position = Vector3(c.x, c.y + 0.032, c.z)
+	_inside.visible = false
+	boat.add_child(_inside)
+	var dark := MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = size
+	dark.mesh = pm
+	dark.material_override = _flat(Color(0.06, 0.07, 0.08))
+	_inside.add_child(dark)
+	var ice := MeshInstance3D.new()
+	var im := PlaneMesh.new()
+	im.size = size * 0.85
+	ice.mesh = im
+	ice.material_override = _flat(Color(0.78, 0.86, 0.9))
+	ice.position.y = 0.002
+	_inside.add_child(ice)
+	var tail := PrismMesh.new()
+	tail.size = Vector3(0.32, 0.22, 0.02)
+	for i in 6:
+		var t := MeshInstance3D.new()
+		t.name = "Tail%d" % i
+		t.mesh = tail
+		t.material_override = _flat(Color(0.14, 0.18, 0.28))
+		t.position = Vector3((float(i % 3) - 1.0) * size.x * 0.3, 0.1, (float(i / 3) - 0.5) * size.y * 0.4)
+		t.rotation = Vector3(0.0, 0.4 * float(i % 2) - 0.2, PI)
+		_inside.add_child(t)
+
+
+static func _flat(c: Color) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = c
+	m.roughness = 0.7
+	return m
+
+
+## The lid swinging to the host's word (a clank as it lands either way), and the fish in the box seen when it's open.
+func _show_box(delta: float) -> void:
+	if not is_instance_valid(_lid):
+		return
+	var was := _lid_k
+	_lid_k = move_toward(_lid_k, 1.0 if box_open else 0.0, delta * 2.5)
+	_lid.rotation.x = -1.85 * smoothstep(0.0, 1.0, _lid_k)
+	_inside.visible = _lid_k > 0.02
+	if was != _lid_k and (_lid_k == 0.0 or _lid_k == 1.0):
+		Sfx.play_point(self, _lid.global_position, "kit.clank", 0.7, 1.0 if _lid_k == 0.0 else 1.2)
+	var n := iced()
+	for i in 6:
+		(_inside.get_node("Tail%d" % i) as Node3D).visible = i < n
+
+
+## What to do now, for the HUD (rods.gd shows it when nothing else needs doing): the fish on deck show it
+## themselves (lying there, bled or not); only a full box wants saying.
 func hint() -> String:
 	for f: Dictionary in fish:
-		if float(f["bled_s"]) < 0.0:
-			return "A fish on deck: bleed it (E on it), the sooner the better"
-	for f: Dictionary in fish:
-		if float(f["iced_s"]) < 0.0:
-			if iced() >= capacity():
-				return "The fish box is full: head in and sell (Esc), or it sells warm off the deck"
-			return "Ice it: E on the fish puts it in the fish box"
+		if float(f["iced_s"]) < 0.0 and iced() >= capacity():
+			return "The fish box is full: head in and sell (Esc), or it sells warm off the deck"
 	return ""
 
 

@@ -84,6 +84,33 @@ func _ready() -> void:
 		cam.look_at(me.global_position + b.y * 1.0, b.y)
 		await get_tree().process_frame
 	await _grab("hands_seen")
+	# the catch: a fish on deck, the fish box open, dragging it there on the gaff
+	var hold = sea.fish_hold
+	hold.host_add(140.0, 60.0)
+	hold.host_add(60.0, 60.0)
+	hold._ask_lid(true)
+	await get_tree().create_timer(0.2).timeout
+	var first: Dictionary = hold.fish[0]
+	hold._ask_drop(int(first["id"]), sea.boat.spec["box"], 0.0)
+	var f: Dictionary = hold.fish[1]
+	var node: Node3D = hold._deck[int(f["id"])]
+	var box: Vector3 = sea.boat.spec["box"]
+	me.place(Vector3(box.x + 1.0, box.y + 0.05, box.z + 0.3), PI * 0.5 - 0.3)
+	me.set("_pitch", -0.5)
+	me.hands.pick("gaff")
+	await get_tree().create_timer(0.3).timeout
+	node.get_node("Handle").call("use_item", me, "gaff", true)
+	await get_tree().create_timer(0.8).timeout
+	cam.make_current()
+	for i in 20:
+		var t: Transform3D = sea.boat.global_transform
+		cam.global_position = t * (box + Vector3(0.6, 2.6, -2.8))
+		cam.look_at(t * (box + Vector3(0.2, 0.3, 0.2)), Vector3.UP)
+		await get_tree().process_frame
+	await _grab("catch_gaff")
+	me.cam.make_current()
+	await get_tree().create_timer(0.1).timeout
+	await _grab("catch_gaff_fp")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(sea.fish_hold.save_path))
 	get_tree().quit()
 

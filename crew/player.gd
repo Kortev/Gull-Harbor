@@ -53,6 +53,8 @@ var arms := 1.0
 var steering := false
 ## In the fighting chair (boat/chair.gd says).
 var seated := false
+## Hauling something heavy across the deck (a fish on the gaff: boat/fish_hold.gd), 1 .. slower.
+var burden := 1.0
 var _yaw := 0.0
 var _pitch := 0.0
 var _prompt := ""
@@ -530,7 +532,7 @@ func _walk(delta: float) -> void:
 	var live := force_input or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back") if live else Vector2.ZERO
 	var wish := Basis(Vector3.UP, _yaw) * Vector3(input.x, 0.0, input.y)
-	wish = wish.normalized() * (SPRINT if Input.is_action_pressed("sprint") else WALK) * minf(input.length(), 1.0)
+	wish = wish.normalized() * (SPRINT if Input.is_action_pressed("sprint") else WALK) * minf(input.length(), 1.0) * burden
 	var v := body.velocity
 	var flat := Vector3(v.x, 0.0, v.z).move_toward(wish, (ACCEL if body.is_on_floor() else AIR_ACCEL) * delta)
 	v.x = flat.x

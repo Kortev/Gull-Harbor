@@ -107,7 +107,61 @@ func _jig() -> void:
 
 
 func _catch() -> void:
-	pass
+	var hold := sea.fish_hold
+	var spec: Dictionary = sea.boat.spec
+	hold.host_add(150.0, 60.0)
+	await _frames(2)
+	var f: Dictionary = hold.fish[hold.fish.size() - 1]
+	var id := int(f["id"])
+	var fish: Node3D = hold._deck[id]
+	var handle: Node = fish.get_node("Handle")
+	_check(str(handle.call("interact_prompt")).is_empty(), "a fish on deck: no words, it's lying there")
+	# the knife
+	me.hands.pick("knife")
+	_check(handle.call("use_item", me, "gaff", true) and hold._dragging == id, "(the gaff hooks it)")
+	handle.call("use_item", me, "gaff", false)
+	_check(float(f["bled_s"]) < 0.0, "the gaff doesn't bleed it")
+	_check(handle.call("use_item", me, "knife", true) and float(hold.fish[0]["bled_s"]) >= 0.0, "the knife bleeds it")
+	# the lid
+	var lid: Node = hold._lid.get_node("Lid")
+	lid.call("interact", me)
+	_check(hold.box_open, "E on the lid: the fish box open")
+	await _wait(0.6)
+	_check(hold._lid.rotation.x < -1.5 and hold._inside.visible, "the lid's up, the ice inside")
+	# drag it to the box with the gaff: you, the box straight ahead past the fish
+	var box: Vector3 = spec["box"]
+	var reach: float = 0.5 + float(fish.get("length")) * 0.5
+	me.place(Vector3(box.x, box.y + 0.05, box.z + reach + 1.5), 0.0)
+	me.hands.pick("gaff")
+	await _frames(2)
+	handle = hold._deck[id].get_node("Handle")
+	_check(handle.call("use_item", me, "gaff", true), "the gaff in it")
+	await _frames(20)
+	_check(float(me.get("burden")) < 1.0, "a 150 kg fish slows you down (%.2f)" % float(me.get("burden")))
+	var off: Vector3 = sea.boat.global_transform.affine_inverse() * hold._deck[id].global_position
+	_check(not hold.over_box(off), "not over the box yet")
+	me.place(Vector3(box.x, box.y + 0.05, box.z + reach), 0.0)
+	await _frames(30)
+	handle.call("use_item", me, "gaff", false)
+	await _frames(2)
+	_check(float(me.get("burden")) == 1.0, "let go: free again")
+	_check(float(hold.fish[0]["iced_s"]) >= 0.0 and not hold._deck.has(id), "dropped over the open box: in on the ice")
+	await _frames(2)
+	_check((hold._inside.get_node("Tail0") as Node3D).visible, "its tail up out of the ice")
+	# shut, the next one lies on the lid
+	lid.call("interact", me)
+	hold.host_add(80.0, 30.0)
+	await _frames(2)
+	var g: Dictionary = hold.fish[hold.fish.size() - 1]
+	var id2 := int(g["id"])
+	me.place(Vector3(box.x, box.y + 0.05, box.z + reach), 0.0)
+	await _frames(2)
+	hold._deck[id2].get_node("Handle").call("use_item", me, "gaff", true)
+	await _frames(30)
+	hold._deck[id2].get_node("Handle").call("use_item", me, "gaff", false)
+	await _frames(2)
+	_check(float(g["iced_s"]) < 0.0 and g.has("at") and hold._deck.has(id2), "the lid shut: it lies where you left it")
+	me.hands.pick("")
 
 
 func _chum() -> void:

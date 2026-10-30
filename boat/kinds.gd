@@ -24,6 +24,7 @@ extends RefCounted
 ##   transom, engines, bow: the wake's spots (wash, engine sound, bow spray)
 ##   cabin_light   the dim red night light at the helm; crown: her highest point (the lightning goes for it)
 ##   haul_lift     m the fish is lifted over her gunwale as it's hauled in (0 through a tuna door)
+##   box, box_size the fish box: the middle of its hatch in her sole, and how big it is (x across, z along)
 ##   chum          where the chum bucket stands (boat/chum.gd); jig: the holder the mackerel jig sits in (boat/jig.gd)
 ##   price         what she costs to buy at the dock; fuel: what a trip in her costs (taken from the sale)
 
@@ -46,6 +47,7 @@ const KINDS := {
 		"haul": Vector3(1.15, 0.95, 3.0), "haul_box": Vector3(0.55, 0.6, 0.9), "door": false, "haul_lift": 0.9,
 		"fish_water": Vector3(1.95, 0.0, 3.0), "fish_across": false, "fish_aboard": Vector3(0.9, 0.85, 3.0),
 		"spots": [Vector4(0.95, 0.45, 2.6, 0.0), Vector4(-0.95, 0.45, 2.6, 0.0)],
+		"box": Vector3(0.0, 0.45, -1.95), "box_size": Vector2(1.2, 0.8),
 		"hold": 2, "wire": false,
 		"ahead": 11.0, "astern": 2.6, "spurt": 2.4, "back": 3.0, "coast": 4.5, "turn": 0.75,
 		"transom": Vector3(0.0, 0.0, 4.9), "house": 0.25, "engines": Vector3(0.0, 0.9, 4.7), "bow": Vector3(0.5, 0.45, -3.3),
@@ -69,8 +71,9 @@ const KINDS := {
 		"rack": Vector3(-2.02, 1.2, 4.4),
 		"haul": Vector3(1.0, 0.95, 6.82), "haul_box": Vector3(0.8, 0.7, 0.35), "door": true,
 		"fish_water": Vector3(1.1, 0.0, 7.95), "fish_across": true, "fish_aboard": Vector3(1.0, 0.8, 6.22),
-		"spots": [Vector4(0.0, 0.55, 5.75, 1.0), Vector4(0.0, 0.55, 3.45, 1.0), Vector4(0.0, 0.55, 2.55, 1.0),
-				Vector4(0.0, 0.55, 1.85, 1.0)],
+		"spots": [Vector4(0.0, 0.55, 5.75, 1.0), Vector4(0.0, 0.55, 3.45, 1.0), Vector4(0.0, 0.55, 1.6, 1.0),
+				Vector4(0.0, 0.55, 6.45, 1.0)],
+		"box": Vector3(0.0, 0.55, 2.5), "box_size": Vector2(1.3, 0.9),
 		"hold": 12, "wire": true,
 		"ahead": 10.0, "astern": 2.6, "spurt": 1.4, "back": 2.2, "coast": 9.0, "turn": 0.45,
 		"transom": Vector3(0.0, 0.0, 7.3), "house": 0.4, "engines": Vector3(0.0, 0.3, 3.5), "bow": Vector3(1.7, 0.6, -5.0),
