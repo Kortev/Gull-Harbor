@@ -115,13 +115,23 @@ func _catch() -> void:
 	var id := int(f["id"])
 	var fish: Node3D = hold._deck[id]
 	var handle: Node = fish.get_node("Handle")
-	_check(str(handle.call("interact_prompt")).is_empty(), "a fish on deck: no words, it's lying there")
+	_check(str(handle.call("interact_prompt")).contains("KNIFE") or str(handle.call("interact_prompt")).contains("BLEED"),
+			"a fish on deck says what it wants: the knife (%s)" % handle.call("interact_prompt"))
 	# the knife
 	me.hands.pick("knife")
 	_check(handle.call("use_item", me, "gaff", true) and hold._dragging == id, "(the gaff hooks it)")
 	handle.call("use_item", me, "gaff", false)
 	_check(float(f["bled_s"]) < 0.0, "the gaff doesn't bleed it")
-	_check(handle.call("use_item", me, "knife", true) and float(hold.fish[0]["bled_s"]) >= 0.0, "the knife bleeds it")
+	# a tap does nothing: the knife has to be held on it
+	handle.call("use_item", me, "knife", true)
+	handle.call("use_item", me, "knife", false)
+	await get_tree().create_timer(0.3).timeout
+	_check(float(hold.fish[0]["bled_s"]) < 0.0, "a tap of the knife doesn't bleed it")
+	_check(str(handle.call("interact_prompt")).begins_with("HOLD LMB|BLEED"), "the fish says: hold the knife on it")
+	_check(handle.call("use_item", me, "knife", true), "the knife held on it...")
+	await get_tree().create_timer(hold.BLEED_HOLD + 0.4).timeout
+	_check(float(hold.fish[0]["bled_s"]) >= 0.0, "...bleeds it")
+	handle.call("use_item", me, "knife", false)
 	# the lid
 	var lid: Node = hold._lid.get_node("Lid")
 	lid.call("interact", me)

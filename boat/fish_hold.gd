@@ -6,8 +6,11 @@ extends Node
 ## (DUSK_H) in DAY seconds, then it's night; head in whenever you like (Esc) and the catch is sold, the fuel and any
 ## charter taken off, and you're back at the dock.
 ##
-## A fish hauled aboard (tuna/landing.gd) lies across the cockpit. Bleed it: the knife in your hands (crew/hands.gd),
-## left mouse on it. Then into the fish box (her kind's `box`, a hatch in her sole): E on the lid opens it, the gaff in
+## A fish hauled aboard (tuna/landing.gd) lies across the cockpit, alive: its tail slapping the deck every few seconds
+## till it's bled. Bleed it: the knife in your hands (crew/hands.gd), left mouse held on it BLEED_HOLD s (a ring fills
+## round your sight, the knife working, the fish thrashing); let go early and nothing's done. Then the blood: a spurt
+## at the gills and a pool spreading out over the deck under it, and a last few kicks fading to still. Words under
+## your sight say what it wants next (the knife, then the gaff and the box). Then into the fish box (her kind's `box`, a hatch in her sole): E on the lid opens it, the gaff in
 ## your hands and left mouse on the fish hooks it, and you drag it across the deck (slow going with a big one) and
 ## let go over the open box: it drops in on the ice. A bluefin's price is all in how it was handled, so the sooner
 ## the better. Heading in (the Esc menu)
@@ -86,6 +89,14 @@ var _next_id := 1
 var _deck := {}               # fish id -> its Tuna on deck
 var _sold_noted := false
 var _heard := {}              # fish id -> [bled, iced] last time (_hear_work)
+## Bleeding: how long the knife's held on a fish (s); the one you're bleeding (-1 none) and how far through.
+const BLEED_HOLD := 1.1
+var _bleeding := -1
+var _bleed_t := 0.0
+var _bleed_ring: Control
+## Each fish on deck's life: when its next kick is (s), and when it was bled (the sea clock, -1 not yet) for its last.
+var _kick_in := {}
+var _bled_at := {}
 ## The fish box's lid, open or shut (the host's word), as drawn (0 shut .. 1 open); and the fish being dragged on the
 ## gaff: yours (its id, -1 none) and everyone's, as their peers last said ({id: [at (boat-local), yaw]}).
 var box_open := false
@@ -150,6 +161,8 @@ func _own_boat() -> void:
 func _process(delta: float) -> void:
 	_drag(delta)
 	_show_box(delta)
+	_knife(delta)
+	_throes(delta)
 	# the light going: once at dusk, once at dark
 	if docked:
 		return
@@ -576,9 +589,17 @@ func _rebuild() -> void:
 		var blood := (_deck[id] as Node).get_node_or_null("Blood") as Node3D
 		if blood:
 			blood.visible = float(f["bled_s"]) >= 0.0
+	var iced_ids := {}
+	for f: Dictionary in fish:
+		if float(f["iced_s"]) >= 0.0:
+			iced_ids[int(f["id"])] = true
 	for id: int in _deck.keys():
 		if not keep.has(id):
-			(_deck[id] as Node).queue_free()
+			var gone := _deck[id] as Node3D
+			if iced_ids.has(id):
+				_slide_in(gone, boat)
+			else:
+				gone.queue_free()
 			_deck.erase(id)
 			if id == _dragging:
 				_let_go(false)
@@ -623,7 +644,7 @@ func _lay(f: Dictionary, boat: Node3D) -> Node3D:
 	var act := Action.new(Vector3(0.6, 0.5, t.length))
 	act.name = "Handle"
 	act.use_with = func(p: Node, item: String, pressed: bool) -> bool: return _handle(id, p, item, pressed)
-	act.prompt = func() -> String: return ""
+	act.prompt = func() -> String: return _fish_prompt(id)
 	t.add_child(act)
 	# (the blood stays where it was bled, not under a fish dragged off it)
 	blood.top_level = true
@@ -645,14 +666,13 @@ func _handle(id: int, p: Node, item: String, pressed: bool) -> bool:
 	match item:
 		"knife":
 			if not pressed:
+				_bleeding = -1          # (let go early: nothing done)
 				return true
 			for f: Dictionary in fish:
 				if int(f["id"]) == id and float(f["bled_s"]) < 0.0:
+					_bleeding = id
+					_bleed_t = 0.0
 					p.call("gesture", "bleed")
-					if Net.is_host():
-						_bleed(id)
-					else:
-						_ask_bleed.rpc_id(1, id)
 			return true
 		"gaff":
 			if pressed:
@@ -665,6 +685,127 @@ func _handle(id: int, p: Node, item: String, pressed: bool) -> bool:
 				_let_go(true)
 			return true
 	return false
+
+
+## The knife held on a fish: the ring fills, the knife works, the fish fights it; held to the end, it's bled.
+func _knife(delta: float) -> void:
+	if _bleeding < 0 or not _deck.has(_bleeding):
+		_bleeding = -1
+		if _bleed_ring:
+			_bleed_ring.visible = false
+		return
+	var me := (sea.get("crew") as Node).get("me") as Node
+	var was := _bleed_t
+	_bleed_t += delta
+	if me != null and fmod(_bleed_t, 0.4) < fmod(was, 0.4):
+		me.call("gesture", "bleed")
+	(_deck[_bleeding] as Node).set("effort", 1.4)
+	if _bleed_ring == null:
+		var layer := CanvasLayer.new()
+		layer.layer = 7
+		add_child(layer)
+		_bleed_ring = Control.new()
+		_bleed_ring.set_anchors_preset(Control.PRESET_CENTER)
+		_bleed_ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_bleed_ring.draw.connect(func() -> void:
+			var k := clampf(_bleed_t / BLEED_HOLD, 0.0, 1.0)
+			_bleed_ring.draw_arc(Vector2.ZERO, 18.0, 0.0, TAU, 24, Color(0, 0, 0, 0.5), 5.0)
+			_bleed_ring.draw_arc(Vector2.ZERO, 18.0, -PI * 0.5, -PI * 0.5 + TAU * k, 24, Color(0.9, 0.2, 0.15), 5.0))
+		layer.add_child(_bleed_ring)
+	_bleed_ring.visible = true
+	_bleed_ring.queue_redraw()
+	if _bleed_t >= BLEED_HOLD:
+		var id := _bleeding
+		_bleeding = -1
+		_bleed_ring.visible = false
+		if Net.is_host():
+			_bleed(id)
+		else:
+			_ask_bleed.rpc_id(1, id)
+
+
+## The fish on deck alive: a slap of the tail every few seconds till it's bled; bled, a last few kicks fading out, and
+## its blood spreading from a spurt to a pool.
+func _throes(delta: float) -> void:
+	var now := _now()
+	for f: Dictionary in fish:
+		var id := int(f["id"])
+		if not _deck.has(id) or id == _bleeding:
+			continue
+		var t := _deck[id] as Node3D
+		var bled := float(f["bled_s"]) >= 0.0
+		if bled and not _bled_at.has(id):
+			_bled_at[id] = now
+			_spurt(t)
+		var since := now - float(_bled_at.get(id, now))
+		var life := 1.0 if not bled else clampf(1.0 - since / 8.0, 0.0, 1.0)
+		var next := float(_kick_in.get(id, randf_range(0.5, 2.5))) - delta
+		var effort := float(t.get("effort"))
+		if next <= 0.0 and life > 0.0:
+			next = randf_range(2.0, 5.0) * (2.0 - life)
+			effort = 1.2 * life
+		_kick_in[id] = next
+		t.set("effort", move_toward(effort, 0.0, delta * 1.6))
+		var blood := t.get_node_or_null("Blood") as Node3D
+		if blood and bled:
+			var k := clampf(since / 5.0, 0.15, 1.0)
+			blood.scale = Vector3(k, 1.0, k)
+
+
+## Iced: the fish slides down through the open hatch into the box and out of sight, no blink.
+func _slide_in(t: Node3D, boat: Node3D) -> void:
+	var box: Vector3 = (boat.get("spec") as Dictionary).get("box", t.position)
+	var blood := t.get_node_or_null("Blood")
+	if blood:
+		blood.reparent(boat)        # (the pool stays on deck where it was bled)
+	var tw := t.create_tween()
+	tw.tween_property(t, "position", Vector3(box.x, t.position.y, box.z), 0.35).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(t, "position", Vector3(box.x, box.y - 0.9, box.z), 0.45).set_trans(Tween.TRANS_QUAD) 			.set_ease(Tween.EASE_IN)
+	tw.tween_callback(t.queue_free)
+
+
+## A spurt of blood off the gills, once, as it's bled.
+func _spurt(t: Node3D) -> void:
+	var p := GPUParticles3D.new()
+	p.amount = 40
+	p.lifetime = 0.8
+	p.one_shot = true
+	p.explosiveness = 0.85
+	var pm := ParticleProcessMaterial.new()
+	pm.direction = Vector3(0, 1, 0)
+	pm.spread = 35.0
+	pm.initial_velocity_min = 1.0
+	pm.initial_velocity_max = 2.4
+	pm.gravity = Vector3(0, -9.8, 0)
+	pm.scale_min = 0.6
+	pm.scale_max = 1.2
+	p.process_material = pm
+	var q := QuadMesh.new()
+	q.size = Vector2(0.03, 0.03)
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.5, 0.03, 0.04)
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	q.material = m
+	p.draw_pass_1 = q
+	add_child(p)
+	p.global_position = t.global_position + t.global_basis * Vector3(0.0, 0.0, -float(t.get("length")) * 0.3)
+	p.emitting = true
+	Sfx.play_point(self, p.global_position, "kit.thud", 0.5, 1.6)
+	get_tree().create_timer(2.0).timeout.connect(p.queue_free)
+
+
+## What a fish on deck wants next, in words under your sight (KEY|words: the key cap and what it does).
+func _fish_prompt(id: int) -> String:
+	var hands: Node = ((sea.get("crew") as Node).get("me") as Node).get("hands") if (sea.get("crew") as Node).get("me") else null
+	var held := str(hands.get("item")) if hands else ""
+	for f: Dictionary in fish:
+		if int(f["id"]) != id:
+			continue
+		if float(f["bled_s"]) < 0.0:
+			return "HOLD LMB|BLEED HIM, QUICK" if held == "knife" else "1|THE KNIFE: BLEED HIM"
+		return "HOLD LMB|DRAG HIM TO THE FISH BOX" if held == "gaff" else "2|THE GAFF: INTO THE FISH BOX"
+	return ""
 
 
 ## Your fish on the gaff, this frame: it slides along the deck ahead of you, its head toward you, and slows you down

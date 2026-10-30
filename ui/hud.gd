@@ -322,6 +322,9 @@ func follow(player: Node) -> void:
 	_on_prompt("")
 
 
+## The prompt: "words" (the key's E), or "KEY|words" for another key or the mouse.
 func _on_prompt(text: String) -> void:
-	_what.text = text
+	var parts := text.split("|", true, 1)
+	_key.text = parts[0] if parts.size() == 2 else "E"
+	_what.text = parts[1] if parts.size() == 2 else text
 	_prompt.visible = not text.is_empty()
