@@ -261,8 +261,11 @@ func _fill_dock(hold: Node, docked: bool) -> void:
 	# the way out first: everything under it is for when you want it (rivals: the countdown lets both go)
 	var vs := get_parent().get("vs") as Node
 	if vs != null and bool(vs.get("on")):
+		# rivals: no bank, quota or shop here, only which boat you're on
 		_dock.add_child(_slip_line("RIVALS: both boats cast off together when the countdown runs out", 16,
 				Color(1.0, 0.86, 0.6)))
+		_vs_rows(skipper)
+		return
 	elif skipper:
 		var go := _button("Cast off", func() -> void:
 			hold.call("head_out")

@@ -15,6 +15,7 @@ extends CanvasLayer
 ## Mouse or keys (up, down, Enter, Esc back). Only in the game itself: tests and screenshots never see it.
 
 const PixFont := preload("res://ui/pixfont.gd")
+const Kinds := preload("res://boat/kinds.gd")
 
 const AMBER := Color(1.0, 0.78, 0.34)
 const CREAM := Color(1.0, 0.95, 0.82)
@@ -130,6 +131,11 @@ func _go(page: String) -> void:
 						_note = "COPIED. SEND IT TO YOUR FRIEND."])
 				if _mode == "rivals":
 					_items.append(["SWAP BOATS", "PUT YOURSELF ON THE OTHER BOAT.", _swap])
+				var hold := sea.get("fish_hold") as Node
+				var kind := str(hold.get("kind"))
+				_items.append(["BOAT: " + str(Kinds.KINDS[kind]["name"]).trim_prefix("the ").to_upper(),
+						"BOTH CREWS GET THE SAME KIND. ENTER TO CHANGE." if _mode == "rivals" else "ENTER TO CHANGE.",
+						_next_boat])
 			else:
 				if _mode == "rivals" or bool((sea.get("vs") as Node).get("on")):
 					_items.append(["SWAP BOATS", "PUT YOURSELF ON THE OTHER BOAT.", _swap])
@@ -155,6 +161,22 @@ func _host() -> void:
 		Net.host_steam()
 	elif Net.host() != OK:
 		_note = "COULDN'T HOST (PORT IN USE?)"
+
+
+## Host, in the lobby: the next kind of boat (Rivals: both crews get her; she's chartered if she isn't owned).
+func _next_boat() -> void:
+	var hold := sea.get("fish_hold") as Node
+	var kinds := Kinds.KINDS.keys()
+	var k: String = kinds[(kinds.find(str(hold.get("kind"))) + 1) % kinds.size()]
+	hold.call("pick", k)
+	var vs := sea.get("vs") as Node
+	if bool(vs.get("on")):
+		var other: Node = (vs.get("sides")[1] as Node).get("boat")
+		other.call("use_kind", k)
+		vs.call("_moor")
+	var keep := _pick
+	_go("lobby")
+	_pick = keep
 
 
 func _swap() -> void:
