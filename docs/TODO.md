@@ -11,12 +11,15 @@ The sea looks like an endless dev test, and too much of the fishing is "hold E".
    - Other boats out working the flocks, with radio chatter.
    - The water and the sky (baseline shots: `docs/shots/sea_before_*.png`).
    - Flocks more common (done: up to 6 at once, a new one every 10-25 s).
-2. **Then hands-on fishing.**
-   - Hands and a hotbar: carry things (the knife, the gaff, the jig rod, a scoop, a bait), one in your hands.
-   - Setting the trolling rods yourself: cast each bait out and drop the rod in its holder, not one press of E.
-   - Jigging as a little game with the jig rod (drop, work it, feel the hit), not holding E.
+2. **Then hands-on fishing** (done, 2026-10-30, not yet played by hand: `docs/FEATURES.md`'s Baits and On deck,
+   `docs/shots/hands_*.png`, `cast_*.png`, `jig_*.png`, `catch_*.png`, `chum_*.png`; `tests/cast_test.tscn`,
+   `tests/hands_test.tscn`).
+   - Hands and a hotbar: carry things (the knife, the gaff, the jig rod, a scoop, a bait), one in your hands. Done.
+   - Setting the trolling rods yourself: cast each bait out and drop the rod in its holder, not one press of E. Done.
+   - Jigging as a little game with the jig rod (drop, work it, feel the hit), not holding E. Done.
    - Handling the catch: the knife to bleed it, drag it across the deck to the fish box, open the lid, drop it in.
-   - Chum: take the scoop, dip it in the bucket, throw it where you want the slick.
+     Done (with the gaff).
+   - Chum: take the scoop, dip it in the bucket, throw it where you want the slick. Done.
 3. **Then the UI, many passes** (it's "uglier than a bag of rocks"): the HUD, the menus, the dock, the manual.
 
 Done in this stretch: no tired arms (the chair is just for sitting), no binoculars (flocks by eye), no calling
