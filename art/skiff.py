@@ -1,8 +1,8 @@
 """The small boat: a weathered 28 ft (8.5 m) center console for one or two.
 
 An open fishing skiff: a deep-V glass hull, low sides you can gaff a fish over, a console amidships under a T-top with
-the wheel and the gauges on its aft face (a step from the rods; no radar, no sonar: a cheap boat, you find the birds
-by eye), a leaning post behind it, a raised casting
+the wheel and the gauges on its aft face (a step from the rods; no sonar: a cheap boat. Her radar's bar and the radar
+and plotter screens on the console are built in Godot, boat/boat.gd from boat/kinds.gd), a leaning post behind it, a raised casting
 deck at the bow, twin outboards hung on the transom, four rod holders in the gunwales (the two aft corners fish), a
 fish box in the deck forward of the console and a live well in the transom.
 
@@ -244,7 +244,7 @@ def console(m, col):
     # the windscreen on top, raked aft
     face(m, [(-w, y1 - 0.3, CON_H), (w, y1 - 0.3, CON_H), (w, y1 - 0.55, CON_H + 0.45), (-w, y1 - 0.55, CON_H + 0.45)],
          "glass", (0, 1, 0.5))
-    # the dash: the aft face's top, sloped back toward the skipper (bare: no radar, no sonar on this boat)
+    # the dash: the aft face's top, sloped back toward the skipper (bare: the screens stand on the console top)
     dz0, dz1 = CON_H - 0.42, CON_H
     face(m, [(-w, y0, dz0), (w, y0, dz0), (w, y0 + 0.28, dz1), (-w, y0 + 0.28, dz1)], "dash", (0, -1, 1))
     for x in (-0.42, -0.2):

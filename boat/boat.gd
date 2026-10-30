@@ -155,6 +155,12 @@ func _build() -> void:
 	if wheel:
 		_wheel_base = wheel.basis
 	_radar = visual.get_node_or_null("radar") as Node3D
+	if _radar == null and spec.has("radar_bar"):
+		_radar = _radar_bar(visual, spec["radar_bar"])
+	var h0 := src.find_child("helm", true, false) as Node3D
+	var eye := (_src_transform(h0, src).origin if h0 else Vector3.ZERO) + Vector3(0.0, 1.62, 0.0)
+	for sc: Array in spec.get("screens", []):
+		_screen(visual, str(sc[0]), sc[1], sc[2], eye)
 	var col_mesh := src.find_child("collider", true, false) as MeshInstance3D
 	if col_mesh:
 		var shape := col_mesh.mesh.create_trimesh_shape()
@@ -220,6 +226,79 @@ func _build() -> void:
 	_built.append(cabin)
 	floods.append(cabin)
 	src.free()
+
+
+## A display on her dash (boat/kinds.gd's screens): a dark case on a bracket down to the dash, a hood over its top
+## against the glare, its face turned to the captain's eyes at the wheel. The face's material is named for the screen
+## (tuna/radar.gd and boat/plotter.gd look for it).
+func _screen(visual: Node3D, what: String, at: Vector3, size: Vector2, eye: Vector3) -> void:
+	var unit := Node3D.new()
+	unit.name = what + "_unit"
+	unit.transform = Transform3D(Basis.looking_at(at - eye, Vector3.UP), at)
+	visual.add_child(unit)
+	var case_mat := StandardMaterial3D.new()
+	case_mat.albedo_color = Color(0.07, 0.075, 0.08)
+	case_mat.roughness = 0.55
+	var case := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(size.x + 0.05, size.y + 0.05, 0.07)
+	case.mesh = box
+	case.position = Vector3(0.0, 0.0, -0.04)
+	case.material_override = case_mat
+	unit.add_child(case)
+	var hood := MeshInstance3D.new()
+	var hb := BoxMesh.new()
+	hb.size = Vector3(size.x + 0.05, 0.012, 0.09)
+	hood.mesh = hb
+	hood.position = Vector3(0.0, size.y * 0.5 + 0.025, 0.02)
+	hood.material_override = case_mat
+	unit.add_child(hood)
+	# the bracket: straight down from the case to the dash under it
+	var low := unit.transform * Vector3(0.0, -size.y * 0.5, -0.04)
+	var bracket := MeshInstance3D.new()
+	var bb := BoxMesh.new()
+	var drop := maxf(low.y - (at.y - size.y * 0.5 - 0.12), 0.05)
+	bb.size = Vector3(0.06, drop + 0.04, 0.05)
+	bracket.mesh = bb
+	bracket.material_override = case_mat
+	bracket.position = Vector3(low.x, low.y - drop * 0.5, low.z)
+	visual.add_child(bracket)
+	var face := MeshInstance3D.new()
+	var q := QuadMesh.new()
+	q.size = size
+	var m := StandardMaterial3D.new()
+	m.resource_name = what
+	m.albedo_color = Color(0.02, 0.03, 0.04)
+	q.material = m
+	face.mesh = q
+	face.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	unit.add_child(face)
+
+
+## The radar's bar on a little pedestal (a boat whose model hasn't one: the skiff's T-top).
+func _radar_bar(visual: Node3D, at: Vector3) -> Node3D:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.86, 0.87, 0.86)
+	mat.roughness = 0.5
+	var ped := MeshInstance3D.new()
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.07
+	cyl.bottom_radius = 0.08
+	cyl.height = 0.2
+	cyl.radial_segments = 10
+	ped.mesh = cyl
+	ped.material_override = mat
+	ped.position = at + Vector3(0.0, 0.1, 0.0)
+	visual.add_child(ped)
+	var bar := MeshInstance3D.new()
+	bar.name = "radar"
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.8, 0.1, 0.14)
+	bar.mesh = bm
+	bar.material_override = mat
+	bar.position = at + Vector3(0.0, 0.25, 0.0)
+	visual.add_child(bar)
+	return bar
 
 
 ## A node's transform relative to the imported scene root (before it's in the tree).

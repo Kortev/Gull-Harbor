@@ -119,12 +119,29 @@ said anywhere in game.
   - Birds circling high: the tuna went down because someone ran over them.
   - Birds lifting and scattering: it's over, they've moved on.
 - Through the binoculars you also get **how far and which way** ("about 1.4 km off the port bow").
-- **Left click** (through the binoculars) **calls** the flock: it's **marked on the radar** for the whole crew (a
-  blue cross, pinned to the radar's edge if it's further off), and everyone hears "Yellow: Birds! ...". Crew are
-  called by their oilskins: Yellow, Orange, Green, Red.
-- **The radar** (the dash, heading up, 1.5 km to the edge, rings every 500 m) paints **birds in the air**: blobs that
-  glow as the sweep passes. Birds sitting on the water don't paint, and it can't tell gulls from tuna birds.
-- **The sonar** (the dash) marks fish right under her.
+- **Picking a flock out** (crosshair on it) puts a **mark on the chart plotter** where it is right then, for everyone
+  aboard. Nothing's said and nothing's on the HUD: the mark's on the dash. (No calling flocks: the user's call.)
+- **The radar** (every boat: on the dash beside the plotter, a bar going round on her roof; `tuna/radar.gd`). Heading
+  up, **2 km** to the edge, **rings every 500 m**, the sweep going round and each part of the screen holding what it
+  last painted. Made honest, so reading it is a skill:
+  - **Birds in the air** over a flock: a **tight return that holds steady sweep after sweep**, drifting slowly as the
+    flock travels. Gulls over little bait look exactly the same: you still go and look.
+  - Birds **rafted on the water** (tuna down) and the odd **gull raft** with nothing under it: weak, coming and going.
+  - **Buoys**: small steady returns that don't drift. **The land, the breakwaters and the rig**: solid. In VS, the
+    other boat.
+  - **Sea clutter**: speckle close round her, different every sweep, wider and thicker the rougher the sea (a few
+    hundred metres on a sunny day, most of the screen's middle in a storm).
+  - **Rain clutter** in rain, heavy and storm: patchy smears drifting down the wind, and the rain dims what's
+    behind it. A flock still shows as the one spot that's there every sweep.
+  - Strength reads as colour: green weak, yellow, orange strong.
+- **The chart plotter** (every boat, beside the radar; `boat/plotter.gd`): **north up, centred on her**, 3 km to the
+  top edge, a grid every km. The coast, Gull Harbor (an anchor at its mouth), the breakwaters and the fish pier, the
+  lighthouse, the buoys and the rig; **her track this trip** as a red line; **a yellow mark wherever a flock was
+  picked out** (where the birds were then: they move on; marks over 5 minutes old fade, and one off the chart sits
+  at its edge). A new trip starts a clean chart.
+- Everyone aboard sees the same screens: they're painted from the sea's shared state (the clock, the weather, the
+  synced schools, the fixed landmarks), never dice. Both screens are big enough to read from the wheel.
+- **The sonar** (the sportfisher's dash) marks fish right under her.
 - **At the wheel running faster than about 12 knots you can't pick birds out** (eyes on the water ahead): whoever's
   on deck reads them and tells the captain. Ease her down to look for yourself.
 
