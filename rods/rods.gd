@@ -11,12 +11,13 @@ const Tuna := preload("res://tuna/tuna.gd")
 const Splash := preload("res://sea/splash.gd")
 ## A rod nobody's holding sits in its holder with the drag set: the host plays the fish against the drag (it takes
 ## line on its runs and tires doing it; between them nobody wins any back) and tells everyone how it's going.
-const WHY := {"broke": "The line parted! Too much strain: when the ring goes red, ease off.",
-		"pulled": "Pulled the hook! Keep the line tight through its headshakes.",
-		"spooled": "Spooled! It took every metre of line. Don't crank against a run; back down on it.",
-		"chafed": "The line wore through where it lay over her! Keep it off her console and bow: fight it from the stern, or swing her stern to it.",
-		"cut": "It went under the boat: the props cut the line! Out of gear when it's under her.",
-		"tangle": "The lines tangled and sawed through! Clear the other lines when a fish is on (E on each rod)."}
+const WHY := {"broke": "Line parted.", "broke_rail": "Line parted on the rail.", "pulled": "Hook pulled.",
+		"thrown": "Thrown on the jump.", "spooled": "Spooled.", "chafed": "Chafed through on the hull.",
+		"cut": "Cut on the props.", "tangle": "Lines tangled and parted."}
+## How heavy the rod's tip feels with a fish on (0: not at all .. 1: it fights your heave and drags the tip down).
+const ROD_WEIGHT := 1.0
+## The scroll wheel steps the drag no faster than this (s a notch).
+const NOTCH := 0.2
 ## While a fish is on, how often (s) the host looks for its run crossing another line that's still out, and the
 ## chance each time it does that tangles them; quiet this long after a fish (s) and the baits go back out.
 const TANGLE_EVERY := 1.0
@@ -52,6 +53,11 @@ var _last_heading := 0.0
 ## Your rod's line out last frame, and how fast you're winning it back (m/s, smoothed; - while it takes line).
 var _trend_out := -1.0
 var _trend := 0.0
+var _notch_t := 0.0
+## (tests) set x to a rod elevation and the fight-sense side goes in y: a test angler's hands instead of the mouse
+var bot_aim := Vector3(NAN, 0.0, 0.0)
+var _look_off := 0.0
+var _spill_t := 0.0
 var _tangle_in := 0.0
 var _quiet := 0.0
 var _splash: Splash
@@ -204,6 +210,9 @@ func _set_holder(i: int, who: int) -> void:
 	r.holder = who
 	r.fight = null
 	r.lift = 0.0
+	r.aim_pitch = 0.6
+	r.aim_side = 0.0
+	_look_off = 0.0
 	# (changing hands: the fight carries on from where it is, on the new holder's machine or the host's)
 	r.free_t = _now()
 	if handed and r.hooked and who == Net.my_id():
@@ -386,7 +395,11 @@ func _strike(i: int, kg: float, t: float, bearing: float, seed_value: int) -> vo
 	r.line_out = (baits[i] - stern).length()
 	r.free_t = t
 	r.alongside = false
-	r.wrong = 0.0
+	r.stretch = 0.0
+	r.hold = 1.0
+	r.drag = Fight.STRIKE_DRAG
+	r.aim_pitch = 0.6
+	r.aim_side = 0.0
 	r.turn_sign = 0.0
 	r.fight = null
 	r.wear = 0.0
@@ -415,8 +428,8 @@ func _off(i: int, why: String) -> void:
 
 ## The holder's word on how the fight's going (any peer: the holder's own; everyone else draws it).
 @rpc("any_peer", "call_remote", "unreliable_ordered")
-func _fight_state(i: int, out: float, strain: float, bearing: float, depth: float, energy: float, lift: float,
-		move: String, wear: float, wrong: float, turn: float) -> void:
+func _fight_state(i: int, out: float, strain: float, bearing: float, depth: float, energy: float, aim: Vector2,
+		move: String, wear: float, stretch: float, turn: float, drag: float, hold: float, reeling: float) -> void:
 	if i < 0 or i >= rods.size():
 		return        # (a rod she hasn't got: a word from before she was rebuilt)
 	var r := rods[i]
@@ -426,17 +439,22 @@ func _fight_state(i: int, out: float, strain: float, bearing: float, depth: floa
 		r.bearing = bearing
 		r.depth = depth
 		r.energy = energy
-		r.lift = lift
+		r.aim_pitch = aim.x
+		r.aim_side = aim.y
+		r.lift = clampf((aim.x - 0.6) / 0.75, 0.0, 1.0)
 		r.move = move
 		r.wear = wear
-		r.wrong = wrong
+		r.stretch = stretch
 		r.turn_sign = turn
+		r.drag = drag
+		r.hold = hold
+		r.reeling = reeling
 
 
 ## The host's word on a fish on a rod in its holder (nobody holding it: the host plays it against the drag).
 @rpc("authority", "call_remote", "unreliable_ordered")
 func _holder_state(i: int, out: float, strain: float, bearing: float, depth: float, energy: float, move: String,
-		wear: float, wrong: float, turn: float) -> void:
+		wear: float, stretch: float, turn: float, drag: float, hold: float) -> void:
 	if i < 0 or i >= rods.size():
 		return        # (a rod she hasn't got: a word from before she was rebuilt)
 	var r := rods[i]
@@ -448,8 +466,10 @@ func _holder_state(i: int, out: float, strain: float, bearing: float, depth: flo
 		r.energy = energy
 		r.move = move
 		r.wear = wear
-		r.wrong = wrong
+		r.stretch = stretch
 		r.turn_sign = turn
+		r.drag = drag
+		r.hold = hold
 
 
 ## The holder's fight ended (lost, or boatside): the host says so to everyone. It counts from whoever held it
@@ -483,7 +503,7 @@ func set_alongside(i: int) -> void:
 	r.fight = null
 	r.move = ""
 	r.strain = 0.35
-	r.wrong = 0.0
+	r.stretch = 0.0
 
 
 ## Host, heading in: every fish still on is let go and the baits come in (host_baits_out when she's out again).
@@ -564,6 +584,31 @@ func _unhandled_input(event: InputEvent) -> void:
 		var mine := held_by(Net.my_id())
 		if mine:
 			request_return(mine.index)
+	# the drag lever, a notch at a time on the wheel, while you've a fish on
+	var mb := event as InputEventMouseButton
+	if mb != null and mb.pressed and mb.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+		var r := held_by(Net.my_id())
+		if r != null and r.hooked and not r.alongside:
+			notch_drag(r, 1 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else -1)
+
+
+## The drag on rod r a notch tighter (+1) or looser (-1), with the click of the lever.
+func notch_drag(r: Rod, way: int) -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	if now - _notch_t < NOTCH:
+		return
+	var at := 0
+	var best := 9.0
+	for k in Fight.DETENTS.size():
+		if absf(float(Fight.DETENTS[k]) - r.drag) < best:
+			best = absf(float(Fight.DETENTS[k]) - r.drag)
+			at = k
+	var to := clampi(at + way, 0, Fight.DETENTS.size() - 1)
+	if to == at:
+		return
+	_notch_t = now
+	r.drag = float(Fight.DETENTS[to])
+	Sfx.play_point(self, r.global_position, "kit.switch", 0.4, 1.4 if way > 0 else 1.1)
 
 
 func _process(delta: float) -> void:
@@ -612,7 +657,7 @@ func _process(delta: float) -> void:
 			var ht: Transform3D = boat.call("holder_transform", holders[r.index])
 			r.global_transform = ht.translated_local(Vector3(0, 0, -0.42))
 		else:
-			r.global_transform = _in_hands(p, r.lift)
+			r.global_transform = _in_hands(p, r)
 		var end := boat.global_transform * baits[r.index]
 		var tangled_in := r.tangled >= 0 and r.tangled < rods.size()
 		var alongside: Vector3 = landing.call("fish_point", r.index) if r.alongside else Vector3.ZERO
@@ -641,20 +686,15 @@ func _process(delta: float) -> void:
 	var hud := crew.get("hud") as Node
 	var me_node := crew.get("me") as Node
 	if me_node != null:
-		# the fish in your arms: harder on a run or a headshake
-		var surge := 1.0 if mine != null and mine.move in ["run", "shake"] else 0.6
-		me_node.set("shake", mine.strain * surge if mine != null and mine.hooked else 0.0)
+		# the fish in your arms: a jolt in a head shake or a jump landing, a steady shudder while the drag slips
+		var shook := 0.0
+		if mine != null and mine.hooked and mine.fight != null:
+			var f := mine.fight as Fight
+			shook = clampf(f.shock * 1.5 + (0.25 * f.strain if f.slipping else 0.0), 0.0, 1.0)
+		me_node.set("shake", shook)
 	if mine != null and mine.hooked:
-		# the ring is how wrong you're fighting it, not how hard it pulls (that's the rod's bend)
-		var wrong := (mine.fight as Fight).strain if mine.fight != null else 0.0
-		var tell: String = (mine.fight as Fight).tell() if mine.fight != null else str(Fight.TELLS.get(mine.move, ""))
-		# the line out, and whether you're winning it back: the angler's sense of how it's going
-		if _trend_out >= 0.0:
-			var rate := (_trend_out - mine.line_out) / maxf(delta, 1e-4)
-			_trend = lerpf(_trend, rate, minf(delta * 2.0, 1.0))
-		_trend_out = mine.line_out
-		hud.call("fight", tell, maxf(wrong, 0.02), float(me_node.get("arms")), mine.line_out, _trend, mine.energy,
-				mine.wear)
+		# nothing to read: the rod, the reel and the line say it all
+		hud.call("fight", "", 0.0)
 	else:
 		_trend_out = -1.0
 		_trend = 0.0
@@ -786,36 +826,85 @@ func _tow(r: Rod, spot: Vector3, speed: float, ocean: Node, delta: float) -> Vec
 	return p
 
 
-## Your rod with a fish on: you fight it here (left mouse cranks, right mouse heaves the rod up) and tell the rest.
-## `throttle`: the captain's (fight.gd: backing down on it helps).
+## Your rod with a fish on: you fight it here and tell the rest. The mouse is the rod (up and down its elevation,
+## side to side laid over off the line), the camera following it part of the way so the line and the water stay in
+## view; left mouse cranks, right mouse raises the rod too, the wheel sets the drag. `throttle`: the captain's.
 func _fight_mine(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	var me := (sea.get("crew") as Node).get("me") as Node
 	var live := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or (me != null and bool(me.get("force_input")))
-	var crank := live and Input.is_action_pressed("use_primary")
+	var crank := 1.0 if live and Input.is_action_pressed("use_primary") else 0.0
 	var heave := live and Input.is_action_pressed("use_secondary")
-	r.lift = move_toward(r.lift, 1.0 if heave else 0.0, delta * 3.5)
 	var fight := r.fight as Fight
 	if fight == null or fight.in_holder:
 		fight = _new_fight(r)
-		if me != null:
-			fight.arms = float(me.get("arms"))      # (your arms are as tired as you left them)
+	var side := _aim(r, me, fight, delta, heave)
+	r.lift = clampf((r.aim_pitch - 0.6) / 0.75, 0.0, 1.0)
 	fight.throttle = throttle
 	fight.moving = true
 	fight.boat_vel = _boat_vel()
 	fight.tip = _tip_local(r)
 	fight.rub_now = rub_on_hull(r)
 	fight.tangled = is_tangled(r.index)
-	fight.step(delta, crank, r.lift)
-	if me != null:
-		me.set("arms", fight.arms)
+	fight.step(delta, crank, r.aim_pitch, side, r.drag)
 	if not r.hooked or r.alongside:
 		return       # (it ended this step: lost, or up alongside)
 	_take(r, fight)
-	var ans := fight.answer()
-	r.reeling = 0.0 if not crank or ans == "hold" else (Fight.CRANK * 0.2 if ans == "ease" else Fight.CRANK)
 	if send:
-		_fight_state.rpc(r.index, r.line_out, r.strain, r.bearing, r.depth, r.energy, r.lift, r.move, r.wear,
-				r.wrong, r.turn_sign)
+		_fight_state.rpc(r.index, r.line_out, r.strain, r.bearing, r.depth, r.energy, Vector2(r.aim_pitch, r.aim_side),
+				r.move, r.wear, r.stretch, r.turn_sign, r.drag, r.hold, r.reeling)
+
+
+## The rod in your hands, from the mouse: its elevation (heavier going up with a fish on, dragged down by it) and how
+## far it's laid over off the line (past the stop, the rest turns your look). The camera's aimed at where the line
+## goes in, following the rod part of the way. Returns the side in the fight's sense (+ toward increasing bearing).
+func _aim(r: Rod, me: Node, fight: Fight, delta: float, heave: bool) -> float:
+	var t := r.strain
+	if not is_nan(bot_aim.x):
+		r.aim_pitch = clampf(bot_aim.x, 0.15, 1.35)
+	elif me != null:
+		var m: Vector2 = me.get("fight_mouse")
+		me.set("fight_mouse", Vector2.ZERO)
+		var dp := -m.y * 0.0035
+		if dp > 0.0:
+			dp *= 1.0 - 0.55 * t * ROD_WEIGHT
+		r.aim_pitch += dp + (0.9 * delta if heave else 0.0)
+		if t > 0.3:
+			r.aim_pitch -= 0.35 * t * ROD_WEIGHT * delta
+		r.aim_pitch = clampf(r.aim_pitch, 0.15, 1.35)
+		var s := r.aim_side - m.x * 0.003
+		var spill := s - clampf(s, -0.9, 0.9)
+		r.aim_side = clampf(s, -0.9, 0.9)
+		_look_off = clampf(_look_off + spill, -1.4, 1.4)
+		_spill_t = 0.0 if absf(spill) > 0.0 else _spill_t + delta
+		if _spill_t > 1.0:
+			_look_off = move_toward(_look_off, 0.0, 0.8 * delta)
+		if fight.slipping:
+			r.aim_side = move_toward(r.aim_side, 0.0, 0.08 * t * delta)     # (a run pulls the rod round to it)
+	# where the line goes, from where you stand
+	var boat := sea.get("boat") as Node3D
+	var p: Node3D = (sea.get("crew") as Node).call("get_player", r.holder)
+	var line_yaw := 0.0
+	if p != null and boat != null:
+		var hands := p.global_transform * Vector3(0.2, 0.95, -0.3)
+		var d := boat.global_basis.inverse() * (r.line_end - hands)
+		line_yaw = atan2(-d.x, -d.z)
+		if me != null and is_nan(bot_aim.x):
+			var head := p.global_position + Vector3.UP * 1.6
+			var to := r.line_end - head
+			var entry_pitch := clampf(atan2(to.y, Vector2(to.x, to.z).length()), -0.75, 0.05)
+			var yaw := line_yaw + 0.4 * r.aim_side + _look_off
+			var pitch := clampf(entry_pitch + 0.35 * (r.aim_pitch - 0.75), entry_pitch - 0.12, entry_pitch + 0.28)
+			me.set("cam_goal", Vector2(yaw, pitch))
+			me.set("rod_lease_frame", Engine.get_process_frames())
+	r.set_meta("line_yaw", line_yaw)
+	if not is_nan(bot_aim.x):
+		r.aim_side = 0.0
+		return clampf(bot_aim.y, -1.0, 1.0)
+	# laid over to the left of the line pushes the fish's bearing which way, from her frame
+	var left := Vector2(-cos(line_yaw), sin(line_yaw))
+	var dir_b := Vector2(cos(r.bearing), -sin(r.bearing))
+	var dot := left.dot(dir_b)
+	return clampf(r.aim_side / 0.9, -1.0, 1.0) * (signf(dot) if absf(dot) > 0.01 else 1.0)
 
 
 ## Host: a fish on a rod in its holder, nobody on it. The drag still works it: it takes line on its runs and tires
@@ -831,13 +920,13 @@ func _fight_holder(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	fight.tangled = is_tangled(r.index)
 	fight.tip = _tip_local(r)
 	fight.rub_now = rub_on_hull(r)
-	fight.step(delta, false, 0.0)
+	fight.step(delta, 0.0, 0.6, 0.0, r.drag)
 	if not r.hooked or r.alongside:
 		return       # (it ended this step: lost, or up alongside)
 	_take(r, fight)
 	if send:
-		_holder_state.rpc(r.index, r.line_out, r.strain, r.bearing, r.depth, r.energy, r.move, r.wear, r.wrong,
-				r.turn_sign)
+		_holder_state.rpc(r.index, r.line_out, r.strain, r.bearing, r.depth, r.energy, r.move, r.wear, r.stretch,
+				r.turn_sign, r.drag, r.hold)
 
 
 ## The fight for rod r, picked up from where it is (whoever had it, or its holder): the same fish, as tired as it
@@ -847,7 +936,7 @@ func _new_fight(r: Rod) -> Fight:
 	f.bearing = r.bearing
 	f.depth = r.depth
 	f.wear = r.wear
-	f.carry_on(r.move, r.wrong, r.turn_sign)
+	f.carry_on(r.move, r.stretch, r.turn_sign, r.hold)
 	f.half_beam = _half_beam
 	f.aft = _aft
 	f.house = _house
@@ -868,12 +957,14 @@ func _new_fight(r: Rod) -> Fight:
 func _take(r: Rod, fight: Fight) -> void:
 	r.wear = fight.wear
 	r.line_out = fight.line_out
-	r.strain = maxf(fight.pull, fight.strain)
+	r.strain = clampf(fight.strain + 0.5 * fight.shock, 0.0, 1.2)      # (the rod's bend: the tension, and a jolt)
 	r.bearing = fight.bearing
 	r.depth = fight.depth
 	r.energy = fight.energy
 	r.move = fight.move
-	r.wrong = fight.strain
+	r.stretch = fight.stretch
+	r.hold = fight.hold
+	r.reeling = fight.wind
 	r.turn_sign = fight.turn_sign()
 
 
@@ -972,8 +1063,17 @@ func _end_mine(r: Rod, how: String) -> void:
 
 ## A rod in someone's hands: the butt at their belt, the rod out in front and up, following where they look; heaved
 ## up toward the sky in a pump (`lift`).
-func _in_hands(p: Node3D, lift: float) -> Transform3D:
-	var pitch := clampf(float(p.get("_pitch")), -0.6, 0.9)
-	var b := p.global_basis * Basis(Vector3.RIGHT, 0.55 + pitch * 0.6 + lift * 0.6) * Basis(Vector3.UP, PI)
+func _in_hands(p: Node3D, r: Rod) -> Transform3D:
+	var b: Basis
+	if r.hooked and not r.alongside:
+		# with a fish on: where the angler's pointing it, off the line (every peer has the synced aim)
+		var rod_yaw := float(r.get_meta("line_yaw", 0.0)) + r.aim_side
+		var boat := sea.get("boat") as Node3D
+		var own := wrapf(float(p.get("_yaw")), -PI, PI)
+		var rel := clampf(wrapf(rod_yaw - own, -PI, PI), -1.2, 1.2) if boat != null else 0.0
+		b = p.global_basis * Basis(Vector3.UP, rel) * Basis(Vector3.RIGHT, r.aim_pitch) * Basis(Vector3.UP, PI)
+	else:
+		var pitch := clampf(float(p.get("_pitch")), -0.6, 0.9)
+		b = p.global_basis * Basis(Vector3.RIGHT, 0.55 + pitch * 0.6 + r.lift * 0.6) * Basis(Vector3.UP, PI)
 	var at := p.global_transform * Vector3(0.2, 0.95, -0.3)
 	return Transform3D(b.orthonormalized(), at)

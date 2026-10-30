@@ -26,9 +26,10 @@ bigger. Miss it and the bank takes the boat, and the run's over.
 | Shift | sprint |
 | Space | jump |
 | E | use whatever's under the crosshair (grab a rod, the wheel, the harpoon, the tuna door, a fish on deck, the chum bucket, the jig); hold E for the haul, the wiring, the jig |
-| Left mouse | crank the reel; throw the harpoon; through the binoculars: call a flock |
-| Right mouse | heave the rod up (a pump is heave, then crank as you drop it) |
-| B or middle mouse | binoculars (hold) |
+| Left mouse | crank the reel; throw the harpoon |
+| Mouse, with a fish on | the rod: up and down lifts and drops it, sideways lays it over |
+| Right mouse | raise the rod |
+| Scroll, with a fish on | the drag, a notch at a time |
 | Q | put the rod (or the harpoon) back |
 | Esc | the menu: head in and sell, host / join, Steam friends |
 
@@ -154,22 +155,29 @@ your first flock ("Slow down under 10 knots near the birds").
 - The reel screams and the line pours off: **anyone grabs the rod** (E). Q puts it back in the holder.
 - **A rod in its holder fights on its drag:** the fish takes line on its runs and tires doing it, but nobody wins
   any back. Solo, you drop it in the holder to run to the wheel, then grab it again: the same fight carries on.
-- **Crank** (hold left mouse) winds line in; **pump** (hold right mouse to heave the rod up, then crank as you drop
-  it) wins line a heavy fish won't give to cranking alone.
-- The fish plays **moves**, each with a **tell** under the crosshair and **one right answer**:
-
-| Move | Tell | Do |
-|---|---|---|
-| Run | "It's running! Let it go" | nothing: let the drag tire it (cranking against it strains the line) |
-| Sounding | "It's sounding deep! Pump: heave, then crank down" | pump |
-| Head shakes | "Head shakes! Keep it tight" | keep cranking or heaving, or the hook pulls |
-| Circling | "It's circling! Pump" | pump |
-| Resting | "It's resting! Crank" | crank |
-| Death spiral | "Death spiral! Crank, it's coming up" / "Ease off, it's going under her" | crank as it comes up, ease off as it goes under |
-
-- **The strain ring** round the crosshair shows how wrong you're fighting it. Red for **1.2 s** and the line
-  parts.
-- **The line readout:** metres out, gaining or losing, how fresh the fish is, how worn the line is.
+- **The mouse is the rod** with a fish on (docs/FIGHT_DESIGN.md: the brainstorm's "Loaded Rod", built 2026-10-30):
+  mouse up and down lifts and drops it, side to side lays it over off the line; the camera follows the rod part of
+  the way so the line and the water stay in view (push past the rod's stop and the rest turns your look). **Left
+  mouse** cranks, **right mouse** raises the rod too, **scroll** steps the drag (free, light, strike, full; a fish
+  comes on at strike).
+- **One spring between you and the fish, no text:** the line's tension is everything (the rod's bend). The fish
+  swimming away, you raising the rod and you winding stretch it; the fish coming at you, you dropping the rod and the
+  boat closing on it slacken it. Past the drag the drag slips and pays out line (**the reel screams**); full tension
+  for half a second, or a jolt past it, **parts the line**.
+  - **Cranking only wins line while the rod isn't loaded:** against a heavy fish the reel **grinds** and wins
+    nothing. So you **pump**: lift slow (it hauls the fish toward you), drop and wind the slack.
+  - **Hauling it toward you is what tires it**; a slack line lets it get its breath back.
+  - **Lay the rod over against the way it's swinging** and it turns slower and gives line; hold it hard and it turns
+    its head, comes at you and sulks.
+  - **The hook:** jolts (a head shake on a stiff rod, a jump landing on a tight line) and slack while it thrashes
+    work it loose. **When it jumps, drop the tip** (a rod held high and cranking throws it).
+  - It **runs, sounds, sulks deep, shakes its head, circles, surges, jumps** (the small ones), and beaten, close in,
+    goes into its **death spiral** under the boat.
+  - A lost fish says how in a few words: "Line parted.", "Hook pulled.", "Thrown on the jump.", "Spooled.",
+    "Chafed through on the hull.", "Cut on the props."
+- Fought well (the headless test anglers, tests/fight_bot.gd): a schoolie about **40 s**, a 150 kg fish about
+  **1.5 min**, a 300 kg giant about **4 min** with a captain, **6 alone**. Pumping beats plain reeling; laying the rod
+  over beats not; cranking through the runs breaks them off; doing nothing never lands one.
 - **No tiredness:** your arms never tire (removed 2026-10-29). Hand the rod to a crewmate (they E on it) and the
   fight carries on.
 - **The captain** (E on the wheel; A/D steer, W/S throttle): the tuna swings round the boat.

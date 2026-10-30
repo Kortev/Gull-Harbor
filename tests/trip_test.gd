@@ -10,6 +10,7 @@ extends Node
 const Sea := preload("res://sea/sea.gd")
 const SHOTS := "res://docs/shots/"
 
+const FightBot := preload("res://tests/fight_bot.gd")
 var sea: Sea
 var fails: Array[String] = []
 var fast := false
@@ -132,7 +133,7 @@ func _ready() -> void:
 	_check(rod.holder == Net.my_id(), "grabbed the rod")
 	var moves := {}
 	var fight_shots := {}
-	var resting := false
+	var mem := {}
 	var w := 0.0
 	_speed(true)
 	while rod.hooked and not rod.alongside and w < 1500.0:
@@ -142,22 +143,18 @@ func _ready() -> void:
 		var helm: Node = sea.boat.helm
 		helm.set("heading", float(helm.get("heading")) + clampf(b * 1.5, -1.0, 1.0) * 0.3 * get_process_delta_time())
 		moves[rod.move] = true
-		var ans: String = rod.fight.answer() if rod.fight != null else "reel"
-		var arms := float(sea.crew.me.get("arms"))
-		if arms < 0.15:
-			resting = true
-		elif arms > 0.6:
-			resting = false
-		var lift := ans == "pump" and fmod(w, 2.5) < 1.0 and not resting
-		_hold("use_secondary", lift)
-		_hold("use_primary", ans == "tight" or (not resting and (ans == "reel" or (ans == "pump" and not lift))))
+		# a test angler reading the rod, the reel and the line (tests/fight_bot.gd) in place of the mouse
+		if rod.fight != null:
+			var act := FightBot.act(rod.fight.cues(), get_process_delta_time(), "good", mem)
+			sea.rods.bot_aim = Vector3(float(act["pitch"]), float(act["side"]), 0.0)
+			_hold("use_primary", float(act["crank"]) > 0.5)
 		if str(rod.move) in ["run", "spiral", "sound"] and not fight_shots.has(rod.move) and w > 3.0:
 			fight_shots[rod.move] = true
 			_speed(false)
 			await _shot("fight_" + str(rod.move))
 			_speed(true)
 	_hold("use_primary", false)
-	_hold("use_secondary", false)
+	sea.rods.bot_aim = Vector3(NAN, 0.0, 0.0)
 	_speed(false)
 	print("TRIP the fight: %.0f s, moves %s" % [w, ", ".join(moves.keys())])
 	_check(rod.alongside and sea.landing.fish.has(rod.index),

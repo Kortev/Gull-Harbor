@@ -6,6 +6,7 @@ extends Node
 
 const Sea := preload("res://sea/sea.gd")
 
+const FightBot := preload("res://tests/fight_bot.gd")
 var fails: Array[String] = []
 
 
@@ -41,7 +42,7 @@ func _ready() -> void:
 	await get_tree().create_timer(2.0).timeout
 	_check(rod.line_out > out0 + 8.0, "the fish runs: %.0f m of line gone in 2 s" % (rod.line_out - out0))
 	_check(rod._scream.playing, "the drag screams")
-	_check(rod.strain > 0.8, "the rod's bent double (strain %.2f)" % rod.strain)
+	_check(rod.strain > 0.65, "the rod's bent double (strain %.2f)" % rod.strain)
 	# like a player: clear the other lines first (E on each), so the running fish can't tangle them
 	for r in sea.rods.rods:
 		if r.index != hooked and not r.bait_in:
@@ -52,25 +53,21 @@ func _ready() -> void:
 	var w := 0.0
 	var moves := {}
 	var helm: Node = sea.boat.get("helm")
-	var resting := false
+	var mem := {}
 	while rod.hooked and not rod.alongside and w < 900.0:
 		await get_tree().process_frame
-		w += get_process_delta_time()
+		var dt := get_process_delta_time()
+		w += dt
 		var b := wrapf(float(rod.bearing), -PI, PI)
-		helm.set("heading", float(helm.get("heading")) + clampf(b * 1.5, -1.0, 1.0) * 0.3 * get_process_delta_time())
+		helm.set("heading", float(helm.get("heading")) + clampf(b * 1.5, -1.0, 1.0) * 0.3 * dt)
 		moves[rod.move] = true
-		var ans: String = rod.fight.answer() if rod.fight != null else "reel"
-		# spent arms can't pump: ease off till they're back (a hooked fish can't get its strength back meanwhile)
-		var arms := float(sea.crew.me.get("arms"))
-		if arms < 0.15:
-			resting = true
-		elif arms > 0.6:
-			resting = false
-		var lift := ans == "pump" and fmod(w, 2.5) < 1.0 and not resting
-		_hold("use_secondary", lift)
-		_hold("use_primary", ans == "tight" or (not resting and (ans == "reel" or (ans == "pump" and not lift))))
+		# a test angler reading the rod, the reel and the line (tests/fight_bot.gd) in place of the mouse
+		if rod.fight != null:
+			var act := FightBot.act(rod.fight.cues(), dt, "good", mem)
+			sea.rods.bot_aim = Vector3(float(act["pitch"]), float(act["side"]), 0.0)
+			_hold("use_primary", float(act["crank"]) > 0.5)
 	_hold("use_primary", false)
-	_hold("use_secondary", false)
+	sea.rods.bot_aim = Vector3(NAN, 0.0, 0.0)
 	_check(moves.has("run") and moves.size() >= 3, "it fought: %s" % ", ".join(moves.keys()))
 	_check(rod.alongside and sea.landing.fish.has(rod.index) and sea.crew.hud._note.text.begins_with("Boatside"),
 			"fought it to the boat, up alongside for the harpoon (%.0f s): %s" % [w, sea.crew.hud._note.text])

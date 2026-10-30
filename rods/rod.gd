@@ -33,16 +33,23 @@ var bearing := 0.0
 var depth := 0.0
 var energy := 1.0
 var move := ""
-## How far the holder has heaved the rod up, 0..1 (a pump).
+## How far the holder has heaved the rod up, 0..1 (a pump; how the angler's arms are drawn).
 var lift := 0.0
+## With a fish on, the rod as the angler holds it: its elevation (0.15 tip at the water .. 1.35 near upright) and how
+## far it's laid over off the line (rad, + to the left), the drag lever (fight.gd's DETENTS), the spring's stretch (m;
+## below 0 slack), how well the hook's holding (1 .. 0).
+var aim_pitch := 0.6
+var aim_side := 0.0
+var drag := 0.72
+var stretch := 0.0
+var hold := 1.0
 ## The fight itself: on the holder's machine, or the host's while it sits in its holder (fight.gd's in_holder).
 var fight: RefCounted
 ## When it last changed hands (sea clock): seeds the fight picked up from there.
 var free_t := 0.0
 ## How worn the line is from rubbing the hull (fight.gd), kept when the rod changes hands.
 var wear := 0.0
-## The fight's own strain and which way round the fish is swinging, kept when the rod changes hands too.
-var wrong := 0.0
+## Which way round the fish is swinging, kept when the rod changes hands too.
 var turn_sign := 0.0
 ## Who held it last (a fight that ended as it changed hands still counts: rods.gd's _report_end).
 var last_holder := 0

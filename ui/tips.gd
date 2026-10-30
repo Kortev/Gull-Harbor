@@ -20,9 +20,9 @@ const TIPS := {
 			+ "watch my money sink. Get within about 150 metres, troll slow, they'll find your baits.",
 	"bite": "Is that a reel screaming? That's the sound of the loan getting paid. GRAB THE ROD. E on it. Anybody. "
 			+ "You can hand it off mid-fight too, press E on it.",
-	"fight": "OK, listen. The line under your crosshair tells you what the fish is doing. It runs, you let it. It "
-			+ "rests, you crank, left mouse. It sounds or circles, you pump: heave with right mouse, crank on the way "
-			+ "down. Ring goes red, line goes snap.",
+	"fight": "Rod bent, he's pulling. Reel screaming, hands off the crank. Reel grinding, stop winding and pump: "
+			+ "lift slow, wind as you drop. Lay the rod over against the way he's swimming and you'll turn his head. "
+			+ "He jumps, drop the tip.",
 	"alone": "Fishing alone? Brave. Cheap, but brave. Put the rod back in its holder, Q, it'll fight on its drag. "
 			+ "Run to the wheel, swing the stern to the fish, run back, grab it. Cardio.",
 	"captain": "Whoever's driving: keep the stern pointed at the fish, A and D. Back down, S, to win your angler some "
@@ -31,9 +31,7 @@ const TIPS := {
 			+ "then you've got spaghetti, not sushi.",
 	"deck": "Beautiful. Now bleed it, E on it, and get it on ice, E again. Fast. A number one grade fish pays twice "
 			+ "what a warm one does, and twice is my favourite number.",
-	"spiral": "Death spiral! Nearly there. It circles under the boat now, lap after lap. Coming up? CRANK. Going "
-			+ "under? Ease off till it comes round. Captain: steering's fine, the props only cut the line if you're "
-			+ "IN GEAR while it's under her.",
+	"spiral": "Colour! Wind while he comes up, ease off while he goes under her. Captain, out of gear.",
 	"stale": "One of your baits is washed out. Nothing's eating that. E on the rod, fresh one goes on. Live mackerel "
 			+ "get the most bites, if you sprang for the well.",
 	"wait": "Quiet out there. Here's a tip, free of charge for once: chum. The bucket on your transom. Keep a slick "

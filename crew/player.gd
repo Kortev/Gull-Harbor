@@ -19,7 +19,6 @@ const LOOK := 0.0024
 const REACH := 2.5
 ## How much of the boat's pitch and roll your eyes take out (0: the camera is bolted to the deck).
 const STEADY := 0.45
-const REST := 0.03
 ## How far you sit down in the fighting chair (m: your hips and eyes drop this much).
 const SEAT_DROP := 0.37
 
@@ -43,8 +42,12 @@ var force_input := false
 var shake := 0.0
 ## Slower looking (a little mouse going a long way; 1 as things are).
 var look_scale := 1.0
-## Your arms, 1 fresh .. 0 spent (tuna/fight.gd wears them in a fight; off the rod they come back at REST).
-var arms := 1.0
+## With a fish on, the mouse is the rod (rods.gd's _aim): it stamps this frame number each frame you fight, and while
+## it's fresh your mouse goes to `fight_mouse` (raw px, rods.gd takes it) instead of your look, and your look eases
+## toward `cam_goal` (yaw, pitch) where the line goes in. Drop the rod, lose the fish, and it's your look again.
+var rod_lease_frame := -10
+var fight_mouse := Vector2.ZERO
+var cam_goal := Vector2(NAN, NAN)
 ## At the wheel (boat/helm.gd): your feet stay put and the keys steer her instead.
 var steering := false
 ## In the fighting chair (boat/chair.gd says).
@@ -427,8 +430,16 @@ func _input(event: InputEvent) -> void:
 	if is_multiplayer_authority() and event is InputEventMouseMotion \
 			and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var m := event as InputEventMouseMotion
+		if leased():
+			fight_mouse += m.relative * look_scale
+			return
 		_yaw -= m.relative.x * LOOK * look_scale
 		_pitch = clampf(_pitch - m.relative.y * LOOK * look_scale, -1.45, 1.45)
+
+
+## The rod has your mouse (rods.gd stamped it this frame or the last: input comes before its _process).
+func leased() -> bool:
+	return Engine.get_process_frames() - rod_lease_frame <= 1
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -538,10 +549,13 @@ func _process(delta: float) -> void:
 	var tilted := global_transform.basis.orthonormalized()
 	var level := Basis(Vector3.UP, tilted.get_euler(EULER_ORDER_YXZ).y)
 	var eyes := tilted.slerp(level, STEADY)
+	if is_multiplayer_authority() and leased() and not is_nan(cam_goal.x):
+		# a fish on: your look eases round to where the line goes in, following the rod part of the way
+		var k := 1.0 - exp(-8.0 * delta)
+		_yaw += clampf(wrapf(cam_goal.x - _yaw, -PI, PI) * k, -6.0 * delta, 6.0 * delta)
+		_pitch += clampf((cam_goal.y - _pitch) * k, -6.0 * delta, 6.0 * delta)
 	head.global_basis = eyes * Basis(Vector3.RIGHT, _pitch)
 	if is_multiplayer_authority():
-		if shake <= 0.0:
-			arms = minf(arms + REST * delta * (2.0 if seated else 1.0), 1.0)     # (no fish in your hands)
 		_lurch(delta)
 		if shake > 0.02:
 			var t := Time.get_ticks_msec() * 0.001

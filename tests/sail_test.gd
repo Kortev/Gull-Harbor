@@ -62,15 +62,15 @@ func _ready() -> void:
 	f.depth = 5.0
 	f.moving = true
 	f.boat_vel = Vector2(0.0, 2.5)        # (astern, her +z)
-	f.carry_on("rest")
+	f.carry_on("dog")
 	var out0 := f.line_out
 	for i in 60:
-		f.step(1.0 / 30.0, false, 0.0)
+		f.step(1.0 / 30.0, 1.0, 0.6, 0.0, 0.72)      # (winding the slack as she backs onto it)
 	_check(f.line_out < out0 - 3.0, "backing down onto a fish closes on it (%.1f -> %.1f m)" % [out0, f.line_out])
 	f.boat_vel = Vector2(0.0, -8.0)       # (ahead, away from it)
 	var out1 := f.line_out
 	for i in 30:
-		f.step(1.0 / 30.0, false, 0.0)
+		f.step(1.0 / 30.0, 0.0, 0.6, 0.0, 0.72)
 	_check(f.line_out > out1 + 5.0, "running away from it pays out line (%.1f -> %.1f m)" % [out1, f.line_out])
 	# far from where she started, schools still turn up round her
 	helm.set("at", Vector2(3000.0, -2000.0))
