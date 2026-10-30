@@ -514,17 +514,30 @@ func _update_waves() -> void:
 	var whitecaps := lerpf(a[3], b[3], f)
 	if wind != _spectrum_wind:
 		_make_spectrum()
-	var hs := Vector3(swell * SWELL_HS, chop * CHOP_HS, lerpf(RIPPLE_HS.x, RIPPLE_HS.y, weather))
+	# (in the worst of it the chop eases a little under the big seas: stacked on them it came up through her)
+	var hs := Vector3(swell * SWELL_HS, chop * CHOP_HS * lerpf(1.0, 0.6, smoothstep(0.6, 1.0, weather)),
+			lerpf(RIPPLE_HS.x, RIPPLE_HS.y, weather))
 	_waves.clear()
 	# the big swells first, sharp by their own measure
 	var base := atan2(wind.y, wind.x)
 	var big_a := swell * BIG_HS * 0.5           # (Hs to the amplitudes' root sum square: about half)
+	# (the rougher it gets, the more of that height is in the long ones: a storm's seas are big and long, steep short
+	# ones that size would come aboard; the same height in all)
+	var lean := 1.6 * smoothstep(0.5, 1.0, weather)
+	var shares := PackedFloat32Array()
+	var sq := 0.0
+	for w: Array in _big:
+		var sh := float(w[1]) * pow(float(w[0]) / BIG_LENGTHS.y, lean)
+		shares.append(sh)
+		sq += sh * sh
+	for i in shares.size():
+		shares[i] /= sqrt(maxf(sq, 1e-6))
 	var ka := 0.0
-	for w: Array in _big:
-		var amp := big_a * float(w[1])
-		ka += TAU / float(w[0]) * amp
-	for w: Array in _big:
-		var big := _wave(float(w[0]), big_a * float(w[1]), base + float(w[2]), float(w[3]))
+	for i in _big.size():
+		ka += TAU / float(_big[i][0]) * big_a * shares[i]
+	for i in _big.size():
+		var w: Array = _big[i]
+		var big := _wave(float(w[0]), big_a * shares[i], base + float(w[2]), float(w[3]))
 		big.append(BIG_STEEP / maxf(ka, 0.0001))
 		_waves.append(big)
 	for c in 2:

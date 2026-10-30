@@ -43,7 +43,7 @@ const CONDITIONS := {
 	"fog": {"sea": 0.08, "rain": 0.0, "sun": 0.15, "fog": 0.045, "far": 200.0, "sky": [Color(0.42, 0.45, 0.47), Color(0.5, 0.53, 0.55)]},
 	"rain": {"sea": 0.5, "rain": 0.6, "sun": 0.3, "fog": 0.0065, "far": 1300.0, "sky": [Color(0.24, 0.27, 0.3), Color(0.42, 0.45, 0.48)]},
 	"heavy": {"sea": 0.75, "rain": 0.85, "sun": 0.2, "fog": 0.01, "far": 800.0, "sky": [Color(0.18, 0.2, 0.23), Color(0.33, 0.36, 0.39)]},
-	"storm": {"sea": 1.0, "rain": 1.0, "sun": 0.12, "fog": 0.0, "far": 250.0, "sky": [Color(0.13, 0.15, 0.17), Color(0.25, 0.28, 0.3)]},
+	"storm": {"sea": 1.0, "rain": 1.0, "sun": 0.12, "fog": 0.0, "far": 450.0, "sky": [Color(0.13, 0.15, 0.17), Color(0.25, 0.28, 0.3)]},
 }
 const WIND := Vector2(-0.8, -0.6)
 
@@ -445,16 +445,16 @@ func _apply_look() -> void:
 	env.fog_light_color = fog
 	var storm := _share("storm")
 	if storm > 0.9:
-		# a wall of fog about 20 m out (Fathom's storm)
+		# the storm closing in: the seas round her clear, gone grey a hundred metres or so out
 		env.fog_mode = Environment.FOG_MODE_DEPTH
-		env.fog_depth_begin = 8.0
-		env.fog_depth_end = 24.0
+		env.fog_depth_begin = 35.0
+		env.fog_depth_end = 150.0
 		env.fog_depth_curve = 1.25
 		env.fog_density = 1.0
 	else:
 		# (as a storm comes in, the fog closes in toward that wall)
 		env.fog_mode = Environment.FOG_MODE_EXPONENTIAL
-		env.fog_density = lerpf(a["fog"], b["fog"], m) + 0.13 * storm
+		env.fog_density = lerpf(a["fog"], b["fog"], m) + 0.025 * storm
 	env.ambient_light_energy = lerpf(0.9, 0.35, dark)
 	sun.light_energy = lerpf(a["sun"], b["sun"], m) * (1.0 - dark)
 	sun.light_color = Color(1.0, 0.93, 0.82).lerp(Color(1.0, 0.62, 0.38), clampf(warm * 2.0, 0.0, 1.0))
