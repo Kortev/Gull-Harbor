@@ -19,7 +19,7 @@ const Splash := preload("res://sea/splash.gd")
 ## line on its runs and tires doing it; between them nobody wins any back) and tells everyone how it's going.
 const WHY := {"broke": "Line parted.", "broke_rail": "Line parted on the rail.", "pulled": "Hook pulled.",
 		"thrown": "Thrown on the jump.", "spooled": "Spooled.", "chafed": "Chafed through on the hull.",
-		"cut": "Cut on the props.", "tangle": "Lines tangled and parted."}
+		"cut": "Cut on the props.", "tangle": "Lines tangled and parted.", "cutoff": "Cut off."}
 ## How heavy the rod's tip feels with a fish on (0: not at all .. 1: it fights your heave and drags the tip down).
 const ROD_WEIGHT := 1.0
 ## The scroll wheel steps the drag no faster than this (s a notch).
@@ -585,6 +585,31 @@ func _host_lines(delta: float) -> void:
 					_tangle.rpc(b.index, a.index)
 				else:
 					_tangle(b.index, a.index)
+
+
+## Host: rod i's line cut at `at` (world) by something run across it (VS: the other boat, vs/contact.gd): its bait's
+## gone, or its fish; what's left of the line lies out to there, to be wound in.
+func host_cut(i: int, at: Vector3) -> void:
+	if i < 0 or i >= rods.size():
+		return
+	if Net.in_session():
+		_cut.rpc(i, at)
+	else:
+		_cut(i, at)
+
+
+@rpc("authority", "call_local", "reliable")
+func _cut(i: int, at: Vector3) -> void:
+	if i < 0 or i >= rods.size():
+		return
+	var r := rods[i]
+	if r.hooked:
+		_off(i, WHY["cutoff"])
+	else:
+		r.baited = false
+		_hud_note(WHY["cutoff"])
+	var tip := r.tip_position()
+	_wind_back(r, Vector2(at.x - tip.x, at.z - tip.z).length(), at)
 
 
 ## Host: a fish takes rod i's bait.

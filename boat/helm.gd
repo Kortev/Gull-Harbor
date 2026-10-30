@@ -42,6 +42,10 @@ var throttle := 0.0
 ## Where she is in the world (x, z) and how fast she's going (m/s: + ahead, - astern).
 var at := Vector2.ZERO
 var speed := 0.0
+## A shove she's been given (VS: the other boat bumping her, vs/contact.gd): sideways way on her (m/s, world x, z)
+## and a turn (rad/s), both dying away.
+var drift := Vector2.ZERO
+var spin := 0.0
 var _net_heading := 0.0
 var _net_at := Vector2.ZERO
 var _net_speed := 0.0
@@ -216,6 +220,18 @@ func _process(delta: float) -> void:
 		speed = next_speed(speed, throttle, delta)
 		var was := at
 		at += ahead_of(heading) * speed * delta
+		if drift != Vector2.ZERO or spin != 0.0:
+			at += drift * delta
+			heading = wrapf(heading + spin * delta, -PI, PI)
+			drift *= exp(-delta / 1.6)
+			spin *= exp(-delta / 1.2)
+			if drift.length() < 0.02 and absf(spin) < 0.002:
+				drift = Vector2.ZERO
+				spin = 0.0
+		# (VS: the other boat's as solid as the shore, and a bump shoves you both apart: vs/contact.gd)
+		var vs: Node = boat.get("sea").get("vs") if boat.get("sea") != null else null
+		if vs != null and bool(vs.get("on")):
+			vs.call("fend", self)
 		# (the shore and the rig stop her dead: her bow or her stern, whichever end's going that way)
 		var marks: Node = boat.get("sea").get("landmarks") if boat.get("sea") != null else null
 		var end := at + ahead_of(heading) * signf(speed) * float(boat.get("length")) * 0.5

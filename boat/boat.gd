@@ -44,6 +44,9 @@ var holders: Array[Transform3D] = []     # boat-local; see holder_transform()
 var helm_spot := Transform3D.IDENTITY   # where the captain stands (boat-local)
 ## The wheel and the captain at it (boat/helm.gd): her heading.
 var helm: Helm
+## A knock on top of what the sea does to her (rad: pitch, roll): VS, the other boat bumping her or her wake
+## (vs/contact.gd), rocking and dying away.
+var rock := Vector2.ZERO
 var floods: Array[Light3D] = []
 var chair: Node3D
 ## The fighting chair you can sit in (boat/chair.gd), if she has one.
@@ -283,7 +286,8 @@ func pose() -> Transform3D:
 	var v: float = helm.speed if helm else 0.0
 	var ahead := clampf(v / helm.ahead, 0.0, 1.0) if helm else 0.0
 	var astern := clampf(-v / helm.astern, 0.0, 1.0) if helm else 0.0
-	pitch += SQUAT * smoothstep(0.0, 0.6, ahead) + DIG * astern
+	pitch += SQUAT * smoothstep(0.0, 0.6, ahead) + DIG * astern + rock.x
+	roll += rock.y
 	y -= DIG_SINK * astern
 	return Transform3D(turn * Basis.from_euler(Vector3(pitch, 0.0, roll)), Vector3(mid.x, y, mid.z))
 
