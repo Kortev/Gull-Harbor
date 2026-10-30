@@ -327,7 +327,7 @@ func _draw_line() -> void:
 func interact_prompt(player: Node) -> String:
 	if holder == 0:
 		if alongside:
-			return ""          # (its fish is astern for the harpoon: nothing to do with the rod)
+			return "Hold it"   # (keep it up alongside for the harpoon: tuna/landing.gd)
 		if hooked:
 			return "Grab it!"
 		if tangled >= 0:

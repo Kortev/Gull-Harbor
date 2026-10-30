@@ -7,6 +7,11 @@ extends Node
 ## (boat/fish_hold.gd). Leave it alongside too long without sticking it and the hook pulls. Where all of that is comes
 ## from the boat's kind (boat/kinds.gd).
 ##
+## Someone has to hold it there: the angler keeping the rod (or the wireman on the leader). Left on a rod in its
+## holder it isn't held: every SHEER_EVERY s it kicks, sheers off and goes down out of reach for SHEER_FOR s, the rod
+## bending over, then wallows back up. You can still stick it alone between kicks; with a mate on the rod it lies
+## quiet for the harpoon. All worked out from the shared clock and who holds the rod, so every peer sees the same.
+##
 ## The host decides (who has the harpoon, a stick, how far the haul has got) and tells everyone. A throw is judged
 ## on the thrower's machine (it's their aim) and the host takes their word for it.
 
@@ -31,6 +36,12 @@ const HAUL_BASE := 2.0
 const HAUL_PER_KG := 0.05
 ## How far from the door you can stand and keep hauling (m).
 const HAUL_REACH := 3.5
+## Not held: how often it kicks off (s), how long it's down each time (s), how far it goes out from her and down (m),
+## and how fast it goes and comes back (0..1 a second). Down past half of that, the harpoon can't reach it.
+const SHEER_EVERY := 9.0
+const SHEER_FOR := 4.0
+const SHEER_OUT := Vector2(2.2, 1.4)
+const SHEER_RATE := 1.2
 
 var sea: Node                 # sea/sea.gd
 ## Fish alongside, by the rod they came up on: {kg, side (1 starboard, -1 port), hook_t (sea clock), t (s alongside),
@@ -134,9 +145,24 @@ func _process(delta: float) -> void:
 			_harpoon.global_transform = boat.global_transform * Transform3D(Basis.IDENTITY, rack_at())
 		else:
 			_harpoon.global_transform = _in_hands(p)
+	var rods := sea.get("rods") as Node
 	for i: int in fish:
 		var f: Dictionary = fish[i]
 		var node := f["node"] as Tuna
+		# held, it lies there; not held, it kicks off and down now and then, the rod in its holder bending over
+		var goal := sheer_goal(i)
+		if goal > 0.5 and float(f["sheer"]) <= 0.0:
+			_splash.burst(node.global_position + Vector3(0.0, 0.2, 0.0), 1.4, true)
+			node.effort = 1.0
+			if i < (rods.get("rods") as Array).size():
+				Sfx.play_point(self, (rods.get("rods")[i] as Node3D).global_position, "dock.reel", 1.0, 1.4)
+		f["sheer"] = move_toward(float(f["sheer"]), goal, delta * SHEER_RATE)
+		if goal > 0.5:
+			node.effort = maxf(node.effort, 0.8)
+		if i < (rods.get("rods") as Array).size():
+			var rod: Node = rods.get("rods")[i]
+			if bool(rod.get("alongside")):
+				rod.set("strain", 0.35 + 0.6 * float(f["sheer"]))
 		node.global_transform = _fish_transform(f, boat, ocean)
 		# not stuck yet, it's still got some kick: a tail thrashing the water now and then
 		if not bool(f.get("stuck", false)) and float(f.get("haul", 0.0)) <= 0.0:
@@ -167,8 +193,11 @@ func _fish_transform(f: Dictionary, boat: Node3D, ocean: Node) -> Transform3D:
 	var side := float(f["side"])
 	var k := smoothstep(0.0, 1.0, float(f["haul"]))
 	var w: Vector3 = spec.get("fish_water", Vector3(1.1, 0.0, 7.95))
-	var water := boat.global_transform * Vector3(w.x * side, 0.0, w.z)
-	water.y = float(ocean.call("height_at", water)) - 0.12
+	# (sheering off: out from her, astern of a transom or abeam of a side, and down)
+	var s := smoothstep(0.0, 1.0, float(f.get("sheer", 0.0)))
+	var out := Vector3(0.35 * side, 0.0, 1.0) if bool(spec.get("fish_across", true)) else Vector3(side, 0.0, 0.3)
+	var water := boat.global_transform * (Vector3(w.x * side, 0.0, w.z) + out.normalized() * SHEER_OUT.x * s)
+	water.y = float(ocean.call("height_at", water)) - 0.12 - SHEER_OUT.y * s
 	var a: Vector3 = spec.get("fish_aboard", Vector3(1.0, 0.8, 6.22))
 	var aboard := boat.global_transform * Vector3(a.x * side, a.y, a.z)
 	# across her stern its head toward her middle; along her side its head forward
@@ -213,7 +242,8 @@ func hint() -> String:
 			return "Wire it first   Q put back"
 		return "Click to throw   Q put back" if waiting else "Q put back"
 	if waiting and (sea.get("rods") as Node).call("held_by", Net.my_id()) != null:
-		return "Q: rod back, then the harpoon"
+		# (with a mate aboard, keep it: you're holding it up for their harpoon)
+		return "Hold it there" if _crew_aboard() > 1 else "Q: rod back, then the harpoon"
 	if waiting and wired:
 		return "Wired: harpoon it"
 	if waiting and unwired:
@@ -265,6 +295,39 @@ func needs_wire(i: int) -> bool:
 
 func wire_left(i: int) -> float:
 	return float(fish[i].get("wired_until", -1.0)) - _now() if fish.has(i) else 0.0
+
+
+## Whether fish i's held up alongside: someone on its rod, or on its leader (wired).
+func held(i: int) -> bool:
+	var rods: Array = (sea.get("rods") as Node).get("rods")
+	return (i < rods.size() and int(rods[i].get("holder")) != 0) or wire_left(i) > 0.0
+
+
+## Where fish i wants to be: 0 lying alongside, 1 sheered off and down (not held, in a kick).
+func sheer_goal(i: int) -> float:
+	var f: Dictionary = fish.get(i, {})
+	if f.is_empty() or bool(f["stuck"]) or held(i):
+		return 0.0
+	var phase := fposmod(_now() - float(f["up_t"]), SHEER_EVERY)
+	return 1.0 if phase >= SHEER_EVERY - SHEER_FOR else 0.0
+
+
+## Whether fish i's down out of reach (of the harpoon, of a hand on the leader).
+func down(i: int) -> bool:
+	return fish.has(i) and float(fish[i].get("sheer", 0.0)) > 0.5
+
+
+## How many of the crew are aboard this boat (with you).
+func _crew_aboard() -> int:
+	var crew: Node = sea.get("crew")
+	var slots: Variant = crew.get("slots") if crew != null else null
+	if not slots is Dictionary:
+		return 1
+	var n := 0
+	for id: int in slots:
+		if crew.call("boat_of", id) == sea.get("boat"):
+			n += 1
+	return maxi(n, 1)
 
 
 func _now() -> float:
@@ -319,8 +382,8 @@ func aimed_at(from: Vector3, dir: Vector3) -> int:
 	var best_along := INF
 	for i: int in fish:
 		var f: Dictionary = fish[i]
-		if bool(f["stuck"]):
-			continue
+		if bool(f["stuck"]) or down(i):
+			continue       # (stuck already, or down out of reach)
 		var node := f["node"] as Tuna
 		var v := node.global_position - from
 		var along := v.dot(dir)
@@ -442,7 +505,7 @@ func _start_pull(side: float) -> void:
 	if i < 0:
 		# not stuck yet: on a boat that wants it, E here wires it (grabs the leader)
 		var j := _waiting_on(side)
-		if j >= 0 and needs_wire(j):
+		if j >= 0 and needs_wire(j) and not down(j):
 			if Net.is_host():
 				_ask_wire_as(j)
 			else:
@@ -559,7 +622,7 @@ func _add(i: int, kg: float, side: float, hook_t: float, on_rod := true) -> void
 	node.effort = 0.35
 	add_child(node)
 	fish[i] = {"kg": kg, "side": side, "hook_t": hook_t, "t": 0.0, "stuck": false, "haul": 0.0, "node": node,
-			"wired_until": -1.0}
+			"wired_until": -1.0, "up_t": _now(), "sheer": 0.0}
 	if on_rod:
 		(sea.get("rods") as Node).call("set_alongside", i)
 
@@ -627,7 +690,8 @@ func _states() -> Array:
 	var out := []
 	for i: int in fish:
 		var f: Dictionary = fish[i]
-		out.append([i, f["kg"], f["side"], f["hook_t"], f["t"], f["stuck"], f["haul"], f.get("wired_until", -1.0)])
+		out.append([i, f["kg"], f["side"], f["hook_t"], f["t"], f["stuck"], f["haul"], f.get("wired_until", -1.0),
+				f.get("up_t", 0.0)])
 	return out
 
 
@@ -642,6 +706,8 @@ func _sync(holder: int, states: Array) -> void:
 		fish[i]["t"] = float(s[4])
 		fish[i]["haul"] = float(s[6])
 		fish[i]["wired_until"] = float(s[7]) if s.size() > 7 else -1.0
+		if s.size() > 8:
+			fish[i]["up_t"] = float(s[8])      # (kicking off when the host's does)
 		if bool(s[5]):
 			_stuck(i)
 
