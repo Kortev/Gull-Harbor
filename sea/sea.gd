@@ -295,6 +295,22 @@ func _process(_delta: float) -> void:
 		at.y += ocean.height_at(Vector3(at.x, 0.0, at.z))
 		cam.global_position = at
 		cam.look_at(Vector3(v[3], v[4], v[5]))
+	if _args.has("run") and crew.me != null:
+		# (screenshots: out on open water at the wheel, throttle up (--run=0..1), a chase camera astern and above her;
+		# --turn=-1..1 holds the wheel over)
+		if fish_hold.docked:
+			fish_hold.head_out()
+			boat.helm.at = Vector2.ZERO
+		crew.me.force_input = true
+		if boat.helm.captain == 0:
+			boat.helm.request(true)
+		Input.action_press("move_forward", float(_args["run"]) if str(_args["run"]).is_valid_float() else 1.0)
+		if _args.has("turn"):
+			Input.action_press("move_left" if float(_args["turn"]) > 0.0 else "move_right", absf(float(_args["turn"])))
+		var chase := boat.global_transform * Vector3(9.0, 7.0, 26.0)
+		cam.make_current()
+		cam.global_position = chase
+		cam.look_at(boat.global_transform * Vector3(0.0, 0.0, 4.0))
 	if _args.has("helm") and crew.me != null and not _steered:
 		# (tests/net_test.sh: once aboard, take the wheel and swing her to port for a second and a half)
 		if boat.helm.captain == 0 and Time.get_ticks_msec() > 2500:

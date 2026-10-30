@@ -148,6 +148,7 @@ var _night_t := -1.0
 func _ready() -> void:
 	# before anything that asks how high the sea is this frame
 	process_priority = -10
+	add_to_group("ocean")
 	_planet = get_parent()
 	while _planet != null and not ("weather_strength" in _planet):
 		_planet = _planet.get_parent()
@@ -449,6 +450,39 @@ func _surf_at(p: Vector2, t: float) -> Vector3:
 	var k2 := TAU / 23.0
 	var th2 := k2 * (d + x * 0.2) + sqrt(G * k2) * 0.85 * t + sin(x / 97.0 + 1.3) * 1.6
 	return Vector3(0.0, a1 * cos(th) + a2 * cos(th2), SURF_Q * (a1 * sin(th) + a2 * 0.6 * sin(th2)))
+
+
+## Her wake: a trail of points she leaves (world x, z), each with the wave time and how hard she was going (0..1),
+## the newest first; the shader paints the churn and the V's arms from them. And splashes: rings of foam.
+const WAKE_POINTS := 64
+var _wake := PackedVector4Array()
+var _splashes := PackedVector4Array()
+var _splash_next := 0
+
+
+func add_wake(at: Vector3, power: float) -> void:
+	_wake.insert(0, Vector4(at.x, at.z, wave_time, clampf(power, 0.0, 1.0)))
+	if _wake.size() > WAKE_POINTS:
+		_wake.resize(WAKE_POINTS)
+	_mat.set_shader_parameter("wake_pts", _wake)
+	_mat.set_shader_parameter("wake_count", _wake.size())
+	# (a circle round the lot, so the rest of the sea doesn't look through it)
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for w in _wake:
+		lo = lo.min(Vector2(w.x, w.y))
+		hi = hi.max(Vector2(w.x, w.y))
+	var mid := (lo + hi) * 0.5
+	_mat.set_shader_parameter("wake_bound", Vector3(mid.x, mid.y, (hi - lo).length() * 0.5 + 50.0))
+
+
+## Something went in at `at` (world), `size` m across: a ring of foam opening out from it.
+func add_splash(at: Vector3, size: float) -> void:
+	if _splashes.size() < 8:
+		_splashes.resize(8)
+	_splashes[_splash_next % 8] = Vector4(at.x, at.z, wave_time, size)
+	_splash_next += 1
+	_mat.set_shader_parameter("splash_pts", _splashes)
 
 
 func _calm_at(p: Vector2) -> float:

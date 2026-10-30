@@ -470,6 +470,19 @@ func _line(i: int) -> void:
 	r.tangled = -1
 
 
+## Rod r's line lying out `left` m to `end` (world): the crew wind it in (or it's in already, if there's none).
+func _wind_back(r: Rod, left: float, end: Vector3) -> void:
+	if left <= 2.0 or end == Vector3.ZERO:
+		r.bait_in = true
+		r.out = -1.0
+		return
+	r.bait_in = false
+	r.out = left
+	r.bait_p = end
+	r.bait_v = Vector3.ZERO
+	r.auto_in = 1
+
+
 ## Host: rod i's line wound in by the crew (E on it), then `then_bait`: a fresh one on it (live or not). Every peer
 ## winds it on its own clock; the host says when it's in.
 func host_wind_in(i: int, then_bait: bool, live: bool) -> void:
@@ -621,17 +634,25 @@ func _off(i: int, why: String) -> void:
 	if i < 0 or i >= rods.size():
 		return        # (a rod she hasn't got: a word from before she was rebuilt)
 	var r := rods[i]
+	# what's left of the line, lying out there slack, to be wound in the whole way: all of it when the hook pulled or
+	# it threw it, the broken end when it parted, nothing when it spooled her (or it was let go heading in)
+	var left := r.line_out
+	if why == WHY["spooled"] or why.is_empty():
+		left = 0.0
+	elif why != WHY["pulled"] and why != WHY["thrown"]:
+		left = minf(left, 14.0)
+	var end := r.line_end
 	r.hooked = false
 	r.alongside = false
 	r.fight = null
 	r.line_out = 0.0
-	r.bait_in = true       # (what's left of the line wound in: a bare hook)
-	r.baited = false
-	# (the lines that were tangled in it: free, reeled in)
+	r.baited = false       # (a bare hook, if there's a hook at all)
+	_wind_back(r, left, end)
+	# (the lines that were tangled in it: free, and wound in)
 	for other in rods:
 		if other.tangled == i:
 			other.tangled = -1
-			other.bait_in = true
+			_wind_back(other, line_out(other), other.line_end)
 	r.strain = 0.05
 	r.move = ""
 	_hud_note(why)

@@ -1,7 +1,8 @@
 extends Node3D
-## Her going, seen, heard and felt (a child of boat/boat.gd): the engines' rumble rising with the throttle, foam left
-## behind in her wake, the water churning white astern of the transom when the screws bite, spray thrown off her bow
-## at speed, and backing down hard, the sea slopping in over the transom. All of it from the helm's word
+## Her going, seen, heard and felt (a child of boat/boat.gd): the engines' rumble rising with the throttle, her wake
+## painted on the water behind her (sea/ocean.gd's add_wake: the churn, the V's arms spreading out, riding every
+## wave), the water churning white astern of the transom when the screws bite, spray thrown off her bow at speed,
+## and backing down hard, the sea slopping in over the transom. All of it from the helm's word
 ## (boat/helm.gd: her speed and throttle), so every peer sees and hears the same.
 
 const Helm := preload("res://boat/helm.gd")
@@ -10,8 +11,8 @@ const PUFF := preload("res://sea/textures/steam_puff.png")
 var boat: Node3D              # boat/boat.gd
 ## Boat-local, from her kind (boat/kinds.gd): her transom (where the wash boils up), her engines, her bow's flare.
 var _transom := Vector3(0.0, 0.0, 7.3)
-var _wake: GPUParticles3D
 var _wash: GPUParticles3D
+var _wake_in := 0.0
 var _spray: Array[GPUParticles3D] = []
 var _over: GPUParticles3D
 var _engine: Node
@@ -21,15 +22,12 @@ var _over_in := 0.0
 
 func _ready() -> void:
 	boat.connect("rebuilt", _place)
-	_wake = _particles(260, 7.0, false, Vector3(1.0, 0.0, 0.0), 180.0, Vector2(0.0, 0.3), Vector3.ZERO, 2.4, 0.5)
-	_wake.name = "Wake"
-	add_child(_wake)
 	_wash = _particles(140, 1.6, true, Vector3(0.0, 1.0, 0.0), 40.0, Vector2(0.5, 2.0), Vector3(0, -6.0, 0), 1.3, 0.8)
 	_wash.name = "PropWash"
 	add_child(_wash)
 	for side: float in [1.0, -1.0]:
-		var s := _particles(90, 0.9, true, Vector3(side, 0.6, -0.2), 25.0, Vector2(3.0, 6.0), Vector3(0, -9.8, 0),
-				0.9, 0.7)
+		var s := _particles(220, 0.8, true, Vector3(side, 0.55, -0.25), 22.0, Vector2(3.5, 7.5), Vector3(0, -9.8, 0),
+				0.35, 0.85, true)
 		s.name = "BowSpray" + ("Starboard" if side > 0.0 else "Port")
 		s.set_meta("side", side)
 		add_child(s)
@@ -71,12 +69,13 @@ func _process(delta: float) -> void:
 	var work := absf(gas)
 	Sfx.level(_engine, 0.3 + 0.7 * work, 0.55 + 0.4 * work + 0.02 * going)
 	Sfx.level(_rumble, 0.15 + 0.35 * work, 0.7 + 0.3 * work)
-	# the wake: foam left lying where she's been, at the transom's water
+	# the wake: a point of it every few metres she goes (and every so often when she's slow), painted on the water
 	var stern := boat.global_transform * _transom
 	stern.y = float(ocean.call("height_at", stern)) + 0.05
-	_wake.global_position = stern
-	_wake.emitting = going > 0.4
-	_wake.amount_ratio = clampf(going / 6.0, 0.15, 1.0)
+	_wake_in -= delta
+	if _wake_in <= 0.0:
+		_wake_in = clampf(2.5 / maxf(going, 0.5), 0.12, 0.6)
+		ocean.call("add_wake", stern, clampf(going / 8.0, 0.0, 1.0) if going > 0.3 else 0.0)
 	# the screws biting: white water boiling up astern of her
 	_wash.global_position = stern + boat.global_basis.z * 0.6
 	_wash.emitting = work > 0.15
@@ -98,7 +97,7 @@ func _process(delta: float) -> void:
 ## Particles in the world (they stay where they were thrown, so she leaves them behind): white puffs. `upright` false
 ## lays them flat on the water (the wake's foam), true stands them up facing you (spray).
 func _particles(amount: int, life: float, upright: bool, dir: Vector3, spread: float, speed: Vector2,
-		gravity: Vector3, size: float, alpha: float) -> GPUParticles3D:
+		gravity: Vector3, size: float, alpha: float, drops := false) -> GPUParticles3D:
 	var pm := ParticleProcessMaterial.new()
 	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
 	pm.emission_sphere_radius = 0.8
@@ -127,7 +126,19 @@ func _particles(amount: int, life: float, upright: bool, dir: Vector3, spread: f
 	mat.albedo_color = Color(0.9, 0.94, 0.96)
 	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	var p := GPUParticles3D.new()
-	if upright:
+	if drops:
+		# spray: droplets, streaked along the way they're flying, a few big blobs among many fine ones
+		pm.scale_min = 0.4
+		pm.scale_max = 1.6
+		pm.particle_flag_align_y = true
+		mat.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
+		mat.billboard_keep_scale = true
+		var dq := QuadMesh.new()
+		dq.size = Vector2(size * 0.35, size * 1.6)
+		dq.material = mat
+		p.draw_pass_1 = dq
+		p.transform_align = GPUParticles3D.TRANSFORM_ALIGN_Z_BILLBOARD_Y_TO_VELOCITY
+	elif upright:
 		mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 		var q := QuadMesh.new()
 		q.size = Vector2(size, size)

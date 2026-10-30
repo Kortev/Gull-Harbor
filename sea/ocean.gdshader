@@ -93,6 +93,16 @@ uniform vec3 fft_gain = vec3(1.0);
 uniform float fft_n = 256.0;
 uniform float fft_crest = 1.3;
 
+// The boat's wake, painted on the water (ocean.gd's add_wake: a trail of points she leaves, world x, z, the wave time
+// she was there, how hard she was going 0..1): churned white right behind her, two arms of foam spreading out in a
+// V at the Kelvin angle, both thinning and tearing up as they age. And splashes (add_splash: x, z, when, how big): a
+// ring of foam opening out and a white patch where it went in.
+uniform vec4 wake_pts[64];
+uniform int wake_count = 0;
+uniform vec4 splash_pts[8];
+uniform float wake_life = 26.0;
+uniform vec3 wake_bound = vec3(0.0, 0.0, -1.0);    // (x, z, radius: nothing of it further out than that)
+
 varying vec3 local;
 varying vec3 moved;
 
@@ -376,6 +386,54 @@ void fragment() {
 		float trail = smoothstep(0.7, 0.95, surf_at(q, wave_time - 1.3).w + (lace - 0.5) * 0.9)
 				* smoothstep(0.35, 0.65, lace) * 0.7 * peel;
 		foam = max(foam, (on_crest + trail) * breaking * (1.0 - far * 0.6));
+	}
+	// her wake: for each stretch of the trail, how far this point is from its line and across it
+	if (wake_count > 1 && distance(q, wake_bound.xy) < wake_bound.z) {
+		float wk = 0.0;
+		float lace2 = texture(noise, qk * 0.31 + vec2(0.7, 0.2)).r;
+		float lace3 = texture(noise, qk * 0.55 + vec2(0.1, 0.9)).g * 0.5 + texture(noise, qk * 0.19).r * 0.5;
+		for (int i = 0; i < 63; i++) {
+			if (i + 1 >= wake_count) {
+				break;
+			}
+			vec4 a = wake_pts[i];
+			vec4 b = wake_pts[i + 1];
+			vec2 ab = b.xy - a.xy;
+			float len2 = max(dot(ab, ab), 0.0001);
+			float u = clamp(dot(q - a.xy, ab) / len2, 0.0, 1.0);
+			float dist = length(q - (a.xy + ab * u));
+			float born = mix(a.z, b.z, u);
+			float age = wave_time - born;
+			if (age < 0.0 || age > wake_life || dist > 4.0 + age * 1.6) {
+				continue;
+			}
+			float power = mix(a.w, b.w, u);
+			float fade = 1.0 - smoothstep(0.0, wake_life, age);
+			// the churn behind her: wide and white at first, narrowing and going to lace
+			// (her beam wide, solid white for a few seconds, then lace, then gone; the middle of it a smooth slick)
+			float churn = (1.0 - smoothstep(0.9 + age * 0.1, 1.8 + age * 0.22, dist)) * smoothstep(wake_life * 0.35, 0.0, age);
+			churn *= smoothstep(0.3, 0.65, lace3 + 0.45 * (1.0 - smoothstep(0.0, 4.0, age)));
+			// the two arms of the V, out at the Kelvin angle (tan 19.5 deg of how far she's gone since): thin, broken
+			float arm = 1.4 + age * max(power, 0.2) * 3.4;
+			float arms = (1.0 - smoothstep(0.0, 0.35 + age * 0.04, abs(dist - arm))) * smoothstep(0.4, 0.75, lace2)
+					* smoothstep(0.0, 1.5, age);
+			wk = max(wk, (churn * 0.9 + arms * 0.55) * fade * clamp(power * 1.4, 0.0, 1.0));
+		}
+		foam = max(foam, wk * (1.0 - far * 0.7));
+	}
+	// splashes: a ring of foam opening out, a patch of white where it went in
+	for (int i = 0; i < 8; i++) {
+		vec4 s = splash_pts[i];
+		float age = wave_time - s.z;
+		if (s.w <= 0.0 || age < 0.0 || age > 7.0) {
+			continue;
+		}
+		float dist = distance(q, s.xy);
+		float r = s.w * (0.6 + age * 1.3);
+		float ring = 1.0 - smoothstep(0.0, 0.35 + 0.12 * age * s.w, abs(dist - r));
+		float patch_ = (1.0 - smoothstep(s.w * 0.4, s.w * (0.9 + age * 0.3), dist)) * (1.0 - smoothstep(0.5, 4.0, age));
+		float life = 1.0 - smoothstep(1.5, 7.0, age);
+		foam = max(foam, max(ring * 0.8, patch_) * life * smoothstep(0.3, 0.6, grain + 0.25));
 	}
 	float wash = smoothstep(16.0, 2.0, sd + (grain - 0.5) * 8.0 + sin(wave_time * 0.9 + q.x * 0.05) * 3.0);
 	foam = max(foam, wash * 0.85 * smoothstep(-2.0, 1.0, sd));

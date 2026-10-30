@@ -31,6 +31,10 @@ var _view: Node3D
 var _glove: Node3D
 var _shown := "-"
 var _bar: Control
+## Changing what's in your hands: the old thing goes down out of sight, then the new one comes up (SWAP s each way).
+const SWAP := 0.16
+var _lower := 0.0             # 0 held up .. 1 out of sight
+var _next := "-"
 
 
 func _ready() -> void:
@@ -153,8 +157,17 @@ func _release() -> void:
 
 func _process(delta: float) -> void:
 	var want := "" if stowed() else shown_item()
+	# (in your own view the change is a move: down with the old, up with the new; the others see it in the glove)
 	if want != _shown:
-		_show(want)
+		if not player.is_multiplayer_authority() or _view == null or _shown == "-":
+			_show(want)
+			_lower = 1.0 if player.is_multiplayer_authority() and not want.is_empty() else 0.0
+		else:
+			_lower = minf(_lower + delta / SWAP, 1.0)
+			if _lower >= 1.0:
+				_show(want)
+	elif _lower > 0.0:
+		_lower = maxf(_lower - delta / SWAP, 0.0)
 	if _winding:
 		wind = minf(wind + delta / WIND, 1.0)
 	_swing = maxf(_swing - delta, 0.0)
@@ -213,6 +226,10 @@ func _pose_view(delta: float) -> void:
 				at += Vector3(0.0, -0.15, -0.1) * k
 			_:
 				at += Vector3(0.0, 0.0, -0.1) * k
+	# (going down out of sight or coming back up)
+	var low := smoothstep(0.0, 1.0, _lower)
+	at += Vector3(0.05, -0.42, 0.08) * low
+	rot.x += 0.7 * low
 	var goal := Transform3D(Basis.from_euler(rot), at + bob)
 	_view.transform = _view.transform.interpolate_with(goal, minf(1.0, delta * 18.0))
 	var chum := _view.find_child("Chum", true, false) as Node3D

@@ -108,8 +108,13 @@ func _ready() -> void:
 	# a fish takes the bait
 	rods.strike(0, 120.0)
 	_check(r.hooked and not r.baited, "a fish on: it's got the bait")
-	rods._host_off(0, "")
-	_check(r.bait_in and not r.baited, "lost: the line comes in with a bare hook")
+	rods._host_off(0, Rods.WHY["pulled"])
+	_check(not r.bait_in and r.auto_in == 1, "the hook pulled: the slack line's wound in, the whole way")
+	for k in 60:
+		if r.bait_in:
+			break
+		await get_tree().create_timer(0.25).timeout
+	_check(r.bait_in and not r.baited, "in, with a bare hook")
 	rods.host_cast(0)
 	await _flown(rods, 0)
 	_check(rods.bite_odds(0) == 0.0, "nothing takes a bare hook")

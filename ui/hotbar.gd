@@ -5,6 +5,7 @@ extends Control
 ## ghost while you hold something, gone with empty hands), and comes back on the next pick.
 
 const Kit := preload("res://crew/kit.gd")
+const NAMES := {"knife": "Knife", "gaff": "Gaff", "jig": "Jig rod", "scoop": "Chum scoop", "bait": "Bait"}
 const CELL := 46.0
 const GAP := 6.0
 
@@ -49,6 +50,18 @@ func _draw() -> void:
 		draw_rect(r, Color(0.05, 0.07, 0.08, (0.62 if on else 0.4) * a))
 		draw_rect(r, Color(1.0, 0.86, 0.5, 0.95 * a) if on else Color(1, 1, 1, 0.18 * a), false, 2.0 if on else 1.0)
 		_icon(Kit.ITEMS[i], r.get_center(), Color(1, 1, 1, (0.95 if on else 0.6) * a))
+		# its key, small in the corner; how many you've got where that matters (chum scoops left, live bait in the well)
+		var font := get_theme_default_font()
+		draw_string(font, r.position + Vector2(4, 12), str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 10,
+				Color(1, 1, 1, 0.45 * a))
+		var have := _count(Kit.ITEMS[i])
+		if have >= 0:
+			draw_string(font, r.position + Vector2(0, CELL - 4), str(have), HORIZONTAL_ALIGNMENT_RIGHT, CELL - 4, 12,
+					Color(1, 1, 1, 0.8 * a))
+	# what you've just picked, named once over the bar (it fades with it)
+	if held != "" and _shown > 0.0:
+		draw_string(get_theme_default_font(), Vector2(-w * 0.5, -10), str(NAMES.get(held, held)),
+				HORIZONTAL_ALIGNMENT_CENTER, w, 14, Color(1.0, 0.92, 0.7, clampf(_shown / 0.6, 0.0, 1.0)))
 	# winding up: how hard it'll go (the scoop's throw, or a rod's cast: rods.gd's wind on your rod)
 	var wind := float(hands.get("wind"))
 	var spread: Node = null
@@ -65,6 +78,23 @@ func _draw() -> void:
 		draw_rect(bar, Color(0, 0, 0, 0.45))
 		draw_rect(Rect2(bar.position, Vector2(bar.size.x * wind, bar.size.y)),
 				Color(1.0, 0.86, 0.5).lerp(Color(1.0, 0.45, 0.2), wind))
+
+
+## How many of `item` you've got, where it matters (-1: it doesn't): chum scoops left in the bucket, live mackerel
+## in the well for the bait.
+func _count(item: String) -> int:
+	var p: Node = hands.get("player")
+	var boat: Node = p.get("boat") if p else null
+	var sea: Node = boat.get("sea") if boat else null
+	var hold: Node = sea.get("fish_hold") if sea else null
+	if hold == null:
+		return -1
+	match item:
+		"scoop":
+			return int(hold.get("chum"))
+		"bait":
+			return int(hold.get("well")) if bool(hold.call("has_gear", "bait")) else -1
+	return -1
 
 
 ## Each item drawn in a few strokes, about 30 px across.

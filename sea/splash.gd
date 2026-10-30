@@ -9,6 +9,8 @@ const THRASH := preload("res://audio/fish/thrash.wav")
 const POOL := 4
 
 var _bursts: Array[GPUParticles3D] = []
+var _drops: Array[GPUParticles3D] = []
+var ocean: Node               # (sea/ocean.gd: the ring of foam it leaves on the water)
 var _sounds: Array[AudioStreamPlayer3D] = []
 var _next := 0
 
@@ -18,6 +20,9 @@ func _ready() -> void:
 		var p := _particles()
 		add_child(p)
 		_bursts.append(p)
+		var d := _particles(true)
+		add_child(d)
+		_drops.append(d)
 		var a := AudioStreamPlayer3D.new()
 		a.unit_size = 10.0
 		a.max_distance = 200.0
@@ -40,6 +45,18 @@ func burst(at: Vector3, size := 1.0, thrash := false) -> void:
 	p.global_position = at
 	p.restart()
 	p.emitting = true
+	# and the water thrown up: droplets streaking up and falling back, and the ring of foam it leaves
+	var d := _drops[k]
+	var dm := d.process_material as ParticleProcessMaterial
+	dm.initial_velocity_min = 3.0 * size
+	dm.initial_velocity_max = 7.5 * size
+	d.global_position = at
+	d.restart()
+	d.emitting = true
+	if ocean == null:
+		ocean = get_tree().get_first_node_in_group("ocean")
+	if ocean != null:
+		ocean.call("add_splash", at, 0.8 * size)
 	var a := _sounds[k]
 	a.stream = THRASH if thrash else SPLASH
 	a.global_position = at
@@ -48,7 +65,7 @@ func burst(at: Vector3, size := 1.0, thrash := false) -> void:
 	a.play()
 
 
-static func _particles() -> GPUParticles3D:
+static func _particles(drops := false) -> GPUParticles3D:
 	var pm := ParticleProcessMaterial.new()
 	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
 	pm.emission_sphere_radius = 0.5
@@ -73,7 +90,19 @@ static func _particles() -> GPUParticles3D:
 	q.size = Vector2(1.0, 1.0)
 	q.material = mat
 	var p := GPUParticles3D.new()
-	p.amount = 40
+	if drops:
+		# droplets streaked along their flight, many small, thrown higher and wider than the white water
+		pm.spread = 28.0
+		pm.scale_min = 0.25
+		pm.scale_max = 0.9
+		pm.particle_flag_align_y = true
+		mat.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
+		mat.billboard_keep_scale = true
+		q.size = Vector2(0.14, 0.6)
+		p.transform_align = GPUParticles3D.TRANSFORM_ALIGN_Z_BILLBOARD_Y_TO_VELOCITY
+		p.amount = 70
+	else:
+		p.amount = 40
 	p.lifetime = 1.2
 	p.one_shot = true
 	p.explosiveness = 0.9
