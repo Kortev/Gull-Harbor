@@ -2,3 +2,5 @@
 *.tmp
 /export/
 __pycache__/
+docs/video/*.avi
+docs/video/*.mp4
