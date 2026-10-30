@@ -361,7 +361,9 @@ func set_other_hull(boat: Transform3D, length := 14.0, beam := 4.8, on := true) 
 	if on:
 		_mat.set_shader_parameter("hull2_length", length)
 		_mat.set_shader_parameter("hull2_beam", beam / 4.3)
-		_mat.set_shader_parameter("hull2_inv", Projection((global_transform.affine_inverse() * boat).affine_inverse()))
+		var xf := global_transform.affine_inverse() * boat
+		_mat.set_shader_parameter("hull2_xf", Projection(xf))
+		_mat.set_shader_parameter("hull2_inv", Projection(xf.affine_inverse()))
 
 
 ## Where the sun is (toward it, world), its colour, how dark it is (0 day .. 1 night): the water's shading and the

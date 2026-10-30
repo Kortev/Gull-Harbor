@@ -77,13 +77,13 @@ uniform float hull_floor = 0.35;
 // her length (m) and how much beamier than 4.3 m she is (ocean.gd sets both from boat.gd)
 uniform float hull_length = 14.0;
 uniform float hull_beam = 1.1163;
-// the other boat in Rivals (vs/vs.gd), only cut out, not pushed down (ocean.gd's set_hull, slot 1)
+// the other boat in Rivals (vs/vs.gd), pushed down the same (ocean.gd's set_other_hull)
 uniform bool hull2_on = false;
+uniform mat4 hull2_xf = mat4(1.0);
 uniform mat4 hull2_inv = mat4(1.0);
 uniform float hull2_length = 14.0;
 uniform float hull2_beam = 1.1163;
-// how high over her floor the sea is cut away inside her (her space, m): up past her rail
-uniform float hull_top = 3.2;
+
 
 // The FFT sea (sea/ocean_fft.gd): three tiles of the spectrum, each two textures (a: sideways x, z, height, slope x;
 // b: slope z, the squeeze dDx/dx, dDz/dz, dDx/dz), each tile's size (m) and how high (its significant height, m).
@@ -227,15 +227,24 @@ float hull_half(float z) {
 	return half_of(z, hull_length, hull_beam);
 }
 
-// whether a point of the sea (this node's space) is inside a hull, over its floor and under hull_top: the sea's
-// never drawn there (a crest the push-down missed between its vertices would show through her deck otherwise)
-bool in_hull(vec3 p, mat4 inv, float len, float beam) {
-	vec3 b = (inv * vec4(p, 1.0)).xyz;
-	if (b.y < hull_floor - 0.05 || b.y > hull_top) {
-		return false;
+// the sea pushed down under hull_floor inside a hull (this node's space in, out): all the way in from a little outside
+// her rail (so a triangle reaching in from outside her doesn't carry a crest across her deck), easing off beyond it.
+// (Done to the vertices, never by discarding pixels: a discard in the sea's shader costs the whole sea its early
+// depth test, a third of the frame.)
+vec3 push_down(vec3 v, mat4 inv, mat4 xf, float len, float beam) {
+	vec3 b = (inv * vec4(v, 1.0)).xyz;
+	if (b.y <= hull_floor) {
+		return v;
 	}
 	float hh = half_of(b.z, len, beam);
-	return hh > 0.0 && abs(b.x) < hh - 0.04;
+	float hl = len * 0.5;
+	float in_k = smoothstep(hh + 0.9, hh + 0.25, abs(b.x)) * smoothstep(hl + 0.9, hl + 0.2, b.z)
+			* smoothstep(-hl - 0.9, -hl - 0.1, b.z);
+	if (in_k <= 0.0) {
+		return v;
+	}
+	b.y = mix(b.y, hull_floor, in_k);
+	return (xf * vec4(b, 1.0)).xyz;
 }
 
 float hash(vec2 p) {
@@ -303,27 +312,16 @@ void vertex() {
 	d *= k;
 	VERTEX = p + d;
 	if (hull_on) {
-		// inside her bulwarks all the way down to hull_floor, easing off to nothing at her side and transom
-		vec3 b = (hull_inv * vec4(VERTEX, 1.0)).xyz;
-		if (b.y > hull_floor) {
-			float hh = hull_half(b.z);
-			float hl = hull_length * 0.5;
-			float in_k = smoothstep(hh + 0.02, hh - 0.18, abs(b.x)) * smoothstep(hl + 0.15, hl - 0.1, b.z) * smoothstep(-hl - 0.15, -hl + 0.25, b.z);
-			if (in_k > 0.0) {
-				b.y = mix(b.y, hull_floor, in_k);
-				VERTEX = (hull_xf * vec4(b, 1.0)).xyz;
-			}
-		}
+		VERTEX = push_down(VERTEX, hull_inv, hull_xf, hull_length, hull_beam);
+	}
+	if (hull2_on) {
+		VERTEX = push_down(VERTEX, hull2_inv, hull2_xf, hull2_length, hull2_beam);
 	}
 	moved = VERTEX;
 	VERTEX.y -= pow(max(r - curve_start, 0.0), 2.0) / (2.0 * curve_radius);
 }
 
 void fragment() {
-	if ((hull_on && in_hull(moved, hull_inv, hull_length, hull_beam))
-			|| (hull2_on && in_hull(moved, hull2_inv, hull2_length, hull2_beam))) {
-		discard;
-	}
 	// a flat facet per triangle
 	vec3 n = normalize(cross(dFdx(VERTEX), dFdy(VERTEX)));
 	if (dot(n, VIEW) < 0.0) {
