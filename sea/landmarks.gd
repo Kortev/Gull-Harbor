@@ -315,6 +315,28 @@ func _breakwaters(st: SurfaceTool, anchor: Vector3, node: Node3D) -> void:
 		var across := dir.normalized().cross(Vector3.UP)
 		var steps := int(len / 4.5)
 		var salt := int(side * 3.0 + 3.0) * 1000
+		# the core: a long low heap of quarry run under the armour stones, dark and wet, so there's no seeing through
+		# the mound between them; its end sloping off under the head
+		var core := Color(0.2, 0.21, 0.19)
+		var a0 := root - anchor
+		var a1 := tip - anchor
+		var prof := [Vector2(-10.0, -5.0), Vector2(-3.5, 2.2), Vector2(3.5, 2.2), Vector2(10.0, -5.0)]
+		for j in 3:
+			var p0: Vector2 = prof[j]
+			var p1: Vector2 = prof[j + 1]
+			_quad(st, a0 + across * p0.x + Vector3(0, p0.y, 0), a1 + across * p0.x + Vector3(0, p0.y, 0),
+					a1 + across * p1.x + Vector3(0, p1.y, 0), a0 + across * p1.x + Vector3(0, p1.y, 0), core)
+			_tri(st, a1 + across * p0.x + Vector3(0, p0.y, 0), a1 + across * p1.x + Vector3(0, p1.y, 0),
+					a1 + dir.normalized() * 9.0 + Vector3(0, -5.0, 0), core)
+		# the head: a ring of big stones round the light's foot
+		for k in 11:
+			var a := TAU * k / 11.0
+			var h := _hash(salt + 500 + k)
+			var s := lerpf(2.6, 4.0, h)
+			var at := a1 + Vector3(cos(a), 0, sin(a)) * (5.0 + 1.5 * h)
+			var top := 1.6 + 1.6 * _hash(salt + 600 + k)
+			_box(st, at + Vector3(0, top - 2.5, 0), Vector3(s, 5.0, s * 1.1),
+					Color(0.5, 0.48, 0.45).lerp(Color(0.38, 0.37, 0.35), h), a + h)
 		for i in steps + 1:
 			var p := root + dir * (float(i) / steps)
 			# the mound: big blocks tumbled down both faces into the water, smaller ones heaped along the crest, the
@@ -328,7 +350,9 @@ func _breakwaters(st: SurfaceTool, anchor: Vector3, node: Node3D) -> void:
 				var rock := Color(0.55, 0.53, 0.5).lerp(Color(0.4, 0.39, 0.37), _hash(salt + i * 5 + k))
 				if top < 1.2:
 					rock = rock.lerp(Color(0.18, 0.22, 0.17), 0.6)
-				_box(st, c + Vector3(0, top - s * 0.5, 0), Vector3(s, s * 0.8, s * 1.1), rock, h * 3.0)
+				# (down into the core however high it stands: none sits on air)
+				var tall := maxf(s * 0.8, top - 1.6)
+				_box(st, c + Vector3(0, top - tall * 0.5, 0), Vector3(s, tall, s * 1.1), rock, h * 3.0)
 		# the light at its end: a little white tower, its lamp
 		var t := tip - anchor
 		_cyl(st, t + Vector3(0, 3.0, 0), 7.0, 1.4, 1.1, 8, Color(0.92, 0.92, 0.9))
