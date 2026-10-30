@@ -317,7 +317,7 @@ func _process(_delta: float) -> void:
 			rods.request_grab(int(_args["cast"]))
 		elif r.get("holder") == Net.my_id():
 			if not r.get("bait_in"):
-				rods.request_reel_in(int(_args["cast"]))
+				rods.wind_in(r, get_process_delta_time())
 			else:
 				_cast = true
 				rods.cast_mine(0.6)

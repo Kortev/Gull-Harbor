@@ -79,12 +79,16 @@ func _ready() -> void:
 	var landed: Vector3 = boat.global_transform * land
 	_check(Vector2(r.line_end.x, r.line_end.z).distance_to(Vector2(landed.x, landed.z)) < 3.0,
 			"the bait's where it landed")
-	# wind it back in: hold left mouse
+	# wind it back in: hold left mouse, and it comes back over the water the whole way, no jump
 	Input.action_press("use_primary")
-	await _wait(Rods.REEL_IN + 0.3)
+	await _wait(1.0)
+	var mid := Vector2(r.line_end.x - tip.x, r.line_end.z - tip.z).length()
+	_check(not r.bait_in and mid < short - 2.0 and mid > short - 9.0,
+			"a second's winding brings it in a few metres (%.0f m out, from %.0f)" % [mid, short])
+	await _wait(short / Rods.REEL_SPEED + 0.5)
 	Input.action_release("use_primary")
 	await get_tree().process_frame
-	_check(r.bait_in, "holding left mouse winds it back in")
+	_check(r.bait_in, "holding left mouse winds it all the way back in")
 	await get_tree().process_frame
 	# all you've got this time
 	Input.action_press("use_primary")
@@ -114,6 +118,11 @@ func _ready() -> void:
 	_check(str(r.call("interact_prompt", me)) == "Bait it", "with a bait in your hands the rod wants it")
 	rods.request_bait(0)
 	await get_tree().process_frame
+	_check(not r.bait_in and r.auto_in == 2, "its line comes in first (wound in, the whole way)")
+	for k in 40:
+		if r.bait_in:
+			break
+		await get_tree().create_timer(0.5).timeout
 	_check(r.bait_in and r.baited and rods.freshness(0) > 0.99, "baited fresh, line in to cast again")
 	me.hands.pick("bait")
 	rods.request_grab(0)

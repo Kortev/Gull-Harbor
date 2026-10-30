@@ -60,9 +60,20 @@ func _ready() -> void:
 	_check(rods.is_tangled(0) and str(rods.rods[1].call("interact_prompt", null)).begins_with("Clear the tangle"),
 			"tangled: rod 1's line across its run (%s)" % rods.rods[1].call("interact_prompt", null))
 	rods.request_grab(1)
-	_check(not rods.is_tangled(0) and rods.rods[1].bait_in and rods.rods[1].holder == 0, "E on rod 1: cleared, reeled in")
+	await get_tree().process_frame
+	var was_out: float = rods.line_out(rods.rods[1])
+	await get_tree().create_timer(1.0).timeout
+	_check(not rods.rods[1].bait_in and rods.rods[1].out < was_out - 2.0,
+			"E on rod 1: the crew wind it in, the bait coming back over the water (%.0f m, was %.0f)"
+			% [rods.rods[1].out, was_out])
 	rods.request_grab(2)
-	_check(rods.rods[2].bait_in and rods.rods[2].holder == 0, "E on another empty rod while it fights: reeled in")
+	for k in 30:
+		if rods.rods[1].bait_in and rods.rods[2].bait_in:
+			break
+		await get_tree().create_timer(0.5).timeout
+	_check(rods.rods[1].tangled < 0 and rods.rods[1].bait_in and rods.rods[1].holder == 0,
+			"rod 1: cleared, all the way in")
+	_check(rods.rods[2].bait_in and rods.rods[2].holder == 0, "E on another empty rod while it fights: wound in")
 	rods.strike(2, 150.0)
 	_check(not rods.rods[2].hooked, "nothing bites a reeled-in line")
 	rods._host_off(0, "(the test lets it go)")

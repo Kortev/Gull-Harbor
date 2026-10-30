@@ -60,7 +60,11 @@ func _ready() -> void:
 	_check(rods.freshness(0) < Rods.STALE and rods.bite_odds(0) < fresh_odds * 0.5,
 			"an old bait gets fewer bites (%.2f against %.2f)" % [rods.bite_odds(0), fresh_odds])
 	rods.request_bait(0)
-	await get_tree().process_frame
+	# (its line wound in first, the whole way)
+	for k in 60:
+		await get_tree().create_timer(0.25).timeout
+		if rods.rods[0].bait_in:
+			break
 	_check(rods.rods[0].bait_in and rods.rods[0].holder == 0 and rods.freshness(0) > 0.95 and rods.rods[0].live,
 			"E on it with a bait: the line comes in and a fresh live one goes on (not picked up)")
 	_check(hold.well == FishHold.WELL_START - 3, "out of the well (%d left)" % hold.well)

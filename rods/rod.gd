@@ -70,6 +70,13 @@ var live := false
 ## (boat-local), when it went (sea clock; -INF: not flying) and the tip it went from (world).
 var spot := Vector3.ZERO
 var land := Vector3.ZERO
+## Line out from the tip to the bait (m) while someone's wound some of it back (-1: as long as the cast left it). The
+## bait's held no further out than this, so winding drags it back over the water to the tip.
+var out := -1.0
+## Being wound in by whoever pressed E on it (no one's holding it): 0 not, 1 to clear its line, 2 to put a fresh bait
+## on once it's in (`wind_live`: a live one). Everyone sees the bait come back over the water.
+var auto_in := 0
+var wind_live := false
 var cast_t := -INF
 var cast_from := Vector3.ZERO
 ## Winding up a cast, 0..1 (the holder's; the others see it too), and the whip of the rod through the cast (1 -> 0).

@@ -36,13 +36,13 @@ const LIVE_LIFE := 600.0
 const STALE := 0.5
 const LIVE_BITES := 1.5
 ## A cast: how long to wind it all the way up (s), how far it goes from a flick to everything you've got (m), how high
-## it arcs for each metre out, and how fast it flies (m/s, plus a moment to leave the tip). Winding a line in takes
-## REEL_IN s of holding left mouse.
+## it arcs for each metre out, and how fast it flies (m/s, plus a moment to leave the tip). Winding a line in: holding
+## left mouse winds it at REEL_SPEED m/s, the bait skipping back over the water the whole way to the tip.
 const WIND := 1.1
 const CAST := Vector2(10.0, 55.0)
 const ARC := 0.12
 const FLY := 34.0
-const REEL_IN := 1.4
+const REEL_SPEED := 4.5
 ## Faster than this (m/s: tuna/schools.gd's BITE_SPEED) the baits skip along the top.
 const BITE_SPEED_SKIP := 6.0
 
@@ -74,7 +74,6 @@ var _tangle_in := 0.0
 var _splash: Splash
 ## Your rod with no fish on: how long you've held left mouse winding its line in, and whether you've let go since
 ## (a cast starts on a fresh press, not the end of winding in).
-var _reel_hold := 0.0
 var _fresh_press := false
 var _shook := false
 var _whoosh: AudioStreamPlayer3D
@@ -191,8 +190,8 @@ func _ask_grab(i: int) -> void:
 		return
 	# an empty rod while a fish is on: E clears its line (reels it in)
 	if not rods[i].hooked and rods[i].holder == 0 and fighting():
-		if not rods[i].bait_in:
-			_host_line(i, true)
+		if not rods[i].bait_in and rods[i].auto_in == 0:
+			host_wind_in(i, false, false)
 		return
 	var helm: Node = (sea.get("boat") as Node).get("helm")
 	if int(helm.get("captain")) == who:
@@ -224,7 +223,12 @@ func _ask_bait(i: int) -> void:
 	var hold: Node = sea.get("fish_hold")
 	if hold != null and bool(hold.get("docked")):
 		return
+	if rods[i].auto_in != 0:
+		return
 	var live := hold != null and bool(hold.call("host_take_live"))
+	if not rods[i].bait_in:
+		host_wind_in(i, true, live)      # (its line comes in first, the whole way)
+		return
 	if Net.in_session():
 		_baited.rpc(i, _now(), live)
 	else:
@@ -239,6 +243,7 @@ func _baited(i: int, t: float, live: bool) -> void:
 	if not r.bait_in:
 		Sfx.play_point(self, r.global_position, "dock.reel", 0.9, 1.2)
 	r.bait_in = true
+	r.out = -1.0
 	r.tangled = -1
 	r.baited = true
 	r.baited_t = t
@@ -286,6 +291,7 @@ func _cast(i: int, land: Vector3, t: float) -> void:
 	r.cast_t = t
 	r.whip = 1.0
 	r.wind = 0.0
+	r.out = -1.0
 	r.bait_p = Vector3.INF
 	# where it trolls from: as far back as it went, on the side it went (she drags it round behind her)
 	var off := Vector2(land.x - stern.x, land.z - stern.z)
@@ -325,12 +331,12 @@ func _handle_mine(r: Rod, delta: float, send: bool) -> void:
 		_fresh_press = true
 	if not r.bait_in:
 		r.wind = 0.0
-		_reel_hold = _reel_hold + delta if held and not flying(r.index) else 0.0
-		r.reeling = Fight.CRANK if _reel_hold > 0.0 else 0.0
-		if _reel_hold >= REEL_IN:
-			_reel_hold = 0.0
-			_fresh_press = false
-			request_reel_in(r.index)
+		var winding := held and not flying(r.index)
+		r.reeling = REEL_SPEED if winding else 0.0
+		if winding:
+			wind_in(r, delta)
+			if send:
+				_reel_state.rpc(r.index, r.out)
 		return
 	r.reeling = 0.0
 	if held and _fresh_press:
@@ -339,6 +345,31 @@ func _handle_mine(r: Rod, delta: float, send: bool) -> void:
 		cast_mine(r.wind)
 	if send and r.wind > 0.0:
 		_wind_state.rpc(r.index, r.wind)
+
+
+## Winds `delta` s of rod r's line in: shorter by REEL_SPEED a second; at the tip, the bait's in.
+func wind_in(r: Rod, delta: float) -> void:
+	if r.out < 0.0:
+		r.out = line_out(r)
+	r.out = maxf(r.out - REEL_SPEED * delta, 0.0)
+	if r.out <= 1.2:
+		_fresh_press = false
+		request_reel_in(r.index)
+
+
+## How much line rod r has out to its bait now (m, across the water).
+func line_out(r: Rod) -> float:
+	var tip := r.tip_position()
+	var at := r.bait_p if r.bait_p != Vector3.INF else (sea.get("boat") as Node3D).global_transform * r.spot
+	return Vector2(at.x - tip.x, at.z - tip.z).length()
+
+
+## Someone winding their rod's line in: how much is still out (they send it ten times a second while they wind).
+@rpc("any_peer", "call_remote", "unreliable_ordered")
+func _reel_state(i: int, out: float) -> void:
+	if i >= 0 and i < rods.size() and rods[i].holder == multiplayer.get_remote_sender_id():
+		rods[i].out = out
+		rods[i].reeling = REEL_SPEED
 
 
 ## Lets your cast go, wound up `power` (0..1): where you're looking, out over the water (tests call it too).
@@ -434,7 +465,50 @@ func _line(i: int) -> void:
 	if not r.bait_in:
 		Sfx.play_point(self, r.global_position, "dock.reel", 0.9, 1.2)
 	r.bait_in = true
+	r.out = -1.0
+	r.auto_in = 0
 	r.tangled = -1
+
+
+## Host: rod i's line wound in by the crew (E on it), then `then_bait`: a fresh one on it (live or not). Every peer
+## winds it on its own clock; the host says when it's in.
+func host_wind_in(i: int, then_bait: bool, live: bool) -> void:
+	if Net.in_session():
+		_wind_in.rpc(i, 2 if then_bait else 1, live)
+	else:
+		_wind_in(i, 2 if then_bait else 1, live)
+
+
+@rpc("authority", "call_local", "reliable")
+func _wind_in(i: int, how: int, live: bool) -> void:
+	if i >= 0 and i < rods.size() and not rods[i].bait_in:
+		rods[i].auto_in = how
+		rods[i].wind_live = live
+
+
+## Lines being wound in by the crew, a step on: shorter by REEL_SPEED a second; the host finishes each at the tip.
+func _auto_wind(delta: float) -> void:
+	for r in rods:
+		if r.auto_in == 0 or r.bait_in or r.hooked:
+			if r.auto_in != 0 and r.holder == 0 and not r.hooked:
+				r.reeling = 0.0
+			r.auto_in = 0
+			continue
+		if r.out < 0.0:
+			r.out = line_out(r)
+		r.out = maxf(r.out - REEL_SPEED * delta, 0.0)
+		r.reeling = REEL_SPEED
+		if r.out <= 1.2 and Net.is_host():
+			var how := r.auto_in
+			r.auto_in = 0
+			r.reeling = 0.0
+			if how == 2:
+				if Net.in_session():
+					_baited.rpc(r.index, _now(), r.wind_live)
+				else:
+					_baited(r.index, _now(), r.wind_live)
+			else:
+				_host_line(r.index, true)
 
 
 ## How good rod i's bait still is, 1 (just on) .. 0 (washed out).
@@ -758,6 +832,7 @@ func notch_drag(r: Rod, way: int) -> void:
 
 
 func _process(delta: float) -> void:
+	_auto_wind(delta)
 	var boat := sea.get("boat") as Node3D
 	var ocean := sea.get("ocean") as Node
 	var crew := sea.get("crew") as Node
@@ -812,7 +887,7 @@ func _process(delta: float) -> void:
 		else:
 			r.global_transform = _in_hands(p, r)
 		var end := boat.global_transform * r.spot
-		var tangled_in := r.tangled >= 0 and r.tangled < rods.size()
+		var tangled_in := r.tangled >= 0 and r.tangled < rods.size() and r.auto_in == 0
 		var alongside: Vector3 = landing.call("fish_point", r.index) if r.alongside else Vector3.ZERO
 		if r.alongside and alongside != Vector3.ZERO:
 			end = alongside      # (straight to the fish lying astern)
@@ -990,6 +1065,9 @@ func _tow(r: Rod, spot: Vector3, speed: float, ocean: Node, delta: float) -> Vec
 		r.bait_p = spot
 		r.bait_v = Vector3.ZERO
 	var reach := maxf(tip.distance_to(Vector3(spot.x, tip.y - 1.5, spot.z)), 5.0)
+	var winding := r.out >= 0.0
+	if winding:
+		reach = minf(reach, r.out)
 	var p := r.bait_p
 	var held := clampf(absf(speed) / 3.0, 0.0, 1.0)
 	r.bait_v += Vector3(spot.x - p.x, 0.0, spot.z - p.z) * 0.9 * held * delta
@@ -1006,7 +1084,7 @@ func _tow(r: Rod, spot: Vector3, speed: float, ocean: Node, delta: float) -> Vec
 		r.bait_v = Vector3(p.x - was.x, 0.0, p.z - was.z) / delta
 	r.slack = clampf(1.0 - minf(off.length(), reach) / reach, 0.0, 1.0)
 	p.y = float(ocean.call("height_at", p))
-	if absf(speed) > BITE_SPEED_SKIP:
+	if absf(speed) > BITE_SPEED_SKIP or (winding and r.reeling > 0.0):
 		p.y += absf(sin(_now() * 7.0 + r.index * 1.9)) * 0.3     # (skipping)
 	r.bait_p = p
 	return p
