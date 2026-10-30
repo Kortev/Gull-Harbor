@@ -645,16 +645,19 @@ func _spindrift() -> GPUParticles3D:
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.vertex_color_use_as_albedo = true
-	mat.albedo_color = Color(0.85, 0.9, 0.92, 0.18)
+	mat.albedo_color = Color(0.92, 0.95, 0.96, 0.13)
 	mat.albedo_texture = PUFF
-	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	# (streaks of blown foam, long along the wind and thin, not clouds: each turned to the way it's flying)
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
 	mat.billboard_keep_scale = true
 	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	_spray_mats.append(mat)
+	pm.particle_flag_align_y = true
 	var q := QuadMesh.new()
-	q.size = Vector2(7.0, 4.0)
+	q.size = Vector2(0.9, 8.0)
 	q.material = mat
 	var p := GPUParticles3D.new()
+	p.transform_align = GPUParticles3D.TRANSFORM_ALIGN_Z_BILLBOARD_Y_TO_VELOCITY
 	p.name = "Spindrift"
 	p.amount = 70
 	p.lifetime = 3.0
@@ -701,16 +704,19 @@ func _puffs(amount: int, life: float, box: Vector3, spread: float, speed: Vector
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_color = Color(0.85, 0.9, 0.92, alpha)
+	mat.albedo_color = Color(0.9, 0.94, 0.96, minf(alpha * 1.4, 0.9))
 	mat.albedo_texture = PUFF
-	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	# (thrown water: droplets streaked along their flight, not puffs of smoke)
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
 	mat.billboard_keep_scale = true
 	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	pm.particle_flag_align_y = true
 	var q := QuadMesh.new()
-	q.size = Vector2(size, size)
+	q.size = Vector2(size * 0.22, size * 0.9)
 	q.material = mat
 	_spray_mats.append(mat)
 	var p := GPUParticles3D.new()
+	p.transform_align = GPUParticles3D.TRANSFORM_ALIGN_Z_BILLBOARD_Y_TO_VELOCITY
 	p.amount = amount
 	p.lifetime = life
 	p.one_shot = true
