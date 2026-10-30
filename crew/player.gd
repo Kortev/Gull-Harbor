@@ -25,6 +25,7 @@ const SEAT_DROP := 0.37
 signal prompt_changed(text: String)
 
 const MODEL := preload("res://crew/crew.glb")
+const Hands := preload("res://crew/hands.gd")
 ## Each crew member's oilskins, by spawn slot order (crew/crew.gd): yellow, orange, green, red.
 const OILSKINS: Array[Color] = [Color(0.85, 0.62, 0.08), Color(0.92, 0.38, 0.06), Color(0.18, 0.45, 0.18),
 		Color(0.7, 0.12, 0.08)]
@@ -36,6 +37,9 @@ var head: Node3D
 var cam: Camera3D
 var hand: Node3D
 var body_mesh: MeshInstance3D
+## Your kit and what's in your hands (crew/hands.gd), and what a crewmate's peer last said they're holding.
+var hands: Hands
+var _net_item := ""
 ## Tests drive the keys without a captured mouse.
 var force_input := false
 ## A fish pulling on the rod in your hands, 0..1 (rods.gd): your view trembles with it and gets tugged toward it.
@@ -52,6 +56,8 @@ var cam_goal := Vector2(NAN, NAN)
 var steering := false
 ## In the fighting chair (boat/chair.gd says).
 var seated := false
+## Hauling something heavy across the deck (a fish on the gaff: boat/fish_hold.gd), 1 .. slower.
+var burden := 1.0
 var _yaw := 0.0
 var _pitch := 0.0
 var _prompt := ""
@@ -83,7 +89,7 @@ var _face_mat: BaseMaterial3D
 var _face := ""
 var _blink_in := 3.0
 ## The one-off moves and how long each takes (s).
-const GESTURES := {"throw": 0.6, "scoop": 0.7, "bleed": 1.1, "reach": 0.5, "stumble": 0.9}
+const GESTURES := {"throw": 0.6, "cast": 0.5, "scoop": 0.7, "bleed": 1.1, "reach": 0.5, "stumble": 0.9}
 var _crank_ph := 0.0
 var _haul_ph := 0.0
 ## The deck dropping out from under you (a big sea): its heave, how fast, and when you last lost your feet.
@@ -129,6 +135,10 @@ func _ready() -> void:
 	head.add_child(hand)
 	# What the others see: a deckhand in oilskins (art/crew.py), in pieces that swing at the joints
 	_build_body()
+	hands = Hands.new()
+	hands.name = "Hands"
+	hands.player = self
+	add_child(hands)
 	if is_multiplayer_authority():
 		for part: MeshInstance3D in _parts.values():
 			part.layers = 1 << 19      # layer 20: your own camera leaves it out, it still casts your shadow
@@ -240,10 +250,10 @@ func _pose_body(delta: float) -> void:
 	var crouch := 0.0
 	if rod != null:
 		# both hands on it: the left out on the foregrip, the right on the reel
-		var lift := float(rod.get("lift"))
+		var lift := float(rod.get("lift")) + float(rod.get("wind")) * 0.8     # (a pump, or winding up a cast)
 		var strain := float(rod.get("strain")) if bool(rod.get("hooked")) else 0.0
 		var back := 0.12 + 0.3 * strain + 0.35 * lift          # leaning back into it
-		p["torso"] = Vector3(back, 0.0, 0.0)
+		p["torso"] = Vector3(back, -0.3 * float(rod.get("wind")), 0.0)
 		p["arm_l"] = Vector3(0.95 + 0.6 * lift, 0.25, -0.1)
 		p["fore_l"] = Vector3(0.7, 0.0, 0.0)
 		p["arm_r"] = Vector3(0.55 + 0.4 * lift, -0.15, 0.15)
@@ -268,6 +278,10 @@ func _pose_body(delta: float) -> void:
 		p["arm_r"] = Vector3(1.15 - steer * 0.3, 0.0, 0.05)
 		p["fore_r"] = Vector3(0.75, 0.0, 0.0)
 		p["torso"] = Vector3(-0.04, steer * 0.12, 0.0)
+	if hands != null and not hands.stowed() and hands.shown_item() != "":
+		# something of the kit in your right hand, held out in front
+		p["arm_r"] = Vector3(0.45, 0.0, 0.1)
+		p["fore_r"] = Vector3(1.15, 0.0, 0.0)
 	if doing & ACT_HAUL:
 		# leaning back on it, hand over hand
 		_haul_ph += delta * 4.5
@@ -295,6 +309,12 @@ func _pose_body(delta: float) -> void:
 				p["arm_r"] = Vector3(lerpf(2.9, 0.7, whip), 0.0, 0.2)
 				p["fore_r"] = Vector3(lerpf(1.5, 0.1, whip), 0.0, 0.0)
 				p["torso"] = Vector3(lerpf(0.15, -0.3, whip) * (1.0 - smoothstep(0.7, 1.0, gk)), -0.3 * (1.0 - whip), 0.0)
+			"cast":
+				# the rod brought over hard from behind the shoulder, leaning into it
+				var through := smoothstep(0.0, 0.5, gk)
+				p["torso"] = Vector3(lerpf(0.25, -0.3, through) * (1.0 - smoothstep(0.6, 1.0, gk)), 0.0, 0.0)
+				p["arm_l"] = Vector3(lerpf(2.0, 0.9, through), 0.25, -0.1)
+				p["arm_r"] = Vector3(lerpf(1.6, 0.5, through), -0.15, 0.15)
 			"scoop":
 				# down to the bucket, then flung out over the side
 				var fling := smoothstep(0.35, 0.7, gk)
@@ -468,7 +488,7 @@ func _physics_process(delta: float) -> void:
 		_send_in -= 1
 		if Net.in_session() and _send_in <= 0:
 			_send_in = 2      # 30 a second
-			_state.rpc(body.position, _yaw, _pitch, act)
+			_state.rpc(body.position, _yaw, _pitch, act, hands.item)
 	else:
 		body.position = body.position.lerp(_net_at, 0.4)
 		_yaw = lerp_angle(_yaw, _net_yaw, 0.4)
@@ -483,7 +503,7 @@ func _doing() -> int:
 		return 0
 	var out := 0
 	var jig: Node = sea.get("jig")
-	if jig != null and bool(jig.get("_jigging")):
+	if jig != null and bool(jig.call("active")):
 		out |= ACT_JIG
 	var landing: Node = sea.get("landing")
 	if landing != null and int(landing.get("_my_pull")) >= 0:
@@ -498,11 +518,12 @@ func _doing() -> int:
 
 ## Where a crew member is on deck and where they look: sent by their own peer to everyone else.
 @rpc("authority", "call_remote", "unreliable_ordered")
-func _state(at: Vector3, yaw: float, pitch: float, doing := 0) -> void:
+func _state(at: Vector3, yaw: float, pitch: float, doing := 0, item := "") -> void:
 	_net_at = at
 	_net_yaw = yaw
 	_net_pitch = pitch
 	_net_act = doing
+	_net_item = item
 
 
 func _walk(delta: float) -> void:
@@ -522,7 +543,7 @@ func _walk(delta: float) -> void:
 	var live := force_input or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back") if live else Vector2.ZERO
 	var wish := Basis(Vector3.UP, _yaw) * Vector3(input.x, 0.0, input.y)
-	wish = wish.normalized() * (SPRINT if Input.is_action_pressed("sprint") else WALK) * minf(input.length(), 1.0)
+	wish = wish.normalized() * (SPRINT if Input.is_action_pressed("sprint") else WALK) * minf(input.length(), 1.0) * burden
 	var v := body.velocity
 	var flat := Vector3(v.x, 0.0, v.z).move_toward(wish, (ACCEL if body.is_on_floor() else AIR_ACCEL) * delta)
 	v.x = flat.x

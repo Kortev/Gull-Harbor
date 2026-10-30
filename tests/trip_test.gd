@@ -26,6 +26,8 @@ func _ready() -> void:
 	await _wait(1.5)
 	await _shot("dock")
 	hold.head_out("skiff")
+	for r in sea.rods.rods:
+		sea.rods.host_cast(r.index)       # (the crew cast the baits out: tests/cast_test.tscn)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	await _wait(2.0)
 	_check(not hold.docked, "headed out in the %s" % sea.boat.kind)

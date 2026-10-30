@@ -1,149 +1,174 @@
 extends Node3D
-## A light jig rod in a gunwale holder (her kind's `jig`), its string of little feathered hooks over the side: hold E
-## on it and jig, and every few seconds a mackerel comes up, wriggling, into the live well (boat/fish_hold.gd's well:
-## you need the well, bought at the dock, to keep them). A live mackerel's the best bait there is (rods.gd).
-## Not while she's under way (JIG_SPEED): the jig streams out behind her.
+## Jigging for mackerel with the light jig rod in your hands (crew/hands.gd's kit, key 3): a string of little feathered
+## hooks over the side. Stand at the rail, rod out over the water:
+##   - left mouse: let the jig go; it sinks (the reel ticking as line goes)
+##   - tap left mouse: work it, the rod tip snatched up and let fall
+##   - a knock on the fall: the tip jerks down and your view with it. Tap again, quick, to set the hook; too slow and
+##     it's gone
+##   - hold left mouse: wind it up; with a mackerel on, it comes up wriggling and you swing it aboard, into the live
+##     well (boat/fish_hold.gd: you need the well, bought at the dock, to keep them; without it it goes back)
+## Not while she's under way (JIG_SPEED): the jig streams out behind her and nothing takes it. A live mackerel's the
+## best bait there is (rods.gd).
 ##
-## The jigging is yours (your hand on it, the rod bobbing as you work it); each mackerel is the host's to give
-## (_ask_mackerel), and everyone sees it come up (_caught).
+## The jigging is yours (on your machine: what you see and feel); each mackerel is the host's to give
+## (_ask_mackerel), and everyone sees it come up on your rod (_caught). The others see your line go down and you
+## working the rod (crew/player.gd's ACT_JIG).
 
-const Action := preload("res://core/action.gd")
 const Sfx := preload("res://audio/sfx.gd")
-const ROD := preload("res://rods/rod.glb")
+const Kit := preload("res://crew/kit.gd")
 const FishHold := preload("res://boat/fish_hold.gd")
-const SCALE := 0.7
-## Seconds between mackerel while you keep at it, the quickest the host gives one peer another, and the fastest she
-## can be going (m/s).
-const BITE := Vector2(3.0, 7.0)
-const EVERY := 2.0
+## The fastest she can be going (m/s), and the quickest the host gives one peer another mackerel (s).
 const JIG_SPEED := 1.5
+const EVERY := 2.0
+## How deep the jig goes (m), how fast it sinks and comes up (m/s); how long a hold is a wind, not a jig (s).
+const DEEP := 14.0
+const SINK := 5.0
+const WIND := 3.5
+const HOLD := 0.28
+## After a jig: the chance something knocks it on the fall, how deep it has to be for that, and how long you have to
+## strike (s).
+const KNOCK := 0.4
+const KNOCK_DEEP := 5.0
+const STRIKE := 0.55
 
 var sea: Node                 # sea/sea.gd
-var _rod: Node3D
-var _act: Area3D
-var _tip_local := Vector3(0.0, 0.0, 1.76)
-var _line_mesh: ImmediateMesh
-var _line: MeshInstance3D
-var _mackerel: Node3D
-var _show_fish := 0.0
-var _jigging := false
-var _bite_in := 0.0
-var _jig_t := 0.0
-var _side := 1.0
-var _at := Vector3.ZERO
+## Your jig: "up" (at the tip), "down" (sinking or there), "knock" (a fish on it, strike now), "on" (hooked).
+var state := "up"
+var depth := 0.0
+## The rod tip snatched up (1) or jerked down by a knock (-1), easing back to 0; crew/hands.gd poses the rod with it.
+var lift := 0.0
+var _held := 0.0
+var _pressed := false
+var _knock_in := INF
+var _knock_left := 0.0
+var _wriggle := 0.0
 var _last := {}               # (host: peer -> when they last got one)
+## Everyone's jig lines (drawn from their rod tips) and the mackerel coming up on one (peer -> s left showing).
+var _lines: ImmediateMesh
+var _caught_on := {}
+var _fish: Node3D
 
 
 func _ready() -> void:
-	_line_mesh = ImmediateMesh.new()
-	_line = MeshInstance3D.new()
-	_line.mesh = _line_mesh
-	_line.top_level = true
-	_line.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_lines = ImmediateMesh.new()
+	var line := MeshInstance3D.new()
+	line.mesh = _lines
+	line.top_level = true
+	line.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var lm := StandardMaterial3D.new()
 	lm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	lm.albedo_color = Color(0.85, 0.86, 0.78)
-	_line.material_override = lm
-	add_child(_line)
-	_mackerel = _make_mackerel()
-	_mackerel.top_level = true
-	_mackerel.visible = false
-	add_child(_mackerel)
-	_attach()
-	(sea.get("boat") as Node).connect("rebuilt", _attach)
+	line.material_override = lm
+	add_child(line)
+	_fish = Kit._mackerel()
+	_fish.top_level = true
+	_fish.visible = false
+	add_child(_fish)
+	(sea.get("boat") as Node).connect("rebuilt", func() -> void: _reset())
 
 
-## The jig rod, in the holder her kind keeps it in (again whenever she's rebuilt as another).
-func _attach() -> void:
-	var boat := sea.get("boat") as Node3D
-	_jigging = false
-	for n: Node in [_rod, _act]:
-		if is_instance_valid(n):
-			n.get_parent().remove_child(n)
-			n.queue_free()
-	var holders: Array = boat.get("holders")
-	var i := int((boat.get("spec") as Dictionary).get("jig", 4))
-	_at = (holders[i] as Transform3D).origin if i < holders.size() else Vector3(1.5, 1.2, 2.0)
-	_side = signf(_at.x) if _at.x != 0.0 else 1.0
-	_rod = ROD.instantiate() as Node3D
-	_rod.name = "JigRod"
-	boat.add_child(_rod)
-	var tip := _rod.find_child("tip", true, false) as Node3D
-	if tip:
-		_tip_local = tip.transform.origin
-	_act = Action.new(Vector3(0.5, 0.6, 0.6))
-	_act.name = "Jig"
-	_act.position = _at + Vector3(-_side * 0.2, 0.0, 0.0)
-	_act.use = func(_p: Node) -> void: _start()
-	_act.prompt = _prompt
-	boat.add_child(_act)
-	_pose(0.0)
+func _reset() -> void:
+	state = "up"
+	depth = 0.0
+	lift = 0.0
 
 
-## The rod out over the side and up; `bob` works it up and down (a jig).
-func _pose(bob: float) -> void:
-	var out := Vector3(_side * 0.75, 0.62 + bob, -0.1).normalized()
-	_rod.transform = Transform3D(Basis.looking_at(-out, Vector3.UP).scaled(Vector3.ONE * SCALE), _at)
+## Whether you're jigging (your line's in the water).
+func active() -> bool:
+	return state != "up" or depth > 0.0
 
 
-func tip_position() -> Vector3:
-	return _rod.global_transform * _tip_local
-
-
-func _prompt() -> String:
-	var hold: Node = sea.get("fish_hold")
-	if hold == null or bool(hold.get("docked")):
-		return ""
-	if _jigging:
-		return "Jigging..."
-	if not bool(hold.call("has_gear", "bait")):
-		return "Jig: needs a live well"
-	if int(hold.get("well")) >= FishHold.WELL_MAX:
-		return "Live well full"
-	if absf(_speed()) > JIG_SPEED:
-		return "Too fast to jig"
-	return "Hold to jig  %d/%d" % [int(hold.get("well")), FishHold.WELL_MAX]
-
-
-func _start() -> void:
-	var hold: Node = sea.get("fish_hold")
-	if hold == null or bool(hold.get("docked")) or not bool(hold.call("has_gear", "bait")):
+## Left mouse went down with the jig rod in your hands (crew/hands.gd).
+func work(player: Node) -> void:
+	_pressed = true
+	_held = 0.0
+	if state == "up":
+		if not _over_water(player):
+			return
+		state = "down"
+		Sfx.play_point(self, _tip(player), "dock.reel", 0.6, 1.6)
 		return
-	_jigging = true
-	_bite_in = randf_range(BITE.x, BITE.y)
+	# a jig: the tip snatched up; on a knock, that's the strike
+	lift = 1.0
+	if state == "knock":
+		state = "on"
+		_wriggle = 1.0
+		Sfx.play_point(self, _tip(player), "kit.jolt", 0.5, 1.5)
+	elif state == "down" and depth >= KNOCK_DEEP and absf(_speed()) <= JIG_SPEED and randf() < KNOCK:
+		_knock_in = randf_range(0.35, 1.1)      # (on the fall)
 
 
 func _process(delta: float) -> void:
 	var crew := sea.get("crew") as Node
-	var me: Node = crew.get("me") if crew else null
-	if _jigging and (me == null or not Input.is_action_pressed("interact") or me.call("looking_at") != _act):
-		_jigging = false
-	if _jigging and absf(_speed()) <= JIG_SPEED:
-		_jig_t += delta
-		_bite_in -= delta
-		if _bite_in <= 0.0:
-			_bite_in = randf_range(BITE.x, BITE.y)
-			if Net.is_host():
-				_ask_mackerel_as(Net.my_id())
-			else:
-				_ask_mackerel.rpc_id(1)
-	_pose(sin(_jig_t * 5.0) * 0.25 if _jigging else 0.0)
-	# the line straight down from the tip into the water (a fish on it for a moment, wriggling, swung aboard)
-	var a := tip_position()
-	var ocean := sea.get("ocean") as Node
-	var b := a + Vector3(0.0, -3.0, 0.0)
-	b.y = float(ocean.call("height_at", b)) - 0.2
-	_show_fish -= delta
-	_mackerel.visible = _show_fish > 0.0
-	if _mackerel.visible:
-		b = a + Vector3(0.0, -0.5, 0.0)
-		_mackerel.global_transform = Transform3D(Basis(Vector3.UP, sin(_show_fish * 25.0) * 0.6)
-				* Basis(Vector3.RIGHT, PI * 0.5), b + Vector3(0.0, -0.12, 0.0))
-	_line_mesh.clear_surfaces()
-	_line_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
-	_line_mesh.surface_add_vertex(a)
-	_line_mesh.surface_add_vertex(b)
-	_line_mesh.surface_end()
+	var me: Node3D = crew.get("me") if crew else null
+	var mine := me != null and str((me.get("hands") as Node).call("shown_item")) == "jig" \
+			and not bool((me.get("hands") as Node).call("stowed"))
+	if not mine and active():
+		_reset()
+	if mine:
+		_play(me, delta)
+	lift = move_toward(lift, 0.0, delta * 2.6)
+	_draw(crew, delta)
+
+
+## Your jig, this frame: sinking, winding up while you hold the button, the knock and the strike.
+func _play(me: Node3D, delta: float) -> void:
+	var live := bool(me.get("force_input")) or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+	var held := live and Input.is_action_pressed("use_primary") and _pressed
+	if not held:
+		_pressed = false
+	_held = _held + delta if held else 0.0
+	var winding := _held > HOLD and state != "up"
+	if winding:
+		depth = maxf(depth - WIND * delta, 0.0)
+		lift = maxf(lift, 0.35)
+		if depth <= 0.0:
+			_landed(me)
+	elif state in ["down", "knock"]:
+		depth = minf(depth + SINK * delta, DEEP)
+	# a knock on the fall: the tip jerks down, your view with it; strike within STRIKE s or it's gone
+	_knock_in -= delta
+	if _knock_in <= 0.0:
+		_knock_in = INF
+		if state == "down":
+			state = "knock"
+			_knock_left = STRIKE
+			lift = -1.0
+			me.set("shake", 0.7)
+			Sfx.play_point(self, _tip(me), "kit.thud", 0.35, 1.8)
+	if state == "knock":
+		_knock_left -= delta
+		if _knock_left <= 0.0:
+			state = "down"
+			me.set("shake", 0.0)
+	if state == "on":
+		# a mackerel on: the tip nodding to its kicks
+		_wriggle += delta
+		lift = minf(lift, -0.25 + sin(_wriggle * 17.0) * 0.2)
+		me.set("shake", 0.15)
+	elif state != "knock" and float(me.get("shake")) > 0.0 and not _rod_in_hands(me):
+		me.set("shake", 0.0)
+	if absf(_speed()) > JIG_SPEED and state in ["knock", "on"]:
+		state = "down"      # (under way: torn off)
+
+
+## Wound all the way up: a mackerel on comes aboard; either way the jig's back at the tip.
+func _landed(me: Node3D) -> void:
+	var had := state == "on"
+	state = "up"
+	depth = 0.0
+	me.set("shake", 0.0)
+	if not had:
+		return
+	if Net.is_host():
+		_ask_mackerel_as(Net.my_id())
+	else:
+		_ask_mackerel.rpc_id(1)
+
+
+func _rod_in_hands(me: Node) -> bool:
+	var rods: Node = sea.get("rods")
+	return rods != null and rods.call("held_by", str(me.name).to_int()) != null
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -151,29 +176,96 @@ func _ask_mackerel() -> void:
 	_ask_mackerel_as(multiplayer.get_remote_sender_id())
 
 
-## Host: a mackerel for whoever's jigging, if it's been long enough, she's slow enough and the well takes it.
+## Host: a mackerel swung aboard by `who`, if it's been long enough and she's slow enough: into the well if it takes
+## it, else back over the side.
 func _ask_mackerel_as(who: int) -> void:
 	var t := _now()
 	if t - float(_last.get(who, -1e9)) < EVERY or absf(_speed()) > JIG_SPEED:
 		return
 	var hold: Node = sea.get("fish_hold")
-	if hold == null or not bool(hold.call("host_add_live")):
+	if hold == null:
 		return
 	_last[who] = t
+	var kept := bool(hold.call("host_add_live"))
 	if Net.in_session():
-		_caught.rpc(who)
+		_caught.rpc(who, kept)
 	else:
-		_caught(who)
+		_caught(who, kept)
 
 
 @rpc("authority", "call_local", "reliable")
-func _caught(who: int) -> void:
-	_show_fish = 1.4
-	Sfx.play_point(self, tip_position(), "dock.slap", 0.5, 1.6)
-	if who == Net.my_id():
-		var hold: Node = sea.get("fish_hold")
-		var hud := (sea.get("crew") as Node).get("hud") as Node
-		hud.call("notify", "Mackerel  %d/%d" % [int(hold.get("well")), FishHold.WELL_MAX])
+func _caught(who: int, kept := true) -> void:
+	_caught_on[who] = 1.2
+	var p := ((sea.get("crew") as Node).call("get_player", who)) as Node3D
+	var at := _tip(p) if p else global_position
+	Sfx.play_point(self, at, "dock.slap", 0.5, 1.6)
+	if not kept:
+		get_tree().create_timer(1.2).timeout.connect(func() -> void:
+			Sfx.play_point(self, at, "dock.slap", 0.3, 2.2))       # (back over the side)
+
+
+## Everyone's jig lines: from each jigger's rod tip down into the water (streaming astern if she's moving), and a
+## mackerel wriggling on the end of one being swung aboard.
+func _draw(crew: Node, delta: float) -> void:
+	_lines.clear_surfaces()
+	var ocean := sea.get("ocean") as Node
+	var boat := sea.get("boat") as Node3D
+	var any := false
+	_fish.visible = false
+	for id: int in _caught_on.keys():
+		_caught_on[id] = float(_caught_on[id]) - delta
+		if float(_caught_on[id]) <= 0.0:
+			_caught_on.erase(id)
+	for p: Node in crew.get_children():
+		if not p is Node3D or not p.has_method("gesture"):
+			continue
+		var id := str(p.name).to_int()
+		var mine: bool = p == crew.get("me")
+		var jigging: bool = active() if mine else (int(p.get("_net_act")) & 2) != 0       # (player.gd's ACT_JIG)
+		var showing := _caught_on.has(id)
+		if not jigging and not showing:
+			continue
+		var tip := _tip(p)
+		if tip == Vector3.INF:
+			continue
+		var b := tip + Vector3(0.0, -2.5, 0.0)
+		if showing:
+			b = tip + Vector3(0.0, -0.45, 0.0)
+			_fish.visible = true
+			var k := float(_caught_on[id])
+			_fish.global_transform = Transform3D(Basis(Vector3.UP, sin(k * 25.0) * 0.6) * Basis(Vector3.RIGHT, PI * 0.5),
+					b + Vector3(0.0, -0.14, 0.0))
+		else:
+			b.y = float(ocean.call("height_at", b))
+			b -= boat.global_basis.z * clampf(absf(_speed()) * 1.5, 0.0, 6.0) * -1.0
+		if not any:
+			_lines.surface_begin(Mesh.PRIMITIVE_LINES)
+			any = true
+		_lines.surface_add_vertex(tip)
+		_lines.surface_add_vertex(b)
+	if any:
+		_lines.surface_end()
+
+
+## The jig rod's tip in someone's hands (INF: they're not holding it).
+func _tip(p: Node) -> Vector3:
+	if p == null:
+		return Vector3.INF
+	var hands: Node = p.get("hands")
+	var tip: Node3D = hands.call("tip") if hands else null
+	return tip.global_position if tip else Vector3.INF
+
+
+## Whether your rod tip's out over the water (not over her deck): at the rail.
+func _over_water(p: Node) -> bool:
+	var tip := _tip(p)
+	if tip == Vector3.INF:
+		return false
+	var boat := sea.get("boat") as Node3D
+	var spec: Dictionary = boat.get("spec")
+	var at := boat.global_transform.affine_inverse() * tip
+	var aft := (spec.get("transom", Vector3(0, 0, 7.0)) as Vector3).z
+	return absf(at.x) > float(spec["beam"]) * 0.5 - 0.15 or at.z > aft - 0.1 or at.z < aft - float(spec["length"])
 
 
 func _speed() -> float:
@@ -183,42 +275,3 @@ func _speed() -> float:
 
 func _now() -> float:
 	return float((sea.get("ocean") as Node).get("wave_time"))
-
-
-## A mackerel, low and chunky: green-blue back with dark bars, silver belly, forked tail; 30 cm.
-static func _make_mackerel() -> Node3D:
-	var root := Node3D.new()
-	root.name = "Mackerel"
-	var back := StandardMaterial3D.new()
-	back.albedo_color = Color(0.18, 0.42, 0.4)
-	back.metallic = 0.4
-	back.roughness = 0.35
-	var belly := StandardMaterial3D.new()
-	belly.albedo_color = Color(0.82, 0.84, 0.86)
-	belly.metallic = 0.6
-	belly.roughness = 0.3
-	var body := MeshInstance3D.new()
-	var sm := SphereMesh.new()
-	sm.radius = 0.5
-	sm.height = 1.0
-	sm.radial_segments = 6
-	sm.rings = 3
-	body.mesh = sm
-	body.material_override = belly
-	body.scale = Vector3(0.045, 0.06, 0.26)
-	root.add_child(body)
-	var top := MeshInstance3D.new()
-	top.mesh = sm
-	top.material_override = back
-	top.scale = Vector3(0.04, 0.035, 0.24)
-	top.position = Vector3(0.0, 0.016, 0.0)
-	root.add_child(top)
-	var tail := MeshInstance3D.new()
-	var pm := PrismMesh.new()
-	pm.size = Vector3(0.09, 0.06, 0.01)
-	tail.mesh = pm
-	tail.material_override = back
-	tail.rotation = Vector3(0.0, PI * 0.5, PI)
-	tail.position = Vector3(0.0, 0.0, 0.15)
-	root.add_child(tail)
-	return root

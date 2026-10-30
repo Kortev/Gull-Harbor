@@ -26,6 +26,8 @@ func _ready() -> void:
 	hold.best = 0
 	hold.owned = ["skiff", "sportfisher"]
 	hold.head_out("sportfisher")        # (off the dock in the big boat: this test's spots are hers)
+	for r in sea.rods.rods:
+		sea.rods.host_cast(r.index)       # (the crew cast the baits out: tests/cast_test.tscn)
 	await get_tree().process_frame
 	_check(not hold.docked and sea.boat.kind == "sportfisher", "headed out in the sportfisher")
 	var me := sea.crew.me
@@ -97,13 +99,13 @@ func _ready() -> void:
 	var on_deck: Node = (hold._deck.values()[0] as Node).get_node("Handle")
 	_check(await _can_look_at(me, Vector3(1.0, 0.6, 4.95), on_deck, PI),
 			"from the cockpit you can put the crosshair on the fish on deck")
-	_check(hold.hint().begins_with("Bleed it"), "the HUD says to bleed it: %s" % hold.hint())
+	_check(hold.hint().is_empty(), "no words for it: the fish lying there says it (%s)" % hold.hint())
 	var id := int(hold.fish[0]["id"])
 	hold._work(id)
-	_check(float(hold.fish[0]["bled_s"]) >= 0.0 and hold._deck.size() == 1, "E on it: bled, still on deck")
+	_check(float(hold.fish[0]["bled_s"]) >= 0.0 and hold._deck.size() == 1, "bled (the knife: tests/hands_test.tscn), still on deck")
 	hold._work(id)
 	await get_tree().process_frame
-	_check(float(hold.fish[0]["iced_s"]) >= 0.0 and hold._deck.is_empty(), "E again: iced, into the fish box")
+	_check(float(hold.fish[0]["iced_s"]) >= 0.0 and hold._deck.is_empty(), "iced, into the fish box")
 	var worth := hold.worth()
 	_check(worth > 0, "it's worth $%d" % worth)
 	hold.head_in()
@@ -120,6 +122,8 @@ func _ready() -> void:
 	_check(not hold.buy("bait") and not hold.buy("sportfisher"), "not twice, and not a boat the bank can't stand")
 	hold.owned = ["skiff", "sportfisher"]
 	hold.head_out()
+	for r in sea.rods.rods:
+		sea.rods.host_cast(r.index)       # (the crew cast the baits out: tests/cast_test.tscn)
 	_check(hold.sale.is_empty() and not hold.docked, "back out with an empty hold")
 	# grading: handled well beats handled badly
 	var good := FishHold.quality(200.0, 100.0, 20.0, 60.0)

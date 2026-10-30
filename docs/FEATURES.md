@@ -25,8 +25,9 @@ bigger. Miss it and the bank takes the boat, and the run's over.
 | Mouse | look |
 | Shift | sprint |
 | Space | jump |
-| E | use whatever's under the crosshair (grab a rod, the wheel, the harpoon, the tuna door, a fish on deck, the chum bucket, the jig); hold E for the haul, the wiring, the jig |
-| Left mouse | crank the reel; throw the harpoon |
+| E | use whatever's under the crosshair (pick up a rod, bait it, the wheel, the harpoon, the tuna door, the fish box lid); hold E for the haul, the wiring |
+| 1-5, mouse wheel | what's in your hands: the knife, the gaff, the jig rod, the scoop, a bait (the same key again: empty hands) |
+| Left mouse | with a rod: hold to wind up a cast, let go to cast; hold to wind the line in; with a fish on, crank. With the kit: use it (below). The harpoon: throw |
 | Mouse, with a fish on | the rod: up and down lifts and drops it, sideways lays it over |
 | Right mouse | raise the rod |
 | Scroll, with a fish on | the drag, a notch at a time |
@@ -137,20 +138,31 @@ note after the fact.
 - Each rod's line runs back to a **lure** on the water (a live mackerel shows dark). Baits are **towed**: dragged
   along behind the rod tip, held out wide while she's moving, swinging round her turns, dropping back with the line
   slack when she stops, skipping along the top at speed.
+- **You cast them** (rods/rods.gd). She heads out with every line in and a dead bait on each hook. E picks a rod
+  up; **hold left mouse to wind up** (about a second for everything; a bar over the hotbar fills) and **let go to
+  cast**: the bait flies out where you're looking, in an arc, **10 to 55 m** by how far you wound it, and lands with
+  a splash. Then **Q** puts the rod back in its holder and it trolls from there, swinging in behind her as she goes
+  (or keep it in your hands). Nothing bites in the air. With its line out, **holding left mouse winds it back in**
+  (about 1.5 s).
+- **A fish takes the bait.** After a fish (landed or lost) its line comes in with a **bare hook**: nothing bites
+  that. **A bait in your hands (key 5), E on a rod** in its holder: its line comes in and a fresh bait goes on (a
+  live mackerel while the well has one, else dead); then cast it.
 - **Baits go off:** a dead bait's washed out after about **5 minutes**, a live one **10**. A washed-out bait gets a
-  **quarter** of the bites. The HUD says when one has ("Port corner bait washed out"); E on it
-  reels it in and a fresh one goes out **4 s** later.
-- **Live bait** (with the live-bait well): baits go out live while there's a mackerel in the well: **half as many
-  bites again**, and they last twice as long. E on a dead-baited rod while there are mackerel swaps it for a live
-  one.
-- **The jig** (a light rod in a gunwale holder): **hold E** on it, slowed right down (under about 3 knots), and a
-  mackerel comes up every few seconds into the well (needs the well; it takes 8).
-- **Chum** (the bucket on her transom, **24 scoops** a trip): E throws a scoop (one every 1.5 s at most). It lays a
-  slick back through the baits; a school within about **450 m** smells it, comes up it and **stays on it, working,
-  as long as you keep the chum coming** (a scoop every minute or so). New schools turn up near a fresh slick too.
-- After a fish, the crew put the baits back out on their own after 20 s of quiet.
+  **quarter** of the bites. You see it: the lure's colour goes. Rebait it as above.
+- **Live bait** (with the live-bait well): **half as many bites again**, and lasts twice as long.
+- **The jig** (the jig rod, key 3, slowed right down, under about 3 knots), at the rail with the rod out over the
+  water: **left mouse** lets the jig go and it sinks; **taps** work it; a **knock** on the fall jerks the tip down
+  and your view with it: **tap again within half a second** to set the hook, or it's gone; **hold left mouse** to
+  wind it up, and a mackerel on comes up wriggling into the well (needs the well; it takes 8; without one it goes
+  back).
+- **Chum** (the bucket on her transom, **24 scoops** a trip): the scoop (key 4), **left mouse on the bucket** dips it
+  full; **hold to wind up, let go to throw** (4 to 22 m, where you look; one every 1.5 s at most). The slick lays
+  **where it lands**: put it among your baits. A school within about **450 m** smells it, comes up it and **stays
+  on it, working, as long as you keep the chum coming** (a scoop every minute or so). New schools turn up near a
+  fresh slick too.
 
-**Teach it:** rod and bucket and jig prompts; the stale-bait hint. Gap: why chum and live bait matter.
+**Teach it:** shown, not told: the lures on the water (bare, washed out, live), the hotbar's pictures, the wind-up
+bar, the rod tip's knock. Gap: nothing says the kit is on 1-5 but the hotbar itself.
 
 ---
 
@@ -222,13 +234,18 @@ fight tip. Gap: "anyone can grab it / hand it off" is only in the manual.
 
 ## On deck, and the sale
 
-- **Bleed it** (E on the fish), then **ice it** (E again: into the fish box). The box holds the boat's number iced;
-  more sells warm off the deck.
+- **Bleed it:** the knife (key 1), left mouse on the fish. It bleeds out on the deck.
+- **Ice it:** E on the **fish box lid** (a hatch in her sole: forward of the skiff's console, mid-cockpit on the
+  sportfisher) opens it: ice inside, a tail up out of it for each fish down there. The **gaff** (key 2), left mouse
+  on the fish hooks it; **drag it** across the deck (a giant slows you to a crawl) and **let go over the open box**:
+  it drops in on the ice. Let go anywhere else and it lies there. The box holds the boat's number iced; more sells
+  warm off the deck.
 - **The grade** (#1, #2, #3) is all in how it was handled: **landed fast** for its size, **bled within a minute**,
   **iced within 3 minutes**. Left warm on deck costs more.
 - **Price:** about $18/kg times 0.35 to 1.25 by quality. A #1 200 kg fish is around $4,000.
 
-**Teach it:** the prompts ("Bleed it", "Ice it"), the amber pip top left. Gap: the grade rules (manual only).
+**Teach it:** the fish lying there, its blood, the lid; the HUD only says when the box is full. Gap: the grade
+rules.
 
 ---
 

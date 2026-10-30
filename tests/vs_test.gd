@@ -55,6 +55,7 @@ func _ready() -> void:
 	_check(me.boat == b_boat and me.global_position.distance_to(b_boat.global_position) < 12.0,
 			"you're on B's deck, where she is")
 	# a fish on B's rod is B's
+	(b.get("rods") as Node).call("host_cast", 0)       # (the crew cast it out: tests/cast_test.tscn)
 	(b.get("rods") as Node).call("strike", 0, 150.0)
 	await get_tree().create_timer(0.2).timeout
 	var b_on := ((b.get("rods") as Node).get("rods") as Array).any(func(r: Node) -> bool: return bool(r.get("hooked")))

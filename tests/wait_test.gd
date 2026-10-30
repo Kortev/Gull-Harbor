@@ -35,27 +35,34 @@ func _ready() -> void:
 	_check(not any, "a school right on the baits at the dock: nothing bites")
 	sea.schools.schools[0].life = 0.0
 	await get_tree().process_frame
-	# out with the well: four live mackerel, and the spread baited with them
+	# out with the well: four live mackerel in it, a dead bait on each hook, every line in for the crew to cast
 	hold.gear = ["bait"]
 	hold.head_out("skiff")
 	await get_tree().create_timer(0.3).timeout
 	_check(hold.chum == FishHold.CHUM, "a full chum bucket going out (%d)" % hold.chum)
+	_check(rods.rods[0].bait_in and rods.rods[0].baited and not rods.rods[0].live and hold.well == FishHold.WELL_START,
+			"lines in, dead baits on, four mackerel in the well (%d)" % hold.well)
+	# a bait in your hands, E on each rod: a live mackerel on
+	var me: Node = sea.crew.me
+	me.hands.pick("bait")
+	rods.request_bait(0)
+	rods.request_bait(1)
 	_check(rods.rods[0].live and rods.rods[1].live and hold.well == FishHold.WELL_START - 2,
-			"the skiff's two baits are live mackerel, two left in the well (%d)" % hold.well)
-	_check(is_equal_approx(rods.freshness(0), 1.0) or rods.freshness(0) > 0.99, "fresh on")
+			"a bait in your hands, E on each rod: live mackerel on, two left in the well (%d)" % hold.well)
+	rods.host_cast(0)
+	rods.host_cast(1)
+	while rods.flying(0) or rods.flying(1):
+		await get_tree().process_frame
+	_check(rods.freshness(0) > 0.99, "fresh on")
 	var fresh_odds: float = rods.bite_odds(0)
 	# a bait goes off
 	rods.rods[0].baited_t -= Rods.LIVE_LIFE * 0.8
 	_check(rods.freshness(0) < Rods.STALE and rods.bite_odds(0) < fresh_odds * 0.5,
 			"an old bait gets fewer bites (%.2f against %.2f)" % [rods.bite_odds(0), fresh_odds])
-	_check(rods.hint().contains("washed out"), "the HUD says so")
-	_check(rods.rebait_prompt(0).begins_with("Rebait"), "and the rod's prompt is to rebait it")
-	rods._ask_grab(0)
+	rods.request_bait(0)
 	await get_tree().process_frame
-	_check(rods.rods[0].bait_in and rods.rods[0].holder == 0, "E on it reels it in (not picked up)")
-	await get_tree().create_timer(Rods.REBAIT + 0.5).timeout
-	_check(not rods.rods[0].bait_in and rods.freshness(0) > 0.95 and rods.rods[0].live,
-			"and a fresh live one goes back out")
+	_check(rods.rods[0].bait_in and rods.rods[0].holder == 0 and rods.freshness(0) > 0.95 and rods.rods[0].live,
+			"E on it with a bait: the line comes in and a fresh live one goes on (not picked up)")
 	_check(hold.well == FishHold.WELL_START - 3, "out of the well (%d left)" % hold.well)
 	# the jig fills the well, not while she's under way, and not past full
 	var helm: Node = sea.boat.helm

@@ -5,6 +5,9 @@ extends Area3D
 
 var use: Callable           # (player: Node) -> void
 var prompt: Callable        # () -> String
+## Left mouse on it with something from the kit in your hands (crew/hands.gd): (player, item, pressed) -> bool, true
+## if it took it.
+var use_with: Callable
 
 
 func _init(size := Vector3.ONE) -> void:
@@ -22,6 +25,10 @@ func _init(size := Vector3.ONE) -> void:
 func interact(player: Node) -> void:
 	if use.is_valid():
 		use.call(player)
+
+
+func use_item(player: Node, item: String, pressed: bool) -> bool:
+	return bool(use_with.call(player, item, pressed)) if use_with.is_valid() else false
 
 
 func interact_prompt() -> String:

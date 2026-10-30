@@ -61,9 +61,20 @@ var alongside := false
 ## running fish has its line tangled (-1: none).
 var bait_in := false
 var tangled := -1
-## The bait on it: when it went out (sea clock) and whether it's a live mackerel from the well (rods.gd's freshness).
+## The bait on it: whether there is one (a fish takes it), when it went on (sea clock) and whether it's a live
+## mackerel from the well (rods.gd's freshness).
+var baited := true
 var baited_t := 0.0
 var live := false
+## Where its bait is fished (boat-local, rods.gd's spread: where the last cast put it), and the cast: where it landed
+## (boat-local), when it went (sea clock; -INF: not flying) and the tip it went from (world).
+var spot := Vector3.ZERO
+var land := Vector3.ZERO
+var cast_t := -INF
+var cast_from := Vector3.ZERO
+## Winding up a cast, 0..1 (the holder's; the others see it too), and the whip of the rod through the cast (1 -> 0).
+var wind := 0.0
+var whip := 0.0
 ## The bait being towed (rods.gd's _tow): where it is and its way through the water (world; INF: not out), and how
 ## slack its line is (0 bar-tight .. 1: she's stopped and it's dropped back).
 var bait_p := Vector3.INF
@@ -288,16 +299,22 @@ func _draw_line() -> void:
 		p.y = maxf(p.y, minf(b.y, a.y) - 0.05)       # (not through the water)
 		_line_mesh.surface_add_vertex(p)
 	_line_mesh.surface_end()
-	# the lure, nose toward the rod, riding just in the water
-	var out := not hooked and not bait_in and tangled < 0 and bait_p != Vector3.INF
+	# the lure, nose toward the rod, riding just in the water; or hanging off the tip with the line in, or flying
+	var flying := bool(spread.call("flying", index)) if spread else false
+	var out := baited and not hooked and tangled < 0 and (bait_in or flying or bait_p != Vector3.INF)
 	_lure.visible = out
 	if out:
 		var to := (a - b) * Vector3(1, 0, 1)
-		if to.length() > 0.01:
+		if bait_in:
+			_lure.global_transform = Transform3D(Basis.IDENTITY, b + Vector3(0.0, -0.12, 0.0))
+		elif to.length() > 0.01:
 			_lure.global_transform = Transform3D(Basis.looking_at(to.normalized(), Vector3.UP)
 					* Basis(Vector3.RIGHT, -PI * 0.5), b + Vector3(0.0, 0.02, 0.0))
+		# (washing out as it goes off: the colour leaves it)
 		var lm := _lure.material_override as StandardMaterial3D
-		lm.albedo_color = Color(0.15, 0.25, 0.3) if live else LURES[index % LURES.size()]
+		var fresh := float(spread.call("freshness", index)) if spread else 1.0
+		var col: Color = Color(0.15, 0.25, 0.3) if live else LURES[index % LURES.size()]
+		lm.albedo_color = col.lerp(Color(0.62, 0.6, 0.55), (1.0 - fresh) * 0.85)
 
 
 func interact_prompt(player: Node) -> String:
@@ -310,9 +327,9 @@ func interact_prompt(player: Node) -> String:
 			return "Clear the tangle"
 		if bool(spread.call("fighting")):
 			return "" if bait_in else "Reel in"
-		if bait_in:
-			return "Bait out"
-		return str(spread.call("rebait_prompt", index))
+		if player != null and str(player.get("hands").get("item")) == "bait":
+			return "Bait it"
+		return "Pick it up"
 	if hooked and holder != Net.my_id():
 		return "Take over"
 	return ""
