@@ -20,6 +20,7 @@ const Boat := preload("res://boat/boat.gd")
 const Crew := preload("res://crew/crew.gd")
 const Menu := preload("res://ui/menu.gd")
 const Title := preload("res://ui/title.gd")
+const PixFont := preload("res://ui/pixfont.gd")
 const Rods := preload("res://rods/rods.gd")
 const Schools := preload("res://tuna/schools.gd")
 const Sonar := preload("res://tuna/sonar.gd")
@@ -99,6 +100,10 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		_args[kv[0]] = kv[1] if kv.size() > 1 else ""
+	# the one typeface, everywhere, its pixels square (ui/pixfont.gd)
+	ThemeDB.fallback_font = PixFont.font()
+	ThemeDB.get_default_theme().default_font = PixFont.font()
+	get_viewport().canvas_item_default_texture_filter = Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST
 	_build_world()
 	cam = Camera3D.new()
 	cam.fov = 75.0
