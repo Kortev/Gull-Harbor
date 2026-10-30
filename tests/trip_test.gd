@@ -123,6 +123,11 @@ func _ready() -> void:
 			sea.rods._host_line(r.index, true)
 	var rod = sea.rods.rods[hooked]
 	sea.rods.request_grab(hooked)
+	# back to the cockpit with it, as you would: fought from up by the console, the line lies over it
+	var me: Node = sea.crew.me
+	var lp: Vector3 = me.call("local_position")
+	lp.z = sea.rods.stern.z - 1.4
+	me.call("place", lp, float(me.get("_yaw")))
 	await _wait(0.2)
 	_check(rod.holder == Net.my_id(), "grabbed the rod")
 	var moves := {}

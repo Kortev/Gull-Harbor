@@ -114,6 +114,10 @@ var arms := 1.0
 ## How worn the line is from rubbing the hull, 0..1 (1: it parts), and how hard it's rubbing right now (0..1).
 var wear := 0.0
 var chafe := 0.0
+## How hard the line's rubbing on her right now, found from the real line against her real hull (rods.gd ray-casts
+## the drawn line against her collision shape: rub_on_hull); below 0 (the headless tests), worked out from her
+## outline seen from above instead.
+var rub_now := -1.0
 var move_t := 0.0
 var done := false
 var rng := RandomNumberGenerator.new()
@@ -242,9 +246,12 @@ func step(dt: float, crank: bool, lift: float) -> void:
 	target = target * (1.0 - 0.6 * back) + 0.5 * ahead
 	# Where the line runs over her house or bow it rubs, harder the flatter it lies.
 	var hd0 := sqrt(maxf(line_out * line_out - depth * depth, 0.0))
-	chafe = rub(_tip(hd0), _fish(hd0), half_beam, house, fore) * hd0 / (hd0 + depth + 1.0)
-	if move == "spiral":
-		chafe *= 0.5        # (deep under her, the line goes down steep and only brushes the hull)
+	if rub_now >= 0.0:
+		chafe = rub_now
+	else:
+		chafe = rub(_tip(hd0), _fish(hd0), half_beam, house, fore) * hd0 / (hd0 + depth + 1.0)
+		if move == "spiral":
+			chafe *= 0.5        # (deep under her, the line goes down steep and only brushes the hull)
 	target = maxf(target, 0.6 * chafe)
 	if tangled:
 		target += 0.25

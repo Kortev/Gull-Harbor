@@ -14,7 +14,7 @@ const Splash := preload("res://sea/splash.gd")
 const WHY := {"broke": "The line parted! Too much strain: when the ring goes red, ease off.",
 		"pulled": "Pulled the hook! Keep the line tight through its headshakes.",
 		"spooled": "Spooled! It took every metre of line. Don't crank against a run; back down on it.",
-		"chafed": "The line wore through on the hull! It swung round over her bow: take it to that corner, or swing her stern to it.",
+		"chafed": "The line wore through where it lay over her! Keep it off her console and bow: fight it from the stern, or swing her stern to it.",
 		"cut": "It went under the boat: the props cut the line! Out of gear when it's under her.",
 		"tangle": "The lines tangled and sawed through! Clear the other lines when a fish is on (E on each rod)."}
 ## While a fish is on, how often (s) the host looks for its run crossing another line that's still out, and the
@@ -619,10 +619,13 @@ func _process(delta: float) -> void:
 		if r.alongside and alongside != Vector3.ZERO:
 			end = alongside      # (straight to the fish lying astern)
 		elif r.hooked:
-			# where the line goes in: toward the fish, closer to the boat the deeper it is (a straight line down)
-			var hd := sqrt(maxf(r.line_out * r.line_out - r.depth * r.depth, 0.0))
-			var entry := hd * 2.5 / (2.5 + r.depth * 0.5)
-			end = boat.global_transform * (stern + Vector3(sin(r.bearing), 0.0, cos(r.bearing)) * entry)
+			# a fish on pulls the line straight from the rod tip to it: it goes in where that straight line meets the
+			# water (close in for a deep fish, out toward it for one near the top)
+			var tip := r.tip_position()
+			var to := fish_point(r, boat)
+			var sea_y := float(ocean.call("height_at", tip))
+			var k := clampf((tip.y - sea_y) / maxf(tip.y - to.y, 0.01), 0.0, 1.0)
+			end = tip.lerp(to, k)
 			end.y = ocean.call("height_at", end)
 		elif tangled_in:
 			end = rods[r.tangled].line_end      # (across the running fish's line)
@@ -800,6 +803,7 @@ func _fight_mine(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	fight.moving = true
 	fight.boat_vel = _boat_vel()
 	fight.tip = _tip_local(r)
+	fight.rub_now = rub_on_hull(r)
 	fight.tangled = is_tangled(r.index)
 	fight.step(delta, crank, r.lift)
 	if me != null:
@@ -826,6 +830,7 @@ func _fight_holder(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	fight.boat_vel = _boat_vel()
 	fight.tangled = is_tangled(r.index)
 	fight.tip = _tip_local(r)
+	fight.rub_now = rub_on_hull(r)
 	fight.step(delta, false, 0.0)
 	if not r.hooked or r.alongside:
 		return       # (it ended this step: lost, or up alongside)
@@ -876,6 +881,73 @@ func _take(r: Rod, fight: Fight) -> void:
 func _boat_vel() -> Vector2:
 	var helm: Node = (sea.get("boat") as Node).get("helm")
 	return Vector2(0.0, -float(helm.get("speed")))
+
+
+## Where rod r's fish is (world): out along its bearing from her stern, at its depth.
+func fish_point(r: Rod, boat: Node3D) -> Vector3:
+	var hd := sqrt(maxf(r.line_out * r.line_out - r.depth * r.depth, 0.0))
+	var p := boat.global_transform * (stern + Vector3(sin(r.bearing), 0.0, cos(r.bearing)) * hd)
+	p.y = boat.global_position.y - r.depth
+	return p
+
+
+## How hard rod r's line is rubbing on her (0..1), from the line itself against her hull: the straight line from the
+## rod tip to the fish (what's drawn) ray-cast against her collision shape, in and back out, with a few lines just
+## beside it (a line grazing her rail rubs too). Only where it really lies on her house or her bow: over the open
+## cockpit (her rail, her transom) the angler leans out and holds the line clear, so only the part of the line forward
+## of her house's aft face is cast; and a line well clear over her cabin or bow doesn't touch.
+func rub_on_hull(r: Rod) -> float:
+	var boat := sea.get("boat") as Node3D
+	if boat == null or not boat.is_inside_tree():
+		return 0.0
+	var space := boat.get_world_3d().direct_space_state
+	var to_her := boat.global_transform.affine_inverse()
+	var tip := r.tip_position()
+	var to := fish_point(r, boat)
+	# the stretch of line forward of her house's aft face (her frame: her bow's -z)
+	var lt := to_her * tip
+	var lf := to_her * to
+	var cut := _house + 0.3
+	if lt.z < cut and lf.z < cut:
+		pass
+	elif lt.z >= cut and lf.z >= cut:
+		return 0.0
+	elif lt.z >= cut:
+		tip = tip.lerp(to, (lt.z - cut) / (lt.z - lf.z))
+	else:
+		to = tip.lerp(to, (cut - lt.z) / (lf.z - lt.z))
+	var along := (to - tip).normalized()
+	var side := along.cross(Vector3.UP).normalized()
+	if side == Vector3.ZERO:
+		side = Vector3.RIGHT
+	var down := side.cross(along).normalized()
+	var worst := 0.0
+	for off: Vector3 in [Vector3.ZERO, side * Fight.HULL_MARGIN, -side * Fight.HULL_MARGIN, -down * Fight.HULL_MARGIN]:
+		var a := tip + off
+		var b := to + off
+		var hit_in := _hull_hit(space, boat, a, b)
+		if hit_in == Vector3.INF:
+			continue
+		var hit_out := _hull_hit(space, boat, b, a)
+		var inside := hit_in.distance_to(hit_out) if hit_out != Vector3.INF else 0.0
+		worst = maxf(worst, inside + 0.25)        # (even a touch rubs a little)
+	return smoothstep(0.0, Fight.RUB_ALL, worst) if worst > 0.0 else 0.0
+
+
+## Where the segment a..b first meets her hull (world), or INF: other things aboard (the chair, the wheel, the rods)
+## are looked through.
+func _hull_hit(space: PhysicsDirectSpaceState3D, boat: Node3D, a: Vector3, b: Vector3) -> Vector3:
+	var skip: Array[RID] = []
+	for i in 6:
+		var q := PhysicsRayQueryParameters3D.create(a, b, 1, skip)
+		q.hit_back_faces = true
+		var hit := space.intersect_ray(q)
+		if hit.is_empty():
+			return Vector3.INF
+		if hit["collider"] == boat:
+			return hit["position"]
+		skip.append(hit["rid"])
+	return Vector3.INF
 
 
 ## The rod tip as drawn, in her frame from above (x across, z astern): where the line to the fish starts.

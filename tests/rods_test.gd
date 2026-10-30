@@ -37,6 +37,25 @@ func _ready() -> void:
 	rods.strike(0, 150.0)
 	await get_tree().process_frame
 	_check(rods.fighting(), "a fish on")
+	# the line rubs where it really lies on her hull (ray-cast against her shape), not just by where the fish is
+	await get_tree().physics_frame
+	var r0: Node3D = rods.rods[0]
+	r0.set("line_out", 60.0)
+	r0.set("depth", 8.0)
+	r0.set("bearing", 0.0)
+	var astern := float(rods.rub_on_hull(r0))
+	_check(astern < 0.05, "a fish dead astern: the line clears her (rub %.2f)" % astern)
+	r0.set("bearing", PI)
+	r0.set("depth", 2.0)
+	var ahead := float(rods.rub_on_hull(r0))
+	_check(ahead > 0.5, "a fish dead ahead near the top: the line lies over her (rub %.2f)" % ahead)
+	await get_tree().process_frame
+	var drawn: Vector3 = r0.get("line_end")
+	var fish: Vector3 = rods.fish_point(r0, sea.boat)
+	_check(drawn.distance_to(r0.call("tip_position")) < fish.distance_to(r0.call("tip_position")),
+			"the line's drawn into the water on its way to the fish")
+	r0.set("bearing", 0.0)
+	r0.set("depth", 8.0)
 	rods._tangle(1, 0)
 	_check(rods.is_tangled(0) and str(rods.rods[1].call("interact_prompt", null)).begins_with("Clear the tangle"),
 			"tangled: rod 1's line across its run (%s)" % rods.rods[1].call("interact_prompt", null))
