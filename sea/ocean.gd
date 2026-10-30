@@ -392,6 +392,7 @@ func _displace(p: Vector2, t: float, drift: Vector2, from_middle := Vector2.ZERO
 		out.x += w[6] * a * w[0] * c
 		out.z += w[6] * a * w[1] * c
 		out.y += a * sin(th)
+	out += _surf_at(p, t)
 	return out * (1.0 - smoothstep(FADE.x, FADE.y, from_middle.length())) * _calm_at(p)
 
 
@@ -418,10 +419,32 @@ static func _shelter_at(p: Vector2) -> Vector2:
 	sz += 220.0 * exp(-(x * x) / (2.0 * 260.0 * 260.0))
 	sz -= 330.0 * exp(-((x - 1150.0) * (x - 1150.0)) / (2.0 * 240.0 * 240.0))
 	var d := sz - p.y
-	var k := Vector2(lerpf(0.55, 1.0, smoothstep(20.0, 700.0, d)), lerpf(0.7, 1.0, smoothstep(0.0, 250.0, d)))
+	var k := Vector2(lerpf(0.85, 1.0, smoothstep(0.0, 300.0, d)), lerpf(0.8, 1.0, smoothstep(0.0, 150.0, d)))
 	var e := (p - Vector2(0.0, 2170.0)) / Vector2(300.0, 150.0)
 	var inside := 1.0 - smoothstep(0.75, 1.05, e.length())
 	return k.lerp(Vector2(0.07, 0.25), inside)
+
+
+## The surf rolling into the open coast (the shader's surf_at, the same): how far the water's moved by it at world p.
+const SURF_K := TAU / 34.0
+const SURF_Q := 2.5
+var surf_height := 1.0
+
+
+func _surf_at(p: Vector2, t: float) -> Vector3:
+	var x := p.x
+	var sz := 1900.0 + 140.0 * sin(x / 1100.0 + 0.5) + 50.0 * sin(x / 370.0 + 2.0)
+	sz += 220.0 * exp(-(x * x) / (2.0 * 260.0 * 260.0))
+	sz -= 330.0 * exp(-((x - 1150.0) * (x - 1150.0)) / (2.0 * 240.0 * 240.0))
+	var d := sz - p.y
+	if d > 420.0 or d < -1.0:
+		return Vector3.ZERO
+	var e := (p - Vector2(0.0, 2170.0)) / Vector2(300.0, 150.0)
+	var sect := 0.45 + 1.1 * _swirl(_swirl_g, Vector2(x / 420.0 + 0.17, 0.61))
+	var env := smoothstep(420.0, 90.0, d) * smoothstep(-1.0, 14.0, d) * smoothstep(0.85, 1.25, e.length()) * sect
+	var a := surf_height * env
+	var th := SURF_K * d + sqrt(G * SURF_K) * 0.85 * t + sin(x / 160.0) * 2.2
+	return Vector3(0.0, a * cos(th), SURF_Q * a * sin(th))
 
 
 func _calm_at(p: Vector2) -> float:
@@ -475,6 +498,9 @@ func _update_waves() -> void:
 	_mat.set_shader_parameter("wave_count", wa.size())
 	_mat.set_shader_parameter("swell_count", mini(SHADER_SWELL, SWELL_N))
 	_mat.set_shader_parameter("fft_gain", hs)
+	# the surf: the bigger the swell, the bigger it breaks on the coast
+	surf_height = swell * 0.17
+	_mat.set_shader_parameter("surf_height", surf_height)
 	if _fft != null:
 		_fft.chops = PackedFloat32Array([q[0], q[1], q[2]])
 	_mat.set_shader_parameter("steep", _steep)

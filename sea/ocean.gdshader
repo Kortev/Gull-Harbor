@@ -117,10 +117,38 @@ float shore_z(float x) {
 // (ocean.gd's _shelter_at, the same).
 vec2 shelter_at(vec2 p) {
 	float d = shore_z(p.x) - p.y;
-	vec2 k = vec2(mix(0.55, 1.0, smoothstep(20.0, 700.0, d)), mix(0.7, 1.0, smoothstep(0.0, 250.0, d)));
+	vec2 k = vec2(mix(0.85, 1.0, smoothstep(0.0, 300.0, d)), mix(0.8, 1.0, smoothstep(0.0, 150.0, d)));
 	vec2 e = (p - vec2(0.0, 2170.0)) / vec2(300.0, 150.0);
 	float inside = 1.0 - smoothstep(0.75, 1.05, length(e));
 	return mix(k, vec2(0.07, 0.25), inside);
+}
+
+// The surf (ocean.gd's _surf_at, the same): along the open coast the swell feels the bottom and comes in as lines of
+// waves rolling toward the shore, growing and steepening over the last few hundred metres, breaking in sections,
+// gone at the water's edge in a wash of foam. Not in the harbour. Returns how far the water's moved (x, y, z) and,
+// in w, its phase (cos: 1 on a crest).
+uniform float surf_height = 1.0;
+const float SURF_K = 6.28318 / 34.0;
+const float SURF_Q = 2.5;
+
+float surf_env(vec2 p) {
+	float d = shore_z(p.x) - p.y;
+	vec2 e = (p - vec2(0.0, 2170.0)) / vec2(300.0, 150.0);
+	float outside = smoothstep(0.85, 1.25, length(e));
+	// (the sets along the shore: it breaks in sections, bigger here, smaller there)
+	float sect = 0.45 + 1.1 * textureLod(swirl, vec2(p.x / 420.0 + 0.17, 0.61), 0.0).g;
+	return smoothstep(420.0, 90.0, d) * smoothstep(-1.0, 14.0, d) * outside * sect;
+}
+
+float surf_phase(vec2 p, float t) {
+	float d = shore_z(p.x) - p.y;
+	return SURF_K * d + sqrt(9.81 * SURF_K) * 0.85 * t + sin(p.x / 160.0) * 2.2;
+}
+
+vec4 surf_at(vec2 p, float t) {
+	float a = surf_height * surf_env(p);
+	float th = surf_phase(p, t);
+	return vec4(0.0, a * cos(th), SURF_Q * a * sin(th), cos(th));
 }
 
 // how rough the chop is here (patches drifting with the wind), how strong the swell, how bent
@@ -189,6 +217,7 @@ void vertex() {
 		vec4 a2 = textureLod(fft_a2, tile_uv(wq, fft_size.z), 0.0);
 		d = tg.x * a0.xzy + tg.y * a1.xzy + tg.z * a2.xzy;
 	}
+	d += surf_at(wq, wave_time).xyz;
 	for (int i = 0; i < 32; i++) {
 		if (i >= wave_count || fft_on) {
 			break;
@@ -313,6 +342,22 @@ void fragment() {
 	// and a hurricane's: whole slopes downwind of the crests gone white, in drifting patches
 	float patch = texture(noise, vec2(along.x * 0.004, along.y * 0.012) + vec2(wave_time * 0.006, 0.0)).r;
 	foam = max(foam, white * smoothstep(0.35, 0.75, patch + h * 0.35) * smoothstep(0.15, 0.6, crest + grain * 0.4));
+	// the surf: white along a breaking crest and spilling down its face, a trail of it behind, the wash at the edge
+	float sd = shore_z(q.x) - q.y;
+	float senv = surf_env(q);
+	if (senv > 0.001) {
+		float sth = surf_phase(q, wave_time);
+		float breaking = smoothstep(260.0, 60.0, sd) * smoothstep(0.25, 0.8, senv);
+		// (lace: the noise at two sizes tears it into ragged white, thickest right on the crest)
+		float lace = grain * 0.6 + texture(noise, qk * 0.21).r * 0.4;
+		float on_crest = smoothstep(0.84, 0.98, cos(sth) + (lace - 0.5) * 0.4);
+		float trail = smoothstep(0.62, 0.92, cos(sth - 0.8) + (lace - 0.5) * 0.9) * smoothstep(0.35, 0.65, lace) * 0.75;
+		foam = max(foam, (on_crest + trail) * breaking * (1.0 - far * 0.6));
+	}
+	float wash = smoothstep(16.0, 2.0, sd + (grain - 0.5) * 8.0 + sin(wave_time * 0.9 + q.x * 0.05) * 3.0);
+	foam = max(foam, wash * 0.85 * smoothstep(-2.0, 1.0, sd));
+	// the shallows: the bottom showing through, sandy green, over the last stretch to the shore
+	col = mix(col, vec3(0.16, 0.42, 0.38), smoothstep(160.0, 15.0, sd) * smoothstep(-5.0, 5.0, sd) * 0.55);
 	// the swell breaking round the legs
 	for (int i = 0; i < 8; i++) {
 		if (i >= leg_count) {
