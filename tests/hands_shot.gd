@@ -58,6 +58,20 @@ func _ready() -> void:
 	await _grab("cast_landed")
 	sea.rods.request_return(0)
 	me.force_input = false
+	# jigging at the rail: the line going down, the knock
+	var beam := float(sea.boat.spec["beam"])
+	me.place(Vector3(beam * 0.5 - 0.55, float(sea.boat.spec["deck"]) + 0.05, 1.0), -PI * 0.5)
+	me.set("_pitch", -0.45)
+	me.hands.pick("jig")
+	await get_tree().create_timer(0.4).timeout
+	me.hands.press(true)
+	me.hands.press(false)
+	await get_tree().create_timer(1.5).timeout
+	await _grab("jig_down")
+	sea.jig.set("_knock_in", 0.01)
+	await get_tree().create_timer(0.12).timeout
+	await _grab("jig_knock")
+	me.set("_pitch", 0.0)
 	var cam := Camera3D.new()
 	cam.fov = 45.0
 	add_child(cam)

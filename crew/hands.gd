@@ -182,8 +182,8 @@ func _pose_view(delta: float) -> void:
 		"jig":
 			var jig: Node = _sea().get("jig") if _sea() else null
 			var lift := float(jig.get("lift")) if jig else 0.0
-			at = Vector3(-0.02, 0.02, 0.15)
-			rot = Vector3(0.5 + 0.55 * lift, 0.05, 0.0)
+			at = Vector3(0.06, 0.02, 0.15)
+			rot = Vector3(0.35 + 0.5 * lift, -0.35, 0.0)
 		"scoop":
 			at = Vector3(0.0, -0.04, 0.0)
 			rot = Vector3(0.1 - 1.4 * wind, 0.0, 0.0)
@@ -235,6 +235,15 @@ func _show(which: String) -> void:
 		if player.is_multiplayer_authority():
 			for mi in _glove.find_children("*", "MeshInstance3D", true, false):
 				(mi as MeshInstance3D).layers = 1 << 19      # (your own camera leaves it out, as it does your body)
+
+
+## The jig rod's tip as drawn (boat/jig.gd hangs its line off it): in your first-person hands, or in the glove
+## everyone else sees. Null if the jig rod isn't in your hands.
+func tip() -> Node3D:
+	if _shown != "jig":
+		return null
+	var held: Node3D = _view if _view else _glove
+	return held.find_child("tip", true, false) as Node3D if held else null
 
 
 func _sea() -> Node:

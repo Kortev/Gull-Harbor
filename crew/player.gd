@@ -490,7 +490,7 @@ func _doing() -> int:
 		return 0
 	var out := 0
 	var jig: Node = sea.get("jig")
-	if jig != null and bool(jig.get("_jigging")):
+	if jig != null and bool(jig.call("active")):
 		out |= ACT_JIG
 	var landing: Node = sea.get("landing")
 	if landing != null and int(landing.get("_my_pull")) >= 0:

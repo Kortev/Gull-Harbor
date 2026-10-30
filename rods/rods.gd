@@ -70,6 +70,7 @@ var _splash: Splash
 ## (a cast starts on a fresh press, not the end of winding in).
 var _reel_hold := 0.0
 var _fresh_press := false
+var _shook := false
 var _whoosh: AudioStreamPlayer3D
 
 
@@ -807,10 +808,11 @@ func _process(delta: float) -> void:
 		_show_fish(r, boat, ocean, delta)
 	var hud := crew.get("hud") as Node
 	var me_node := crew.get("me") as Node
-	if me_node != null:
-		# the fish in your arms: harder on a run or a headshake
+	if me_node != null and (mine != null or _shook):
+		# the fish in your arms: harder on a run or a headshake (and when it's gone, still)
 		var surge := 1.0 if mine != null and mine.move in ["run", "shake"] else 0.6
 		me_node.set("shake", mine.strain * surge if mine != null and mine.hooked else 0.0)
+		_shook = mine != null
 	if mine != null and mine.hooked:
 		# the ring is how wrong you're fighting it, not how hard it pulls (that's the rod's bend)
 		var wrong := (mine.fight as Fight).strain if mine.fight != null else 0.0
