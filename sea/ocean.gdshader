@@ -77,6 +77,13 @@ uniform float hull_floor = 0.35;
 // her length (m) and how much beamier than 4.3 m she is (ocean.gd sets both from boat.gd)
 uniform float hull_length = 14.0;
 uniform float hull_beam = 1.1163;
+// the other boat in Rivals (vs/vs.gd), only cut out, not pushed down (ocean.gd's set_hull, slot 1)
+uniform bool hull2_on = false;
+uniform mat4 hull2_inv = mat4(1.0);
+uniform float hull2_length = 14.0;
+uniform float hull2_beam = 1.1163;
+// how high over her floor the sea is cut away inside her (her space, m): up past her rail
+uniform float hull_top = 3.2;
 
 // The FFT sea (sea/ocean_fft.gd): three tiles of the spectrum, each two textures (a: sideways x, z, height, slope x;
 // b: slope z, the squeeze dDx/dx, dDz/dz, dDx/dz), each tile's size (m) and how high (its significant height, m).
@@ -201,19 +208,34 @@ float warp_at(vec2 p) {
 
 // her half-beam at the rail, at z along her (art/boat.py's s_half: bow toward -z; boat.gd's LENGTH, and her beam
 // as a scale of the 41 footer's 4.3 m)
-float hull_half(float z) {
-	float u = (hull_length * 0.5 - z) / hull_length;
+float half_of(float z, float len, float beam) {
+	float u = (len * 0.5 - z) / len;
 	if (u < 0.0 || u > 1.0) {
 		return -1.0;
 	}
 	if (u < 0.3) {
-		return hull_beam * (1.98 + 0.17 * smoothstep(0.0, 0.3, u));
+		return beam * (1.98 + 0.17 * smoothstep(0.0, 0.3, u));
 	}
 	if (u < 0.55) {
-		return hull_beam * 2.15;
+		return beam * 2.15;
 	}
 	float t = (u - 0.55) / 0.45;
-	return hull_beam * (0.07 + 2.08 * pow(max(0.0, 1.0 - pow(t, 2.2)), 0.55));
+	return beam * (0.07 + 2.08 * pow(max(0.0, 1.0 - pow(t, 2.2)), 0.55));
+}
+
+float hull_half(float z) {
+	return half_of(z, hull_length, hull_beam);
+}
+
+// whether a point of the sea (this node's space) is inside a hull, over its floor and under hull_top: the sea's
+// never drawn there (a crest the push-down missed between its vertices would show through her deck otherwise)
+bool in_hull(vec3 p, mat4 inv, float len, float beam) {
+	vec3 b = (inv * vec4(p, 1.0)).xyz;
+	if (b.y < hull_floor - 0.05 || b.y > hull_top) {
+		return false;
+	}
+	float hh = half_of(b.z, len, beam);
+	return hh > 0.0 && abs(b.x) < hh - 0.04;
 }
 
 float hash(vec2 p) {
@@ -298,6 +320,10 @@ void vertex() {
 }
 
 void fragment() {
+	if ((hull_on && in_hull(moved, hull_inv, hull_length, hull_beam))
+			|| (hull2_on && in_hull(moved, hull2_inv, hull2_length, hull2_beam))) {
+		discard;
+	}
 	// a flat facet per triangle
 	vec3 n = normalize(cross(dFdx(VERTEX), dFdy(VERTEX)));
 	if (dot(n, VIEW) < 0.0) {

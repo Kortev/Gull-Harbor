@@ -437,6 +437,7 @@ func _part(side: BoatSide, n: Node, called: String) -> Node:
 
 ## Back to the one boat: everyone aboard A, A's things the sea's again, B gone.
 func _tear_down() -> void:
+	(sea.get("ocean") as Node).call("set_other_hull", Transform3D(), 0.0, 0.0, false)
 	on = false
 	teams = {}
 	var a: Node = sides[0]

@@ -148,6 +148,7 @@ var _steep := 0.6
 var _mat: ShaderMaterial
 var _hull := Transform3D.IDENTITY
 var _hull_on := false
+var _hull_size := Vector2(14.0, 4.8)
 var _dirty := true
 var _planet: Node
 var _clock: Node
@@ -186,7 +187,7 @@ func _ready() -> void:
 	_mat.set_shader_parameter("curve_radius", CURVE_RADIUS)
 	_mat.set_shader_parameter("rain", rain)
 	if _hull_on:
-		set_hull(global_transform * _hull)
+		set_hull(global_transform * _hull, _hull_size.x, _hull_size.y)
 	var sea := MeshInstance3D.new()
 	sea.name = "Sea"
 	sea.mesh = _build_mesh()
@@ -342,6 +343,7 @@ func normal_at(at: Vector3) -> Vector3:
 ## Keeps the sea out of her: where she is, her length and her beam (m; art/boat.py's hull shape, stretched to fit).
 func set_hull(boat: Transform3D, length := 14.0, beam := 4.8) -> void:
 	_hull_on = true
+	_hull_size = Vector2(length, beam)
 	_hull = global_transform.affine_inverse() * boat
 	if _mat != null:
 		_mat.set_shader_parameter("hull_on", true)
@@ -349,6 +351,17 @@ func set_hull(boat: Transform3D, length := 14.0, beam := 4.8) -> void:
 		_mat.set_shader_parameter("hull_beam", beam / 4.3)
 		_mat.set_shader_parameter("hull_xf", Projection(_hull))
 		_mat.set_shader_parameter("hull_inv", Projection(_hull.affine_inverse()))
+
+
+## The other boat (Rivals): the sea's cut away inside her too, so her deck stays dry to look at; null lets it be.
+func set_other_hull(boat: Transform3D, length := 14.0, beam := 4.8, on := true) -> void:
+	if _mat == null:
+		return
+	_mat.set_shader_parameter("hull2_on", on)
+	if on:
+		_mat.set_shader_parameter("hull2_length", length)
+		_mat.set_shader_parameter("hull2_beam", beam / 4.3)
+		_mat.set_shader_parameter("hull2_inv", Projection((global_transform.affine_inverse() * boat).affine_inverse()))
 
 
 ## Where the sun is (toward it, world), its colour, how dark it is (0 day .. 1 night): the water's shading and the
