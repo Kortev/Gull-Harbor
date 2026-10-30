@@ -17,8 +17,9 @@ uniform int wave_count = 0;
 uniform int swell_count = 5;
 // The same noise as `noise`, smooth, for the patches and the warp (ocean.gd samples it the same way).
 uniform sampler2D swirl : filter_linear, repeat_enable;
-// How far the rough patches have drifted (uv).
+// How far the rough patches have drifted (uv); how far the swell's sets have travelled (ocean.gd's _sets_at).
 uniform vec2 group_drift = vec2(0.0);
+uniform vec2 sets_drift = vec2(0.0);
 // Where the mesh's middle is over the world (x, z): the waves, the foam and the rain are the world's, so they stay put
 // while the mesh moves along under the camera (ocean.gd's follow_camera). The fade and the curve stay the mesh's.
 uniform vec2 origin = vec2(0.0);
@@ -89,12 +90,16 @@ float calm_at(vec2 p) {
 }
 
 // how rough the chop is here (patches drifting with the wind), how strong the swell, how bent
+// (and wider stretches of rougher and smoother water, ocean.gd's STRETCH_SCALE)
 float group_at(vec2 p) {
-	return 0.35 + 1.3 * textureLod(swirl, p / 70.0 - group_drift, 0.0).r;
+	return (0.35 + 1.3 * textureLod(swirl, p / 70.0 - group_drift, 0.0).r)
+			* (0.45 + 1.1 * textureLod(swirl, p / 640.0 + vec2(0.53, 0.19) - group_drift * (70.0 / 640.0), 0.0).g);
 }
 
+// (the swell in sets: bands a few hundred m wide where it's bigger, travelling with the wind, ocean.gd's SETS_SCALE)
 float swell_at(vec2 p) {
-	return 0.85 + 0.3 * textureLod(swirl, p / 180.0 + vec2(0.31, 0.77), 0.0).g;
+	return (0.85 + 0.3 * textureLod(swirl, p / 180.0 + vec2(0.31, 0.77), 0.0).g)
+			* (0.3 + 1.4 * textureLod(swirl, p / 520.0 + vec2(0.71, 0.43) - sets_drift, 0.0).r);
 }
 
 float warp_at(vec2 p) {
@@ -246,14 +251,21 @@ void fragment() {
 	vec2 at = vec2(hash(cell + slot), hash(cell - slot)) * 0.5 + 0.25;
 	float ring = 1.0 - smoothstep(0.0, 0.035, abs(length(fract(rq) - at) - (0.04 + age * 0.22)));
 	float drop = hit * ring * (1.0 - age) * (1.0 - smoothstep(0.02, 0.06, length(fwidth(q))));
+	// far out, where the waves are too small to see, the sea still isn't one even sheet: the shadows of the clouds
+	// going over, and wind on the water (rougher stretches darker and duller, smooth ones shining with the sky).
+	// Squashed thinner toward the horizon, they show how far it goes.
+	// (clouds a km or so across, going over at 8 m/s; the noise repeats every 1500 m, so wrapped at 3000 for precision)
+	float cloud = smoothstep(0.42, 0.7, texture(noise, mod(q, 3000.0) / 1500.0 - normalize(wind) * mod(wave_time * 8.0, 1500.0) / 1500.0).r);
+	float rough = clamp((g - 0.35) / 1.4, 0.0, 1.0);
+	col *= (1.0 - 0.38 * cloud) * (1.08 - 0.22 * rough);
 	col = mix(col, mix(col, foam_color, 0.4), drop);
 	col = mix(col, foam_color, foam);
 	ALBEDO = col;
 	// glossy water (the sun glints on it), matte foam
-	ROUGHNESS = mix(0.12, 0.9, foam);
+	ROUGHNESS = mix(0.08 + 0.12 * rough, 0.9, foam);
 	SPECULAR = 0.5;
 	float fres = pow(1.0 - clamp(dot(n, VIEW), 0.0, 1.0), 4.0);
-	EMISSION = sky_color * fres * reflect * (1.0 - foam);
+	EMISSION = sky_color * fres * reflect * (1.0 - foam) * (1.35 - 0.6 * rough) * (1.0 - 0.45 * cloud);
 	// the crests glowing where you look through them toward the light (strongest on the tall thin tops)
 	vec3 to_light = normalize((VIEW_MATRIX * vec4(shade_from, 0.0)).xyz);
 	float through = pow(clamp(dot(-VIEW, to_light) * 0.5 + 0.5, 0.0, 1.0), 3.0);

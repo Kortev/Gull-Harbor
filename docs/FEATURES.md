@@ -237,6 +237,9 @@ your first flock ("Slow down under 10 knots near the birds").
   headland (its beam goes round after dark); an oil rig about 2.6 km out to the north-west, its flare always
   burning; the fairway buoy, the channel buoys in, a cardinal off the headland and a yellow weather buoy offshore,
   riding the swell and blinking after dark.
+- **A sea with depth:** a long swell runs with the wind in ridges that crowd together toward the horizon, coming in
+  sets (wide bands of bigger swell travelling downwind, then a lull), with the chop short enough to fade into texture
+  with distance. Wide rough and smooth stretches and cloud shadows go over the water, so far off it's never one even sheet.
 - **Haze:** the land fades into the sky with distance and with the weather: clear on a sunny day, greyed back in
   rain, gone in fog (its lights carry further than the land does).
 - **The shore and the rig stop the boat** ("She's touched bottom! Back her off"). Schools never turn up on land.

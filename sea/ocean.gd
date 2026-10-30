@@ -24,11 +24,11 @@ const G := 9.81
 ## big ones, then a lull) and the chop never repeats. Made once from a fixed seed: every peer gets the same sea.
 ## The swell: long waves with the wind and a cross swell; shares of its height (their squares sum to SWELL_POWER).
 const SWELL_N := 10
-const SWELL_LENGTHS := Vector2(55.0, 170.0)
+const SWELL_LENGTHS := Vector2(70.0, 240.0)
 const SWELL_POWER := 0.2374
 ## The chop: short waves from all round, more of them with the wind; metres at chop 1 (squares sum to CHOP_POWER).
 const CHOP_N := 18
-const CHOP_LENGTHS := Vector2(2.6, 30.0)
+const CHOP_LENGTHS := Vector2(2.6, 20.0)
 const CHOP_POWER := 0.78
 const SEA_SEED := 20261029
 ## Calm, the usual rain, a storm: (swell crest to trough m, chop, steepness 0..1, whitecaps 0..1).
@@ -37,6 +37,12 @@ const RAIN := [4.5, 0.6, 0.68, 0.45]
 const STORM := [12.0, 0.9, 0.9, 1.0]
 ## How fast the rough patches drift with the wind (m/s), calm to storm.
 const GUSTS := Vector2(4.0, 12.0)
+## The swell comes in sets: wide bands where it's bigger, then smaller, travelling with the wind at about the speed a
+## group of long waves goes (half their own speed). SETS_SCALE m across the noise (the bands are a few hundred m), the
+## speed in m/s; the chop's rough and smooth stretches, as wide again, drift slower.
+const SETS_SCALE := 520.0
+const SETS_SPEED := 5.0
+const STRETCH_SCALE := 640.0
 ## Real deep-water wave speeds times this (a touch slower reads heavier).
 const PACE := 0.85
 ## Where the waves fade out (the mesh gets too coarse) and the sea starts to curve away.
@@ -216,6 +222,7 @@ func _process(delta: float) -> void:
 	# (from the time, not added up: every peer on the same clock sees the same patches)
 	_group_drift = _drift_at(wave_time)
 	_mat.set_shader_parameter("group_drift", _group_drift)
+	_mat.set_shader_parameter("sets_drift", _sets_at(wave_time))
 
 
 ## The night clock while a night's on (every peer shares it: the host corrects it each second, so
@@ -330,6 +337,12 @@ func set_sky_color(c: Color) -> void:
 
 
 ## How far the rough patches have drifted with the wind at wave time `t` (wrapped, as the shader reads it).
+## How far the swell's sets have travelled at wave time `t` (uv of the noise at SETS_SCALE).
+func _sets_at(t: float) -> Vector2:
+	var d := wind.normalized() * SETS_SPEED / SETS_SCALE * t
+	return Vector2(fposmod(d.x, 1.0), fposmod(d.y, 1.0))
+
+
 func _drift_at(t: float) -> Vector2:
 	var d := wind.normalized() * lerpf(GUSTS.x, GUSTS.y, weather) / 70.0 * t
 	return Vector2(fposmod(d.x, 1.0), fposmod(d.y, 1.0))
@@ -340,7 +353,8 @@ func _drift_at(t: float) -> Vector2:
 func _displace(p: Vector2, t: float, drift: Vector2, from_middle := Vector2.ZERO) -> Vector3:
 	var out := Vector3.ZERO
 	var g := 0.35 + 1.3 * _swirl(_swirl_r, p / 70.0 - drift)
-	var sw := 0.85 + 0.3 * _swirl(_swirl_g, p / 180.0 + Vector2(0.31, 0.77))
+	g *= 0.45 + 1.1 * _swirl(_swirl_g, p / STRETCH_SCALE + Vector2(0.53, 0.19) - drift * (70.0 / STRETCH_SCALE))
+	var sw := (0.85 + 0.3 * _swirl(_swirl_g, p / 180.0 + Vector2(0.31, 0.77))) 			* (0.3 + 1.4 * _swirl(_swirl_r, p / SETS_SCALE + Vector2(0.71, 0.43) - _sets_at(t)))
 	var wp := (_swirl(_swirl_r, p / 120.0 + Vector2(0.37, 0.11)) - 0.5) * 3.8
 	for i in _waves.size():
 		var w := _waves[i]
