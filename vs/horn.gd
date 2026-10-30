@@ -2,10 +2,10 @@ extends Area3D
 ## The air horn at each boat's console in VS (vs/vs.gd), beside the wheel: E on it and she blasts, heard a mile off.
 ## Near the other boat (NEAR m) it rattles her crew (their view jolted: vs/contact.gd's jolt) and jerks any fish on her
 ## lines: the rod tip snaps and the fight takes a little shock (tuna/fight.gd), never enough on its own to lose it.
-## The host says when (a blast every AGAIN s a boat at most); everyone hears it.
+## The host says when (a blast every AGAIN s a boat at most: a rattle, not a weapon to hold down); everyone hears it.
 
 const NEAR := 120.0
-const AGAIN := 2.0
+const AGAIN := 15.0
 const SHOCK := 0.12
 const LONG := 1.3
 const RATE := 22050

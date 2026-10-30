@@ -17,7 +17,9 @@ extends Node
 ## standing staggering and their view jolted; her captain turning her bow into it takes it as a pitch, softer.
 ##
 ## Lines (the host): a boat's hull across the other's line, rod tip to bait (or to her fish), cuts it there (rods.gd's
-## host_cut): the bait's gone, or the fish is, and what's left lies out to be wound in.
+## host_cut): the bait's gone, or the fish is, and what's left lies out to be wound in. It isn't free: the line wraps
+## her props and her engines die while it's cleared (boat/helm.gd's host_foul), FOUL_FISH s for a line with a fish on
+## it, FOUL_BAIT for a bait. Cutting a rival off their fish is a play, not a sure thing: it leaves you dead in the water.
 
 const Helm := preload("res://boat/helm.gd")
 const Sfx := preload("res://audio/sfx.gd")
@@ -43,6 +45,8 @@ const TRAIL_SPEED := 1.5
 const WAKE_LIFE := 30.0
 const KELVIN := 0.354
 const ARM := 2.5
+const FOUL_FISH := 10.0
+const FOUL_BAIT := 3.0
 ## Her wake's biggest between these speeds (m/s); up on the plane flat out it's this much of that.
 const WAKE_SPEED := Vector2(5.5, 7.0)
 const PLANED := 0.45
@@ -330,3 +334,4 @@ func _lines(boats: Array) -> void:
 					hx[0], hx[1])
 			if (c[0] as Vector2).distance_to(c[1]) < float(hx[2]) + 0.3:
 				rods.call("host_cut", int(r.get("index")), Vector3(c[0].x, end.y, c[0].y))
+				((boats[1 - y] as Node).get("helm") as Node).call("host_foul", FOUL_FISH if hooked else FOUL_BAIT)
