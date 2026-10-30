@@ -417,6 +417,11 @@ func where(p: Vector2) -> String:
 
 ## What you'd make of a flock close enough to tell (crew/spotter.gd).
 func spot_text(s: School) -> String:
+	var lead := Leads.near_text(s.lead) if s.lead != null else ""
+	return (lead + " " if lead != "" else "") + _birds_text(s)
+
+
+func _birds_text(s: School) -> String:
 	var t := now()
 	if s.scattering(t) > 0.0:
 		return "The birds are lifting and scattering: whatever was there has moved on"
@@ -469,6 +474,8 @@ class School extends Node3D:
 	## (host) Drawn to a chum slick rather than her baits.
 	var chummed := false
 	var owner_node: Node
+	## A whale or a pod of dolphins on it too, or none (tuna/leads.gd, from its seed: everyone agrees).
+	var lead: Node3D
 	var _birds: Array[MeshInstance3D] = []
 	var _bird_seed: Array[Vector4] = []
 	var _jumpers: Array[Node3D] = []
@@ -536,6 +543,11 @@ class School extends Node3D:
 		_gull.unit_size = 25.0
 		_gull.max_distance = 350.0
 		add_child(_gull)
+		lead = Leads.make(seed)
+		if lead != null:
+			lead.set("school", self)
+			lead.set("ocean", owner_node.get("sea").get("ocean"))
+			add_child(lead)
 
 	func _process(delta: float) -> void:
 		var o := owner_node.get("sea").get("ocean") as Node

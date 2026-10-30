@@ -54,7 +54,11 @@ func _process(_delta: float) -> void:
 	if at.distance_to(here) < READ:
 		text = str(schools.call("spot_text", _looking))
 	else:
-		text = "Birds, a long way off: too far to tell what they're on. Get closer"
+		# a whale's blow or a pod's splashes catch your eye before the birds do
+		var lead: Node3D = _looking.get("lead")
+		text = Leads.far_text(lead, at.distance_to(here)) if lead != null else ""
+		if text == "":
+			text = "Birds, a long way off: too far to tell what they're on. Get closer"
 	text += "\n" + w.substr(0, 1).to_upper() + w.substr(1)
 	_read.text = text
 

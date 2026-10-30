@@ -158,10 +158,14 @@ func _ready() -> void:
 	# the game itself (not a test, which builds the sea under its own node): the boat you last took, at the dock
 	if get_parent() == get_tree().root:
 		boat.use_kind(fish_hold.kind)
-	if _args.has("school"):    # (screenshots and tests: a school starts right away, <n> m off)
+	if _args.has("school"):    # (screenshots and tests: out on the grounds, a school starting right away, <n> m off)
+		if fish_hold.docked:
+			fish_hold.head_out()
 		schools.set("_next", 0.0)
 		if not str(_args["school"]).is_empty():
 			schools.start_far = float(_args["school"])
+	if _args.has("lead"):      # (screenshots: every school has a whale, or dolphins)
+		Leads.force = {"whale": Leads.WHALE, "dolphins": Leads.DOLPHINS}.get(str(_args["lead"]), -1)
 	if _args.has("strike"):    # (screenshots: a fish on rod <n> right away)
 		rods.strike(int(_args["strike"]), 220.0)
 	if _args.has("wheel"):     # (screenshots: start at the wheel)
@@ -196,7 +200,8 @@ func _process(_delta: float) -> void:
 		var c: Vector2 = schools.schools[0].center(ocean.wave_time)
 		var here: Vector2 = boat.helm.at
 		var at := Vector3(c.x, 0.0, c.y)
-		var from := at + (Vector3(here.x, 0.0, here.y) - at).normalized() * 28.0 + Vector3(0, 5.0, 0)
+		var back := float(_args["watch"]) if str(_args["watch"]).is_valid_float() else 28.0
+		var from := at + (Vector3(here.x, 0.0, here.y) - at).normalized() * back + Vector3(0, 5.0, 0)
 		cam.make_current()
 		cam.global_position = from
 		cam.look_at(at + Vector3(0, 2.0, 0))

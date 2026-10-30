@@ -237,6 +237,10 @@ your first flock ("Slow down under 10 knots near the birds").
   headland (its beam goes round after dark); an oil rig about 2.6 km out to the north-west, its flare always
   burning; the fairway buoy, the channel buoys in, a cardinal off the headland and a yellow weather buoy offshore,
   riding the swell and blinking after dark.
+- **Whales and dolphins:** some schools have a whale feeding on the same bait (up three times a breath apart, a
+  tall blow you can see from far off, then flukes up and down for over a minute) or a pod of dolphins leaping
+  through (only close enough to see the splashes). A lead to bait, not a promise of bluefin: bait-only flocks have
+  them too. The spotter names what you're looking at.
 - **A sea with depth:** a long swell runs with the wind in ridges that crowd together toward the horizon, coming in
   sets (wide bands of bigger swell travelling downwind, then a lull), with the chop short enough to fade into texture
   with distance. Wide rough and smooth stretches and cloud shadows go over the water, so far off it's never one even sheet.
