@@ -13,8 +13,16 @@ var me := 0
 var calls: Array[String] = []
 
 
-func steamInitEx() -> Dictionary:
+func steamInitEx(_app_id := 0, _embed := false) -> Dictionary:
 	return {"status": 0, "verbal": "ok"}
+
+
+func getPersonaName() -> String:
+	return "Jack" if me == HOST_ID else "Ann"
+
+
+func initRelayNetworkAccess() -> void:
+	pass
 
 
 func run_callbacks() -> void:
