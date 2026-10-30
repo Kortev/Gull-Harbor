@@ -1,7 +1,7 @@
 extends Node
 ## VS (vs/vs.gd): two boats on one sea, a crew each, racing for the same birds. The skipper turns it on at the dock and
 ## there's a second boat with her own rods, landing and fish hold; cross to her and she's the sea's boat (your camera,
-## your screens, the sea round her). Head out and both go, apart, in the same kind of boat. A fish on one boat's rod
+## your screens, the sea round her). Head out and both go from the harbour, side by side, in the same kind of boat. A fish on one boat's rod
 ## is hers alone, and her things keep their notes off the other crew's screens. Schools turn up round one, the other
 ## and between. Head in and both come in: the pounds aboard are weighed, and the winner's told by how much. Back to
 ## one boat and it's the sea as it always was.
@@ -48,6 +48,10 @@ func _ready() -> void:
 			"in the same kind of boat")
 	var gap := a_boat.global_position.distance_to(b_boat.global_position)
 	_check(gap > Vs.APART * 1.5, "they set out apart (%.0f m)" % gap)
+	for boat: Node3D in [a_boat, b_boat]:
+		var at: Vector2 = boat.get("helm").get("at")
+		_check(at.y > sea.landmarks.shore_z(at.x) - 300.0 and not sea.landmarks.blocked(at),
+				"from the harbour, afloat (%.0f, %.0f)" % [at.x, at.y])
 	_check(me.boat == b_boat and me.global_position.distance_to(b_boat.global_position) < 12.0,
 			"you're on B's deck, where she is")
 	# a fish on B's rod is B's

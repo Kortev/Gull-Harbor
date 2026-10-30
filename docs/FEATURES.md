@@ -232,7 +232,8 @@ your first flock ("Slow down under 10 knots near the birds").
   **Two boats: race for the birds**. Everyone's shared out between **Boat A** and **Boat B** (the skipper on A);
   at the dock anyone can press the other boat's button to cross to her. **One boat** goes back to co-op.
   (Dev: `--vs`, and `--team=b` to start on B.)
-- **Head out** and both boats go, side by side 90 m apart, in the same kind of boat (whichever the skipper took).
+- **Head out** and both boats leave from the harbour, side by side inside the breakwaters, bows to sea, in the same
+  kind of boat (whichever the skipper took). It's about 2 km out past the fairway buoy to open water: a race.
   Each boat has everything of her own: her wheel, rods, harpoon and tuna door, fish box, chum and jig. The other
   boat is right there on the water, her crew aboard her; her fish and her notes are hers.
 - **The birds** turn up round one boat, then the other, then between them, in turn, so neither crew gets the

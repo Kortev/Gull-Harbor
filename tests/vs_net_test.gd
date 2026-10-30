@@ -69,7 +69,7 @@ func _as_friend() -> void:
 	await get_tree().create_timer(2.5).timeout
 	_check(not bool((vs.sides[0].get("fish_hold") as Node).get("docked")), "both boats out")
 	var gap := a_boat.global_position.distance_to(b_boat.global_position)
-	_check(gap > 60.0, "apart: %.0f m" % gap)
+	_check(gap > 40.0, "apart: %.0f m" % gap)
 	var tally := (vs.get("_tally") as Label).text
 	_check(tally.contains("You  198 lb") and tally.contains("Them  132 lb"), "my tally: %s" % tally.replace("\n", " / "))
 	while not bool(sea.fish_hold.get("docked")):

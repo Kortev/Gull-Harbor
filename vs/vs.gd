@@ -8,7 +8,7 @@ extends Node
 ## every peer at the same path, so the host runs both and each peer sees both, exactly as it sees its own boat in
 ## co-op. The sea's own `boat`, `rods`, ... are whichever boat you're on (your camera, your HUD, your screens).
 ##
-## The trip: when one boat heads out the other goes too, side by side APART m off, in the same kind of boat. The
+## The trip: when one boat heads out the other goes too, both from the harbour side by side, in the same kind of boat. The
 ## schools turn up round one boat, then the other, then between them (spawn_anchor). It ends at dusk, or when the
 ## skipper heads in: both come in, and what each had aboard (on deck and iced) is weighed against the other's.
 ##
@@ -21,10 +21,13 @@ const Landing := preload("res://tuna/landing.gd")
 const FishHold := preload("res://boat/fish_hold.gd")
 const Chum := preload("res://boat/chum.gd")
 const Jig := preload("res://boat/jig.gd")
+const Landmarks := preload("res://sea/landmarks.gd")
 ## Each boat's things, the sea's and a side's (the sea's point at the boat you're on).
 const PARTS := ["boat", "rods", "landing", "fish_hold", "chum", "jig"]
-## How far either side of the start each boat sets out (m).
-const APART := 45.0
+## The boats set out from the harbour (sea/landmarks.gd): side by side inside the breakwaters, IN m off the beach,
+## APART m either side of the middle, bows out to sea.
+const APART := 25.0
+const IN := 110.0
 const LB_PER_KG := 2.20462
 
 var sea: Node                 # sea/sea.gd
@@ -137,14 +140,18 @@ func _process(delta: float) -> void:
 		_result(_last)
 
 
-## Host: one boat's headed out (`first`): the other goes with her in the same kind of boat, and they set off apart.
+## Host: one boat's headed out (`first`): the other goes with her in the same kind of boat, and they set off from the
+## harbour side by side.
 func _host_set_out(holds: Array, first: int) -> void:
 	_out = true
 	_last = [0.0, 0.0]
 	holds[1 - first].call("head_out", str(holds[first].get("kind")))
+	var marks: Node = sea.get("landmarks")
+	var x := Landmarks.HARBOUR_X
+	var z: float = float(marks.call("shore_z", x)) - IN if marks != null else 0.0
 	for i in 2:
 		var helm: Node = (sides[i].get("boat") as Node).get("helm")
-		helm.set("at", Vector2(APART * (i * 2 - 1), 0.0))
+		helm.set("at", Vector2(x + APART * (i * 2 - 1), z))
 		helm.set("heading", 0.0)
 		helm.set("speed", 0.0)
 		if Net.in_session():
