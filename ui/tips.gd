@@ -31,7 +31,7 @@ const TIPS := {
 	"wait": "Slow? Chum off the transom brings them to you.",
 	"rivals": "Rivals: most pounds aboard at dusk wins the day, first to two days. Both boats go on GO.",
 	"drive": "Wheel's on the console. E to take it, W and S throttle, A and D steer.",
-	"radar": "Orange blob on the radar, dragging a tail? Birds over fish. Run out ahead of where it's going.",
+	"radar": "On the radar, birds are the speck that stays put sweep after sweep. Closer, it goes orange. Get ahead of it.",
 	"rival": "That's them. Cross their stern and you'll part their lines. The horn's on the dash: E.",
 	"dusk": "Light's going. At dusk, race her home to your berth. Six minutes, or your fish weigh half.",
 }

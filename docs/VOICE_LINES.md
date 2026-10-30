@@ -40,7 +40,7 @@ a bit nervous about his money: a car salesman who's been put in charge of a fish
 | `wait` | out a long while with nothing | Slow? Chum off the transom brings them to you. |
 | `rivals` | Rivals, the countdown at the dock | Rivals: most pounds aboard at dusk wins the day, first to two days. Both boats go on GO. |
 | `drive` | the first time out (or the Rivals countdown) | Wheel's on the console. E to take it, W and S throttle, A and D steer. |
-| `radar` | the first flock painting on the radar | Orange blob on the radar, dragging a tail? Birds over fish. Run out ahead of where it's going. |
+| `radar` | the first flock painting on the radar | On the radar, birds are the speck that stays put sweep after sweep. Closer, it goes orange. Get ahead of it. |
 | `rival` | Rivals, the other boat close | That's them. Cross their stern and you'll part their lines. The horn's on the dash: E. |
 | `dusk` | Rivals, the light going | Light's going. Whatever's aboard at dusk is what they weigh. |
 

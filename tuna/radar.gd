@@ -13,9 +13,11 @@ extends Node
 ##   - sea clutter: a ring of speckle close round her, wider and thicker the rougher the sea, different every sweep;
 ##   - rain clutter: smears of speckle in rain, heavy and storm, drifting down the wind, and the rain dims what's
 ##     behind it.
-## So a flock is the bright return that holds from sweep to sweep while the dim green speckle round it boils, and it
-## leaves a fading trail behind it as it travels (TRAIL: where it was the last few minutes, the way a radar's target
-## trails show), so you can see which way it's going and get out ahead of it. Everything comes
+## So a flock is the return that holds from sweep to sweep while the speckle round it boils. Far off (past NEAR_FLOCK)
+## it's small and dim, the same green as the clutter, and it doesn't paint every sweep: the tell is that it's still
+## there, in the same place, sweep after sweep, where the clutter never is. Closer in it firms up, yellow, then orange.
+## It leaves a faint trail back along where it's been (TRAIL, the way a radar's target trails show), so you can see
+## which way it's going and get out ahead of it. Reading it is a skill, not luck. Everything comes
 ## from the sea's shared state (the sea clock, its weather, the synced schools, fixed landmarks) and a hash, never
 ## randf: every peer's screen paints the same.
 
@@ -39,6 +41,11 @@ const FALSE_RAFTS := 0.14
 ## A flock's trail: where it was every TRAIL_STEP s back, this many of them, fading.
 const TRAIL := 6
 const TRAIL_STEP := 25.0
+## A flock paints full strength inside NEAR_FLOCK m; out at the screen's edge it's FAR_FLOCK as strong, and paints
+## that share of sweeps (FAR_SEEN), and smaller.
+const NEAR_FLOCK := 600.0
+const FAR_FLOCK := 0.28
+const FAR_SEEN := 0.65
 ## The clutter, sea and rain, never paints brighter than this (a dim green): only a real return goes yellow and red.
 const CLUTTER_MAX := 0.3
 
@@ -146,11 +153,15 @@ func _gather(t: float) -> void:
 		var flying := bool(s.call("feeding", t)) or going > 0.0 or (down != null and t < float(down))
 		var id := int(s.get("id"))
 		if flying:
-			_targets.append([c, FLOCK_R * (1.0 + going * 2.0), 0.9 * (1.0 - going * 0.8), 1.0, id])
-			# its trail, back along where it's been
+			# far off: dim, small, there most sweeps; firming up as she closes
+			var far := smoothstep(NEAR_FLOCK, RANGE, c.distance_to(at))
+			var strong := lerpf(0.9, FAR_FLOCK, far) * (1.0 - going * 0.8)
+			_targets.append([c, FLOCK_R * lerpf(1.0, 0.6, far) * (1.0 + going * 2.0), strong, lerpf(1.0, FAR_SEEN, far), id])
+			# its trail, back along where it's been, fainter still
 			for k in range(1, TRAIL + 1):
 				var was: Vector2 = s.call("center", t - k * TRAIL_STEP)
-				_targets.append([was, FLOCK_R * 0.45, 0.32 * (1.0 - float(k) / (TRAIL + 1)) + 0.1, 1.0, id])
+				_targets.append([was, FLOCK_R * 0.4, (0.2 * (1.0 - float(k) / (TRAIL + 1)) + 0.1) * lerpf(1.0, 0.6, far),
+						lerpf(1.0, FAR_SEEN, far), id])
 		else:
 			_targets.append([c, RAFT_R, 0.36, 0.4, id])
 	# gull rafts with nothing under them, drifting a little
