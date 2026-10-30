@@ -128,6 +128,18 @@ func _docked() -> bool:
 	return hold != null and bool(hold.get("docked"))
 
 
+## Whether she's still in the harbour or close in under the coast (within IN_CLOSE m of the water's edge).
+const IN_CLOSE := 450.0
+
+
+func _in_close() -> bool:
+	var marks: Node = sea.get("landmarks") if sea != null else null
+	if marks == null or (sea.get_parent() != get_tree().root and start_far > 0.0):
+		return false
+	var at := boat_at()
+	return at.y > float(marks.call("shore_z", at.x)) - IN_CLOSE
+
+
 ## Where the boat is (world x, z): the schools turn up round her.
 func boat_at() -> Vector2:
 	var boat := sea.get("boat") as Node
@@ -151,11 +163,21 @@ func _process(delta: float) -> void:
 			k *= clampf(cam.fov / 75.0, 0.35, 1.0)     # (a narrower view sees through the haze better)
 		bird_mat.set_shader_parameter("haze", env.fog_light_color)
 		bird_mat.set_shader_parameter("haze_k", k)
+		# dark birds against a bright sky, pale ones (their white bellies, the gannets) against a dark one: the flock
+		# always stands out from what's behind it
+		var sky := env.fog_light_color
+		var lum := 0.3 * sky.r + 0.59 * sky.g + 0.11 * sky.b
+		var pale := smoothstep(0.5, 0.3, lum)
+		bird_mat.set_shader_parameter("color", Color(0.16, 0.15, 0.15).lerp(Color(0.93, 0.93, 0.9), pale))
+		bird_mat.set_shader_parameter("haze_k", k * (1.0 - 0.6 * pale))
 	if Net.is_host() and not _docked():
 		_next -= delta
 		if _next <= 0.0:
 			_next = randf_range(10.0, 25.0)
-			if schools.size() < MAX_SCHOOLS:
+			# (none while she's still in the harbour or close in under the coast: they're out on the grounds)
+			if _in_close():
+				_next = 3.0
+			elif schools.size() < MAX_SCHOOLS:
 				_host_start()
 	for s in schools.duplicate():
 		if s.done(now()):
@@ -322,6 +344,10 @@ func _host_start() -> void:
 		ring = SLICK_SPAWN       # (the slick's spreading: they turn up nearer it, and come up it)
 		round_at = slick
 	var far := start_far if start_far > 0.0 else randf_range(ring.x, ring.y)
+	# (in fog, rain or a storm, near enough that its birds can be made out at all: within what can be seen)
+	var seeing := float(sea.get("seeing")) if sea.get("seeing") != null else 1e9
+	if start_far <= 0.0 and seeing < far * 1.25:
+		far = randf_range(maxf(0.35 * seeing, 150.0), maxf(0.8 * seeing, 220.0))
 	start_far = FAR
 	var bearing := randf_range(-PI, PI)
 	var start := round_at + Vector2(cos(bearing), sin(bearing)) * far
@@ -332,7 +358,7 @@ func _host_start() -> void:
 	var marks: Node = sea.get("landmarks") if sea != null else null
 	if marks != null:
 		for i in 24:
-			if bool(marks.call("at_sea", start, 150.0)) and bool(marks.call("at_sea", start + heading * speed * life, 150.0)):
+			if bool(marks.call("at_sea", start, 350.0)) and bool(marks.call("at_sea", start + heading * speed * life, 350.0)):
 				break
 			if i % 2 == 0:
 				heading = Vector2.from_angle(randf_range(-PI, PI))

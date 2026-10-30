@@ -25,11 +25,15 @@ func _ready() -> void:
 	_wash = _particles(140, 1.6, true, Vector3(0.0, 1.0, 0.0), 40.0, Vector2(0.5, 2.0), Vector3(0, -6.0, 0), 1.3, 0.8)
 	_wash.name = "PropWash"
 	add_child(_wash)
+	# her bow wave: a low sheet thrown out sideways from her forefoot at the waterline and peeling aft along her side,
+	# falling back in a moment (it goes with her, so she never runs into her own spray, and it stays below her rail)
 	for side: float in [1.0, -1.0]:
-		var s := _particles(220, 0.8, true, Vector3(side, 0.55, -0.25), 22.0, Vector2(3.5, 7.5), Vector3(0, -9.8, 0),
-				0.35, 0.85, true)
+		var s := _particles(160, 0.55, true, Vector3(side, 0.22, 0.55), 14.0, Vector2(2.0, 3.6), Vector3(0, -14.0, 0),
+				0.3, 0.7, true)
 		s.name = "BowSpray" + ("Starboard" if side > 0.0 else "Port")
 		s.set_meta("side", side)
+		s.local_coords = true
+		(s.process_material as ParticleProcessMaterial).emission_sphere_radius = 0.3
 		add_child(s)
 		_spray.append(s)
 	_over = _particles(80, 1.4, true, Vector3(0.0, 1.0, -0.8), 30.0, Vector2(3.0, 5.5), Vector3(0, -9.8, 0), 1.0, 0.9)
@@ -52,7 +56,8 @@ func _place() -> void:
 	_transom = spec.get("transom", _transom)
 	var bow: Vector3 = spec.get("bow", Vector3(1.7, 0.6, -5.0))
 	for s in _spray:
-		s.position = Vector3(bow.x * float(s.get_meta("side")), bow.y, bow.z)
+		# (just outside her side a little aft of the stem, at the water)
+		s.position = Vector3((bow.x + 0.15) * float(s.get_meta("side")), -0.05, bow.z + 0.6)
 	_over.position = Vector3(0.0, 0.9, float(spec.get("stern", Vector3(0, 0, 7.05)).z))
 	(get_node("Engines") as Node3D).position = spec.get("engines", Vector3(0.0, 0.3, 3.5))
 

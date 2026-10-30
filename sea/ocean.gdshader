@@ -238,6 +238,9 @@ void vertex() {
 	vec2 wq = p.xz + origin;
 	float k = (1.0 - smoothstep(fade_start, fade_end, r)) * calm_at(wq);
 	vec3 d = vec3(0.0);
+	// how hard the water's being squeezed sideways here (along x, along z): past -1 the surface would cross itself
+	float dxx = 0.0;
+	float dzz = 0.0;
 	vec2 sh = shelter_at(wq);
 	float g = group_at(wq) * sh.y;
 	float sw = swell_at(wq) * sh.x;
@@ -247,6 +250,11 @@ void vertex() {
 		vec4 a1 = textureLod(fft_a1, tile_uv(wq, fft_size.y), 0.0);
 		vec4 a2 = textureLod(fft_a2, tile_uv(wq, fft_size.z), 0.0);
 		d = tg.x * a0.xzy + tg.y * a1.xzy + tg.z * a2.xzy;
+		vec4 b0 = textureLod(fft_b0, tile_uv(wq, fft_size.x), 0.0);
+		vec4 b1 = textureLod(fft_b1, tile_uv(wq, fft_size.y), 0.0);
+		vec4 b2 = textureLod(fft_b2, tile_uv(wq, fft_size.z), 0.0);
+		dxx = tg.x * b0.y + tg.y * b1.y + tg.z * b2.y;
+		dzz = tg.x * b0.z + tg.y * b1.z + tg.z * b2.z;
 	}
 	d += surf_at(wq, wave_time).xyz;
 	for (int i = 0; i < 32; i++) {
@@ -260,6 +268,15 @@ void vertex() {
 		float th = w.z * dot(w.xy, wq) - b.x * wave_time + b.y;
 		d.xz += b.z * a * w.xy * cos(th);
 		d.y += a * sin(th);
+		float sq = b.z * a * w.z * sin(th);
+		dxx -= sq * w.x * w.x;
+		dzz -= sq * w.y * w.y;
+	}
+	// a crest folding over: pinched as far as it'll go but never through itself (it would show its underside, dark);
+	// the breaking still shows, in the foam
+	float fold = max(-dxx, -dzz);
+	if (fold > 0.85) {
+		d.xz *= 0.85 / fold;
 	}
 	d *= k;
 	VERTEX = p + d;

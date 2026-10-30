@@ -55,6 +55,8 @@ var night := false
 var ocean: Ocean
 var env: Environment
 var landmarks: Landmarks
+## How far you can see now (m): the weather's and the night's (the schools turn up within it).
+var seeing := 4500.0
 ## Gull Harbor up close: the quay, the fish pier and her berth.
 var harbour: Harbour
 var sky_mat: ShaderMaterial
@@ -178,6 +180,7 @@ func _ready() -> void:
 	if _args.has("school"):    # (screenshots and tests: out on the grounds, a school starting right away, <n> m off)
 		if fish_hold.docked:
 			fish_hold.head_out()
+			boat.helm.at = Vector2.ZERO        # (out on the grounds, not at the pier)
 		schools.set("_next", 0.0)
 		if not str(_args["school"]).is_empty():
 			schools.start_far = float(_args["school"])
@@ -390,6 +393,7 @@ func set_weather(from: String, to: String, m: float) -> void:
 
 
 func _follow_weather() -> void:
+	weather.day = int(fish_hold.day) + 1000 * int(fish_hold.quota_n)
 	var now := weather.at(ocean.wave_time)
 	set_weather(str(now[0]), str(now[1]), float(now[2]))
 
@@ -459,6 +463,7 @@ func _apply_look() -> void:
 	boat.set_lights(dark > 0.45 or storm + _share("fog") > 0.5)
 	# the land and the rig fade into the same colour as the sea's haze; their lights come on with the boat's
 	var far := lerpf(a["far"], b["far"], m) * (1.0 - 0.5 * dark)
+	seeing = far
 	landmarks.set_look(fog, far, dark, dark > 0.4 or storm + _share("fog") > 0.5)
 	var rain_mat := (rain.draw_pass_1 as QuadMesh).material as StandardMaterial3D
 	rain_mat.albedo_color = Color(0.75, 0.8, 0.86, lerpf(0.38, 0.22, dark))

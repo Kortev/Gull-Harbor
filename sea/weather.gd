@@ -16,6 +16,9 @@ const TURN := 90.0
 var seed := 0
 ## Dev and screenshots (--weather=storm): this weather only.
 var pinned := ""
+## Which day it is (boat/fish_hold.gd's, every peer has it): each day's weather is its own stretch of the wander, so a
+## new day is a new sky, and it still turns on its own through the day.
+var day := 1
 
 
 ## The weather at sea-clock time t: [the spell now, the next one, how far it has turned 0..1].
@@ -24,7 +27,8 @@ func at(t: float) -> Array:
 		return [pinned, pinned, 0.0]
 	var k := floori(t / SPELL)
 	var into := t - k * SPELL
-	return [spell(k), spell(k + 1), smoothstep(SPELL - TURN, SPELL, into)]
+	var d := day * 23
+	return [spell(k + d), spell(k + 1 + d), smoothstep(SPELL - TURN, SPELL, into)]
 
 
 ## The kind of spell number k: a slow wander over 0..1 (a fresh value every fifth spell, a straight line between:

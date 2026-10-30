@@ -35,7 +35,9 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_check(landing.fish.has(0) and rod.holder == 0, "up alongside, the rod in its holder")
 	_check(str(rod.call("interact_prompt", me)) == "Hold it", "the rod says: %s" % rod.call("interact_prompt", me))
-	var rest_y := landing.fish_point(0).y
+	# (how deep it lies under the water just there: the swell lifts and drops it all the while)
+	var rest_at := landing.fish_point(0)
+	var rest_y := rest_at.y - float(sea.ocean.height_at(rest_at))
 	# not held: within a cycle it kicks off and down, then comes back up
 	var most := 0.0
 	var missed_down := false
@@ -49,7 +51,7 @@ func _ready() -> void:
 		most = maxf(most, s)
 		if s > 0.9:
 			var at := landing.fish_point(0)
-			low = minf(low, at.y)
+			low = minf(low, at.y - float(sea.ocean.height_at(at)))
 			bent = maxf(bent, float(rod.strain))
 			missed_down = missed_down or landing.aimed_at(cam.global_position, (at - cam.global_position).normalized()) == -1
 	_check(most > 0.95, "not held, it kicks off (sheer %.2f)" % most)
