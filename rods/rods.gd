@@ -135,6 +135,9 @@ func _lay_out() -> void:
 		r.baited_t = _now()
 		r.spot = baits[i]
 		r.land = baits[i]
+		# (tied up at the dock, every line's in: they go out when someone casts)
+		var hold: Node = sea.get("fish_hold")
+		r.bait_in = hold != null and bool(hold.get("docked")) and sea.get_parent() == get_tree().root
 		add_child(r)
 		rods.append(r)
 

@@ -1,7 +1,7 @@
 extends CanvasLayer
 ## The menu, shown whenever the mouse is free. At the dock (boat/fish_hold.gd's `docked`: a game starts there, and
 ## heading in brings you back): the last trip's slip, the bank, which boat (take her, buy her, or charter her for the
-## day), the gear for sale, and Head out. Out there (Esc): back to the deck, or head in and sell the catch. Always:
+## day), the gear for sale, and Cast off. Out there (Esc): back to the deck, or head in and sell the catch. Always:
 ## host a crew, join a friend's boat, leave, quit.
 ## Steam first (host, invite, your Steam friends with a boat out), the join code under it as the backup.
 ## (No weather here: the sea decides that, sea/weather.gd.)
@@ -25,7 +25,7 @@ var _friends: VBoxContainer
 var _friends_in := 0.0
 var _head_in: Button
 var _back: Button
-## The dock: the slip, the bank, the boats, the gear, Head out (built again whenever any of it changes: _dock_of).
+## The dock: the slip, the bank, the boats, the gear, Cast off (built again whenever any of it changes: _dock_of).
 var _dock: VBoxContainer
 var _dock_of := []
 ## The boat's owner's manual (ui/manual.gd), open instead of the menu.
@@ -35,13 +35,19 @@ var _reading := false
 
 func _ready() -> void:
 	layer = 10
+	# down the left side, the harbour (or the sea) showing beside it
 	_panel = PanelContainer.new()
-	_panel.set_anchors_preset(Control.PRESET_CENTER)
-	_panel.custom_minimum_size = Vector2(540, 600)
-	_panel.position = Vector2(-270, -300)
+	_panel.anchor_top = 0.0
+	_panel.anchor_bottom = 1.0
+	_panel.offset_left = 28.0
+	_panel.offset_right = 28.0 + 470.0
+	_panel.offset_top = 28.0
+	_panel.offset_bottom = -28.0
 	var box := StyleBoxFlat.new()
-	box.bg_color = Color(0.04, 0.05, 0.06, 0.9)
-	box.set_content_margin_all(18)
+	box.bg_color = Color(0.03, 0.045, 0.055, 0.86)
+	box.border_color = Color(1.0, 0.75, 0.3, 0.6)
+	box.border_width_left = 3
+	box.set_content_margin_all(22)
 	_panel.add_theme_stylebox_override("panel", box)
 	add_child(_panel)
 	var scroll := ScrollContainer.new()
@@ -53,8 +59,8 @@ func _ready() -> void:
 	scroll.add_child(col)
 	var title := Label.new()
 	title.text = "BLUEFIN"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 28)
+	title.add_theme_font_size_override("font_size", 34)
+	title.add_theme_color_override("font_color", Color(1.0, 0.86, 0.6))
 	col.add_child(title)
 	_status = Label.new()
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -207,7 +213,7 @@ func _fish_hold() -> Node:
 	return get_parent().get("fish_hold") as Node
 
 
-## The dock: the last sale's slip, the bank, the boats, the gear, and Head out (the skipper's; a crewmate sees the
+## The dock: the last sale's slip, the bank, the boats, the gear, and Cast off (the skipper's; a crewmate sees the
 ## skipper's choices and waits).
 func _fill_dock(hold: Node, docked: bool) -> void:
 	for c in _dock.get_children():
@@ -249,7 +255,21 @@ func _fill_dock(hold: Node, docked: bool) -> void:
 		_dock.add_child(_slip_line("The trip: $%s" % _money(int(sold["total"])), 20))
 		_dock.add_child(HSeparator.new())
 	else:
-		_dock.add_child(_slip_line("AT THE DOCK", 20))
+		_dock.add_child(_slip_line("GULL HARBOR, AT THE FISH PIER", 18, Color(0.75, 0.8, 0.85)))
+	# the way out first: everything under it is for when you want it
+	if skipper:
+		var go := _button("Cast off", func() -> void:
+			hold.call("head_out")
+			_resume()
+			# (you're at the wheel: take her out through the harbour mouth yourself)
+			var boat: Node = get_parent().get("boat")
+			if boat != null and int(boat.get("helm").get("captain")) == 0:
+				boat.get("helm").call("request", true))
+		go.add_theme_font_size_override("font_size", 24)
+		go.custom_minimum_size = Vector2(0, 48)
+		_dock.add_child(go)
+	else:
+		_dock.add_child(_slip_line("Waiting for the skipper"))
 	var quota := int(hold.get("quota"))
 	var earned := int(hold.get("earned"))
 	_dock.add_child(_slip_line("QUOTA %d: $%s of $%s   Day %d of %d" % [int(hold.get("quota_n")), _money(earned),
@@ -323,12 +343,6 @@ func _fill_dock(hold: Node, docked: bool) -> void:
 		_dock.add_child(line)
 	_dock.add_child(HSeparator.new())
 	_vs_rows(skipper)
-	if skipper:
-		var go := _button("Head out", func() -> void: hold.call("head_out"))
-		go.add_theme_font_size_override("font_size", 22)
-		_dock.add_child(go)
-	else:
-		_dock.add_child(_slip_line("Waiting for the skipper"))
 
 
 ## VS (vs/vs.gd): the skipper's switch to two boats and back, and while it's on, the two boats with how many aboard

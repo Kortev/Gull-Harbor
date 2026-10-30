@@ -31,6 +31,7 @@ const CURVE_RADIUS := 12000.0
 var ocean: Node3D                     # sea/ocean.gd
 var night := 0.0                      # 0 day .. 1 night (sea.gd)
 var lights_on := false
+var harbour: Node3D           # sea/harbour.gd: its piers are in the way too
 
 var _land_mat: ShaderMaterial
 var _light_mat: ShaderMaterial
@@ -104,13 +105,37 @@ func _process(delta: float) -> void:
 		_flare.set_instance_shader_parameter("glow", flick * 1.6)
 	for l in _night_lights:
 		l.visible = lights_on
+	if harbour != null:
+		harbour.set("lights_on", lights_on)
 
 
 # ---- where you can go ------------------------------------------------------------------------------------------
 
 ## Land (or near enough to it to touch bottom), or the rig: somewhere the boat can't be (world x, z).
 func blocked(p: Vector2) -> bool:
-	return p.y > shore_z(p.x) - SHORE_KEEP_OFF or p.distance_to(RIG) < RIG_KEEP_OFF
+	if harbour != null and harbour.call("blocked", p):
+		return true
+	if p.y > shore_z(p.x) - _keep_off(p.x) or p.distance_to(RIG) < RIG_KEEP_OFF:
+		return true
+	for arm: Array in breakwater_arms():
+		if Geometry2D.get_closest_point_to_segment(p, arm[0], arm[1]).distance_to(p) < 8.0:
+			return true
+	return false
+
+
+## The harbour's two breakwaters, each from where it leaves the shore to its light (world x, z).
+func breakwater_arms() -> Array:
+	var mouth := shore_z(HARBOUR_X) - 210.0
+	var arms := []
+	for side: float in [-1.0, 1.0]:
+		arms.append([Vector2(HARBOUR_X + side * 330.0, shore_z(HARBOUR_X + side * 330.0) + 10.0),
+				Vector2(HARBOUR_X + side * 45.0, mouth)])
+	return arms
+
+
+## How far off the water's edge she touches bottom at x: in the harbour, dredged right up to the quay.
+func _keep_off(x: float) -> float:
+	return lerpf(SHORE_KEEP_OFF, 3.0, _bell(x - HARBOUR_X, 160.0) if absf(x - HARBOUR_X) < 280.0 else 0.0)
 
 
 ## Open water, `room` m clear of the shore and the rig (world x, z): where a school can be.
@@ -121,6 +146,7 @@ func at_sea(p: Vector2, room := 0.0) -> bool:
 # ---- the coast -------------------------------------------------------------------------------------------------
 
 ## Where the water's edge is at x (world z): a wandering shore, a bay for the harbour, the lighthouse's headland.
+## (sea/ocean.gd and ocean.gdshader have the same sum, for the waves dying away in the shallows: keep them in step.)
 func shore_z(x: float) -> float:
 	var z := SHORE_Z + 140.0 * sin(x / 1100.0 + 0.5) + 50.0 * sin(x / 370.0 + 2.0)
 	z += 220.0 * _bell(x - HARBOUR_X, 260.0)            # (the bay)
@@ -139,10 +165,13 @@ func land_h(x: float, d: float) -> float:
 	var cliff := 14.0 * smoothstep(0.0, 25.0, d) * (0.4 + 0.6 * _noise(x / 500.0, 5))
 	var town := _bell(x - HARBOUR_X, 500.0)
 	var head := _bell(x - LIGHTHOUSE_X, 200.0)
-	var h := cliff + rise * (1.0 - 0.3 * town)
+	# (the harbour's head: low and flat behind the quay, sea/harbour.gd's apron at 2.2 m, rising from there)
+	var flat := _bell(x - HARBOUR_X, 190.0) * (1.0 - smoothstep(30.0, 140.0, d))
+	cliff *= 1.0 - flat
+	var h := cliff + rise * (1.0 - 0.3 * town) * (1.0 - flat)
 	h += head * 34.0 * smoothstep(0.0, 30.0, d)
 	h += 6.0 * _noise(x / 90.0 + d / 70.0, 13)
-	return maxf(h * smoothstep(-2.0, 12.0, d), 1.0)
+	return maxf(lerpf(h * smoothstep(-2.0, 12.0, d), 2.0, flat * 0.9), 1.0)
 
 
 func _build_coast() -> void:
@@ -269,18 +298,29 @@ func _town(st: SurfaceTool, anchor: Vector3) -> void:
 
 ## The harbour's two arms of piled rock, a light at each end (green to starboard coming in, red to port).
 func _breakwaters(st: SurfaceTool, anchor: Vector3, node: Node3D) -> void:
-	var mouth := shore_z(HARBOUR_X) - 210.0
-	for side: float in [-1.0, 1.0]:
-		var root := Vector3(HARBOUR_X + side * 330.0, 0.0, shore_z(HARBOUR_X + side * 330.0) + 10.0)
-		var tip := Vector3(HARBOUR_X + side * 45.0, 0.0, mouth)
+	for arm: Array in breakwater_arms():
+		var side := signf((arm[1] as Vector2).x - HARBOUR_X)
+		var root := Vector3((arm[0] as Vector2).x, 0.0, (arm[0] as Vector2).y)
+		var tip := Vector3((arm[1] as Vector2).x, 0.0, (arm[1] as Vector2).y)
 		var dir := tip - root
 		var len := dir.length()
-		var steps := int(len / 18.0)
+		var across := dir.normalized().cross(Vector3.UP)
+		var steps := int(len / 4.5)
+		var salt := int(side * 3.0 + 3.0) * 1000
 		for i in steps + 1:
 			var p := root + dir * (float(i) / steps)
-			var s := 9.0 + 3.0 * _hash(i * 7 + int(side * 3.0 + 3.0))
-			_box(st, p - anchor + Vector3(0, 0.5, 0), Vector3(s, 6.0 + 1.5 * _hash(i), s * 1.2),
-					Color(0.5, 0.48, 0.45).lerp(Color(0.38, 0.37, 0.35), _hash(i * 3)), _hash(i * 5) * 1.5)
+			# the mound: big blocks tumbled down both faces into the water, smaller ones heaped along the crest, the
+			# odd one standing proud; dark and weedy low down, paler and dry up top
+			for k in 6:
+				var h := _hash(salt + i * 31 + k * 7)
+				var off := (float(k) - 2.5) / 2.5          # -1 .. 1 across the mound
+				var s := lerpf(2.4, 4.6, _hash(salt + i * 17 + k * 3))
+				var top := lerpf(4.6, 0.3, absf(off)) + 1.4 * h
+				var c := p - anchor + across * off * 7.0 + dir.normalized() * (h - 0.5) * 3.0
+				var rock := Color(0.55, 0.53, 0.5).lerp(Color(0.4, 0.39, 0.37), _hash(salt + i * 5 + k))
+				if top < 1.2:
+					rock = rock.lerp(Color(0.18, 0.22, 0.17), 0.6)
+				_box(st, c + Vector3(0, top - s * 0.5, 0), Vector3(s, s * 0.8, s * 1.1), rock, h * 3.0)
 		# the light at its end: a little white tower, its lamp
 		var t := tip - anchor
 		_cyl(st, t + Vector3(0, 3.0, 0), 7.0, 1.4, 1.1, 8, Color(0.92, 0.92, 0.9))

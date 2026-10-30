@@ -372,6 +372,9 @@ func _displace(p: Vector2, t: float, drift: Vector2, from_middle := Vector2.ZERO
 	g *= 0.45 + 1.1 * _swirl(_swirl_g, p / STRETCH_SCALE + Vector2(0.53, 0.19) - drift * (70.0 / STRETCH_SCALE))
 	var sw := (0.85 + 0.3 * _swirl(_swirl_g, p / 180.0 + Vector2(0.31, 0.77))) 			* (0.3 + 1.4 * _swirl(_swirl_r, p / SETS_SCALE + Vector2(0.71, 0.43) - _sets_at(t)))
 	var wp := (_swirl(_swirl_r, p / 120.0 + Vector2(0.37, 0.11)) - 0.5) * 3.8
+	var sh := _shelter_at(p)
+	g *= sh.y
+	sw *= sh.x
 	for i in _waves.size():
 		var w := _waves[i]
 		var swell_wave := i < SWELL_N
@@ -398,6 +401,19 @@ func _swirl(ch: PackedFloat32Array, uv: Vector2) -> float:
 	x0 = posmod(x0, n)
 	y0 = posmod(y0, n)
 	return lerpf(lerpf(ch[y0 * n + x0], ch[y0 * n + x1], fx), lerpf(ch[y1 * n + x0], ch[y1 * n + x1], fx), fy)
+
+
+## How much of the open sea gets to world p (x the swell, y the chop): the shader's shelter_at.
+static func _shelter_at(p: Vector2) -> Vector2:
+	var x := p.x
+	var sz := 1900.0 + 140.0 * sin(x / 1100.0 + 0.5) + 50.0 * sin(x / 370.0 + 2.0)
+	sz += 220.0 * exp(-(x * x) / (2.0 * 260.0 * 260.0))
+	sz -= 330.0 * exp(-((x - 1150.0) * (x - 1150.0)) / (2.0 * 240.0 * 240.0))
+	var d := sz - p.y
+	var k := Vector2(lerpf(0.35, 1.0, smoothstep(20.0, 700.0, d)), lerpf(0.6, 1.0, smoothstep(0.0, 250.0, d)))
+	var e := (p - Vector2(0.0, 2170.0)) / Vector2(300.0, 150.0)
+	var inside := 1.0 - smoothstep(0.75, 1.05, e.length())
+	return k.lerp(Vector2(0.04, 0.2), inside)
 
 
 func _calm_at(p: Vector2) -> float:

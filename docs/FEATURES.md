@@ -57,8 +57,19 @@ the fish box as pips (filled once iced, amber for one still on deck).
 
 ## The dock
 
-Where a game starts and every trip ends: the last sale's slip, the quota, the bank, the boats, the chandlery, and
-**Head out** (the skipper's button; crewmates see the skipper's choices).
+**Gull Harbor** (sea/harbour.gd), 2.2 km astern of the grounds behind its two breakwaters: the quay, the **fish pier**
+with the fish buyer's shed (GULL HARBOR FISH CO., its scale on a gantry), lamps along the pier (lit after dark), a
+finger pier with three other boats on it bobbing, gulls on the pilings, lobster pots and fish totes on the quay. The
+water inside the breakwaters is **still**; the swell dies away in the shallows along the coast (sea/ocean.gd's
+shelter, the same in the shader and for everything riding the water).
+
+- A game starts, and every trip ends, **tied up alongside the fish pier** at dawn, lines in.
+- The menu, down the left with the harbour beside it: the last sale's slip, the quota, **Cast off** (the
+  skipper's: the trip starts and you're at the wheel; take her out through the harbour mouth yourself), then the
+  boats, the chandlery.
+- **Coming in:** bring her back alongside her berth and stop: after 2 s she's tied up and the catch sells there.
+  Or **Head in** from the menu anywhere: the screen cuts to black and fades up on her alongside the pier.
+- The piers and the breakwaters are solid: into the pier is a bump; the breakwaters and the shore put her aground.
 
 **Boats** (picked at the dock; everyone aboard gets the same):
 
@@ -85,13 +96,13 @@ said anywhere in game.
 
 ## A day out
 
-- **Head out** at dawn (5:30 am). The day runs to dusk (7:30 pm) in **20 real minutes**, then it's night.
+- **Cast off** at dawn (5:30 am). The day runs to dusk (7:30 pm) in **20 real minutes**, then it's night.
 - The light follows: warm at dawn and dusk, the boat's lights on at dark. A word at dusk ("Sun's going down").
-- **Head in** whenever (Esc, skipper): the catch sells, fuel and any charter come off, back to the dock. Heading in
-  cuts loose anything still on a line or alongside.
+- **Head in** whenever (Esc, skipper), or bring her alongside the fish pier: the catch sells, fuel and any charter
+  come off. Heading in cuts loose anything still on a line or alongside.
 - Nothing turns up or bites at the dock.
 
-**Teach it:** the sun is the clock; the dusk note says "Esc to head in".
+**Teach it:** the sun is the clock; a word at dusk ("Sun's going down").
 
 ---
 

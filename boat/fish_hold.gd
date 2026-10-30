@@ -358,6 +358,8 @@ func head_in() -> void:
 	docked = true
 	_settle()
 	_save()
+	if sea.has_method("moor"):
+		sea.call("moor")      # (VS: each side's own hold has no pier to tie up at)
 	_host_changed()
 
 
@@ -425,6 +427,8 @@ func pick(k: String) -> void:
 	if Net.is_host() and docked:
 		kind = k
 		(sea.get("boat") as Node).call("use_kind", kind)      # (there she is, alongside the dock)
+		if sea.has_method("moor"):
+			sea.call("moor")
 		_host_changed()
 
 
@@ -503,6 +507,8 @@ func _sync(state: Dictionary) -> void:
 	var was := docked
 	_hear_work()
 	docked = bool(state.get("docked", docked))
+	if docked and not was and sea.has_method("arrive") and sea.get_parent() == get_tree().root:
+		sea.call("arrive")
 	box_open = bool(state.get("box", box_open))
 	trip_t0 = float(state.get("trip_t0", trip_t0))
 	kind = str(state.get("kind", kind))

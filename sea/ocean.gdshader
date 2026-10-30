@@ -89,6 +89,25 @@ float calm_at(vec2 p) {
 	return mix(0.08, 1.0, smoothstep(-2.0, 1.0, max(d.x, d.y)));
 }
 
+// The coast (sea/landmarks.gd's shore_z, the same sum): where the water's edge is at world x.
+float shore_z(float x) {
+	float z = 1900.0 + 140.0 * sin(x / 1100.0 + 0.5) + 50.0 * sin(x / 370.0 + 2.0);
+	z += 220.0 * exp(-(x * x) / (2.0 * 260.0 * 260.0));
+	z -= 330.0 * exp(-((x - 1150.0) * (x - 1150.0)) / (2.0 * 240.0 * 240.0));
+	return z;
+}
+
+// How much of the open sea gets here (x the swell, y the chop): all of it offshore; the swell dying away in the
+// shallows over the last few hundred metres to the shore; next to nothing inside the harbour's breakwaters
+// (ocean.gd's _shelter_at, the same).
+vec2 shelter_at(vec2 p) {
+	float d = shore_z(p.x) - p.y;
+	vec2 k = vec2(mix(0.35, 1.0, smoothstep(20.0, 700.0, d)), mix(0.6, 1.0, smoothstep(0.0, 250.0, d)));
+	vec2 e = (p - vec2(0.0, 2170.0)) / vec2(300.0, 150.0);
+	float inside = 1.0 - smoothstep(0.75, 1.05, length(e));
+	return mix(k, vec2(0.04, 0.2), inside);
+}
+
 // how rough the chop is here (patches drifting with the wind), how strong the swell, how bent
 // (and wider stretches of rougher and smoother water, ocean.gd's STRETCH_SCALE)
 float group_at(vec2 p) {
@@ -134,8 +153,9 @@ void vertex() {
 	vec2 wq = p.xz + origin;
 	float k = (1.0 - smoothstep(fade_start, fade_end, r)) * calm_at(wq);
 	vec3 d = vec3(0.0);
-	float g = group_at(wq);
-	float sw = swell_at(wq);
+	vec2 sh = shelter_at(wq);
+	float g = group_at(wq) * sh.y;
+	float sw = swell_at(wq) * sh.x;
 	float wp = warp_at(wq);
 	for (int i = 0; i < 32; i++) {
 		if (i >= wave_count) {
@@ -181,8 +201,9 @@ void fragment() {
 	float y = 0.0;
 	float jac = 0.0;
 	vec2 slope = vec2(0.0);
-	float g = group_at(q);
-	float sw = swell_at(q);
+	vec2 sh = shelter_at(q);
+	float g = group_at(q) * sh.y;
+	float sw = swell_at(q) * sh.x;
 	float wp = warp_at(q);
 	for (int i = 0; i < 32; i++) {
 		if (i >= wave_count) {

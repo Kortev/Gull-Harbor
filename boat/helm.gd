@@ -9,6 +9,7 @@ extends Area3D
 ## Whoever's at the wheel moves her on their own machine, so it answers at once, and tells everyone where she is, her
 ## heading, speed and throttle; with nobody at the wheel the host lets her coast to a stop and tells everyone.
 
+const Sfx := preload("res://audio/sfx.gd")
 const SEND := 1.0 / 15.0
 ## The 46 footer's handling (boat/kinds.gd has each boat's; configure() sets these from it):
 ## rad/s hard over (twin screws, one ahead and one astern, spin her faster than a fish circles: tuna/fight.gd).
@@ -220,7 +221,14 @@ func _process(delta: float) -> void:
 		var end := at + ahead_of(heading) * signf(speed) * float(boat.get("length")) * 0.5
 		if marks != null and absf(speed) > 0.0 and bool(marks.call("blocked", end)):
 			at = was
-			if absf(speed) > 1.0 and is_mine():
+			var pier: Node = marks.get("harbour")
+			if pier != null and bool(pier.call("blocked", end)):
+				# (into the pier or a boat on it: a bump, felt, not read)
+				if absf(speed) > 0.6:
+					var bump := ahead_of(heading) * signf(speed) * 6.0
+					Sfx.play_point(boat, boat.global_position + Vector3(bump.x, 0.5, bump.y), "kit.thud",
+							clampf(absf(speed) / 4.0, 0.3, 1.0), 0.7)
+			elif absf(speed) > 1.0 and is_mine():
 				var hud: Node = boat.get("sea").get("crew").get("hud")
 				hud.call("notify", "Aground! Back her off (S)" if speed > 0.0
 						else "Aground! Ahead (W)")

@@ -31,6 +31,8 @@ const Jig := preload("res://boat/jig.gd")
 const Spotter := preload("res://crew/spotter.gd")
 const Tips := preload("res://ui/tips.gd")
 const Landmarks := preload("res://sea/landmarks.gd")
+const Harbour := preload("res://sea/harbour.gd")
+const Sfx := preload("res://audio/sfx.gd")
 const Vs := preload("res://vs/vs.gd")
 
 ## How rough the sea is (ocean.gd: 0 calm, 0.5 rain, 1 storm), the sun, how thick the fog, and how far you can see
@@ -53,6 +55,8 @@ var night := false
 var ocean: Ocean
 var env: Environment
 var landmarks: Landmarks
+## Gull Harbor up close: the quay, the fish pier and her berth.
+var harbour: Harbour
 var sky_mat: ShaderMaterial
 var sun: DirectionalLight3D
 var sea_fx: SeaFx
@@ -166,6 +170,7 @@ func _ready() -> void:
 	# the game itself (not a test, which builds the sea under its own node): the boat you last took, at the dock
 	if get_parent() == get_tree().root:
 		boat.use_kind(fish_hold.kind)
+		moor()
 	if _args.has("vs"):        # (tests: two boats from the start; --team=b puts you on boat B)
 		vs.host_set_on(true)
 		if str(_args.get("team", "")) == "b":
@@ -198,8 +203,73 @@ func _ready() -> void:
 				(found as CanvasLayer).visible = false
 
 
+## Host: her alongside the fish pier at her berth (sea/harbour.gd), bow out, still. Only in the game itself (tests
+## and VS keep where they put her).
+func moor() -> void:
+	if not Net.is_host() or get_parent() != get_tree().root or harbour == null or (vs != null and vs.on):
+		return
+	var helm := boat.helm
+	var at: Vector2 = harbour.berth(float(boat.beam) * 0.5, float(boat.length))
+	helm.at = at
+	helm.heading = 0.0
+	helm.speed = 0.0
+	helm.throttle = 0.0
+	if Net.in_session():
+		helm.rpc("_sync", helm.captain, 0.0, at, 0.0)
+
+
+## Coming in: the screen cuts to black and fades up on her alongside the pier (every peer, as the trip ends); not
+## when you brought her in alongside yourself.
+func arrive() -> void:
+	if _came_alongside:
+		_came_alongside = false
+		return
+	if _fade == null:
+		_fade = CanvasLayer.new()
+		_fade.layer = 20
+		var black := ColorRect.new()
+		black.color = Color.BLACK
+		black.set_anchors_preset(Control.PRESET_FULL_RECT)
+		black.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_fade.add_child(black)
+		add_child(_fade)
+	var black := _fade.get_child(0) as ColorRect
+	black.modulate.a = 1.0
+	var t := create_tween()
+	t.tween_interval(0.5)
+	t.tween_property(black, "modulate:a", 0.0, 1.8).set_trans(Tween.TRANS_SINE)
+
+
+var _fade: CanvasLayer
+var _came_alongside := false
+var _alongside_for := 0.0
+var _been_out := false        # (this trip she's been out past the breakwaters: coming back in alongside ties her up)
+## Brought in alongside her berth this slow for this long (s), she's tied up and the catch is sold there.
+const TIE_UP := 2.0
+
+
+## Host: she's been brought in alongside the fish pier and stopped: tie her up, sell.
+func _tie_up(delta: float) -> void:
+	if not Net.is_host() or fish_hold.docked or get_parent() != get_tree().root or (vs != null and vs.on):
+		_alongside_for = 0.0
+		_been_out = false
+		return
+	var berth: Vector2 = harbour.berth(float(boat.beam) * 0.5, float(boat.length))
+	_been_out = _been_out or boat.helm.at.distance_to(berth) > 400.0
+	if not _been_out:
+		return
+	var near := boat.helm.at.distance_to(berth) < 9.0 and absf(boat.helm.speed) < 0.8
+	_alongside_for = _alongside_for + delta if near else 0.0
+	if _alongside_for > TIE_UP:
+		_alongside_for = 0.0
+		_came_alongside = true
+		Sfx.play_point(boat, boat.global_position, "kit.thud", 0.6, 0.6)
+		fish_hold.head_in()
+
+
 func _process(_delta: float) -> void:
 	_frames += 1
+	_tie_up(_delta)
 	_follow_weather()
 	# the day going by: the light redone as it changes, the sun moved
 	var dark := _dark()
@@ -489,6 +559,11 @@ func _build_world() -> void:
 	landmarks.name = "Landmarks"
 	landmarks.ocean = ocean
 	add_child(landmarks)
+	harbour = Harbour.new()
+	harbour.name = "Harbour"
+	harbour.marks = landmarks
+	landmarks.harbour = harbour
+	add_child(harbour)
 	boat = Boat.new()
 	boat.name = "Boat"
 	boat.ocean = ocean
