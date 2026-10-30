@@ -117,10 +117,10 @@ float shore_z(float x) {
 // (ocean.gd's _shelter_at, the same).
 vec2 shelter_at(vec2 p) {
 	float d = shore_z(p.x) - p.y;
-	vec2 k = vec2(mix(0.35, 1.0, smoothstep(20.0, 700.0, d)), mix(0.6, 1.0, smoothstep(0.0, 250.0, d)));
+	vec2 k = vec2(mix(0.55, 1.0, smoothstep(20.0, 700.0, d)), mix(0.7, 1.0, smoothstep(0.0, 250.0, d)));
 	vec2 e = (p - vec2(0.0, 2170.0)) / vec2(300.0, 150.0);
 	float inside = 1.0 - smoothstep(0.75, 1.05, length(e));
-	return mix(k, vec2(0.04, 0.2), inside);
+	return mix(k, vec2(0.07, 0.25), inside);
 }
 
 // how rough the chop is here (patches drifting with the wind), how strong the swell, how bent

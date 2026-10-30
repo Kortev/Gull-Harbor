@@ -15,8 +15,8 @@ const N := 256
 ## Each tile: its size (m), the band of wavelengths it holds (longest, shortest, m), where its hump is (m), how wide
 ## the hump is (ln units), and how tightly its waves follow the wind (cos^2s spreading).
 const CASCADES := [
-	{"size": 1100.0, "band": Vector2(1100.0, 45.0), "peak": 95.0, "width": 0.4, "spread": 8.0},
-	{"size": 233.0, "band": Vector2(45.0, 9.0), "peak": 22.0, "width": 0.7, "spread": 2.5},
+	{"size": 1100.0, "band": Vector2(1100.0, 32.0), "peak": 75.0, "width": 0.4, "spread": 14.0},
+	{"size": 233.0, "band": Vector2(32.0, 9.0), "peak": 16.0, "width": 0.6, "spread": 4.0},
 	{"size": 47.0, "band": Vector2(9.0, 0.35), "peak": 3.0, "width": 0.9, "spread": 1.0},
 ]
 const G := 9.81

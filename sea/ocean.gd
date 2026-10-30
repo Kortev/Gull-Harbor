@@ -29,11 +29,13 @@ const Spectrum := preload("res://sea/ocean_spectrum.gd")
 const Fft := preload("res://sea/ocean_fft.gd")
 const SWELL_N := 48
 const CHOP_N := 24
-const SWELL_HS := 0.55
-const RIPPLE_HS := Vector2(0.12, 0.3)
+const SWELL_HS := 0.85
+const RIPPLE_HS := Vector2(0.05, 0.14)
+## The chop under the swell, as a share of the weather's chop (less of it: the wide swell's what you see).
+const CHOP_HS := 0.55
 ## How sharp each tile's crests are: its water's typical squeeze, as a share of the sea's steepness (`_steep`, the
 ## weather's). A few times that where the waves line up, and the crest folds over and breaks (the foam).
-const TILE_STEEP := Vector3(0.12, 0.3, 0.16)
+const TILE_STEEP := Vector3(0.2, 0.3, 0.16)
 ## The shader's arrays hold 32: where there's no GPU sea it draws this many of the swell and the rest of the chop.
 const SHADER_SWELL := 20
 const SEA_SEED := 20261029
@@ -416,10 +418,10 @@ static func _shelter_at(p: Vector2) -> Vector2:
 	sz += 220.0 * exp(-(x * x) / (2.0 * 260.0 * 260.0))
 	sz -= 330.0 * exp(-((x - 1150.0) * (x - 1150.0)) / (2.0 * 240.0 * 240.0))
 	var d := sz - p.y
-	var k := Vector2(lerpf(0.35, 1.0, smoothstep(20.0, 700.0, d)), lerpf(0.6, 1.0, smoothstep(0.0, 250.0, d)))
+	var k := Vector2(lerpf(0.55, 1.0, smoothstep(20.0, 700.0, d)), lerpf(0.7, 1.0, smoothstep(0.0, 250.0, d)))
 	var e := (p - Vector2(0.0, 2170.0)) / Vector2(300.0, 150.0)
 	var inside := 1.0 - smoothstep(0.75, 1.05, e.length())
-	return k.lerp(Vector2(0.04, 0.2), inside)
+	return k.lerp(Vector2(0.07, 0.25), inside)
 
 
 func _calm_at(p: Vector2) -> float:
@@ -442,7 +444,7 @@ func _update_waves() -> void:
 	var whitecaps := lerpf(a[3], b[3], f)
 	if wind != _spectrum_wind:
 		_make_spectrum()
-	var hs := Vector3(swell * SWELL_HS, chop, lerpf(RIPPLE_HS.x, RIPPLE_HS.y, weather))
+	var hs := Vector3(swell * SWELL_HS, chop * CHOP_HS, lerpf(RIPPLE_HS.x, RIPPLE_HS.y, weather))
 	_waves.clear()
 	for c in 2:
 		for w: Array in _spectrum.biggest[c]:
