@@ -82,6 +82,8 @@ uniform float hull_beam = 1.1163;
 // b: slope z, the squeeze dDx/dx, dDz/dz, dDx/dz), each tile's size (m) and how high (its significant height, m).
 // Off (no RenderingDevice): the rolling waves above, which are this same sea's biggest waves.
 uniform bool fft_on = false;
+// the big Gerstner swells, the first big_count of `waves`: drawn on top of the FFT sea too
+uniform int big_count = 0;
 uniform sampler2D fft_a0 : filter_linear, repeat_enable;
 uniform sampler2D fft_a1 : filter_linear, repeat_enable;
 uniform sampler2D fft_a2 : filter_linear, repeat_enable;
@@ -248,7 +250,7 @@ void vertex() {
 	}
 	d += surf_at(wq, wave_time).xyz;
 	for (int i = 0; i < 32; i++) {
-		if (i >= wave_count || fft_on) {
+		if (i >= wave_count || (fft_on && i >= big_count)) {
 			break;
 		}
 		vec4 w = waves[i];
@@ -319,7 +321,7 @@ void fragment() {
 		jac = (1.0 - (jxx * jzz - jxz * jxz) + 0.45 * swell_squeeze) * fft_crest;
 	}
 	for (int i = 0; i < 32; i++) {
-		if (i >= wave_count || fft_on) {
+		if (i >= wave_count || (fft_on && i >= big_count)) {
 			break;
 		}
 		vec4 w = waves[i];
@@ -334,6 +336,20 @@ void fragment() {
 	}
 	// the smooth surface's normal, blended with the flat facet: the PS1 facets stay, the sawtooth of long thin
 	// triangles on a big swell in low sun goes
+	// two layers of scrolling detail on top (normal maps, from the noise): fine ripples sliding over each other in
+	// different directions at different speeds, close to only (far off they'd just sparkle)
+	vec2 dp = mod(local.xz + origin_km, 1000.0);
+	// (gone before a pixel covers more than a few cm: past that it only makes moire)
+	float near_d = 1.0 - smoothstep(0.015, 0.08, max(abs(fwidth(q.x)), abs(fwidth(q.y))));
+	if (near_d > 0.0) {
+		vec2 s1 = vec2(wave_time * 0.011, wave_time * 0.006);
+		vec2 s2 = vec2(-wave_time * 0.008, wave_time * 0.015);
+		float e = 0.1;
+		float h0 = texture(noise, dp * 0.23 + s1).g + 0.6 * texture(noise, dp * 0.52 + s2).b;
+		float hx = texture(noise, (dp + vec2(e, 0.0)) * 0.23 + s1).g + 0.6 * texture(noise, (dp + vec2(e, 0.0)) * 0.52 + s2).b;
+		float hz = texture(noise, (dp + vec2(0.0, e)) * 0.23 + s1).g + 0.6 * texture(noise, (dp + vec2(0.0, e)) * 0.52 + s2).b;
+		slope += vec2(hx - h0, hz - h0) / e * 0.05 * (0.6 + g * 0.5) * near_d;
+	}
 	vec3 smooth_n = normalize((VIEW_MATRIX * MODEL_MATRIX * vec4(-slope.x * k, 1.0, -slope.y * k, 0.0)).xyz);
 	if (dot(smooth_n, VIEW) < 0.0) {
 		smooth_n = -smooth_n;
@@ -357,7 +373,8 @@ void fragment() {
 	float foam = mix(smoothstep(edge - 0.06, edge + 0.06, crest + (grain - 0.5) * lace),
 			smoothstep(edge - 0.1, edge + 0.2, crest) * 0.6, far) * step(0.01, whitecaps);
 	if (fft_on) {
-		foam *= mix(0.55, 0.95, smoothstep(edge, edge + 0.5, crest));
+		// (calm water breaks nowhere, only round what's in it: whitecaps come in with the wind)
+		foam *= mix(0.55, 0.95, smoothstep(edge, edge + 0.5, crest)) * smoothstep(0.26, 0.5, whitecaps);
 	}
 	// in a blow, streaks of foam laid along the wind
 	vec2 wd = normalize(wind);
@@ -392,6 +409,11 @@ void fragment() {
 		float wk = 0.0;
 		float lace2 = texture(noise, qk * 0.31 + vec2(0.7, 0.2)).r;
 		float lace3 = texture(noise, qk * 0.55 + vec2(0.1, 0.9)).g * 0.5 + texture(noise, qk * 0.19).r * 0.5;
+		// the nearest point of her whole trail (not each stretch on its own: no gaps at the joins, no rings round them)
+		float best = 1e9;
+		float age = 0.0;
+		float power = 0.0;
+		bool at_end = false;
 		for (int i = 0; i < 63; i++) {
 			if (i + 1 >= wake_count) {
 				break;
@@ -402,22 +424,25 @@ void fragment() {
 			float len2 = max(dot(ab, ab), 0.0001);
 			float u = clamp(dot(q - a.xy, ab) / len2, 0.0, 1.0);
 			float dist = length(q - (a.xy + ab * u));
-			float born = mix(a.z, b.z, u);
-			float age = wave_time - born;
-			if (age < 0.0 || age > wake_life || dist > 4.0 + age * 1.6) {
-				continue;
+			if (dist < best) {
+				best = dist;
+				age = wave_time - mix(a.z, b.z, u);
+				power = mix(a.w, b.w, u);
+				at_end = (i + 2 >= wake_count && u > 0.999) || (i == 0 && u < 0.001);
 			}
-			float power = mix(a.w, b.w, u);
+		}
+		if (age >= 0.0 && age < wake_life && best < 4.0 + age * 1.6) {
 			float fade = 1.0 - smoothstep(0.0, wake_life, age);
-			// the churn behind her: wide and white at first, narrowing and going to lace
-			// (her beam wide, solid white for a few seconds, then lace, then gone; the middle of it a smooth slick)
-			float churn = (1.0 - smoothstep(0.9 + age * 0.1, 1.8 + age * 0.22, dist)) * smoothstep(wake_life * 0.35, 0.0, age);
-			churn *= smoothstep(0.3, 0.65, lace3 + 0.45 * (1.0 - smoothstep(0.0, 4.0, age)));
+			// the churn: her beam wide, solid white for a few seconds, then lace, then gone
+			float churn = (1.0 - smoothstep(0.8 + age * 0.08, 1.5 + age * 0.16, best)) * smoothstep(wake_life * 0.4, 0.0, age);
+			// (solid only just behind her: from a couple of seconds it tears into lace, thinner and thinner)
+			churn *= smoothstep(0.35 + 0.25 * smoothstep(2.0, 10.0, age), 0.62 + 0.25 * smoothstep(2.0, 10.0, age),
+					lace3 + 0.5 * (1.0 - smoothstep(0.0, 2.5, age)));
 			// the two arms of the V, out at the Kelvin angle (tan 19.5 deg of how far she's gone since): thin, broken
 			float arm = 1.4 + age * max(power, 0.2) * 3.4;
-			float arms = (1.0 - smoothstep(0.0, 0.35 + age * 0.04, abs(dist - arm))) * smoothstep(0.4, 0.75, lace2)
-					* smoothstep(0.0, 1.5, age);
-			wk = max(wk, (churn * 0.9 + arms * 0.55) * fade * clamp(power * 1.4, 0.0, 1.0));
+			float arms = (1.0 - smoothstep(0.0, 0.35 + age * 0.04, abs(best - arm))) * smoothstep(0.4, 0.75, lace2)
+					* smoothstep(0.0, 1.5, age) * (at_end ? 0.0 : 1.0);
+			wk = (churn * 0.9 + arms * 0.55) * fade * clamp(power * 1.4, 0.0, 1.0);
 		}
 		foam = max(foam, wk * (1.0 - far * 0.7));
 	}
@@ -469,20 +494,27 @@ void fragment() {
 	col = mix(col, foam_color, foam);
 	ALBEDO = col;
 	// glossy water (the sun glints on it), matte foam
-	ROUGHNESS = mix(0.08 + 0.12 * rough, 0.9, foam);
-	SPECULAR = 0.5;
-	float fres = pow(1.0 - clamp(dot(n, VIEW), 0.0, 1.0), 4.0);
-	EMISSION = sky_color * fres * reflect * (1.0 - foam) * (1.35 - 0.6 * rough) * (1.0 - 0.45 * cloud);
+	// (glossy enough for crisp sparkle: the sun's path broken into points by the ripples)
+	ROUGHNESS = mix(0.035 + 0.08 * rough, 0.9, foam);
+	SPECULAR = 0.6;
+	// the sky in it at a grazing angle: only at a grazing angle (water's dark looking into it, not milky)
+	float fres = pow(1.0 - clamp(dot(n, VIEW), 0.0, 1.0), 5.0);
+	EMISSION = sky_color * fres * reflect * 0.35 * (1.0 - foam) * (1.2 - 0.6 * rough) * (1.0 - 0.45 * cloud);
 	// the crests glowing where you look through them toward the light (strongest on the tall thin tops)
 	vec3 to_light = normalize((VIEW_MATRIX * vec4(shade_from, 0.0)).xyz);
 	float through = pow(clamp(dot(-VIEW, to_light) * 0.5 + 0.5, 0.0, 1.0), 3.0);
-	float thin = smoothstep(0.45, 1.0, h) * (0.4 + 0.6 * pow(1.0 - clamp(dot(n, VIEW), 0.0, 1.0), 1.5));
-	EMISSION += glass_color * glass * through * thin * (1.0 - foam) * (1.0 - far * 0.5);
+	// the wave peak mask (Sea of Thieves' way): where the water's squeezed up into a crest it's thin, so the light
+	// comes through it, sub-surface teal, from any side, brightest looking toward the sun
+	// (only the thin tops: the squeezed crest, high up, and most of all with the sun behind it)
+	float peak = clamp(smoothstep(0.62, 0.95, h) * 0.5 + smoothstep(0.15, 0.8, crest) * 0.8, 0.0, 1.0);
+	float thin = peak * (0.3 + 0.7 * pow(1.0 - clamp(dot(n, VIEW), 0.0, 1.0), 1.5));
+	EMISSION += glass_color * glass * (0.15 + 0.85 * through) * thin * 1.4 * (1.0 - foam) * (1.0 - far * 0.5);
 	// the sea going pale into the distance: the air between you and it, a gradient up to the horizon, where it meets
 	// the sky in a blur instead of a ruled line (the sky's own colour at the horizon: sea.gd's set_sky_color)
-	float away = smoothstep(20.0, 520.0, length(local.xz));
-	ALBEDO *= 1.0 - 0.7 * away;
-	EMISSION = mix(EMISSION, sky_color * 0.95, 0.75 * away);
+	// (gentle and late: the water keeps its colour well out, greying only toward the horizon)
+	float away = smoothstep(250.0, 2600.0, length(local.xz));
+	ALBEDO *= 1.0 - 0.45 * away;
+	EMISSION = mix(EMISSION, sky_color * 0.9, 0.55 * away);
 	if (glow_spot.w > 0.001) {
 		// long and slow, a body with a glow round it, under the waves
 		vec2 dv = q - glow_spot.xy;

@@ -1130,13 +1130,26 @@ func _fight_mine(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	fight.tip = _tip_local(r)
 	fight.rub_now = rub_on_hull(r)
 	fight.tangled = is_tangled(r.index)
-	fight.step(delta, crank, r.aim_pitch, side, r.drag)
+	_step_fight(fight, delta, crank, r.aim_pitch, side, r.drag)
 	if not r.hooked or r.alongside:
 		return       # (it ended this step: lost, or up alongside)
 	_take(r, fight)
 	if send:
 		_fight_state.rpc(r.index, r.line_out, r.strain, r.bearing, r.depth, r.energy, Vector2(r.aim_pitch, r.aim_side),
 				r.move, r.wear, r.stretch, r.turn_sign, r.drag, r.hold, r.reeling)
+
+
+## A fight moved on `delta` s, in slices no longer than FIGHT_STEP: a stutter (a slow frame, a hitch) is the same fight
+## as a smooth run of frames, never one big jolt on the line.
+const FIGHT_STEP := 1.0 / 60.0
+
+
+func _step_fight(fight: Fight, delta: float, crank: float, pitch: float, side: float, drag: float) -> void:
+	var left := minf(delta, 0.5)
+	while left > 0.0001 and not fight.done:
+		var dt := minf(left, FIGHT_STEP)
+		fight.step(dt, crank, pitch, side, drag)
+		left -= dt
 
 
 ## The rod in your hands, from the mouse: its elevation (heavier going up with a fish on, dragged down by it) and how
@@ -1210,7 +1223,7 @@ func _fight_holder(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	fight.tangled = is_tangled(r.index)
 	fight.tip = _tip_local(r)
 	fight.rub_now = rub_on_hull(r)
-	fight.step(delta, 0.0, 0.6, 0.0, r.drag)
+	_step_fight(fight, delta, 0.0, 0.6, 0.0, r.drag)
 	if not r.hooked or r.alongside:
 		return       # (it ended this step: lost, or up alongside)
 	_take(r, fight)
