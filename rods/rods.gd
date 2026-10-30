@@ -680,7 +680,8 @@ func _process(delta: float) -> void:
 			end = _tow(r, end, float(helm.get("speed")), ocean, delta)
 		if r.hooked or r.bait_in or tangled_in:
 			r.bait_p = Vector3.INF       # (out again, it starts from where her spread puts it)
-			r.slack = 0.0
+			# (a fish on: the line droops when it's come at you or she's backed onto it, bar-tight when it pulls)
+			r.slack = clampf(-r.stretch / 4.0, 0.0, 1.0) if r.hooked and not r.alongside else 0.0
 		r.line_end = end
 		_show_fish(r, boat, ocean, delta)
 	var hud := crew.get("hud") as Node
@@ -763,6 +764,15 @@ func _show_fish(r: Rod, boat: Node3D, ocean: Node, delta: float) -> void:
 	# how deep it shows: where it is, but in the spiral right up under the surface, its back out now and then
 	var under := r.depth if not spiral else 0.25 + 0.35 * (0.5 + 0.5 * sin(t * 1.3 + r.index))
 	at.y = top - maxf(under, 0.25)
+	# a jump: up out of the water in an arc, clear of it for most of a second, and back in (fight.gd's phases)
+	var air := -1.0
+	if r.move == "jump":
+		if r.seen_move != "jump":
+			r.set_meta("jump_t", t)
+		var jt := t - float(r.get_meta("jump_t", t))
+		if jt >= 0.5 and jt < 1.2:
+			air = (jt - 0.5) / 0.7
+			at.y = top + (1.0 + r.fish_kg / 80.0) * sin(PI * air)
 	if not is_instance_valid(r.fish_node):
 		var f := Tuna.new(r.fish_kg)
 		f.name = "Hooked%d" % r.index
@@ -772,7 +782,8 @@ func _show_fish(r: Rod, boat: Node3D, ocean: Node, delta: float) -> void:
 		r.fish_node = f
 		_splash.burst(r.line_end, 1.8, true)        # (the strike)
 	var fish := r.fish_node as Tuna
-	fish.visible = under < 6.0
+	# (close in, near the top, you can see it down there; and in the air, of course)
+	fish.visible = under < 6.0 or (r.line_out < 30.0 and r.depth < 10.0) or air >= 0.0
 	if delta > 0.0:
 		fish.velocity = (at - fish.global_position) / delta
 	fish.effort = clampf(r.strain + (0.6 if r.move in ["run", "shake"] else 0.0), 0.0, 1.0)
@@ -782,6 +793,12 @@ func _show_fish(r: Rod, boat: Node3D, ocean: Node, delta: float) -> void:
 		if r.move == "run" and r.seen_move != "":
 			_splash.burst(r.line_end, 1.3)
 		r.seen_move = r.move
+	if air >= 0.0 and not bool(r.get_meta("left_water", false)):
+		r.set_meta("left_water", true)
+		_splash.burst(Vector3(at.x, top, at.z), 1.4, true)     # (out it comes)
+	elif air < 0.0 and bool(r.get_meta("left_water", false)):
+		r.set_meta("left_water", false)
+		_splash.burst(Vector3(at.x, top, at.z), 1.8, true)     # (and back in)
 	if r.splash_in <= 0.0:
 		if r.move == "shake" and r.depth < 20.0:
 			r.splash_in = randf_range(0.4, 0.8)
@@ -889,9 +906,14 @@ func _aim(r: Rod, me: Node, fight: Fight, delta: float, heave: bool) -> float:
 		var d := boat.global_basis.inverse() * (r.line_end - hands)
 		line_yaw = atan2(-d.x, -d.z)
 		if me != null and is_nan(bot_aim.x):
+			# look out toward where the fish is (on the water along its bearing, no further than 30 m), not down
+			# where a steep line goes in under the transom
 			var head := p.global_position + Vector3.UP * 1.6
-			var to := r.line_end - head
-			var entry_pitch := clampf(atan2(to.y, Vector2(to.x, to.z).length()), -0.75, 0.05)
+			var hd := sqrt(maxf(r.line_out * r.line_out - r.depth * r.depth, 0.0))
+			var out := boat.global_transform * (stern + Vector3(sin(r.bearing), 0.0, cos(r.bearing)) * clampf(hd, 8.0, 30.0))
+			out.y = boat.global_position.y
+			var to := out - head
+			var entry_pitch := clampf(atan2(to.y, Vector2(to.x, to.z).length()), -0.5, 0.05)
 			var yaw := line_yaw + 0.4 * r.aim_side + _look_off
 			var pitch := clampf(entry_pitch + 0.35 * (r.aim_pitch - 0.75), entry_pitch - 0.12, entry_pitch + 0.28)
 			me.set("cam_goal", Vector2(yaw, pitch))
@@ -965,6 +987,7 @@ func _take(r: Rod, fight: Fight) -> void:
 	r.stretch = fight.stretch
 	r.hold = fight.hold
 	r.reeling = fight.wind
+	r.grinding = fight.grinding
 	r.turn_sign = fight.turn_sign()
 
 

@@ -77,5 +77,13 @@ static func act(c: Dictionary, dt: float, style: String, mem: Dictionary) -> Dic
 	mem["calm_t"] = calm_t
 	mem["grind_t"] = grind_t
 	mem["side"] = side
+	# a good angler watching the spool empty pushes the drag up to full, and back to strike once it's safe
+	var drag := float(mem.get("drag", 0.72))
+	if style in ["good", "no_side", "high_tip"]:
+		if float(c["spool"]) > 0.55:
+			drag = 0.95
+		elif float(c["spool"]) < 0.35:
+			drag = 0.72
+	mem["drag"] = drag
 	return {"crank": crank, "pitch": pitch, "side": side if style not in ["statue", "cranker", "reeler"] else 0.0,
-			"drag": 0.72}
+			"drag": drag}

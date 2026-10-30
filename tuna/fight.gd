@@ -329,7 +329,7 @@ func step(dt: float, crank: float, rod_pitch: float, side: float, drag_set: floa
 
 	# the hook: torn by shock, worked loose by slack while it thrashes, tested hardest in the air
 	if grace <= 0.0:
-		hold -= maxf(0.0, t + shock - 0.9) * HOLD_SHOCK * dt
+		hold -= maxf(0.0, t + shock - 1.0) * HOLD_SHOCK * dt      # (only a jolt on top of a tight line tears it)
 		if stretch < 0.0 and not airborne:
 			hold -= float(m["head"]) * HOLD_SLACK * dt
 		if airborne:

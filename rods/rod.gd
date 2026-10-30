@@ -43,6 +43,8 @@ var aim_side := 0.0
 var drag := 0.72
 var stretch := 0.0
 var hold := 1.0
+## Cranking with the rod loaded: the reel grinds and wins nothing (the angler's machine: pump instead).
+var grinding := false
 ## The fight itself: on the holder's machine, or the host's while it sits in its holder (fight.gd's in_holder).
 var fight: RefCounted
 ## When it last changed hands (sea clock): seeds the fight picked up from there.
@@ -75,6 +77,9 @@ var seen_move := ""
 var splash_in := 0.0
 var _scream: AudioStreamPlayer3D
 var _whir: AudioStreamPlayer3D
+var _grind: AudioStreamPlayer3D
+var _spool: MeshInstance3D
+var _spool_mat: StandardMaterial3D
 var _sing: AudioStreamPlayer3D
 var _last_out := 0.0
 var _paying := 0.0
@@ -108,6 +113,22 @@ func _ready() -> void:
 	if tip:
 		_tip_local = tip.transform.origin
 	src.free()
+	# the line on the spool, between the reel's plates: it shrinks as line goes out, white backing under it, then
+	# bare metal (you can see a giant's run emptying it)
+	_spool = MeshInstance3D.new()
+	var sp := CylinderMesh.new()
+	sp.top_radius = 0.05
+	sp.bottom_radius = 0.05
+	sp.height = 0.075
+	sp.radial_segments = 10
+	sp.rings = 1
+	_spool.mesh = sp
+	_spool.position = Vector3(0, 0.1, 0.37)
+	_spool.rotation = Vector3(0, 0, PI * 0.5)
+	_spool_mat = StandardMaterial3D.new()
+	_spool_mat.roughness = 0.8
+	_spool.material_override = _spool_mat
+	add_child(_spool)
 	_line_mesh = ImmediateMesh.new()
 	_line = MeshInstance3D.new()
 	_line.mesh = _line_mesh
@@ -144,6 +165,9 @@ func _ready() -> void:
 	# the reel winding (while line comes in) and the line singing (bar-tight, near breaking)
 	_whir = _looped(preload("res://audio/fish/reel_whir.wav"), -4.0)
 	_sing = _looped(preload("res://audio/fish/line_sing.wav"), -10.0)
+	# the reel under load: the same works, slow and heavy, going nowhere
+	_grind = _looped(preload("res://audio/fish/reel_whir.wav"), -2.0)
+	_grind.pitch_scale = 0.5
 	# what you press E on: the butt and the foregrip
 	_grab = Area3D.new()
 	_grab.add_to_group("interactable")
@@ -184,10 +208,10 @@ func _process(delta: float) -> void:
 	var pull := line_end - global_position
 	var local := global_transform.basis.inverse() * pull.normalized()
 	var want := Vector2(local.x, local.y) * (0.05 + 0.55 * strain) * LENGTH * 0.45
-	# a heavy load makes the tip buck (a fish's head shakes and the drag slips)
-	if strain > 0.3:
+	# near the limit the tip quivers: the line's about to go
+	if strain > 0.85:
 		var t := Time.get_ticks_msec() * 0.001
-		want += Vector2(sin(t * 23.0), sin(t * 17.0 + 1.3)) * 0.02 * strain
+		want += Vector2(sin(t * 23.0), sin(t * 17.0 + 1.3)) * (0.02 * (strain - 0.85) / 0.15 + 0.005)
 	_bend = _bend.lerp(want, minf(1.0, delta * 12.0))
 	# (a rod in your hands mustn't catch your own look; a crewmate's with a fish on, you can take over)
 	_grab.collision_layer = 1 if holder == 0 or (hooked and holder != Net.my_id()) else 0
@@ -211,13 +235,25 @@ func _process(delta: float) -> void:
 		_whir.play()
 	elif reeling <= 0.05 and _whir.playing:
 		_whir.stop()
-	var singing := hooked and strain > 0.8 and paying <= 0.6
+	var grind := hooked and grinding
+	if grind and not _grind.playing:
+		_grind.play()
+	elif not grind and _grind.playing:
+		_grind.stop()
+	# the creak: only right at the edge, higher the worse it gets (your one warning before the line goes)
+	var singing := hooked and strain >= 0.92
 	if singing and not _sing.playing:
 		_sing.play()
 	elif not singing and _sing.playing:
 		_sing.stop()
 	if _sing.playing:
-		_sing.pitch_scale = 0.9 + 0.4 * strain
+		_sing.pitch_scale = 0.55 + 2.5 * (strain - 0.92)
+	var left := clampf(1.0 - (line_out if hooked else 0.0) / 500.0, 0.0, 1.0)
+	var r := 0.05 * (0.4 + 0.6 * left)
+	_spool.scale = Vector3(r / 0.05, 1.0, r / 0.05)
+	var gone := line_out if hooked else 0.0
+	_spool_mat.albedo_color = Color(0.85, 0.86, 0.78) if gone <= 400.0 else (Color(0.97, 0.97, 0.95) if gone <= 425.0
+			else Color(0.55, 0.57, 0.6))
 	_draw_line()
 
 
