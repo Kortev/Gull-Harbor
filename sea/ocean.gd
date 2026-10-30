@@ -63,6 +63,9 @@ const STRETCH_SCALE := 640.0
 const PACE := 0.85
 ## Where the waves fade out (the mesh gets too coarse) and the sea starts to curve away.
 const FADE := Vector2(900.0, 2200.0)
+## How far off height_at can be, per metre from the middle (a third of a pixel on a 1080 line screen at 75 degrees):
+## a point far off sums only the biggest waves, the rest being less than that.
+const LOD_TOL := 0.0005
 const CURVE_START := 350.0
 const CURVE_RADIUS := 12000.0
 ## The hurricane's gusts (a storm night; a lab's weather near 1): one in each GUST_SLOT s of the wave clock, starting
@@ -135,6 +138,17 @@ var gusty := 0.0
 var tame := false
 var _forced_at := -100.0
 var _waves: Array[PackedFloat32Array] = []  # each: dir x, dir z, k, amplitude, omega, phase, sharpness (the swell's first)
+## height_at's copy of the same waves, biggest first and flat, so its loop is a few multiplies a wave: k along x and
+## along z, amplitude, angular speed, phase, sharpness times the direction along x and along z, and 1 for a swell
+## (scaled by the long swell's sets) or 0 (the chop's patches). _tail[n] is how much sea (root sum square, m) is left
+## out summing only the first n: a point far off sums only as many as it takes to get within a fraction of a pixel.
+var _lod: Array[PackedFloat64Array] = []
+var _tail := PackedFloat64Array()
+## What height_at's said already this frame (the boat's pose and the buoys ask about the same points more than once),
+## for this wave time and this node's place.
+var _memo := {}
+var _memo_t := NAN
+var _memo_at := Vector3.ZERO
 var _spectrum: Spectrum
 var _big: Array = []          # [length m, share of height, off the wind (rad), phase]
 var _spectrum_wind := Vector2.ZERO
@@ -263,21 +277,47 @@ func _wave_clock(delta: float) -> float:
 
 ## The sea's surface height (world y) at a world point, right now, or `ahead` seconds from now (the
 ## same waves worked forward: every peer on the same clock sees the same crest coming).
-func height_at(at: Vector3, ahead := 0.0) -> float:
+## `slack` (m): how far off it may be, for something that only needs the sea's shape roughly (a bird flying over it):
+## only the waves it takes to get within that are summed.
+func height_at(at: Vector3, ahead := 0.0, slack := 0.0) -> float:
+	var memo := ahead == 0.0 and slack == 0.0
+	if memo:
+		if wave_time != _memo_t or global_position != _memo_at:
+			_memo.clear()
+			_memo_t = wave_time
+			_memo_at = global_position
+		elif _memo.has(at):
+			return _memo[at]
 	var t := wave_time + ahead
 	var drift := _group_drift if ahead == 0.0 else _drift_at(t)
 	var p := to_local(at)
 	var q := Vector2(p.x, p.z)
-	# the waves are the world's: w is where q is in the world (the mesh's fade and curve stay round this node)
-	var o := _origin()
-	var w := q + o
-	# the waves move the water sideways too: find the bit of sea that's ended up over w
-	var x := w
-	for i in 3:
-		var d := _displace(x, t, drift, x - o)
-		x = w - Vector2(d.x, d.z)
-	var y := _displace(x, t, drift, x - o).y - pow(maxf(q.length() - CURVE_START, 0.0), 2.0) / (2.0 * CURVE_RADIUS)
-	return to_global(Vector3(q.x, y, q.y)).y
+	var r := q.length()
+	var y := -pow(maxf(r - CURVE_START, 0.0), 2.0) / (2.0 * CURVE_RADIUS)
+	# (out past the fade the sea's flat: only the curve)
+	if r < FADE.y and not _lod.is_empty():
+		# the waves are the world's: w is where q is in the world (the mesh's fade and curve stay round this node)
+		var o := _origin()
+		var w := q + o
+		# near, every wave; further off only the biggest, as many as leave out less than a third of a pixel (on a
+		# 1080 line screen) of sea (or the slack); and well off, the sideways search in fewer steps
+		var n := _tail.size() - 1
+		var tol := maxf(LOD_TOL * r, slack)
+		while n > 1 and _tail[n - 1] < tol:
+			n -= 1
+		var steps := 1 if slack >= 0.25 else (3 if r < 300.0 else (2 if r < 900.0 else 1))
+		# (and with slack, the patches looked up once for the search: they barely change in a metre or two)
+		var mods := _mods(w, t, drift) if slack >= 0.25 else Vector3.INF
+		# the waves move the water sideways too: find the bit of sea that's ended up over w
+		var x := w
+		for i in steps:
+			var d := _displace(x, t, drift, x - o, n, mods)
+			x = w - Vector2(d.x, d.z)
+		y += _displace(x, t, drift, x - o, n).y
+	var h := to_global(Vector3(q.x, y, q.y)).y
+	if memo:
+		_memo[at] = h
+	return h
 
 
 ## Where this node is over the world (x, z): what the shader adds to the mesh's x, z to find the waves there.
@@ -400,25 +440,46 @@ func _drift_at(t: float) -> Vector2:
 
 ## Where the bit of sea that starts at world point p has moved to (and how high) at wave time `t`, the
 ## patches drifted to `drift`; `from_middle` is p from this node (where the waves fade out toward the horizon).
-func _displace(p: Vector2, t: float, drift: Vector2, from_middle := Vector2.ZERO) -> Vector3:
-	var out := Vector3.ZERO
+## Only the first n waves (_lod's order, biggest first) if n isn't -1; `mods` the patches there (_mods) if it's
+## already known.
+func _displace(p: Vector2, t: float, drift: Vector2, from_middle := Vector2.ZERO, n := -1, mods := Vector3.INF) 		-> Vector3:
+	var fade := 1.0 - smoothstep(FADE.x, FADE.y, from_middle.length())
+	if fade <= 0.0:
+		return Vector3.ZERO
+	if not mods.is_finite():
+		mods = _mods(p, t, drift)
+	var g := mods.x
+	var sw := mods.y
+	var coast := mods.z
+	var kx := _lod[0]
+	var kz := _lod[1]
+	var am := _lod[2]
+	var om := _lod[3]
+	var ph := _lod[4]
+	var qx := _lod[5]
+	var qz := _lod[6]
+	var sl := _lod[7]
+	var dx := 0.0
+	var dy := 0.0
+	var dz := 0.0
+	for i in (kx.size() if n < 0 else mini(n, kx.size())):
+		var a := am[i] * (sw if sl[i] > 0.5 else g)
+		var th := kx[i] * p.x + kz[i] * p.y - om[i] * t + ph[i]
+		var c := a * cos(th)
+		dx += qx[i] * c
+		dz += qz[i] * c
+		dy += a * sin(th)
+	return (Vector3(dx, dy, dz) + _surf_at(p, t, coast)) * fade * _calm_at(p)
+
+
+## The patches at world point p: how big the chop is there, how big the swell, and where the coast is (world z).
+func _mods(p: Vector2, t: float, drift: Vector2) -> Vector3:
 	var g := 0.35 + 1.3 * _swirl(_swirl_r, p / 70.0 - drift)
 	g *= 0.45 + 1.1 * _swirl(_swirl_g, p / STRETCH_SCALE + Vector2(0.53, 0.19) - drift * (70.0 / STRETCH_SCALE))
 	var sw := (0.85 + 0.3 * _swirl(_swirl_g, p / 180.0 + Vector2(0.31, 0.77))) 			* (0.3 + 1.4 * _swirl(_swirl_r, p / SETS_SCALE + Vector2(0.71, 0.43) - _sets_at(t)))
-	var sh := _shelter_at(p)
-	g *= sh.y
-	sw *= sh.x
-	for i in _waves.size():
-		var w := _waves[i]
-		var swell_wave := i < _big.size() + SWELL_N
-		var a: float = w[3] * (sw if swell_wave else g)
-		var th: float = w[2] * (w[0] * p.x + w[1] * p.y) - w[4] * t + w[5]
-		var c := cos(th)
-		out.x += w[6] * a * w[0] * c
-		out.z += w[6] * a * w[1] * c
-		out.y += a * sin(th)
-	out += _surf_at(p, t)
-	return out * (1.0 - smoothstep(FADE.x, FADE.y, from_middle.length())) * _calm_at(p)
+	var coast := _coast_at(p.x)
+	var sh := _shelter_at(p, coast)
+	return Vector3(g * sh.y, sw * sh.x, coast)
 
 
 ## The noise, smooth (bilinear, wrapping), as the shader samples it.
@@ -438,11 +499,17 @@ func _swirl(ch: PackedFloat32Array, uv: Vector2) -> float:
 
 
 ## How much of the open sea gets to world p (x the swell, y the chop): the shader's shelter_at.
-static func _shelter_at(p: Vector2) -> Vector2:
-	var x := p.x
+## Where the coast is (world z) at world x: shelter_at and surf_at both measure from it.
+static func _coast_at(x: float) -> float:
 	var sz := 1900.0 + 140.0 * sin(x / 1100.0 + 0.5) + 50.0 * sin(x / 370.0 + 2.0)
 	sz += 220.0 * exp(-(x * x) / (2.0 * 260.0 * 260.0))
 	sz -= 330.0 * exp(-((x - 1150.0) * (x - 1150.0)) / (2.0 * 240.0 * 240.0))
+	return sz
+
+
+static func _shelter_at(p: Vector2, sz := NAN) -> Vector2:
+	if is_nan(sz):
+		sz = _coast_at(p.x)
 	var d := sz - p.y
 	var k := Vector2(lerpf(0.85, 1.0, smoothstep(0.0, 300.0, d)), lerpf(0.8, 1.0, smoothstep(0.0, 150.0, d)))
 	var e := (p - Vector2(0.0, 2170.0)) / Vector2(300.0, 150.0)
@@ -456,11 +523,10 @@ const SURF_Q := 2.5
 var surf_height := 1.0
 
 
-func _surf_at(p: Vector2, t: float) -> Vector3:
+func _surf_at(p: Vector2, t: float, sz := NAN) -> Vector3:
 	var x := p.x
-	var sz := 1900.0 + 140.0 * sin(x / 1100.0 + 0.5) + 50.0 * sin(x / 370.0 + 2.0)
-	sz += 220.0 * exp(-(x * x) / (2.0 * 260.0 * 260.0))
-	sz -= 330.0 * exp(-((x - 1150.0) * (x - 1150.0)) / (2.0 * 240.0 * 240.0))
+	if is_nan(sz):
+		sz = _coast_at(x)
 	var d := sz - p.y
 	if d > 420.0 or d < -1.0:
 		return Vector3.ZERO
@@ -571,6 +637,7 @@ func _update_waves() -> void:
 		w.append(q[0] if i < _big.size() + SWELL_N else q[1])
 		_waves[i] = w
 	_q = q[0]
+	_flatten()
 	var wa := PackedVector4Array()
 	var wb := PackedVector4Array()
 	for i in _waves.size():
@@ -601,6 +668,32 @@ func _update_waves() -> void:
 	_mat.set_shader_parameter("leg_count", legs.size())
 	_mat.set_shader_parameter("calm_rect", calm_rect)
 	_mat.set_shader_parameter("wind", wind)
+
+
+## height_at's waves (_lod, _tail) from _waves: biggest first, flat.
+func _flatten() -> void:
+	_memo.clear()
+	var order: Array = range(_waves.size())
+	order.sort_custom(func(i: int, j: int) -> bool: return _waves[i][3] > _waves[j][3])
+	_lod.clear()
+	for c in 8:
+		_lod.append(PackedFloat64Array())
+	for i: int in order:
+		var w := _waves[i]
+		_lod[0].append(w[2] * w[0])
+		_lod[1].append(w[2] * w[1])
+		_lod[2].append(w[3])
+		_lod[3].append(w[4])
+		_lod[4].append(w[5])
+		_lod[5].append(w[6] * w[0])
+		_lod[6].append(w[6] * w[1])
+		_lod[7].append(1.0 if i < _big.size() + SWELL_N else 0.0)
+	_tail.resize(order.size() + 1)
+	_tail[order.size()] = 0.0
+	var sq := 0.0
+	for i in range(order.size() - 1, -1, -1):
+		sq += _lod[2][i] * _lod[2][i]
+		_tail[i] = sqrt(sq)
 
 
 ## The sea's spectrum, from SEA_SEED and the wind (made again if the wind ever changes), and the GPU sea drawing it.
