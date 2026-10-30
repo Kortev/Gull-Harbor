@@ -9,7 +9,7 @@ extends CanvasLayer
 ## countdown lets both boats go, and Esc gives the pause card.
 ##
 ## Out there (Esc), a small pause card: back to the deck, the owner's manual, the crew (the join code to send, a Steam
-## invite), leave the crew, quit. No heading in from a menu, in any game: you drive her home and tie her up alongside
+## invite), leave the crew, back to the title, quit the game. No heading in from a menu, in any game: you drive her home and tie her up alongside
 ## the fish pier (sea/sea.gd's race home at dusk).
 ##
 ## The one pixel font (ui/pixfont.gd) at whole sizes, few words, dark cards over the harbour behind.
@@ -70,7 +70,8 @@ func _ready() -> void:
 		_status.text = "COPIED: SEND IT TO YOUR FRIEND"))
 	_crew_box.add_child(_button("INVITE A STEAM FRIEND", func() -> void: Net.steam.call("invite")))
 	col.add_child(_button("LEAVE THE CREW", _leave_crew))
-	col.add_child(_button("QUIT", func() -> void: get_tree().quit()))
+	col.add_child(_button("BACK TO THE TITLE", _to_title))
+	col.add_child(_button("QUIT THE GAME", func() -> void: get_tree().quit()))
 	_manual = Manual.new(get_parent().get("tips") as Node)
 	_manual.set_anchors_preset(Control.PRESET_CENTER)
 	_manual.custom_minimum_size = Vector2(820, 560)
@@ -154,6 +155,13 @@ func _section(parent: Control, title: String) -> VBoxContainer:
 
 func _resume() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+## Back to the title: off the crew (or the crew off your boat), and the game starts over from its title. (A trip left
+## out at sea is settled as the day gone, the fuel owed: boat/fish_hold.gd.)
+func _to_title() -> void:
+	Net.leave()
+	get_tree().reload_current_scene()
 
 
 func _leave_crew() -> void:
@@ -334,9 +342,8 @@ func _fill_board(hold: Node, docked: bool) -> void:
 	links.add_theme_constant_override("separation", 10)
 	_dock.add_child(links)
 	links.add_child(_button("THE OWNER'S MANUAL", func() -> void: _reading = true))
-	if Net.in_session_or_hosting():
-		links.add_child(_button("LEAVE THE CREW", _leave_crew))
-	links.add_child(_button("QUIT", func() -> void: get_tree().quit()))
+	links.add_child(_button("BACK TO THE TITLE", _to_title))
+	links.add_child(_button("QUIT THE GAME", func() -> void: get_tree().quit()))
 
 
 ## A line of the slip: what on the left, the money on the right.
