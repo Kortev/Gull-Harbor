@@ -445,6 +445,8 @@ func _process(_delta: float) -> void:
 			_steered = true
 			Input.action_press("move_left")
 			get_tree().create_timer(1.5).timeout.connect(func() -> void: Input.action_release("move_left"))
+	if _args.has("item") and crew.me != null and Time.get_ticks_msec() > 1500 			and str(crew.me.hands.item) != str(_args["item"]):
+		crew.me.hands.pick(str(_args["item"]))      # (screenshots: --item=knife|gaff|jig|scoop|bait in your hands)
 	if _args.has("take") and crew.me != null and not _took and Time.get_ticks_msec() > 2500:
 		# (tests/net_test.sh: once aboard, take over the crewmate's rod)
 		var i := int(_args["take"])

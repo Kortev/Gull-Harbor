@@ -13,8 +13,13 @@ static func make(item: String) -> Node3D:
 	root.name = item.capitalize()
 	match item:
 		"knife":
-			_box(root, Vector3(0.028, 0.032, 0.12), Vector3(0, 0, 0.0), _mat(Color(0.12, 0.12, 0.13), 0.7))
-			_box(root, Vector3(0.006, 0.03, 0.16), Vector3(0, 0.004, -0.14), _mat(Color(0.78, 0.8, 0.82), 0.25, 0.8))
+			# a deckhand's bleeding knife: a white grippy handle, a short stiff blade tapering to its point
+			_box(root, Vector3(0.026, 0.03, 0.11), Vector3(0, 0, 0.0), _mat(Color(0.9, 0.9, 0.86), 0.8))
+			_box(root, Vector3(0.03, 0.036, 0.012), Vector3(0, 0.002, -0.058), _mat(Color(0.15, 0.15, 0.16), 0.6))
+			var steel := _mat(Color(0.8, 0.82, 0.84), 0.25, 0.8)
+			_box(root, Vector3(0.004, 0.026, 0.07), Vector3(0, 0.004, -0.098), steel)
+			_box(root, Vector3(0.004, 0.017, 0.035), Vector3(0, 0.0085, -0.15), steel)
+			_box(root, Vector3(0.004, 0.008, 0.018), Vector3(0, 0.013, -0.176), steel)
 		"gaff":
 			# a stout aluminium pole, a big stainless hook on the end, a rubber grip
 			_cyl(root, 0.018, 1.3, Vector3(0, 0, -0.45), _mat(Color(0.72, 0.74, 0.76), 0.35, 0.7))

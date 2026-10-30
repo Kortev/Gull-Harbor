@@ -198,10 +198,12 @@ func _pose_view(delta: float) -> void:
 	var rot := Vector3.ZERO
 	match _shown:
 		"knife":
-			rot = Vector3(0.35, 0.15, 0.0)
+			at = Vector3(-0.02, 0.0, 0.05)
+			rot = Vector3(0.45, 0.3, -0.25)
 		"gaff":
-			at = Vector3(-0.05, -0.1, 0.25)
-			rot = Vector3(-0.2, 0.1, 0.0)
+			# angled up and across to the left, the hook in sight
+			at = Vector3(0.02, -0.06, 0.12)
+			rot = Vector3(0.55, 0.42, 0.35)
 		"jig":
 			var jig: Node = _sea().get("jig") if _sea() else null
 			var lift := float(jig.get("lift")) if jig else 0.0
@@ -239,6 +241,29 @@ func _pose_view(delta: float) -> void:
 		chum.visible = scoop_full
 
 
+## Your own gloved fist round what you're holding (first person): an orange rubber deck glove, knuckles and a thumb,
+## so a thing in your hands is held, not floating.
+static func _fist() -> Node3D:
+	var f := Node3D.new()
+	f.name = "Fist"
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.95, 0.45, 0.12)
+	m.roughness = 0.85
+	for part: Array in [[Vector3(0.075, 0.07, 0.085), Vector3(0.0, -0.005, 0.01)],
+			[Vector3(0.08, 0.03, 0.03), Vector3(0.0, 0.03, -0.03)],
+			[Vector3(0.025, 0.025, 0.05), Vector3(-0.04, 0.02, -0.01)],
+			[Vector3(0.07, 0.06, 0.12), Vector3(0.0, -0.01, 0.1)]]:
+		var mi := MeshInstance3D.new()
+		var b := BoxMesh.new()
+		b.size = part[0]
+		mi.mesh = b
+		mi.position = part[1]
+		mi.material_override = m
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		f.add_child(mi)
+	return f
+
+
 func _show(which: String) -> void:
 	_shown = which
 	for n: Node3D in [_view, _glove]:
@@ -252,6 +277,7 @@ func _show(which: String) -> void:
 		_view = Kit.make(which)
 		_view.name = "Held"
 		(player.get("hand") as Node3D).add_child(_view)
+		_view.add_child(_fist())
 	var fore := (player.get("_parts") as Dictionary).get("fore_r") as Node3D
 	if fore:
 		_glove = Kit.make(which)
