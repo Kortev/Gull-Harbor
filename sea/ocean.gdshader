@@ -405,7 +405,8 @@ void fragment() {
 	// fine detail fades out far off, where it would only sparkle
 	float far = smoothstep(0.08, 0.6, length(fwidth(q)));
 	vec2 qk = mod(local.xz + origin_km, 1000.0);
-	float grain = texture(noise, qk * 0.045 + vec2(wave_time * 0.01, 0.0)).g;
+	// (the foam's grain is the water's own: it rides the swell to and fro with it, never sliding over it on its own)
+	float grain = texture(noise, qk * 0.045).g;
 	// whitecaps on the crests
 	float edge = 1.0 - 0.55 * whitecaps - 0.12 * spume - 0.2 * white;
 	// (soft-edged, a little lacy: painted foam, not hard pixels)

@@ -2,11 +2,12 @@ extends CanvasLayer
 ## The title: what you see when the game starts. The harbour at the fish pier behind it, a camera drifting slowly
 ## round the boats at their berths; BLUEFIN in big pixel letters (ui/pixfont.gd, the game's pixel look) and the way
 ## in:
+##   FISH     your boat: out after the quota alone, and open for friends to come aboard any time (it hosts quietly:
+##            a Steam friend sees your boat, or the Esc menu has the join code to send)
 ##   RIVALS   two boats, a crew each; most pounds aboard by dusk wins the day, best of three (vs/vs.gd)
-##   CO-OP    one boat, a crew of up to four
-##   SOLO     her and you
+##   JOIN A FRIEND   aboard a friend's boat, whichever game they're playing
 ##   QUIT
-## Rivals and co-op ask HOST or JOIN. Hosting opens the crew list (who's aboard which boat, the join code to send, a
+## Rivals asks HOST or JOIN. Hosting opens the crew list (who's aboard which boat, the join code to send, a
 ## Steam invite) and the host's START; joining is your Steam friends with a boat out, or typing in their code. START
 ## (or SOLO) closes it for everyone aboard: the letters fade and a short intro plays, the camera pulling up and out
 ## over the harbour mouth and sweeping back in low past the boats at the pier, a line or two in big pixel letters (what
@@ -73,7 +74,9 @@ func _ready() -> void:
 	_cam.make_current()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_go("main")
-	Net.hosted.connect(func() -> void: _go("lobby"))
+	Net.hosted.connect(func() -> void:
+		if _mode != "fish":
+			_go("lobby"))
 	Net.joined.connect(func() -> void:
 		_note = ""
 		_go("lobby"))
@@ -97,9 +100,11 @@ func _go(page: String) -> void:
 	_items.clear()
 	match page:
 		"main":
-			_items = [["RIVALS", "TWO BOATS, A CREW EACH. MOST FISH BY DUSK WINS THE DAY.", func() -> void: _choose("rivals")],
-				["CO-OP", "ONE BOAT, UP TO FOUR OF YOU. MAKE THE QUOTA OR LOSE HER.", func() -> void: _choose("coop")],
-				["SOLO", "JUST YOU AND HER. HARD WORK ALONE.", _solo],
+			_items = [["FISH", "YOUR BOAT. MAKE THE QUOTA. FRIENDS CAN JOIN ANY TIME.", _fish],
+				["RIVALS", "TWO BOATS, A CREW EACH. MOST FISH BY DUSK WINS THE DAY.", func() -> void: _choose("rivals")],
+				["JOIN A FRIEND", "GET ABOARD A FRIEND'S BOAT.", func() -> void:
+					_mode = ""
+					_go("join")],
 				["QUIT", "", func() -> void: get_tree().quit()]]
 		"host_join":
 			_items = [["HOST", "START A BOAT AND SEND YOUR FRIEND THE CODE.", _host],
@@ -117,7 +122,7 @@ func _go(page: String) -> void:
 						Net.join_steam(lobby)])
 			_items.append(["JOIN BY CODE", "TYPE OR PASTE THE CODE (CTRL+V), THEN ENTER.", func() -> void:
 				_note = "JOINING..." if Net.join(_code) == OK else "COULDN'T START JOINING"])
-			_items.append(["BACK", "", func() -> void: _go("host_join")])
+			_items.append(["BACK", "", func() -> void: _go("host_join" if _mode == "rivals" else "main")])
 			_pick = _items.size() - 2
 		"lobby":
 			_items = []
@@ -197,6 +202,21 @@ func _start() -> void:
 		_begin.rpc()
 	else:
 		_begin()
+
+
+## FISH: your own boat, hosted quietly so a friend can come aboard whenever (no lobby: straight out to the dock).
+func _fish() -> void:
+	_mode = "fish"
+	_note = ""
+	if not Net.in_session_or_hosting():
+		if bool(Net.steam.get("available")):
+			Net.host_steam()
+		else:
+			Net.host()
+	var vs := sea.get("vs") as Node
+	if bool(vs.get("on")):
+		vs.call("host_set_on", false)
+	_begin()
 
 
 func _solo() -> void:

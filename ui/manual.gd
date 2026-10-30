@@ -5,10 +5,12 @@ extends PanelContainer
 const CHAPTERS := [
 	["1. Controls", "WASD walk (at the wheel: throttle, steer). Mouse look. Shift sprint, Space jump.\n"
 		+ "E: use what's under the crosshair. Hold E to haul, wire, jig.\n"
-		+ "Left mouse: crank. Throw the harpoon.\n"
-		+ "Fish on: the mouse is the rod. Up and down lifts and drops it, sideways lays it over. Scroll: the drag.\n"
-		+ "Q: put the rod or the harpoon back. Esc: the menu.\n"
-		+ "F: shove whoever's in front of you. Space into the rail: over it (onto a boat alongside, or into the sea).\n"
+		+ "Left mouse: reel. Throw the harpoon.
+"
+		+ "Q: put the rod or the harpoon back. Esc: the menu.
+"
+		+ "F: shove whoever's in front of you. Space into the rail: over it (onto a boat alongside, or into the sea).
+"
 		+ "In the sea: WASD swim. Hold E on a boarding ladder to climb out."],
 	["2. The loan", "Your boat belongs to First Coastal Savings & Loan.\n\n"
 		+ "Every 3 days (3 trips) the bank wants a payment: the quota. $5,000, then half as much again each time. "
@@ -37,13 +39,13 @@ const CHAPTERS := [
 		+ "Chum (the transom bucket, 24 scoops a trip): a slick pulls schools from about 450 m and keeps them "
 		+ "while you keep it coming, a scoop a minute or so."],
 	["6. The fight", "Reel screams: grab the rod (E). Anyone can, and anyone can take over.\n\n"
-		+ "Read the rod and the reel:\n"
-		+ "- Screaming: it's running on the drag. Hands off the crank.\n"
-		+ "- Grinding, winning nothing: pump. Lift slow (mouse up), wind as you drop.\n"
-		+ "- Line sweeping round: lay the rod over against it (mouse sideways).\n"
-		+ "- It jumps: drop the tip.\n"
-		+ "- Rod creaking: about to snap. Ease off, or slack the drag (scroll down).\n\n"
-		+ "Alone: rod in its holder (Q) to steer. It fights on its drag; nobody wins line back."],
+		+ "One rule: KEEP THE NEEDLE IN THE GREEN. Hold left mouse to reel and it climbs; let go and it falls.\n"
+		+ "- In the green while you reel: you win line and he tires.\n"
+		+ "- Too slack too long: the hook falls out. Reel.\n"
+		+ "- In the red too long: the line snaps. Let go.\n"
+		+ "- He runs or jumps: let go.\n\n"
+		+ "A big one takes a few minutes. Alone: rod in its holder (Q) to steer. It fights on its drag; nobody "
+		+ "wins line back."],
 	["7. Driving during a fight", "Stern to the fish (A/D). Let it swing toward the bow and the line rubs on "
 		+ "her and wears through: swing the stern to it, or the angler walks to that corner.\n\n"
 		+ "Backing down (S) wins line back fast.\n\n"

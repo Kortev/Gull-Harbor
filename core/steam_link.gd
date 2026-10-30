@@ -3,11 +3,15 @@ extends Node
 ## through Steam's relays (SteamMultiplayerPeer), so it works from any home whatever the router; friends join from
 ## the Esc menu (your Steam friends with a boat out are listed) or from an invite (Shift+Tab, a friend, Invite).
 ##
-## Needs the GodotSteam add-on (in the Godot editor: AssetLib, search "GodotSteam", Download, Install; it lands in
-## addons/godotsteam). Without it, or with Steam not running, `available` stays false and the menu only offers the
-## join code (core/net.gd). Everything here goes through the Steam singleton by name, so the game runs either way.
-## App id 480 is Valve's free test app ("Spacewar"): fine for friends; a Steam page of our own would change it.
-## Both players start the game first, then invite or join (an invite can't start the game for you on app 480).
+## The GodotSteam GDExtension (4.23.2, Steamworks 1.65, for Godot 4.4 and up) sits in addons/godotsteam with its
+## Windows, Linux and Mac libraries; an export copies them next to the game. With Steam not running (or headless, as
+## the tests run) `available` stays false and the menu only offers the join code (core/net.gd). Everything here goes
+## through the Steam singleton by name, so the game runs without the add-on too.
+## App id 480 is Valve's free test app ("Spacewar"): fine for friends; a Steam page of our own would change it. The
+## id goes to steamInitEx itself, so neither the editor nor an export needs steam_appid.txt beside it (it's kept in
+## the project root anyway, which is where Steam's own fallback looks when running from the editor).
+## Steam shows you as playing "Spacewar". Both players start the game first, then invite or join (an invite can't
+## start the game for you on app 480; if Steam does pass +connect_lobby on the command line, we join it).
 
 const APP_ID := 480
 const LOBBY_FRIENDS_ONLY := 1
@@ -31,23 +35,29 @@ var make_peer: Callable = func() -> MultiplayerPeer: return ClassDB.instantiate(
 
 
 func _ready() -> void:
+	if DisplayServer.get_name() == "headless":
+		return      # (the headless tests never touch the real Steam; they hand start() a stand-in)
 	if Engine.has_singleton("Steam") and ClassDB.class_exists("SteamMultiplayerPeer"):
-		OS.set_environment("SteamAppId", str(APP_ID))
-		OS.set_environment("SteamGameId", str(APP_ID))
 		start(Engine.get_singleton("Steam"))
 
 
 ## Starts up Steam (the singleton, or a test's stand-in) and listens for lobbies and invites.
 func start(singleton: Object) -> void:
 	steam = singleton
-	var r: Variant = steam.call("steamInitEx")
+	var r: Variant = steam.call("steamInitEx", APP_ID, false)
 	available = (int((r as Dictionary).get("status", 1)) == 0) if r is Dictionary else bool(r)
 	if not available:
 		print("Steam: not available (", r, "): playing with join codes only")
 		return
+	print("Steam: on as ", steam.call("getPersonaName"), " (app ", APP_ID, ")")
 	steam.connect("lobby_created", _on_lobby_created)
 	steam.connect("lobby_joined", _on_lobby_joined)
 	steam.connect("join_requested", _on_join_requested)
+	steam.call("initRelayNetworkAccess")      # (warms up the relay network now, not on the first connection)
+	var args := OS.get_cmdline_args()
+	var at := args.find("+connect_lobby")
+	if at >= 0 and at + 1 < args.size() and int(args[at + 1]) != 0:
+		join.call_deferred(int(args[at + 1]))
 
 
 func _process(_delta: float) -> void:

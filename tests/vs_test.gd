@@ -42,6 +42,10 @@ func _ready() -> void:
 	# the test wants)
 	await get_tree().process_frame
 	_check(vs.count_end > 0.0, "at the dock, the countdown to casting off runs (%.0f s)" % (vs.count_end - vs._now()))
+	_check(absf(vs.run_out(0) - vs.run_out(1)) < 1.0, "the same run to the harbour mouth from both berths (A %.0f m, B %.0f m)"
+			% [vs.run_out(0), vs.run_out(1)])
+	var held_helm: Node = a_boat.get("helm")
+	_check(bool(held_helm.call("held")), "and her engines won't turn over till GO")
 	sea.fish_hold.call("head_out", "sportfisher")
 	await get_tree().create_timer(0.3).timeout
 	var a_hold: Node = a.get("fish_hold")

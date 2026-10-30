@@ -51,8 +51,9 @@ const SEA_SEED := 20261029
 const CALM := [3.2, 0.5, 0.5, 0.0]
 const RAIN := [5.8, 0.6, 0.68, 0.45]
 const STORM := [12.0, 0.9, 0.9, 1.0]
-## How fast the rough patches drift with the wind (m/s), calm to storm.
-const GUSTS := Vector2(4.0, 12.0)
+## How fast the rough patches drift with the wind (m/s), calm to storm: about the speed the chop's groups go, slow
+## enough that the ripples riding them don't seem to stream past a boat that's lying still (at 4 to 12 they did).
+const GUSTS := Vector2(1.5, 5.0)
 ## The swell comes in sets: wide bands where it's bigger, then smaller, travelling with the wind at about the speed a
 ## group of long waves goes (half their own speed). SETS_SCALE m across the noise (the bands are a few hundred m), the
 ## speed in m/s; the chop's rough and smooth stretches, as wide again, drift slower.
