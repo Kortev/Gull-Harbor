@@ -1,10 +1,10 @@
 extends Node
-## The fight, headless, many times over, played by test anglers that read only the rod, the reel and the line
-## (tests/fight_bot.gd). Fought well, with a captain keeping the stern on it, a bluefin of any size comes boatside in
-## a minute or a few; alone it takes longer; pumping beats plain reeling; laying the rod over against its swing beats
-## not; cranking through everything breaks the big ones off; doing nothing never lands one; a rod held high and
-## cranking when a schoolie jumps loses it; the line rubs only where it runs over her house and bow; backing down
-## blind puts it in the props.
+## The fight, headless, many times over, played by test anglers that read only the bar (tests/fight_bot.gd). One
+## rule: keep the needle in the green. Kept there, a bluefin of any size comes boatside, a schoolie in a minute or so,
+## a giant in a few; reeling through his runs puts it in the red and parts the line; doing nothing lets it go slack and
+## the hook falls out; reeling through a jump throws it; only the green tires him; held still for the first fish's
+## lesson, nothing moves but the needle. And the captain's part: the line rubs only where it runs over her house and
+## bow; backing down blind puts it in the props.
 ## Run: godot --headless --path . res://tests/fight_test.tscn
 
 const Fight := preload("res://tuna/fight.gd")
@@ -16,46 +16,103 @@ var fails: Array[String] = []
 
 
 func _ready() -> void:
-	var good_alone := {}
 	for kg: float in [35.0, 150.0, 300.0]:
 		var crew := _many(kg, "good", true, 20)
 		var solo := _many(kg, "good", false, 20)
-		good_alone[kg] = solo
-		print("FIGHT %3d kg, fought well with a captain: %s, median %.0f s; alone: %s, median %.0f s"
+		print("FIGHT %3d kg, kept in the green with a captain: %s, median %.0f s; alone: %s, median %.0f s"
 				% [kg, crew["ends"], crew["median"], solo["ends"], solo["median"]])
-		_check(int(crew["landed"]) >= 18, "%d kg: fought well with a captain, it comes boatside (%d of 20)"
+		_check(int(crew["landed"]) >= 18, "%d kg: kept in the green with a captain, it comes boatside (%d of 20)"
 				% [kg, crew["landed"]])
-		_check(int(solo["landed"]) >= 15, "%d kg: alone, you land most of them (%d of 20)" % [kg, solo["landed"]])
-		var lo := 25.0 if kg < 100.0 else 60.0
-		var hi := 130.0 if kg < 100.0 else 360.0
-		_check(float(crew["median"]) > lo and float(crew["median"]) < hi,
-				"%d kg: a fight of a minute or a few (median %.0f s)" % [kg, crew["median"]])
-		if kg >= 300.0:
-			_check(float(solo["median"]) > float(crew["median"]),
-					"%d kg: alone takes longer than with a captain (%.0f vs %.0f s)" % [kg, solo["median"], crew["median"]])
-	for kg: float in [150.0, 300.0]:
-		var reel := _many(kg, "reeler", false, 20)
-		print("FIGHT %3d kg just reeling (no pumping): %s, median %.0f s" % [kg, reel["ends"], reel["median"]])
-		_check(float(reel["median"]) >= 1.1 * float(good_alone[kg]["median"]),
-				"%d kg: pumping beats just reeling (%.0f vs %.0f s)" % [kg, good_alone[kg]["median"], reel["median"]])
-	var no_side := _many(300.0, "no_side", false, 20)
-	print("FIGHT 300 kg never laying the rod over: %s, median %.0f s" % [no_side["ends"], no_side["median"]])
-	_check(float(no_side["median"]) > float(good_alone[300.0]["median"]),
-			"laying the rod over against its swing lands it sooner (%.0f vs %.0f s)"
-			% [good_alone[300.0]["median"], no_side["median"]])
+		_check(int(solo["landed"]) >= 16, "%d kg: alone, kept in the green, you land it (%d of 20)" % [kg, solo["landed"]])
+		var lo := {35.0: 30.0, 150.0: 70.0, 300.0: 120.0}[kg] as float
+		var hi := {35.0: 150.0, 150.0: 300.0, 300.0: 480.0}[kg] as float
+		_check(float(solo["median"]) > lo and float(solo["median"]) < hi,
+				"%d kg: it takes a while, %.0f..%.0f s (median %.0f s)" % [kg, lo, hi, solo["median"]])
+	var small := _many(35.0, "good", false, 20)
+	var giant := _many(300.0, "good", false, 20)
+	_check(float(giant["median"]) > 2.0 * float(small["median"]),
+			"a giant takes far longer than a schoolie (%.0f vs %.0f s)" % [giant["median"], small["median"]])
 	for kg: float in [150.0, 300.0]:
 		var c := _many(kg, "cranker", false, 20)
-		print("FIGHT %3d kg cranking through everything: %s" % [kg, c["ends"]])
-		_check(int(c["ends"].get("broke", 0)) >= 15, "%d kg: cranking through its runs breaks it off (%d of 20)"
+		print("FIGHT %3d kg reeling through everything: %s" % [kg, c["ends"]])
+		_check(int(c["ends"].get("broke", 0)) >= 15, "%d kg: reeling through his runs, the red parts the line (%d of 20)"
 				% [kg, c["ends"].get("broke", 0)])
 	for kg: float in [35.0, 300.0]:
 		var s := _many(kg, "statue", false, 10)
 		print("FIGHT %3d kg doing nothing: %s" % [kg, s["ends"]])
 		_check(not s["ends"].has("boatside"), "%d kg: doing nothing never lands it" % kg)
-	var high := _many(35.0, "high_tip", false, 20)
-	var lost_high := 20 - int(high["landed"])
-	print("FIGHT 35 kg, rod high and cranking when it jumps: %s" % high["ends"])
-	_check(lost_high >= 6, "rod high and cranking when a schoolie jumps loses it (%d of 20)" % lost_high)
+		if kg < 100.0:
+			_check(int(s["ends"].get("pulled", 0)) >= 8,
+					"%d kg: doing nothing, the line goes slack, the hook falls out (%d of 10)" % [kg, s["ends"].get("pulled", 0)])
+		else:
+			_check(not s["ends"].has("timeout"), "%d kg: doing nothing, he's gone one way or another" % kg)
+	var jumps := _many(35.0, "jump_reeler", false, 20)
+	print("FIGHT 35 kg reeling through his jumps: %s" % jumps["ends"])
+	_check(int(jumps["ends"].get("thrown", 0)) >= 6, "reeling while a schoolie jumps throws the hook (%d of 20)"
+			% jumps["ends"].get("thrown", 0))
+	# only the green tires him: out of it (too slack, the hook's grace stretched out) he doesn't
+	var g := Fight.new(150.0, 60.0, 0.7, 5)
+	g.grace = 999.0
+	g.carry_on("circle")
+	g.grace = 999.0
+	for k in 300:
+		g.step(DT, 0.0, 0.8, 0.0, 0.72)
+	var left_alone := 0.7 - g.energy
+	var h := Fight.new(150.0, 60.0, 0.7, 5)
+	h.carry_on("circle")
+	var mem := {}
+	for k in 300:
+		var act := Bot.act(h.cues(), DT, "good", mem)
+		h.step(DT, float(act["crank"]), 0.8, 0.0, 0.72)
+	_check(left_alone < 0.01 and 0.7 - h.energy > 0.03,
+			"ten seconds circling: left slack he doesn't tire (%.3f), kept in the green he does (%.3f)"
+			% [left_alone, 0.7 - h.energy])
+	# held still for the lesson: nothing moves but the needle, nothing's lost
+	var p := Fight.new(150.0, 60.0, 1.0, 9)
+	p.paused = true
+	var was := [p.line_out, p.energy, p.bearing, p.move_t]
+	for k in 600:
+		p.step(DT, 0.0, 0.8, 0.0, 0.72)
+	var low := p.strain
+	for k in 60:
+		p.step(DT, 1.0, 0.8, 0.0, 0.72)
+	_check(not p.done and [p.line_out, p.energy, p.bearing, p.move_t] == was and p.strain > low + 0.2,
+			"paused twenty seconds: he hasn't moved, nothing's lost, the needle still answers the reel (%.2f -> %.2f)"
+			% [low, p.strain])
+	# A first-timer, end to end: slow, overshooting, never told the fish's weight. Most come in, and the end game
+	# (beaten, circling) almost never loses one.
+	var late_losses := 0
+	var all_losses := 0
+	for kg: float in [35.0, 100.0, 200.0, 300.0]:
+		var ends := {}
+		var landed := 0
+		for k in 20:
+			var r := _fight(kg, 100 + k, "sloppy", false)
+			ends[r[0]] = int(ends.get(r[0], 0)) + 1
+			if r[0] == "boatside":
+				landed += 1
+			else:
+				all_losses += 1
+				if float(r[3]) < Fight.BEATEN:
+					late_losses += 1
+					print("FIGHT   lost beaten: %d kg, %s after %.0f s" % [kg, r[0], r[1]])
+		print("FIGHT %3d kg, a first-timer alone: %s" % [kg, ends])
+		_check(landed >= 14, "%d kg: a first-timer lands most of them (%d of 20)" % [kg, landed])
+	_check(late_losses <= 2, "a beaten fish, circling, is almost never lost (%d of %d losses)" % [late_losses, all_losses])
+	# it keeps fighting: a fresh fish never goes long without a run or a surge
+	var quiet := 0.0
+	for k in 10:
+		var q := Fight.new(200.0, 60.0, 1.0, 40 + k)
+		var since := 0.0
+		var qm := {}
+		var qt := 0.0
+		while not q.done and q.energy > 0.35 and qt < 600.0:
+			var act := Bot.act(q.cues(), DT, "good", qm)
+			q.step(DT, float(act["crank"]), 0.8, 0.0, 0.72)
+			since = 0.0 if q.move in ["run", "surge"] else since + DT
+			quiet = maxf(quiet, since)
+			qt += DT
+	_check(quiet <= Fight.QUIET + 12.0, "with fight in him, he's never quiet long: a run or a surge within %.0f s" % quiet)
 	var cut := 0
 	for s in 40:
 		if str(_fight(300.0, s, "good", true, true)[0]) == "cut":
@@ -115,20 +172,20 @@ func _ready() -> void:
 			"across her house to the far bow: it rubs")
 	# Picking a fight up where it was: the fish carries on with what it was doing, and a moment's grace.
 	var mid := Fight.new(200.0, 80.0, 0.5, 7)
-	var was := "circle" if mid.move != "circle" else "sound"
-	mid.carry_on(was, 0.4, -1.0, 0.6)
-	_check(mid.move == was and is_equal_approx(mid.stretch, 0.4) and is_equal_approx(mid.hold, 0.6)
+	var was_m := "circle" if mid.move != "circle" else "sound"
+	mid.carry_on(was_m, 0.4, -1.0, 0.6)
+	_check(mid.move == was_m and is_equal_approx(mid.stretch, 0.4) and is_equal_approx(mid.hold, 0.6)
 			and mid.turn_sign() < 0.0 and mid.grace > 0.0,
-			"a fight picked up mid-move carries on with it: %s, the same stretch, hook and way round" % mid.move)
+			"a fight picked up mid-move carries on with it: %s, the same needle, hook and way round" % mid.move)
 	# a tangled line saws through if nobody clears it
 	var tangle := Fight.new(150.0, 60.0, 0.6, 11)
 	tangle.tangled = true
 	var how := [""]
 	tangle.lost.connect(func(why: String) -> void: how[0] = why)
 	var tt := 0.0
-	var mem := {}
+	mem = {}
 	while not tangle.done and tt < 120.0:
-		var act := Bot.act(tangle.cues(), DT, "statue", mem)
+		var act := Bot.act(tangle.cues(), DT, "good", mem)
 		tangle.step(DT, float(act["crank"]), float(act["pitch"]), float(act["side"]), float(act["drag"]))
 		tt += DT
 	_check(how[0] in ["tangle", "broke"] and tt < Fight.TANGLE_LIFE + 5.0,
@@ -152,12 +209,12 @@ func _many(kg: float, style: String, captain: bool, n: int) -> Dictionary:
 	return {"ends": ends, "landed": times.size(), "median": times[times.size() / 2] if not times.is_empty() else 9999.0}
 
 
-## Fights one fish; returns [how it ended, seconds, the most line out in a death spiral (m)].
+## Fights one fish; returns [how it ended, seconds, the most line out in a death spiral (m), its fight left at the end].
 ## captain: someone at the wheel keeps the stern on it and backs down on it while it's astern and running (blind:
 ## backs down all the time and steers anywhere).
 func _fight(kg: float, seed_value: int, style: String, captain := false, blind := false) -> Array:
 	var f := Fight.new(kg, 45.0, 1.0, seed_value)
-	var end := ["timeout", 0.0, 0.0]
+	var end := ["timeout", 0.0, 0.0, 1.0]
 	f.lost.connect(func(why: String) -> void: end[0] = why)
 	f.boatside.connect(func() -> void: end[0] = "boatside")
 	var t := 0.0
@@ -177,6 +234,7 @@ func _fight(kg: float, seed_value: int, style: String, captain := false, blind :
 		if f.move == "spiral":
 			end[2] = maxf(float(end[2]), f.line_out)
 	end[1] = snappedf(t, 0.01)
+	end[3] = f.energy
 	return end
 
 

@@ -1,19 +1,19 @@
 extends Control
-## The first fish you ever hook, taught one thing at a time, each as it first matters (rods.gd makes it beside the
-## fight HUD and ticks it every frame). When one comes up (the fish takes, it runs, the line's in the red, the reel
-## grinds, it jumps, it goes into its death spiral) the fight holds still (tuna/fight.gd's `paused`: the fish doesn't
-## move, nothing can be lost) and a card in the middle says what's happening and the one thing to do, with the button
-## drawn. It waits till you've done it, then says why in a line and waits again for you to read it: SPACE or a click
-## and the fight runs on. Then, the first time a fish comes up alongside, the landing the same way (wire, harpoon,
-## haul), step by step as you do each; the fish's hook clock stands still meanwhile (tuna/landing.gd's hold_clock), but
-## the sea doesn't, so there's no NEXT between those steps, only after the last.
+## The first fish you ever hook, taught in three steps, each as it first matters (rods.gd makes it beside the fight
+## HUD and ticks it every frame): the fish takes (reel, keep the needle in the green), it runs (let go), and it comes
+## up alongside (land it). For the first two the fish holds still (tuna/fight.gd's `paused`: he doesn't move and
+## nothing can be lost, but the needle still answers your hand, so you see what reeling does) and a card in the middle
+## says what's happening and the one thing to do, the button drawn, the bar glowing. It waits till you've done it,
+## then says why in a line and waits again for you to read it: SPACE or a click and the fight runs on. The landing
+## goes step by step as you do each (rod back, wire, harpoon, haul); the fish's hook clock stands still meanwhile
+## (tuna/landing.gd's hold_clock), but the sea doesn't, so there's no NEXT between those steps, only after the last.
 ##
 ## Which you've been taught is kept on this machine (SAVE), like ui/tips.gd's radio tips, and the field guide's "show
 ## them all again" wipes it too. Off in the tests and screenshots (`enabled`) unless asked for (--tutor).
 ##
-## The fight runs on the machine of whoever holds the rod (rods.gd), so holding it still there is the fight's own word
-## in a crew or against the other boat too: it costs you the clock, gains you nothing. Anything else that can end it
-## (the other boat across your line) still can.
+## Only the fish waits, not the game, and the fight runs on the machine of whoever holds the rod (rods.gd), so it works
+## the same in a crew or against the other boat: it costs you the clock, gains you nothing. Anything else that can end
+## it (the other boat across your line) still can.
 
 const Fight := preload("res://tuna/fight.gd")
 const Sfx := preload("res://audio/sfx.gd")
@@ -25,25 +25,16 @@ const PALE := Color(0.95, 0.93, 0.86)
 const DIM := Color(0.62, 0.66, 0.68)
 const INK := Color(0.02, 0.03, 0.05, 0.86)
 const U := 3.0                        # px a pixel of the drawn mouse and keys
-## The fight's lessons, in the order they're looked for (each but the first only after the first).
-const ORDER := ["reel", "run", "ease", "pump", "jump", "spiral"]
-## Each: what's happening (head), the steps (what to do, and the picture: which button), and why, once it's done.
+## The fight's lessons, in the order they're looked for (the second only after the first).
+const ORDER := ["reel", "run"]
+## Each: what's happening (head), the steps (what to do, and the picture: which button), why, once it's done, and what
+## the fish puts on the needle meanwhile (-1: what he's really doing).
 const LESSONS := {
-	"reel": {"head": "FISH ON!", "steps": [["HOLD LEFT MOUSE: REEL HIM IN", "left"]],
-			"why": "THAT'S THE REEL WINDING HIM IN.\nNOW WATCH WHAT HE DOES."},
-	"run": {"head": "HE'S RUNNING! THE REEL SCREAMS", "steps": [["LET GO OF THE MOUSE", "none"]],
-			"why": "THE DRAG LETS HIM TAKE LINE, SO IT DOESN'T SNAP.\nLET HIM RUN. REEL AGAIN WHEN THE SCREAM STOPS."},
-	"ease": {"head": "TOO TIGHT! THE LINE'S IN THE RED", "steps": [["SCROLL DOWN: EASE THE DRAG", "wheel_down"]],
-			"why": "LESS DRAG: HE TAKES LINE INSTEAD OF BREAKING IT.\nSCROLL UP AGAIN ONCE HE'S STOPPED."},
-	"pump": {"head": "THE REEL'S GRINDING: HE'S TOO HEAVY TO WIND",
-			"steps": [["HOLD RIGHT MOUSE: LIFT THE ROD", "right"],
-					["NOW HOLD LEFT MOUSE AND MOUSE DOWN: WIND AS YOU DROP IT", "left_down"]],
-			"why": "LIFT, THEN WIND ON THE WAY DOWN. THAT'S A PUMP.\nEVERY LIFT WINS LINE AND TIRES HIM."},
-	"jump": {"head": "HE'S JUMPING!", "steps": [["MOUSE DOWN: DROP THE ROD TIP", "down"]],
-			"why": "TIP DOWN, THE LINE GOES SOFT: HE CAN'T THROW THE HOOK.\nROD UP WHEN HE JUMPS AND HE'S GONE."},
-	"spiral": {"head": "HE'S BEATEN: CIRCLING UNDER THE BOAT",
-			"steps": [["HOLD LEFT MOUSE: WIND WHILE HE COMES UP", "left"], ["LET GO WHILE HE GOES UNDER", "none"]],
-			"why": "UP, WIND. UNDER, LET HIM GO.\nEVERY LAP HE COMES CLOSER. THE BAR SAYS WHICH."},
+	"reel": {"head": "FISH ON!", "steps": [["HOLD LEFT MOUSE TO REEL. KEEP THE NEEDLE IN THE GREEN.", "left"]],
+			"why": "IN THE GREEN YOU WIN LINE AND TIRE HIM.\nTOO SLACK OR TOO TIGHT FOR LONG AND HE'S GONE.",
+			"pull": 0.15},
+	"run": {"head": "HE'S RUNNING!", "steps": [["LET GO.", "none"]],
+			"why": "LET HIM TAKE LINE, OR IT GOES IN THE RED AND SNAPS.\nREEL AGAIN WHEN HE STOPS.", "pull": -1.0},
 }
 
 var rods: Node                # rods/rods.gd
@@ -60,7 +51,6 @@ var _held := 0.0              # s the asked-for thing's been done
 var _phase_t := 0.0
 var _good := 0.0              # a step just done: GOOD! for a moment
 var _gap := 0.0               # s before another lesson may come up
-var _mark := {}               # the rod as the lesson started (its pitch, the drag)
 var _a := 0.0
 var _t := 0.0
 var _land_i := -1             # the fish alongside being landed
@@ -102,11 +92,16 @@ func busy() -> bool:
 	return _id != ""
 
 
+## Whether the lesson up is about the bar (the fight HUD makes it glow).
+func highlight() -> bool:
+	return _id == "reel" and _phase == "do"
+
+
 ## Whether Dale's radio tip `tip` (ui/tips.gd) would only say again what this has shown or is showing.
 func covers(tip: String) -> bool:
 	if not enabled:
 		return false
-	var lesson := {"fight": "reel", "spiral": "spiral", "alongside": "land"}.get(tip, "") as String
+	var lesson := {"fight": "reel", "alongside": "land"}.get(tip, "") as String
 	return not lesson.is_empty() and (busy() or taught(lesson))
 
 
@@ -133,32 +128,19 @@ func tick(delta: float, mine: Node) -> void:
 		if f != null and not f.done and _gap <= 0.0:
 			for id: String in ORDER:
 				if not taught(id) and (id == "reel" or taught("reel")) and _wants(id, f):
-					_start(id, f, mine)
+					_start(id, f)
 					break
 	if _id in ORDER:
 		_fight.paused = true
-		_run(delta, mine)
+		_run(delta)
 
 
 ## Whether lesson `id`'s moment has come, from what the fight's doing.
 func _wants(id: String, f: Fight) -> bool:
-	match id:
-		"reel":
-			return true
-		"run":
-			return f.slipping
-		"ease":
-			return f.load_now() > 0.9
-		"pump":
-			return f.grinding
-		"jump":
-			return f.move == "jump" and f.move_t < 0.45
-		"spiral":
-			return f.move == "spiral"
-	return false
+	return id == "reel" or (id == "run" and f.slipping)
 
 
-func _start(id: String, f: Fight, mine: Node) -> void:
+func _start(id: String, f: Fight) -> void:
 	_id = id
 	_fight = f
 	f.paused = true
@@ -166,41 +148,25 @@ func _start(id: String, f: Fight, mine: Node) -> void:
 	_phase = "do"
 	_held = 0.0
 	_phase_t = 0.0
-	_mark = {"pitch": float(mine.get("aim_pitch")), "drag": float(mine.get("drag"))}
+	f.pause_pull = float(LESSONS[id]["pull"])
 	Sfx.play("ui.page", 0.6)
 
 
 ## A step of the lesson up: done (held for long enough), on to the next, or to why.
-func _run(delta: float, mine: Node) -> void:
+func _run(delta: float) -> void:
 	_phase_t += delta
 	if _phase != "do":
 		return
 	var me := (sea.get("crew") as Node).get("me") as Node
 	var live := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or (me != null and bool(me.get("force_input")))
 	var crank := live and Input.is_action_pressed("use_primary")
-	var heave := live and Input.is_action_pressed("use_secondary")
-	var pitch := float(mine.get("aim_pitch"))
 	var ok := false
-	var need := 0.5
-	match [_id, _step]:
-		["reel", 0], ["spiral", 0]:
-			ok = crank
-		["run", 0], ["spiral", 1]:
-			ok = not crank and not heave
-			need = 0.8
-		["ease", 0]:
-			ok = float(mine.get("drag")) < float(_mark["drag"]) - 0.01 or float(mine.get("drag")) <= 0.0
-			need = 0.0
-		["pump", 0]:
-			ok = heave and pitch >= minf(float(_mark["pitch"]) + 0.3, 1.2)
-			need = 0.0
-			_mark["lift"] = pitch
-		["pump", 1]:
-			ok = crank and pitch <= float(_mark.get("lift", 1.2)) - 0.3
-			need = 0.0
-		["jump", 0]:
-			ok = pitch <= 0.35
-			need = 0.3
+	var need := 0.6
+	if _id == "reel":
+		ok = crank and _fight.strain >= Fight.GREEN_LO
+	elif _id == "run":
+		ok = not crank
+		need = 0.8
 	_held = _held + delta if ok else 0.0
 	if _held < need or not ok:
 		return
@@ -244,6 +210,7 @@ func _finish() -> void:
 func _drop() -> void:
 	if _fight != null:
 		_fight.paused = false
+		_fight.pause_pull = -1.0
 		_fight.grace = maxf(_fight.grace, 1.0)
 	if _id == "land":
 		_unhold()
@@ -351,7 +318,7 @@ func _draw() -> void:
 	else:
 		var l: Dictionary = LESSONS[_id]
 		head = l["head"]
-		tag = "PAUSED: THE FISH WAITS FOR YOU"
+		tag = "HE HOLDS STILL TILL YOU DO IT: TAKE YOUR TIME"
 		steps = (l["steps"] as Array).size()
 		if _step < steps:
 			doing = l["steps"][_step]

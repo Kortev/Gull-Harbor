@@ -3,23 +3,20 @@ extends RefCounted
 ## instant (rods.gd sends the others how it's going, and tells the host when it ends); no nodes, so a test can run a
 ## whole fight headless.
 ##
-## One spring between your hands and the fish (docs/FIGHT_DESIGN.md, the brainstorm's "Loaded Rod"). The line
-## stretches when the fish swims away, when you raise the rod and when you wind; it goes slack when the fish comes
-## at you, when you drop the rod and when the boat closes on it. Its stretch is the tension T, 0 .. 1 of what the
-## line takes: past the drag setting the drag slips and pays out line (the reel screams), past 1 for a moment the
-## line parts. There's no right answer per move and no text: you read the rod's bend, the reel and the line.
+## ONE rule: keep the needle in the green. The needle is the line's tension, T (0 slack .. 1 and past: parting).
+## Hold left mouse and you reel, and the needle climbs; let go and it falls back to what the fish alone puts on it.
+## - In the green (GREEN_LO .. GREEN_HI) while you reel, you win line and the fish tires. Nowhere else does either.
+## - Too slack (under SLACK) for SLACK_HOLD s and the hook falls out; too tight (over RED) for BREAK_HOLD s and the line
+##   parts. Both warn first (the HUD's words), and both forgive a moment.
+## - The fish's moves speak the same language: on a run it puts the needle high by itself and takes line (let go, or
+##   it's in the red); on a jump, reeling spikes it (let go); circling and sulking it's light (reel); beaten near the
+##   boat, in its death spiral, it comes up as you reel.
+## A big fish takes a few minutes: it only tires while you're in the green. The rod's tip, side pressure, pumping and
+## the drag lever are gone from the rules (they're still drawn: the rod still lifts and bends); the captain's part
+## stays (the line rubbing her hull, the props, backing down to win line, the other lines tangling).
 ##
-## - Cranking only wins line while the rod isn't loaded (REEL_STALL): against a heavy fish the reel just grinds.
-##   So you pump: raise the rod (it hauls the fish toward you, the reel silent), then drop it, winding the slack.
-## - Lifting the fish toward you is what tires it (LIFT), a tight line a little; a slack one lets it get its breath.
-## - Lay the rod over against the way it's swinging round (side pressure) and it turns slower, its effort goes into
-##   fighting the turn rather than going away (line for you), and held hard it turns its head, comes at you for a
-##   moment and sulks.
-## - The hook only holds so much: shock (a head shake against a stiff rod, a jump landing on a tight line) and slack
-##   while it thrashes tear it out. When it jumps, drop the rod tip (bow to it).
-##
-## You: `crank` 0..1 (left mouse), `rod_pitch` (the rod's elevation, 0.15 tip at the water .. 1.35 near upright),
-## `side` (-1..1, the rod laid over: + toward increasing bearing), `drag_set` (the drag lever, DETENTS).
+## You: `crank` 0..1 (left mouse). `rod_pitch`, `side` and `drag_set` are taken and ignored (kept so rods.gd and the
+## bots needn't change).
 
 signal move_started(move: String)
 ## broke (the line parted), broke_rail (parted where it lay on her), pulled (the hook pulled out), thrown (thrown on
@@ -29,63 +26,58 @@ signal lost(reason: String)
 ## Played out and up alongside: the crew's turn (the harpoon, the tuna door).
 signal boatside
 
-## thrust: how hard it swims (x its size and freshness); away: how much of that is away from you; k: how fast it
-## takes line against the tension (m/s per unit of pull over T); turn: how fast it swings round the boat (rad/s at
-## 20 m); depth: where it heads (m); dur: how long (s); head: how much its head's thrashing (slack then costs hook).
+## pull: how high it puts the needle by itself (x its size, a little less as it tires); take: m/s of line it takes
+## (a run, x its freshness); turn: how fast it swings round the boat (rad/s at 20 m); depth: where it heads (m);
+## dur: how long (s).
 const MOVES := {
-	"run":    {"thrust": 1.0,  "away": 1.0,  "k": 30.0, "turn": 0.1,  "depth": 20.0,  "dur": [5.0, 12.0], "head": 0.25},
-	"sound":  {"thrust": 0.8,  "away": 0.8,  "k": 6.0,  "turn": 0.04, "depth": 110.0, "dur": [6.0, 10.0], "head": 0.25},
-	"dog":    {"thrust": 0.45, "away": 0.6,  "k": 3.0,  "turn": 0.03, "depth": 60.0,  "dur": [4.0, 8.0],  "head": 0.25},
-	"shake":  {"thrust": 0.6,  "away": 0.5,  "k": 3.0,  "turn": 0.06, "depth": 15.0,  "dur": [1.5, 2.5],  "head": 1.0},
-	"circle": {"thrust": 0.6,  "away": 0.35, "k": 3.0,  "turn": 0.25, "depth": 50.0,  "dur": [6.0, 10.0], "head": 0.25},
-	"surge":  {"thrust": 1.0,  "away": 1.0,  "k": 30.0, "turn": 0.15, "depth": 10.0,  "dur": [1.0, 2.0],  "head": 1.0},
-	"jump":   {"thrust": 0.0,  "away": 0.0,  "k": 3.0,  "turn": 0.0,  "depth": 0.0,   "dur": [1.6, 1.6],  "head": 1.0},
-	"spiral": {"thrust": 0.35, "away": 0.25, "k": 3.0,  "turn": 0.3,  "depth": 0.0,   "dur": [6.0, 9.0],  "head": 0.25},
+	"run":    {"pull": 0.70, "take": 5.5, "turn": 0.1,  "depth": 20.0,  "dur": [5.0, 11.0]},
+	"sound":  {"pull": 0.32, "take": 0.0, "turn": 0.04, "depth": 110.0, "dur": [6.0, 10.0]},
+	"dog":    {"pull": 0.24, "take": 0.0, "turn": 0.03, "depth": 60.0,  "dur": [4.0, 8.0]},
+	"shake":  {"pull": 0.28, "take": 0.0, "turn": 0.06, "depth": 15.0,  "dur": [1.5, 2.5]},
+	"circle": {"pull": 0.18, "take": 0.0, "turn": 0.25, "depth": 50.0,  "dur": [6.0, 10.0]},
+	"surge":  {"pull": 0.66, "take": 4.0, "turn": 0.15, "depth": 10.0,  "dur": [1.5, 3.0]},
+	"jump":   {"pull": 0.30, "take": 0.0, "turn": 0.0,  "depth": 0.0,   "dur": [1.6, 1.6]},
+	"spiral": {"pull": 0.10, "take": 0.0, "turn": 0.3,  "depth": 0.0,   "dur": [6.0, 9.0]},
 }
-## The knobs that matter most: the tension where cranking stops winning line, how fast a fish gives line when you
-## out-pull it, what tires it, and how stretchy the line is (m of stretch per unit of tension).
-const REEL_STALL := 0.28
-const PULL_IN := 6.0
-const TIRE := 0.25
-const LIFT := 5.5
-const SPRING_BASE := 0.8
-const SPRING_PER_M := 0.012
-const E_FLOOR := 0.15            # a spent fish still pulls this much of a fresh one
-const CRANK := 2.4               # m/s of line a stand-up reel winds in, flat out
-const RUN_SPEED := 9.0           # m/s, a fresh bluefin flat out
-const ROD_REACH := 1.7           # m the tip travels along the line from low to high
+## The needle: the green band, slack under SLACK, red over RED; how much reeling puts on it, how fast it climbs and
+## falls (per s), and how long it forgives being too slack or too tight (s).
+const GREEN_LO := 0.35
+const GREEN_HI := 0.7
+const SLACK := 0.18
+const RED := 0.86
+const REEL := 0.45
+const RISE := 0.9
+const FALL := 1.1
+const SLACK_HOLD := 2.0
+const BREAK_HOLD := 1.5
+## Beaten (under BEATEN of its fight left) it's forgiving: this much longer before slack or the red loses it, and the
+## hull wears its line this much slower. Fresh, it never goes QUIET s without a run or a surge.
+const BEATEN := 0.25
+const BEATEN_HOLD := 3.0
+const BEATEN_WEAR := 0.25
+const QUIET := 22.0
+## m/s of line won in the green, flat out (x the dock's two-speed reel), and how long a fish fights in the green
+## before it's beaten: GOAL_BASE + GOAL_PER_KG x its weight (s).
+const WIN := 2.2
+const GOAL_BASE := 35.0
+const GOAL_PER_KG := 0.35
+## Fresh, it won't come in closer than this (m): you tire it before you can bring it to the boat.
+const SPIRAL_IN := 30.0
 const TIP_H := 2.0               # m the tip's above the water (for the line's angle)
-const DETENTS := [0.0, 0.45, 0.72, 0.95]     # the drag lever: free, light, strike, full
+const DETENTS := [0.0, 0.45, 0.72, 0.95]     # the old drag lever's notches (the wheel still clicks it; it does nothing)
 const STRIKE_DRAG := 0.72
-const BIND_MAX := 0.4            # cranking into a slipping drag: up to this much more tension (the creak, the snap)
-const BIND_RATE := 1.2
-const BREAK_HOLD := 0.5          # s at full tension before the line parts
-const SNAP := 1.35               # this much and it parts at once
-const HOLD_SHOCK := 4.0
-const HOLD_SLACK := 0.5
-const AIR_WEAR := 3.0
-const HOLD_HEAL := 0.05
-const SHAKE_SHOCK := 0.35
-const REENTRY := 0.6
-const SLACK_MAX := 8.0
-const SIDE_TURN := 0.7
-const SIDE_TIRE := 1.2
-const HEAD_TURN_T := 2.0
 const CAPACITY := 500.0          # m of line on the reel
 const BOATSIDE := 7.0            # m of line out: alongside
-## A beaten fish only goes into its death spiral this close (m of line): further off it's tired but still fighting.
-## In the spiral it circles deep under her, the same way round lap after lap, coming up as you win line.
-const SPIRAL_IN := 30.0
 ## The boat. Where the line from the rod tip to the fish lies on her (rods.gd ray-casts it: rub_now) it wears
 ## (CHAFE_LIFE s of full rubbing parts it); under her with the props turning, it's cut in PROP_GRACE s. Backing down
-## on a fish astern runs the boat back over it at BACK_SPEED (slack to wind). Left alone, a big fish slowly tows her
+## on a fish astern runs the boat back over it at BACK_SPEED (line won). Left alone, a big fish slowly tows her
 ## stern round to it (TOW).
 const CLEAR := 1.0               # m of line from the tip that never rubs (leaning out, the rod held up)
 const RUB_ALL := 2.0             # m of line over her house and bow for a full rub
 const HULL_MARGIN := 0.5         # m: a line grazing her side rubs too (the outline estimate, for the plotter)
 const CHAFE_LIFE := 14.0
 ## Another rod's line tangled in this one (rods.gd): the lines saw at each other and it parts in TANGLE_LIFE s unless
-## someone clears it, and the tension's up while they're crossed.
+## someone clears it.
 const TANGLE_LIFE := 45.0
 const UNDER := 2.5
 const PROP_GRACE := 2.5
@@ -99,16 +91,16 @@ var energy := 1.0
 ## Where it is: its bearing round the boat (radians, 0 dead astern, + to starboard) and its depth (m).
 var bearing := 0.0
 var depth := 5.0
-## T: the line's tension, 0..1 of what it takes (the rod's bend). (Called strain so rods.gd's plumbing keeps it.)
+## T: the needle, 0..1 of what the line takes. (Called strain so rods.gd's plumbing keeps it.)
 var strain := 0.0
-## How hard it's pulling right now (its swim, in tension units), for the rod and the fish's look.
+## How hard it's pulling right now (in tension units), for the rod and the fish's look.
 var pull := 0.0
 var move := ""
 ## The helm: -1 backing down hard .. 0 neutral .. 1 ahead (rods.gd sets it from the captain): the props turning.
 var throttle := 0.0
 ## Her velocity (m/s, her own x across and z astern: her bow's -z) when `moving` (rods.gd, from boat/helm.gd): the
-## fish stays where it is in the water, so she really closes on it backing down (slack to wind) or pulls away from
-## it under way (the tension rises, the drag pays out). Without `moving` (the headless tests), the throttle stands in.
+## fish stays where it is in the water, so she closes on it backing down (line won) or pulls away from it under way
+## (line given). Without `moving` (the headless tests), the throttle stands in.
 var boat_vel := Vector2.ZERO
 var moving := false
 ## Her outline from above, in her frame (x across, z astern: her bow's -z): half her beam, her transom, the aft face of
@@ -122,11 +114,11 @@ var from := 7.05
 ## angler stands aft, `reach` (0..1) of the way out to the corner the fish is on.
 var tip := Vector2(NAN, NAN)
 var reach := 0.0
-## The rod's in its holder with nobody on it (rods.gd): the drag still works the fish on its runs, but nobody winds,
-## so the slack's never taken up and it gets its breath back.
+## The rod's in its holder with nobody on it (rods.gd): the holder's drag keeps it right, nobody reels; it takes line
+## on its runs and can't be lost to slack or the red.
 var in_holder := false
 ## Gear from the dock (boat/fish_hold.gd, rods.gd sets these): a two-speed reel winds faster, heavier line takes more
-## rubbing and holds longer at full tension.
+## rubbing and forgives the red a little longer.
 var crank_mul := 1.0
 var chafe_mul := 1.0
 var grace_add := 0.0
@@ -141,44 +133,40 @@ var move_t := 0.0
 var done := false
 var rng := RandomNumberGenerator.new()
 
-## The spring: stretch (m; below 0 it's slack), extra tension from cranking into a slipping drag, a passing shock.
+## How the line lies (below 0 it's slack: the drawn line droops), and a passing jolt (none now: kept for rods.gd).
 var stretch := 0.0
-var bind := 0.0
 var shock := 0.0
-## The drag slipping (line going out) and how fast it's paying out (m/s), line actually wound (m/s), the reel
-## grinding (cranking under load, winning nothing).
+## Line going out on a run (the reel screams) and how fast (m/s), line won (m/s), the reel grinding (reeling in the
+## red).
 var slipping := false
 var paying := 0.0
 var wind := 0.0
 var grinding := false
-## How well the hook's holding, 1 .. 0 (gone). Out of the water on a jump.
+var reeling := false
+## How long it's been too slack and too tight (s): the warnings, and past SLACK_HOLD / BREAK_HOLD the loss.
+var slack_t := 0.0
+var _over_t := 0.0
+## How well the hook's holding, 1 .. 0 (gone): what's left of the slack it'll forgive.
 var hold := 1.0
 var airborne := false
-## The drag the angler's set (the lever), for cues.
 var drag := STRIKE_DRAG
 
 var _len := 1.0
 var _turn_sign := 1.0
-var _over_t := 0.0
 var _prop_t := 0.0
 var _goal_s := 90.0
-var _fv := 0.0               # the fish's speed along the line (m/s, + away from you)
-var _tip_was := NAN
 var _jit := 0.0
-var _low_t := 0.0
-var _side_t := 0.0
-var _run_cut := false
-var _toward_t := 0.0
 var _thrown_t := 0.0
-var _jumped := false
 var _sweep := 0.0
-## After it changes hands: no shock, no hook lost, no break for this long (s).
+## After it changes hands: nothing lost for this long (s).
 var grace := 0.0
-## Held still (ui/fight_tutor.gd, the first fish you ever hook, one lesson at a time): the fish doesn't move, the line
-## neither stretches nor slips, the hook doesn't wear. It runs where the fight runs (the holder's machine), so the
-## pause is the fight's own word, not a cheat on anyone else's.
-var paused := false
 var _going_under := false
+var _quiet_t := 0.0
+## Held still (ui/fight_tutor.gd, the first fish you ever hook): the fish doesn't move, no line won or lost, nothing
+## lost; only the needle answers your hand (against `pause_pull`, or the fish's move when that's below 0), so you can
+## see what reeling does. It runs where the fight runs (the holder's machine): the fish waits, not the game.
+var paused := false
+var pause_pull := -1.0
 
 
 func _init(weight_kg: float, out: float, fresh := 1.0, seed_value := -1) -> void:
@@ -187,76 +175,87 @@ func _init(weight_kg: float, out: float, fresh := 1.0, seed_value := -1) -> void
 	energy = fresh
 	if seed_value >= 0:
 		rng.seed = seed_value
-	_goal_s = 40.0 + 0.25 * kg
+	_goal_s = GOAL_BASE + GOAL_PER_KG * kg
 	_turn_sign = 1.0 if rng.randf() < 0.5 else -1.0
 	if fresh > 0.8:
 		_set_move("run")
-		# the opening run is a long one: a schoolie's a few seconds, a giant's takes most of the spool's first layer
-		_len = rng.randf_range(4.0, 8.0) if kg < 100.0 else rng.randf_range(8.0, 20.0)
+		# the opening run is a long one: a schoolie's a few seconds, a giant's takes a good bit of line
+		_len = rng.randf_range(4.0, 7.0) if kg < 100.0 else rng.randf_range(7.0, 12.0)
 	else:
 		_set_move(_pick())
+	strain = 0.5
 
 
-## How strong it is for its weight (in tension units): a schoolie barely loads the rod, a giant out-pulls the drag.
+## How strong it is for its weight: a schoolie barely loads the rod, a giant leans on it.
 static func size_of(w: float) -> float:
 	return minf(0.35 + w / 285.0, 1.9)
 
 
-## One tick of the fight (none while it's `paused`).
-func step(dt: float, crank: float, rod_pitch: float, side: float, drag_set: float) -> void:
+## How high the fish alone puts the needle right now (its move, its size, a little less tired, a wander).
+func _fish_pull() -> float:
+	var p := float(MOVES[move]["pull"])
+	var big := clampf((kg - 40.0) / 260.0, 0.0, 1.0)
+	if move in ["run", "surge"]:
+		p += 0.08 * big - 0.08 * (1.0 - energy)          # (a run never quite reaches the red by itself)
+	else:
+		p *= (0.8 + 0.4 * big) * (0.7 + 0.3 * energy)
+	if move == "shake":
+		p += 0.12 * sin(move_t * TAU * 1.5)
+	return clampf(p + 0.06 * _jit, 0.0, 0.84)
+
+
+## The needle toward where your hand and the fish put it, at its own pace.
+func _needle(dt: float, crank: float, fish: float) -> void:
+	var want := fish + REEL * crank
+	if airborne and crank > 0.1:
+		want = 1.3                       # reeling with him in the air: all his weight on the line at once
+	var rate := (RISE * (3.0 if airborne else 1.0)) if want > strain else FALL
+	strain = move_toward(strain, want, rate * dt)
+
+
+## One tick of the fight.
+func step(dt: float, crank: float, _rod_pitch: float, _side: float, drag_set: float) -> void:
 	if done or dt <= 0.0:
 		return
+	drag = drag_set
+	if in_holder:
+		crank = 0.0
+	reeling = crank > 0.1
 	if paused:
-		# the first fish's lesson (ui/fight_tutor.gd): it all holds still, the reel quiet, nothing to lose
+		# the first fish's lesson: he waits; only the needle answers your hand
+		_needle(dt, crank, pause_pull if pause_pull >= 0.0 else _fish_pull())
 		wind = 0.0
 		paying = 0.0
 		grinding = false
+		slack_t = 0.0
+		_over_t = 0.0
+		stretch = (strain - SLACK) * 4.0
 		return
-	drag = drag_set
 	grace = maxf(grace - dt, 0.0)
-	var m: Dictionary = MOVES[move]
-	var sz := size_of(kg)
-	var e := E_FLOOR + (1.0 - E_FLOOR) * energy
-	var cushion := _cushion(rod_pitch, side)
-	# side pressure only bites with the rod loaded and bent
-	var side_eff := side * clampf(strain / 0.6, 0.0, 1.0) * cushion
-	var against := absf(side_eff) > 0.05 and signf(side_eff) == -_turn_sign
 	move_t += dt
+	_quiet_t = 0.0 if move in ["run", "surge"] else _quiet_t + dt
 	if move_t >= _len:
 		_next_move()
-		m = MOVES[move]
-
-	# how hard it swims, and which way
-	_jit += (rng.randf_range(-1.0, 1.0) - _jit) * minf(1.0, 2.0 * dt)
-	var thrust := float(m["thrust"])
-	if move == "shake":
-		thrust += 0.3 * sin(move_t * TAU * 3.5)
-	thrust = clampf(thrust + 0.15 * _jit, 0.0, 1.2)
-	var away := float(m["away"])
-	if move == "spiral":
-		away = 0.8 if _going_under else 0.25
-	var swim := sz * thrust * away * e
-	if against:
-		swim *= 1.0 - 0.5 * absf(side_eff)       # (its effort going into fighting the turn, not into going away)
-	airborne = false
+	var m: Dictionary = MOVES[move]
+	_jit += (rng.randf_range(-1.0, 1.0) - _jit) * minf(1.0, 1.5 * dt)
+	airborne = move == "jump" and move_t >= 0.5 and move_t < 1.2
 	if move == "jump":
-		if move_t < 0.5:
-			swim = -0.2 * sz             # up at you: the line goes slack
-			depth = move_toward(depth, 0.0, 12.0 * dt)
-		elif move_t < 1.2:
-			swim = 0.0
-			airborne = true
-			depth = 0.0
+		depth = move_toward(depth, 0.0, 12.0 * dt) if move_t < 0.5 else 0.0
+		if airborne:
 			_thrown_t = 1.0
-		elif not _jumped:
-			_jumped = true               # back in: one jolt, harder the higher the rod and the tighter the line
-			shock += REENTRY * sz * (rod_pitch / 1.35) * (1.3 - cushion)
-	if _toward_t > 0.0:
-		_toward_t -= dt
-		swim = -0.15 * sz                # its head turned: coming at you
 	_thrown_t = maxf(_thrown_t - dt, 0.0) if not airborne else _thrown_t
+	var fish := _fish_pull()
+	_needle(dt, crank, fish)
+	var t := strain
+	var green := t >= GREEN_LO and t <= GREEN_HI
 
-	# the boat: closing on it makes slack, pulling away loads the line
+	# the line: a run takes it (the reel screams), the green wins it, the boat closing on it wins it too
+	# (the more line he's dragging through the water, the shorter his runs: he never quite strips the reel)
+	var take := float(m["take"]) * (0.45 + 0.55 * energy) * clampf(1.3 - line_out / 250.0, 0.1, 1.0)
+	slipping = take > 0.0
+	paying = lerpf(paying, take, minf(1.0, 6.0 * dt))
+	wind = WIN * crank_mul * crank if green and not slipping else 0.0
+	grinding = reeling and t > RED
 	var boat_close := 0.0
 	if moving and boat_vel != Vector2.ZERO:
 		var hd_was := sqrt(maxf(line_out * line_out - depth * depth, 0.0))
@@ -268,55 +267,33 @@ func step(dt: float, crank: float, rod_pitch: float, side: float, drag_set: floa
 		var b0 := absf(wrapf(bearing, -PI, PI))
 		var back := maxf(-throttle, 0.0) * clampf(cos(b0) * 1.5, 0.0, 1.0)     # (backing down only closes on a fish astern)
 		boat_close = BACK_SPEED * back - 1.5 * maxf(throttle, 0.0)
+	# (fresh, it won't be brought in closer than SPIRAL_IN: tire it first. Only stops line being won, never moves it.)
+	var was_out := line_out
+	line_out += (take - wind - boat_close) * dt
+	var floor_out := lerpf(BOATSIDE - 1.0, SPIRAL_IN, clampf((energy - 0.2) / 0.15, 0.0, 1.0))
+	if line_out < floor_out:
+		line_out = maxf(line_out, minf(was_out, floor_out))
+	line_out = maxf(line_out, BOATSIDE - 1.0)
+	stretch = (t - SLACK) * 4.0
 
-	# the rod: raising it hauls on the fish, dropping it gives slack
-	var tip_along := ROD_REACH * (rod_pitch - 0.15) / 1.2
-	if is_nan(_tip_was):
-		_tip_was = tip_along
-	var tip_v := (tip_along - _tip_was) / dt
-	_tip_was = tip_along
-
-	# the reel: winds slack in freely, wins less and less as the rod loads, grinds against a heavy fish
-	var eff := 1.0 if stretch < 0.0 else clampf((REEL_STALL - strain) / (REEL_STALL - 0.2), 0.0, 1.0)
-	wind = 0.0 if slipping or in_holder else CRANK * crank_mul * crank * eff
-	grinding = crank > 0.1 and eff < 0.3 and not slipping and not in_holder
-
-	# the fish: takes line while it out-pulls the tension, gives it when you out-pull it (it's heavy: it eases)
-	var vt := 0.0
-	if swim > strain:
-		vt = minf((swim - strain) * float(m["k"]), RUN_SPEED * e * maxf(thrust, 0.1))
+	# too slack, too tight: a moment's warning, then lost (not in its holder: the holder's drag keeps it right)
+	var beaten := energy < BEATEN
+	if grace <= 0.0 and not in_holder:
+		var slack := t < SLACK and move != "jump"
+		slack_t = slack_t + dt if slack else maxf(slack_t - 2.0 * dt, 0.0)
+		hold = clampf(1.0 - slack_t / slack_limit(), 0.0, 1.0)
+		_over_t = _over_t + dt if t > RED else maxf(_over_t - 2.0 * dt, 0.0)
+		if _over_t >= break_limit() or (airborne and t > 1.05):
+			_end("thrown" if _thrown_t > 0.0 else ("broke_rail" if chafe > 0.2 else "broke"))
+			return
+		if slack_t >= slack_limit():
+			_end("pulled")
+			return
 	else:
-		vt = -minf((strain - swim) * PULL_IN, 3.0)
-	var tau := 0.4 + kg / 400.0
-	_fv += (vt - _fv) * minf(1.0, dt / tau)
+		slack_t = 0.0
+		_over_t = 0.0
 
-	# the spring
-	stretch += (_fv + tip_v + wind - boat_close) * dt
-	line_out -= wind * dt
-	var spring := SPRING_BASE + SPRING_PER_M * line_out
-	var t := maxf(stretch, 0.0) / spring
-	var dx := 0.0
-	if t > drag_set:
-		dx = (t - drag_set) * spring
-		line_out += dx
-		stretch -= dx
-		t = drag_set
-		slipping = true
-	else:
-		slipping = false
-	paying = lerpf(paying, dx / dt, minf(1.0, 6.0 * dt))
-	stretch = maxf(stretch, -SLACK_MAX)
-	bind = move_toward(bind, BIND_MAX * crank if slipping and crank > 0.1 else 0.0, (BIND_RATE if slipping else 3.0) * dt)
-	strain = t
-
-	# shocks: a head shake against a stiff rod, decaying
-	if move == "shake" and grace <= 0.0:
-		shock = maxf(shock, SHAKE_SHOCK * clampf(kg / 150.0, 0.5, 1.5) * absf(sin(move_t * TAU * 3.5)) * (1.3 - cushion))
-	shock = move_toward(shock, 0.0, 6.0 * dt)
-	if grace > 0.0:
-		shock = 0.0
-
-	# the line: where it lies on her it rubs; full tension for a moment parts it, a jolt past SNAP at once
+	# the captain's part: where the line lies on her it rubs; under her with the props turning it's cut
 	var hd0 := sqrt(maxf(line_out * line_out - depth * depth, 0.0))
 	if rub_now >= 0.0:
 		chafe = rub_now
@@ -324,35 +301,12 @@ func step(dt: float, crank: float, rod_pitch: float, side: float, drag_set: floa
 		chafe = rub(_tip(hd0), _fish(hd0), half_beam, house, fore) * hd0 / (hd0 + depth + 1.0)
 		if move == "spiral":
 			chafe *= 0.5        # (deep under her, the line goes down steep and only brushes the hull)
-	var t_fish := t + bind + shock + (0.15 if tangled else 0.0) + 0.25 * chafe
-	if grace <= 0.0:
-		_over_t = _over_t + dt if t_fish >= 1.0 else maxf(_over_t - 2.0 * dt, 0.0)
-		if _over_t >= BREAK_HOLD + grace_add or t_fish >= SNAP:
-			_end("broke_rail" if chafe > 0.2 else "broke")
-			return
-	wear += chafe * (0.4 + 0.6 * t) * dt / (CHAFE_LIFE * chafe_mul)
+	wear += chafe * (0.4 + 0.6 * t) * dt / (CHAFE_LIFE * chafe_mul) * (BEATEN_WEAR if beaten else 1.0)
 	if tangled:
 		wear += dt / (TANGLE_LIFE * chafe_mul)
 	if wear >= 1.0:
 		_end("tangle" if tangled and chafe < 0.05 else "chafed")
 		return
-
-	# the hook: torn by shock, worked loose by slack while it thrashes, tested hardest in the air
-	if grace <= 0.0:
-		hold -= maxf(0.0, t + shock - 1.0) * HOLD_SHOCK * dt      # (only a jolt on top of a tight line tears it)
-		if stretch < 0.0 and not airborne:
-			hold -= float(m["head"]) * HOLD_SLACK * dt
-		if airborne:
-			# out of the water it's all its weight shaking on the hook: a tight line (the rod held high, the reel winding
-			# it tight) throws it; the tip dropped, the line slack, it holds
-			hold -= (maxf(0.0, t - 0.15) + 0.5 * crank * rod_pitch / 1.35) * AIR_WEAR * dt
-		if t > 0.2 and t < 0.85 and move != "shake":
-			hold = minf(hold + HOLD_HEAL * dt, 1.0)
-		if hold <= 0.0:
-			_end("thrown" if _thrown_t > 0.0 else "pulled")
-			return
-
-	# under her with the props turning: cut
 	var b := absf(wrapf(bearing, -PI, PI))
 	if b > UNDER and absf(throttle) > 0.05 and depth < 25.0 and hd0 < 35.0:
 		_prop_t += dt
@@ -365,37 +319,20 @@ func step(dt: float, crank: float, rod_pitch: float, side: float, drag_set: floa
 		_end("spooled")
 		return
 
-	# tiring: hauling it toward you most, a tight line a little; slack, it gets its breath back
-	var side_tire := SIDE_TIRE * absf(side_eff) * thrust * e if against else 0.0
-	energy -= (TIRE * t * (0.4 + thrust) + LIFT * t * maxf(0.0, -_fv) + side_tire) * dt / _goal_s
-	_low_t = _low_t + dt if t < 0.15 else 0.0
-	if _low_t > 1.0:
-		energy += lerpf(0.02, 0.012, clampf((kg - 40.0) / 260.0, 0.0, 1.0)) * dt
+	# tiring: only in the green while you reel (a little on its runs, against the drag)
+	if green and reeling:
+		energy -= dt / _goal_s
+	elif slipping:
+		energy -= 0.25 * dt / _goal_s
 	energy = clampf(energy, 0.0, 1.0)
 
-	# where it is: swinging round the boat (slower with the rod laid over against it), heading for its depth
+	# where it is: swinging round the boat, heading for its depth
 	var hd := maxf(hd0, 1.0)
 	var turn := float(m["turn"])
 	if move == "circle" and kg < 60.0:
 		turn *= 1.6
-	if against:
-		turn *= 1.0 - SIDE_TURN * absf(side_eff)
-	elif absf(side_eff) > 0.05:
-		turn *= 1.0 + 0.3 * absf(side_eff)
 	var was_b := bearing
 	bearing += turn * _turn_sign * dt * clampf(20.0 / hd, 0.2, 1.2)
-	if against and move == "run":
-		bearing -= _turn_sign * 0.08 * absf(side_eff) * dt
-	# held hard over against it: it turns its head (a circle or a dog), or a run's cut short
-	_side_t = _side_t + dt if against and absf(side_eff) > 0.5 else 0.0
-	if _side_t >= HEAD_TURN_T and move in ["circle", "dog"]:
-		_side_t = 0.0
-		_turn_sign = -_turn_sign
-		_toward_t = 2.0
-		_set_move("dog")                          # (beaten round, it sulks rather than running again)
-	elif _side_t >= 1.0 and move == "run" and not _run_cut:
-		_run_cut = true
-		_len = move_t + (_len - move_t) * 0.7
 	var c := cos(bearing)
 	if c < -0.1:
 		_going_under = true
@@ -404,47 +341,48 @@ func step(dt: float, crank: float, rod_pitch: float, side: float, drag_set: floa
 	# a big fish tows her stern round toward it, slowly
 	bearing -= sin(wrapf(bearing, -PI, PI)) * TOW * clampf(t, 0.0, 1.0) * dt
 	_sweep = lerpf(_sweep, (bearing - was_b) / dt, minf(1.0, 4.0 * dt))
-	var want := minf(float(m["depth"]), line_out * 0.85)
+	var goal_d := minf(float(m["depth"]), line_out * 0.85)
 	if move == "spiral":
-		# circling deep under her, the line steep; up it comes as you win line, and it's up for the last few metres
-		want = line_out * 0.8 if line_out > 12.0 else 3.0
-	elif move == "jump":
-		want = 0.0
+		goal_d = line_out * 0.8 if line_out > 12.0 else 3.0
 	elif energy < 0.25 and line_out < SPIRAL_IN:
-		want = minf(want, 3.0)
+		goal_d = minf(goal_d, 3.0)
 	if move != "jump":
-		depth = move_toward(depth, want, dt * 6.0)
-	pull = maxf(swim, 0.0)
-	line_out = maxf(line_out, BOATSIDE - 1.0)
+		depth = move_toward(depth, goal_d, dt * 6.0)
+	pull = fish
 
 	if energy < 0.2 and line_out <= BOATSIDE:
 		done = true
 		boatside.emit()
 
 
-## How much give the rod's got: the angle between the rod and the line (a rod pointed down the line is a stiff
-## stick; one held up at right angles to it is all spring), 0.15 .. 1.
-func _cushion(rod_pitch: float, side: float) -> float:
-	var hd := sqrt(maxf(line_out * line_out - depth * depth, 0.0))
-	var line_el := -atan2(depth + TIP_H, maxf(hd, 0.5))
-	var ang := sqrt(pow(rod_pitch - line_el, 2.0) + pow(side * 0.9, 2.0))
-	return clampf(ang / 1.2, 0.15, 1.0)
+## How long too slack, and too tight, loses it right now (s): longer once it's beaten, so the end's forgiving.
+func slack_limit() -> float:
+	return SLACK_HOLD * (BEATEN_HOLD if energy < BEATEN else 1.0)
+
+
+func break_limit() -> float:
+	return (BREAK_HOLD + grace_add * 0.5) * (BEATEN_HOLD * 0.67 if energy < BEATEN else 1.0)
+
+
+## How long it's been under her with the props turning (s): PROP_GRACE and it's cut.
+func prop_t() -> float:
+	return _prop_t
 
 
 ## What the rod, the reel and the line are doing: all you get to read (and all the test anglers read).
 func cues() -> Dictionary:
 	var hd := sqrt(maxf(line_out * line_out - depth * depth, 0.0))
-	return {"bend": strain + shock, "slipping": slipping, "paying": paying, "grinding": grinding,
-			"airborne": airborne, "thrash": float(MOVES[move]["head"]) >= 1.0,
+	return {"bend": strain, "tension": strain, "slipping": slipping, "paying": paying, "grinding": grinding,
+			"airborne": airborne, "jumping": move == "jump", "thrash": move == "shake", "slack_t": slack_t,
+			"red_t": _over_t,
 			"line_pitch": -atan2(depth + TIP_H, maxf(hd, 0.5)), "sweep": _sweep,
 			"spool": line_out / CAPACITY, "contact": chafe, "visible": (line_out < 30.0 and depth < 10.0) or airborne,
 			"drag": drag, "slack": stretch < 0.0, "line_out": line_out, "bearing": bearing}
 
 
-## Everything the line's taking right now, as the break test adds it up (1: it's going): the tension, cranking into a
-## slipping drag, a jolt, a crossed line, the rub on her. For the fight HUD's needle, so the red there is the truth.
+## The needle, for the fight HUD: the one number that matters.
 func load_now() -> float:
-	return strain + bind + shock + (0.15 if tangled else 0.0) + 0.25 * chafe
+	return strain
 
 
 ## How far round from dead astern it is (0 .. PI: PI is right under her bow).
@@ -476,7 +414,11 @@ func _next_move() -> void:
 func _pick() -> String:
 	# fresh, it runs and sounds; as it tires it circles under the boat. Never two runs in a row; a small fish near the
 	# top jumps.
-	var w := {"run": 0.0 if move == "run" else 2.0 * energy, "sound": 3.0,
+	# Fresh and held in close, it's off again; and it never sulks long while it's got fight in it.
+	if energy > 0.3 and _quiet_t > QUIET and move not in ["run", "surge"]:
+		return "run" if rng.randf() < 0.65 else "surge"
+	var close := 3.0 if line_out < SPIRAL_IN + 5.0 and energy > 0.35 else 0.0
+	var w := {"run": 0.0 if move == "run" else 2.0 * energy + close, "sound": 3.0,
 			"shake": 1.2 * (2.0 if kg < 60.0 else 1.0), "circle": 3.0 * (1.0 - energy), "dog": 0.8, "surge": 0.6,
 			"jump": (1.6 if kg < 60.0 else (0.5 if kg < 150.0 else 0.0)) if depth < 25.0 else 0.0}
 	var total := 0.0
@@ -491,19 +433,21 @@ func _pick() -> String:
 
 
 ## Picking up a fight where it was (the rod changing hands, or going into its holder): the fish carries on with what
-## it was doing, the same way round, the line as stretched as it was and the hook as worked as it was. A moment's
-## grace either side of the handover.
+## it was doing, the same way round, the needle where it was and the hook as worked as it was. A moment's grace to
+## get your hands on it.
 func carry_on(m: String, stretch_was := 0.0, turn := 0.0, hold_was := 1.0) -> void:
 	if m == "rest":
 		m = "dog"
 	if MOVES.has(m) and m != move:
 		_set_move(m)
 	stretch = stretch_was
+	strain = clampf(stretch_was / 4.0 + SLACK, 0.0, 1.0)      # (the needle where it was)
 	hold = hold_was
+	slack_t = (1.0 - hold_was) * SLACK_HOLD
 	if turn != 0.0:
 		_turn_sign = signf(turn)
 	_going_under = cos(bearing) < 0.0
-	grace = 0.5
+	grace = 1.0
 
 
 ## In the spiral: whether it's on the half of the lap that takes it under her (ease off) rather than coming up toward
@@ -521,8 +465,6 @@ func _set_move(m: String) -> void:
 	var again := m == move
 	move = m
 	move_t = 0.0
-	_run_cut = false
-	_jumped = false
 	var d: Array = MOVES[m]["dur"]
 	_len = rng.randf_range(float(d[0]), float(d[1])) * (1.0 if m == "jump" else 0.6 + 0.4 * energy)
 	# (a spiral carries on the same way round; anything else that swings may swing back)
