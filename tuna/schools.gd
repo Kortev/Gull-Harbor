@@ -10,12 +10,12 @@ extends Node3D
 ## working little bait with no tuna under them (BAIT_ONLY of flocks: not worth the run), or sitting on the water
 ## because the tuna have gone down (they feed in spells, SPELL s at a time: wait and they'll come up). Call a flock
 ## and it's marked on the radar for everyone (call_out); the radar itself paints birds in the air within its range
-## (tuna/radar.gd), and the sonar marks what's right under her. Run her to them, then troll the baits through: a feeding school over a bait eats it now
-## and then (rods.gd hooks the fish, host only, strike()), but not with the baits skipping behind her at speed
-## (BITE_SPEED), and run her right through a school fast and it goes down (SPOOK).
-##
-## Get near one and slow down, and it finds your baits: a school within FIND of the spread while she's going slow enough
-## to fish comes to it (DRAW m/s) and works round it, following as she trolls.
+## (tuna/radar.gd), and the sonar marks what's right under her. Run her to them, then set up a pass: a school
+## travels its own way and feeds at its head, so a bait gets eaten (rods.gd hooks the fish, host only, strike()) only
+## where it's out in front of the school (AHEAD m ahead of its middle, within its width and a bit: SIDE), never with
+## the baits skipping behind her at speed (BITE_SPEED). The baits trail behind her, so she never needs to go over the
+## fish: cut across its nose and drag them through, run alongside just ahead of it, or stop in its path and cast.
+## Run her hull over a school faster than a crawl (DOWN_SPEED) and it goes down (SPOOK s).
 ##
 ## Or bring them to you: chum (boat/chum.gd) lays a slick back through the baits, and while it's fresh (SLICK) a
 ## school within SLICK_PULL of it comes up it (DRAW m/s) and stays on it, working, as long as the chum keeps coming;
@@ -43,6 +43,13 @@ const SPELL := 40.0
 const BITE_SPEED := 6.0
 const SPOOK_SPEED := 5.0
 const SPOOK := 40.0
+## Her hull over a school (within its width and DOWN_REACH m) going faster than this (m/s, about 2.5 knots) puts it down.
+const DOWN_SPEED := 1.3
+const DOWN_REACH := 6.0
+## Where a travelling school eats: from AHEAD.x m behind its middle to AHEAD.y m ahead of its edge, within SIDE m of its
+## edge to either side. Working a slick (not going anywhere) it eats all round.
+const AHEAD := Vector2(4.0, 22.0)
+const SIDE := 8.0
 ## The chum slick: how long a scoop keeps it fresh (s), how far off a school smells it (m), how fast it comes up it
 ## (m/s), where new ones turn up while it's fresh (m from it), and how long one stays on it after the last scoop (s).
 const SLICK := 90.0
@@ -186,7 +193,7 @@ func _strikes(delta: float) -> void:
 			var bait: Vector3 = r.get("line_end")
 			# (a fresh bait more than a washed-out one, a live mackerel most: rods.gd's bite_odds)
 			var odds := chance * float(spread.call("bite_odds", int(r.get("index"))))
-			if Vector2(bait.x, bait.z).distance_to(c) < s.radius + 6.0 and randf() < delta * odds:
+			if s.eats_at(Vector2(bait.x, bait.z), t) and randf() < delta * odds:
 				spread.call("strike", int(r.get("index")), clampf(s.kg * randf_range(0.8, 1.2), Tuna.MIN_KG,
 						Tuna.MAX_KG))
 
@@ -202,24 +209,20 @@ func slick_fresh() -> bool:
 	return now() - slick_t < SLICK
 
 
-## Host, every second: schools near her baits while she's slow find them and work round them (following her as she
-## trolls); schools that smell a fresh slick come up it and stay on it while the chum keeps coming.
+## Host, every second: schools that smell a fresh slick come up it and stay on it while the chum keeps coming. (Her
+## baits don't pull them: a school goes its own way, and it's her job to put the baits across its head.)
 func _drawing() -> void:
 	var t := now()
-	var fishing := absf(boat_speed()) < BITE_SPEED and not _docked()
-	var heart := spread_heart()
 	for s in schools:
 		if s.bait_only or s.scattering(t) > 0.0 or t < s.spooked_until:
 			continue
 		var c := s.center(t)
-		# the slick first (it pulls from further off), else her baits if it's near them
+		# the slick
 		var to := Vector2.INF
 		var chummed := false
 		if slick_fresh() and c.distance_to(slick) < SLICK_PULL:
 			to = slick
 			chummed = true
-		elif fishing and c.distance_to(heart) < FIND:
-			to = heart
 		if to == Vector2.INF:
 			if s.drawn_to != Vector2.INF and not s.chummed:
 				# she's gone off and left it: it cruises on its way again
@@ -278,14 +281,16 @@ func _steer(id: int, t0: float, start: Vector2, heading: Vector2, speed: float, 
 			s.life = life
 
 
-## Host: run her fast right through a school and it goes down.
+## Host: run her hull over a school (faster than a crawl) and it goes down: over it fast, from further out.
 func _spooking() -> void:
-	if absf(boat_speed()) < SPOOK_SPEED:
+	var v := absf(boat_speed())
+	if v < DOWN_SPEED:
 		return
 	var t := now()
 	var at := boat_at()
+	var reach := DOWN_REACH + (9.0 if v > SPOOK_SPEED else 0.0)
 	for s in schools:
-		if s.spooked_until < t and not s.bait_only and s.center(t).distance_to(at) < s.radius + 15.0:
+		if s.spooked_until < t and not s.bait_only and s.center(t).distance_to(at) < s.radius + reach:
 			var until := t + SPOOK
 			if Net.in_session():
 				_spook.rpc(s.id, until)
@@ -497,6 +502,18 @@ class School extends Node3D:
 
 	## Feeding: in spells of a few seconds, more often than not; not once its birds are scattering, nor while it's
 	## down after a boat ran through it.
+	## Whether a bait at world p is where it feeds now: out in front of its head, or anywhere round it while it's
+	## working a slick (going nowhere).
+	func eats_at(p: Vector2, t: float) -> bool:
+		var c := center(t)
+		var rel := p - c
+		if speed < 0.2 or t >= t0 + run:
+			return rel.length() < radius + 6.0
+		var ahead := rel.dot(heading)
+		var across := absf(rel.dot(Vector2(-heading.y, heading.x)))
+		return ahead > -AHEAD.x and ahead < radius + AHEAD.y and across < radius + SIDE
+
+
 	func feeding(t: float) -> bool:
 		if t < spooked_until or scattering(t) > 0.0:
 			return false

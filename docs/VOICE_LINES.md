@@ -26,7 +26,7 @@ a bit nervous about his money: a car salesman who's been put in charge of a fish
 | `out` | heading out, first time | Dale, from the bank. Tuna feed under birds. Find a flock. |
 | `cast` | out a while, no baits in the water | Get some baits out. Pick up a rod, hold the click, let go. |
 | `flock` | first flock you look at | Diving birds, white water? Bluefin. Go. Birds sitting? Wait for them. |
-| `fast` | running up on birds too fast | Easy! Under ten knots near the birds, or they dive. |
+| `fast` | running up on birds too fast, or running over a school | Don't run over them, they'll go down. Get out ahead, slow down, drag your baits across their nose. |
 | `bite` | first bite, rod in its holder | That's a reel screaming. Grab the rod! |
 | `fight` | your first fight | Reel screaming? Hands off. Grinding? Pump: lift slow, wind as you drop. He jumps, drop the tip. |
 | `spiral` | first death spiral | Colour! Wind while he comes up, ease off while he goes under. |

@@ -105,8 +105,8 @@ func _ready() -> void:
 		await get_tree().process_frame
 		t += get_process_delta_time()
 		if sea.schools.schools.has(school):
-			_steer_to(_school_xz(school))
-		_hold("move_forward", sea.boat.helm.speed < 1.5)
+			_steer_to(_alongside(school))
+		_hold("move_forward", sea.boat.helm.speed < maxf(float(school.speed), 1.0) + 0.3)
 		for r in sea.rods.rods:
 			if r.hooked:
 				hooked = r.index
@@ -221,6 +221,17 @@ func _ready() -> void:
 	await _shot("the_sale")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(sea.fish_hold.save_path))
 	_done()
+
+
+## Where to put her to work school s: off to one side and a bit ahead of it, so the baits trailing behind her lie
+## across its head (a captain setting up a pass, without running over it).
+func _alongside(s) -> Vector2:
+	var c: Vector2 = _school_xz(s)
+	var h: Vector2 = s.heading
+	var side := Vector2(-h.y, h.x)
+	if (sea.boat.helm.at - c).dot(side) < 0.0:
+		side = -side
+	return c + h * (float(s.radius) + 40.0) + side * (float(s.radius) + 4.0)
 
 
 func _school_xz(s) -> Vector2:

@@ -3,7 +3,7 @@ extends Node
 ## the water rises past her rail (the sheer, art/boat.py), all the way round the hull and across the transom.
 ## Run: godot --headless --path . res://tests/hull_test.tscn -- --weather=storm
 ## Passes when, in a storm, a crest slops over her rail under 5% of the time and by under half a metre; under 2%
-## and 0.3 m in heavy weather; never in anything calmer. (Inside her the sea is drawn pushed down under the deck,
+## and 0.45 m in heavy weather (the sharper swell, 2026-10-30); never in anything calmer. (Inside her the sea is drawn pushed down under the deck,
 ## ocean.gdshader's hull, so what comes over is a slap at the rail, not a wave through the cockpit.)
 
 const Sea := preload("res://sea/sea.gd")
@@ -61,7 +61,7 @@ func _tick() -> void:
 		if sea.condition == "storm":
 			ok = share < 0.05 and worst < 0.5
 		elif sea.condition == "heavy":
-			ok = share < 0.02 and worst < 0.3
+			ok = share < 0.02 and worst < 0.45
 		print("HULL %s: over the rail %.1f%% of the time, worst %.2f m (closest the rest of the time: see worst<0)" % [sea.condition, share * 100.0, worst])
 		print("HULL TEST " + ("PASSED" if ok else "FAILED"))
 		get_tree().quit(0 if ok else 1)

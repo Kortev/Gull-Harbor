@@ -19,8 +19,11 @@ const CHAPTERS := [
 		+ "- Birds sitting on the water: tuna down. They come up again. Wait.\n"
 		+ "- Gulls over little splashes: no tuna. About a third of flocks.\n\n"
 		+ "The sportfisher's radar paints birds in the air out to 1.5 km. It can't tell gulls from tuna birds."],
-	["4. Coming up on them", "DO NOT RUN OVER THE FISH. Over 10 knots through a school and it dives for 40 s.\n\n"
-		+ "Within about 150 m, at trolling speed, the school finds your baits. Nothing bites over 12 knots."],
+	["4. Working a school", "A school travels its own way and feeds at its head: watch which way the birds go. "
+		+ "Only a bait out in front of it gets eaten.\n\n"
+		+ "DO NOT RUN OVER THE FISH: your hull over them, faster than a crawl, and they go down for 40 s.\n\n"
+		+ "Your baits trail behind you, so you never need to: cut across ahead of it and drag them through its "
+		+ "path, run alongside just ahead of it at its pace, or stop in its way and cast. Nothing bites over 12 knots."],
 	["5. Bait", "Baits wash out in 5 minutes (live ones 10) and get a quarter of the bites. E on the rod for a "
 		+ "fresh one.\n\n"
 		+ "Live mackerel (the live-bait well, $1,500): half as many bites again. Hold E on the jig rod, slowed "

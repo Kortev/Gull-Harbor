@@ -82,13 +82,13 @@ func _ready() -> void:
 	hold.well = FishHold.WELL_MAX
 	sea.jig._ask_mackerel_as(1)
 	_check(hold.well == FishHold.WELL_MAX, "not past a full well")
-	# get near a school and slow down, and it finds the baits
+	# a school near her baits doesn't come to them: it goes its own way (putting the baits across its head is her job)
 	var at0: Vector2 = helm.get("at")
 	sea.schools._start(55, 11, sea.schools.now(), at0 + Vector2(0.0, -90.0), Vector2(1, 0), 1.5, 200.0, 200.0)
 	var near = sea.schools.schools[sea.schools.schools.size() - 1]
 	sea.schools._drawing()
-	_check(near.drawn_to == sea.schools.spread_heart() and near.speed == Schools.DRAW,
-			"a school 90 m off finds her baits while she's slow")
+	_check(near.drawn_to == Vector2.INF and near.heading == Vector2(1, 0),
+			"a school 90 m off goes its own way, not to her baits")
 	near.life = 0.0
 	await get_tree().process_frame
 	# chum: a school 350 m off comes up the slick and stays on it, working

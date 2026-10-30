@@ -17,7 +17,7 @@ const CALLER := "VHF 16 \u00b7 Dale, the bank"
 const TIPS := {
 	"out": "Dale, from the bank. Tuna feed under birds. Find a flock.",
 	"flock": "Diving birds, white water? Bluefin. Go. Birds sitting? Wait for them.",
-	"fast": "Easy! Under 10 knots near the birds, or they dive.",
+	"fast": "Don't run over them, they'll go down. Get out ahead, slow down, drag your baits across their nose.",
 	"bite": "That's a reel screaming. Grab the rod!",
 	"fight": "Reel screaming? Hands off. Grinding? Pump: lift slow, wind as you drop. He jumps, drop the tip.",
 	"alone": "Alone? Rod in the holder, Q. Steer, then grab it again.",
@@ -202,13 +202,15 @@ func _watch() -> void:
 	var spotter: Node = sea.get("spotter")
 	if spotter != null and spotter.get("_looking") != null:
 		show_tip("flock")
-	# coming up on birds too fast
-	if speed > 4.5:
-		var at: Vector2 = helm.get("at")
-		for s: Node in schools.get("schools"):
-			if not bool(s.get("bait_only")) and (s.call("center", now) as Vector2).distance_to(at) < 350.0:
-				show_tip("fast")
-				break
+	# coming up on birds to fish them, or putting a school down by running over it
+	var at: Vector2 = helm.get("at")
+	for s: Node in schools.get("schools"):
+		if bool(s.get("bait_only")):
+			continue
+		var d := (s.call("center", now) as Vector2).distance_to(at)
+		if (speed > 4.5 and d < 350.0) or (float(s.get("spooked_until")) > now and d < 120.0):
+			show_tip("fast")
+			break
 	# a fish on
 	var on := false
 	var mine: Node = rods.call("held_by", me)

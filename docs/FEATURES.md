@@ -131,18 +131,23 @@ over the plotter's spot: far off "Birds   1.4 km off the port bow"; inside 700 m
 down: wait", "Just gulls", "Scattering: moved on"). The birds themselves show it too: diving and white water, or
 sitting.
 
-## Coming up on them
+## Working a school
 
-- **Never run over a school fast.** Go through one faster than about **10 knots** (5 m/s) and it **goes down for
-  40 s** ("Too fast: they've gone deep"). Come up slow.
+- **A school travels its own way** (watch which way the birds go) **and feeds at its head**: only a bait out in front
+  of it (from just behind its middle to about 20 m ahead of its edge, within its width and a bit) gets eaten. Your
+  baits don't draw it to them; chum does (below).
+- **Never run your hull over it.** Over a school faster than a crawl (about **2.5 knots**) and it **goes down for
+  40 s**: the white water stops, the birds sit ("Gone deep"). Fast (over 10 knots), from further off.
+- **Your baits trail behind you, so you never need to go over the fish:** cut across ahead of it and drag the baits
+  through its path, run alongside just ahead of it at its pace, or stop in its way and cast, and let it swim into
+  them. Setting up the pass is the captain's job.
 - **No bites above about 12 knots** (6 m/s): the baits skip along the top.
-- Get within about **160 m** and slow to trolling speed (under 12 knots; a few knots is right), and the school
-  **finds your baits** and works round them, following as you troll.
-- A feeding bluefin school over a bait eats it now and then (the reel screams). A second fish while one's on is rare
-  (a double header).
+- A feeding bluefin school with a bait at its head eats it now and then (the reel screams). A second fish while one's
+  on is rare (a double header).
+- Working a chum slick (going nowhere) a school eats all round.
 
-**Teach it:** Dale's tip as you near birds fast ("Under 10 knots near the birds, or they dive"); the "too fast"
-note after the fact.
+**Teach it:** Dale, as you near birds fast or the first time you put a school down ("Don't run over them... drag your
+baits across their nose"); the manual's "Working a school".
 
 ## Baits
 
