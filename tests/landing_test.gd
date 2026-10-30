@@ -26,6 +26,8 @@ func _ready() -> void:
 	hold.best = 0
 	hold.owned = ["skiff", "sportfisher"]
 	hold.head_out("sportfisher")        # (off the dock in the big boat: this test's spots are hers)
+	for r in sea.rods.rods:
+		sea.rods.host_cast(r.index)       # (the crew cast the baits out: tests/cast_test.tscn)
 	await get_tree().process_frame
 	_check(not hold.docked and sea.boat.kind == "sportfisher", "headed out in the sportfisher")
 	var me := sea.crew.me
@@ -120,6 +122,8 @@ func _ready() -> void:
 	_check(not hold.buy("bait") and not hold.buy("sportfisher"), "not twice, and not a boat the bank can't stand")
 	hold.owned = ["skiff", "sportfisher"]
 	hold.head_out()
+	for r in sea.rods.rods:
+		sea.rods.host_cast(r.index)       # (the crew cast the baits out: tests/cast_test.tscn)
 	_check(hold.sale.is_empty() and not hold.docked, "back out with an empty hold")
 	# grading: handled well beats handled badly
 	var good := FishHold.quality(200.0, 100.0, 20.0, 60.0)

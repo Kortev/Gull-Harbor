@@ -1,7 +1,7 @@
 extends Node
 ## The spread: grabbing a rod, not grabbing a second one, putting it back. And clearing the lines: with a fish on,
 ## E on an empty rod reels its line in (no bites on it), a tangle in a running fish's line is cleared the same way,
-## and with nothing on, E puts a bait back out. Run: godot --headless --path . res://tests/rods_test.tscn
+## and with nothing on, E picks it up to cast it. Run: godot --headless --path . res://tests/rods_test.tscn
 
 const Sea := preload("res://sea/sea.gd")
 
@@ -49,7 +49,7 @@ func _ready() -> void:
 	rods._host_off(0, "(the test lets it go)")
 	_check(not rods.fighting(), "the fish gone")
 	rods.request_grab(2)
-	_check(not rods.rods[2].bait_in, "with nothing on, E puts the bait back out")
+	_check(rods.rods[2].holder == 1, "with nothing on, E picks it up (to cast it: tests/cast_test.tscn)")
 	for f in fails:
 		print("FAIL ", f)
 	print("RODS TEST ", "PASSED" if fails.is_empty() else "FAILED")

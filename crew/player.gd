@@ -84,7 +84,7 @@ var _face_mat: BaseMaterial3D
 var _face := ""
 var _blink_in := 3.0
 ## The one-off moves and how long each takes (s).
-const GESTURES := {"throw": 0.6, "scoop": 0.7, "bleed": 1.1, "reach": 0.5, "stumble": 0.9}
+const GESTURES := {"throw": 0.6, "cast": 0.5, "scoop": 0.7, "bleed": 1.1, "reach": 0.5, "stumble": 0.9}
 var _crank_ph := 0.0
 var _haul_ph := 0.0
 ## The deck dropping out from under you (a big sea): its heave, how fast, and when you last lost your feet.
@@ -245,10 +245,10 @@ func _pose_body(delta: float) -> void:
 	var crouch := 0.0
 	if rod != null:
 		# both hands on it: the left out on the foregrip, the right on the reel
-		var lift := float(rod.get("lift"))
+		var lift := float(rod.get("lift")) + float(rod.get("wind")) * 0.8     # (a pump, or winding up a cast)
 		var strain := float(rod.get("strain")) if bool(rod.get("hooked")) else 0.0
 		var back := 0.12 + 0.3 * strain + 0.35 * lift          # leaning back into it
-		p["torso"] = Vector3(back, 0.0, 0.0)
+		p["torso"] = Vector3(back, -0.3 * float(rod.get("wind")), 0.0)
 		p["arm_l"] = Vector3(0.95 + 0.6 * lift, 0.25, -0.1)
 		p["fore_l"] = Vector3(0.7, 0.0, 0.0)
 		p["arm_r"] = Vector3(0.55 + 0.4 * lift, -0.15, 0.15)
@@ -304,6 +304,12 @@ func _pose_body(delta: float) -> void:
 				p["arm_r"] = Vector3(lerpf(2.9, 0.7, whip), 0.0, 0.2)
 				p["fore_r"] = Vector3(lerpf(1.5, 0.1, whip), 0.0, 0.0)
 				p["torso"] = Vector3(lerpf(0.15, -0.3, whip) * (1.0 - smoothstep(0.7, 1.0, gk)), -0.3 * (1.0 - whip), 0.0)
+			"cast":
+				# the rod brought over hard from behind the shoulder, leaning into it
+				var through := smoothstep(0.0, 0.5, gk)
+				p["torso"] = Vector3(lerpf(0.25, -0.3, through) * (1.0 - smoothstep(0.6, 1.0, gk)), 0.0, 0.0)
+				p["arm_l"] = Vector3(lerpf(2.0, 0.9, through), 0.25, -0.1)
+				p["arm_r"] = Vector3(lerpf(1.6, 0.5, through), -0.15, 0.15)
 			"scoop":
 				# down to the bucket, then flung out over the side
 				var fling := smoothstep(0.35, 0.7, gk)

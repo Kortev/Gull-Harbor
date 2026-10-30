@@ -23,6 +23,41 @@ func _ready() -> void:
 		me.hands.pick(item)
 		await get_tree().create_timer(0.4).timeout
 		await _grab("hands_" + item)
+	# a cast: wound up, the bait in the air, landed
+	me.hands.pick("")
+	me.force_input = true
+	me.set("_yaw", -PI * 0.8)
+	me.set("_pitch", 0.15)
+	sea.rods.request_grab(0)
+	await get_tree().create_timer(0.3).timeout
+	Input.action_press("use_primary")
+	await get_tree().create_timer(0.8).timeout
+	await _grab("cast_windup")
+	Input.action_release("use_primary")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var rod = sea.rods.rods[0]
+	while sea.rods._now() - rod.cast_t < sea.rods.fly_time(0) * 0.45:
+		await get_tree().process_frame
+	await _grab("cast_flying")
+	var side := Camera3D.new()
+	side.fov = 60.0
+	add_child(side)
+	var mid: Vector3 = (rod.cast_from + sea.boat.global_transform * rod.land) * 0.5
+	side.global_position = mid + (sea.boat.global_basis * Vector3(0.0, 4.0, -30.0))
+	side.look_at(mid, Vector3.UP)
+	side.make_current()
+	while sea.rods._now() - rod.cast_t < sea.rods.fly_time(0) * 0.6:
+		await get_tree().process_frame
+	await _grab("cast_arc")
+	me.cam.make_current()
+	side.queue_free()
+	while sea.rods.flying(0):
+		await get_tree().process_frame
+	await get_tree().create_timer(0.3).timeout
+	await _grab("cast_landed")
+	sea.rods.request_return(0)
+	me.force_input = false
 	var cam := Camera3D.new()
 	cam.fov = 45.0
 	add_child(cam)
