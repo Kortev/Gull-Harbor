@@ -19,6 +19,7 @@ const SCREEN_LOOK := preload("res://screen/screen_look.tscn")
 const Boat := preload("res://boat/boat.gd")
 const Crew := preload("res://crew/crew.gd")
 const Menu := preload("res://ui/menu.gd")
+const Title := preload("res://ui/title.gd")
 const Rods := preload("res://rods/rods.gd")
 const Schools := preload("res://tuna/schools.gd")
 const Sonar := preload("res://tuna/sonar.gd")
@@ -83,6 +84,8 @@ var plotter: Plotter
 var tips: Tips
 ## Two boats racing for the same birds (vs/vs.gd); off, it's the one boat.
 var vs: Vs
+## The title (ui/title.gd) while the game's starting up; null in tests and screenshots.
+var title: Title
 var _args := {}
 var _frames := 0
 var _steered := false
@@ -179,10 +182,16 @@ func _ready() -> void:
 	else:
 		_follow_weather()
 	add_child(Menu.new())
-	# the game itself (not a test, which builds the sea under its own node): the boat you last took, at the dock
+	# the game itself (not a test, which builds the sea under its own node): the boat you last took, at the dock,
+	# and the title over it
 	if get_parent() == get_tree().root:
 		boat.use_kind(fish_hold.kind)
 		moor()
+		if _args.has("title") or not (_args.has("shot") or _args.has("cam") or _args.has("host") or _args.has("join")):
+			title = Title.new()
+			title.name = "Title"
+			title.sea = self
+			add_child(title)
 	if _args.has("vs"):        # (tests: two boats from the start; --team=b puts you on boat B)
 		vs.host_set_on(true)
 		if str(_args.get("team", "")) == "b":

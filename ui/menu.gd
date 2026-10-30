@@ -174,7 +174,8 @@ func _resume() -> void:
 
 
 func _process(_delta: float) -> void:
-	var open := Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not _headless_shot()
+	var title := get_parent().get("title") as Node
+	var open := Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not _headless_shot() 			and (title == null or not bool(title.get("up")) and float(title.get("_glide")) < 0.0)
 	_reading = _reading and open
 	_panel.visible = open and not _reading
 	_manual.visible = _reading
