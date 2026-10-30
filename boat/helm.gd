@@ -110,7 +110,10 @@ func _ask(take: bool) -> void:
 	var landing: Node = boat.get("sea").get("landing")
 	var hands_free := (rods == null or rods.call("held_by", who) == null) \
 			and (landing == null or int(landing.get("harpoon_holder")) != who)
-	if take and captain == 0 and hands_free:
+	# (VS: the other crew's wheel isn't yours to take, even standing at it)
+	var vs: Node = boat.get("sea").get("vs")
+	var theirs: bool = vs != null and bool(vs.get("on")) and vs.call("boat_of", who) != boat
+	if take and captain == 0 and hands_free and not theirs:
 		_host_set(who)
 	elif not take and captain == who:
 		_host_set(0)

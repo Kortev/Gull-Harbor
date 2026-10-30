@@ -532,7 +532,7 @@ func _tear_down() -> void:
 	_point_sea()
 	var crew := sea.get("crew") as Node
 	for id: int in crew.get("slots").keys():
-		crew.call("reseat", id)
+		crew.call("reseat", id, true)
 	for s: Node in sides:
 		remove_child(s)
 		s.queue_free()

@@ -4,8 +4,8 @@ extends Node
 ## your screens, the sea round her). Head out and both go from the harbour, side by side, in the same kind of boat. A fish on one boat's rod
 ## is hers alone, and her things keep their notes off the other crew's screens. Schools turn up round one, the other
 ## and between. Out there they meet (_meet): solid to each other, wakes (a wake bomb beam on, softer bow into it),
-## lines cut across a stern, the air horn. Head in and both come in alongside the fish pier: the fish read off, the
-## pounds weighed, the winner told by how much, a day to them. Back to one boat and it's the sea as it always was.
+## lines cut across a stern, the air horn; boarding her (_board: over both rails alongside, up her ladder). Head in
+## and both come in alongside the fish pier: the fish read off, the pounds weighed, the winner told by how much, a day to them. Back to one boat and it's the sea as it always was.
 ## Run: godot --headless --fixed-fps 30 --path . res://tests/vs_test.tscn
 
 const Sea := preload("res://sea/sea.gd")
@@ -90,6 +90,7 @@ func _ready() -> void:
 	_check((vs.get("_race") as Control).visible and vs.shown == [243, 220],
 			"the tally, top left: yours and theirs (%s)" % [vs.shown])
 	await _meet(sea, vs, b, a_boat, b_boat)
+	await _board(sea, a_boat, b_boat)
 	# home: both in alongside the fish pier (the race home run for them), weighed a fish at a time
 	vs.host_bring_home()
 	await get_tree().create_timer(0.3).timeout
@@ -252,6 +253,87 @@ func _meet(sea: Sea, vs: Vs, b: Node, a_boat: Node3D, b_boat: Node3D) -> void:
 	await get_tree().create_timer(3.0).timeout
 	_check(bool(rod.get("hooked")), "and the fish still on")
 	b_rods.call("host_clear")
+
+
+## Boarding her (crew/player.gd): A lying alongside B, you (B's crew) jump her rail and you're over both onto A's deck,
+## riding her as she moves; her wheel isn't yours to take. In the sea, up her ladder: any boat's. Back to B the same
+## way, over the rails.
+func _board(sea: Sea, a_boat: Node3D, b_boat: Node3D) -> void:
+	var ha: Node = a_boat.get("helm")
+	var hb: Node = b_boat.get("helm")
+	var at := Vector2(300.0, -600.0)
+	for h: Node in [ha, hb]:
+		h.set("speed", 0.0)
+		h.set("drift", Vector2.ZERO)
+		h.set("spin", 0.0)
+		h.set("heading", 0.0)
+	hb.set("at", at)
+	ha.set("at", at + Vector2(float(b_boat.get("beam")) + 0.05, 0.0))     # (alongside, to B's starboard)
+	await get_tree().create_timer(0.5).timeout
+	var me := sea.crew.me
+	me.force_input = true
+	var deck := float(b_boat.get("deck"))
+	me.place(Vector3(1.9, deck + 0.02, 3.5), -PI * 0.5)
+	Input.action_press("move_forward")
+	await get_tree().create_timer(0.4).timeout
+	Input.action_press("jump")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	Input.action_release("jump")
+	var t := 0.0
+	var step := 0.0
+	var prev := me.global_position
+	while me.boat != a_boat or int(me.get("mode")) != 0:
+		await get_tree().process_frame
+		step = maxf(step, me.global_position.distance_to(prev))
+		prev = me.global_position
+		t += 1.0 / 30.0
+		if t > 3.0:
+			break
+	Input.action_release("move_forward")
+	_check(me.boat == a_boat and int(me.get("mode")) == 0 and me.get("home") == b_boat,
+			"over B's rail onto A's deck, still B's crew (%.1f s)" % t)
+	_check(step < 0.25, "a hop, not a jump in where you are (at most %.2f m a frame)" % step)
+	await get_tree().create_timer(0.5).timeout
+	_check(me.body.is_on_floor(), "standing on A's deck")
+	var on_a: Vector3 = a_boat.global_transform.affine_inverse() * me.global_position
+	for i in 30:
+		ha.set("at", (ha.get("at") as Vector2) + Vector2(0.0, -0.1))
+		await get_tree().process_frame
+	var still: Vector3 = a_boat.global_transform.affine_inverse() * me.global_position
+	_check(Vector2(still.x - on_a.x, still.z - on_a.z).length() < 0.2, "and riding her as she moves")
+	ha.call("request", true)
+	await get_tree().process_frame
+	_check(int(ha.get("captain")) == 0, "her wheel isn't B's crew's to take")
+	# in the sea off A's stern: up her ladder
+	var ladder: Node3D = a_boat.get("ladder")
+	me.call("overboard", ladder.global_transform * Vector3(0.0, 0.0, 1.2), ladder.global_position)
+	await get_tree().create_timer(1.0).timeout
+	ladder.call("interact", me)
+	me.set("force_climb", true)
+	t = 0.0
+	while int(me.get("mode")) != 0 and t < 6.0:
+		await get_tree().process_frame
+		t += 1.0 / 30.0
+	me.set("force_climb", false)
+	_check(me.boat == a_boat and int(me.get("mode")) == 0, "up A's ladder: any boat's (%.1f s)" % t)
+	# home again: over A's rail onto B
+	ha.set("at", at + Vector2(float(b_boat.get("beam")) + 0.05, 0.0))
+	await get_tree().create_timer(0.3).timeout
+	me.place(Vector3(-1.9, deck + 0.02, 3.5), PI * 0.5)
+	Input.action_press("move_forward")
+	await get_tree().create_timer(0.4).timeout
+	Input.action_press("jump")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	Input.action_release("jump")
+	t = 0.0
+	while (me.boat != b_boat or int(me.get("mode")) != 0) and t < 3.0:
+		await get_tree().process_frame
+		t += 1.0 / 30.0
+	Input.action_release("move_forward")
+	me.force_input = false
+	_check(me.boat == b_boat and int(me.get("mode")) == 0, "and back over the rails to B")
 
 
 func _done() -> void:
