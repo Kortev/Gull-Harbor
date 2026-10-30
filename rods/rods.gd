@@ -24,8 +24,6 @@ const WHY := {"broke": "Line parted.", "broke_rail": "Line parted on the rail.",
 		"cut": "Cut on the props.", "tangle": "Lines tangled and parted.", "cutoff": "Cut off."}
 ## How heavy the rod's tip feels with a fish on (0: not at all .. 1: it fights your heave and drags the tip down).
 const ROD_WEIGHT := 1.0
-## The scroll wheel steps the drag no faster than this (s a notch).
-const NOTCH := 0.2
 ## While a fish is on, how often (s) the host looks for its run crossing another line that's still out, and the
 ## chance each time it does that tangles them.
 const TANGLE_EVERY := 1.0
@@ -67,7 +65,6 @@ var _last_heading := 0.0
 ## Your rod's line out last frame, and how fast you're winning it back (m/s, smoothed; - while it takes line).
 var _trend_out := -1.0
 var _trend := 0.0
-var _notch_t := 0.0
 ## (tests) set x to a rod elevation and the fight-sense side goes in y: a test angler's hands instead of the mouse
 var bot_aim := Vector3(NAN, 0.0, 0.0)
 var _look_off := 0.0
@@ -773,14 +770,15 @@ func _show_fight_hud(hud: Node, mine: Rod) -> void:
 		return
 	tutor.tick(get_process_delta_time(), mine)
 	_fight_hud.teaching = tutor.busy()
+	_fight_hud.highlight = tutor.highlight()
 	if mine == null or not mine.hooked or mine.alongside or mine.fight == null:
 		_fight_hud.show_fight({})
 		return
 	var f := mine.fight as Fight
-	_fight_hud.show_fight({"tension": f.load_now(), "danger": clampf(float(f.get("_over_t")) / Fight.BREAK_HOLD,
-			0.0, 1.0), "drag": mine.drag, "line_out": mine.line_out, "spool": mine.line_out / Fight.CAPACITY,
-			"energy": f.energy, "hold": f.hold, "move": f.move, "slipping": f.slipping, "grinding": f.grinding,
-			"airborne": f.airborne, "under": f.going_under(), "paused": f.paused})
+	_fight_hud.show_fight({"tension": f.strain, "slack_t": f.slack_t, "red_t": float(f.get("_over_t")),
+			"line_out": mine.line_out, "energy": f.energy, "move": f.move, "slipping": f.slipping,
+			"airborne": f.airborne, "reeling": f.reeling, "paused": f.paused, "chafe": f.chafe, "wear": f.wear,
+			"props": f.prop_t(), "beaten": f.energy < Fight.BEATEN})
 
 
 ## Everyone (tuna/landing.gd): rod i's fish is up alongside, beaten: no more fight on it.
@@ -885,31 +883,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		var mine := held_by(Net.my_id())
 		if mine:
 			request_return(mine.index)
-	# the drag lever, a notch at a time on the wheel, while you've a fish on
-	var mb := event as InputEventMouseButton
-	if mb != null and mb.pressed and mb.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
-		var r := held_by(Net.my_id())
-		if r != null and r.hooked and not r.alongside:
-			notch_drag(r, 1 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else -1)
-
-
-## The drag on rod r a notch tighter (+1) or looser (-1), with the click of the lever.
-func notch_drag(r: Rod, way: int) -> void:
-	var now := Time.get_ticks_msec() / 1000.0
-	if now - _notch_t < NOTCH:
-		return
-	var at := 0
-	var best := 9.0
-	for k in Fight.DETENTS.size():
-		if absf(float(Fight.DETENTS[k]) - r.drag) < best:
-			best = absf(float(Fight.DETENTS[k]) - r.drag)
-			at = k
-	var to := clampi(at + way, 0, Fight.DETENTS.size() - 1)
-	if to == at:
-		return
-	_notch_t = now
-	r.drag = float(Fight.DETENTS[to])
-	Sfx.play_point(self, r.global_position, "kit.switch", 0.4, 1.4 if way > 0 else 1.1)
+	# (the drag lever's gone from the fight: one rule, keep the needle in the green; tuna/fight.gd)
 
 
 func _process(delta: float) -> void:
@@ -1175,9 +1149,9 @@ func _tow(r: Rod, spot: Vector3, speed: float, ocean: Node, delta: float) -> Vec
 	return p
 
 
-## Your rod with a fish on: you fight it here and tell the rest. The mouse is the rod (up and down its elevation,
-## side to side laid over off the line), the camera following it part of the way so the line and the water stay in
-## view; left mouse cranks, right mouse raises the rod too, the wheel sets the drag. `throttle`: the captain's.
+## Your rod with a fish on: you fight it here and tell the rest. Left mouse reels (tuna/fight.gd: keep the needle in
+## the green); the mouse still swings the rod about and right mouse lifts it, for the look of it, the camera following
+## it part of the way so the line and the water stay in view. `throttle`: the captain's.
 func _fight_mine(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	var me := (sea.get("crew") as Node).get("me") as Node
 	var live := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or (me != null and bool(me.get("force_input")))
@@ -1324,7 +1298,9 @@ func _new_fight(r: Rod) -> Fight:
 func _take(r: Rod, fight: Fight) -> void:
 	r.wear = fight.wear
 	r.line_out = fight.line_out
-	r.strain = clampf(fight.strain + 0.5 * fight.shock, 0.0, 1.2)      # (the rod's bend: the tension, and a jolt)
+	# (the rod's bend: a hooked tuna always loads it, by his weight, more as he runs; the needle when that's more)
+	var heft := 0.3 + 0.3 * clampf(fight.kg / 300.0, 0.0, 1.0) + (0.15 if fight.slipping else 0.0)
+	r.strain = clampf(maxf(fight.strain, heft), 0.0, 1.2)
 	r.bearing = fight.bearing
 	r.depth = fight.depth
 	r.energy = fight.energy

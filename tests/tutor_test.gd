@@ -1,8 +1,8 @@
 extends Node
 ## The first fish's lesson (ui/fight_tutor.gd), headless: off in tests unless turned on; on, the fish takes and the
-## fight holds still (nothing moves, nothing's lost) while it asks you to reel, waits till you do, then waits for you
-## to read why and press on; then the run, when the drag slips; a jump, the tip dropped; the pump in two steps; the
-## drag eased; the spiral; and the landing step by step (rod back, harpoon, aboard), its hook clock held meanwhile.
+## fight holds still (he doesn't move, nothing's lost, only the needle answers your hand) while it asks you to reel
+## into the green, waits till you do, then waits for you to read why and press on; then the run (let go); and the
+## landing step by step (rod back, harpoon, aboard), its hook clock held meanwhile. Three steps, nothing more.
 ## Run: godot --headless --path . res://tests/tutor_test.tscn
 
 const Sea := preload("res://sea/sea.gd")
@@ -40,17 +40,21 @@ func _ready() -> void:
 	await _wait(2.0)
 	_check(is_equal_approx(f.line_out, out) and is_equal_approx(f.energy, energy) and is_equal_approx(f.hold, hold)
 			and not f.done, "two seconds paused: he hasn't moved, nothing's lost")
-	# REEL: it waits till you do it
-	_check(str(tutor.get("_phase")) == "do", "it waits for you to reel")
+	# REEL: it waits till you do it, the bar glowing; the needle answers your hand even paused
+	_check(str(tutor.get("_phase")) == "do" and bool(tutor.highlight()), "it waits for you to reel, the bar lit")
+	var low := f.strain
 	Input.action_press("use_primary")
-	await _wait(1.0)
+	await _wait(1.6)
+	_check(f.strain >= Fight.GREEN_LO and f.strain <= Fight.GREEN_HI, "held left mouse: the needle up into the green (%.2f -> %.2f)"
+			% [low, f.strain])
 	Input.action_release("use_primary")
-	_check(str(tutor.get("_phase")) == "why", "held left mouse: done, and why")
+	_check(str(tutor.get("_phase")) == "why", "in the green: done, and why")
 	await _wait(1.0)
 	_check(f.paused, "still paused while you read")
 	await _next()
 	await _frames(2)
-	_check(not f.paused and bool(tutor.taught("reel")), "SPACE: taught, and the fight runs on")
+	_check(bool(tutor.taught("reel")) and (not f.paused or str(tutor.get("_id")) == "run"),
+			"SPACE: taught, and the fight runs on (straight into his run, if he's running)")
 	# the run: as soon as the drag slips
 	for k in 300:
 		if str(tutor.get("_id")) == "run":
@@ -62,54 +66,7 @@ func _ready() -> void:
 	await _next()
 	await _frames(2)
 	_check(not f.paused and bool(tutor.taught("run")), "on again")
-	# a jump: the tip dropped
-	await _wait(2.2)
-	f.call("_set_move", "jump")
-	await _frames(2)
-	_check(str(tutor.get("_id")) == "jump" and f.paused, "he jumps: paused on the way up (%s)" % tutor.get("_id"))
-	rods.bot_aim = Vector3(0.2, 0.0, 0.0)
-	await _wait(0.8)
-	rods.bot_aim = Vector3(NAN, 0.0, 0.0)
-	_check(str(tutor.get("_phase")) == "why", "rod tip down: done")
-	await _next()
-	await _frames(2)
-	# the pump, two steps: lift, then wind as you drop
-	tutor.call("_drop")
-	tutor.call("_start", "pump", f, r)
-	await _frames(1)
-	Input.action_press("use_secondary")
-	await _wait(1.2)
-	Input.action_release("use_secondary")
-	_check(int(tutor.get("_step")) == 1, "right mouse: the rod up, step two")
-	Input.action_press("use_primary")
-	for k in 60:
-		me.set("fight_mouse", Vector2(0.0, 20.0))
-		await get_tree().process_frame
-	Input.action_release("use_primary")
-	_check(str(tutor.get("_phase")) == "why", "left mouse winding as it drops: a pump")
-	await _next()
-	await _frames(2)
-	# the drag eased
-	tutor.call("_drop")
-	tutor.call("_start", "ease", f, r)
-	await _frames(1)
-	rods.set("_notch_t", -10.0)
-	rods.notch_drag(r, -1)
-	await _frames(2)
-	_check(str(tutor.get("_phase")) == "why", "a notch down on the wheel: eased")
-	await _next()
-	await _frames(2)
-	# the spiral: wind as he comes up, let go as he goes under
-	tutor.call("_drop")
-	tutor.call("_start", "spiral", f, r)
-	Input.action_press("use_primary")
-	await _wait(1.0)
-	Input.action_release("use_primary")
-	await _wait(1.2)
-	_check(str(tutor.get("_phase")) == "why", "the spiral: wound, then let go")
-	await _next()
-	await _frames(2)
-	for id: String in ["reel", "run", "jump", "pump", "ease", "spiral"]:
+	for id: String in ["reel", "run"]:
 		_check(bool(tutor.taught(id)), "taught: %s" % id)
 	# the landing
 	sea.landing.host_alongside(0, 120.0, float(r.get("bearing")), float(r.get("hook_t")))
