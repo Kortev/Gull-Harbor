@@ -136,7 +136,7 @@ sitting.
 ## Working a school
 
 - **A school travels its own way** (watch which way the birds go) **and feeds at its head**: only a bait out in front
-  of it (from just behind its middle to about 20 m ahead of its edge, within its width and a bit) gets eaten. Your
+  of it (from just behind its middle to about 35 m ahead of its edge, within about 16 m of its width) gets eaten. Your
   baits don't draw it to them; chum does (below).
 - **Never run your hull over it.** Over a school faster than a crawl (about **2.5 knots**) and it **goes down for
   40 s**: the white water stops, the birds sit ("Gone deep"). Fast (over 10 knots), from further off.

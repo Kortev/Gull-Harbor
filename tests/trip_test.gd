@@ -104,9 +104,14 @@ func _ready() -> void:
 	while hooked < 0 and t < 300.0:
 		await get_tree().process_frame
 		t += get_process_delta_time()
+		# (out ahead of it quick, then down to its pace: a captain setting up the pass)
+		var want := maxf(float(school.speed), 1.0) + 0.3
 		if sea.schools.schools.has(school):
-			_steer_to(_alongside(school))
-		_hold("move_forward", sea.boat.helm.speed < maxf(float(school.speed), 1.0) + 0.3)
+			var spot := _alongside(school)
+			_steer_to(spot)
+			if spot.distance_to(sea.boat.helm.at) > 45.0:
+				want = 4.5
+		_hold("move_forward", sea.boat.helm.speed < want)
 		for r in sea.rods.rods:
 			if r.hooked:
 				hooked = r.index

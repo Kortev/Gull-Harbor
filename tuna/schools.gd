@@ -48,8 +48,8 @@ const DOWN_SPEED := 1.3
 const DOWN_REACH := 6.0
 ## Where a travelling school eats: from AHEAD.x m behind its middle to AHEAD.y m ahead of its edge, within SIDE m of its
 ## edge to either side. Working a slick (not going anywhere) it eats all round.
-const AHEAD := Vector2(4.0, 22.0)
-const SIDE := 8.0
+const AHEAD := Vector2(4.0, 35.0)
+const SIDE := 16.0
 ## The chum slick: how long a scoop keeps it fresh (s), how far off a school smells it (m), how fast it comes up it
 ## (m/s), where new ones turn up while it's fresh (m from it), and how long one stays on it after the last scoop (s).
 const SLICK := 90.0
