@@ -13,7 +13,9 @@ extends Node
 ##   - sea clutter: a ring of speckle close round her, wider and thicker the rougher the sea, different every sweep;
 ##   - rain clutter: smears of speckle in rain, heavy and storm, drifting down the wind, and the rain dims what's
 ##     behind it.
-## So a flock is the return that holds still from sweep to sweep while the speckle round it boils. Everything comes
+## So a flock is the bright return that holds from sweep to sweep while the dim green speckle round it boils, and it
+## leaves a fading trail behind it as it travels (TRAIL: where it was the last few minutes, the way a radar's target
+## trails show), so you can see which way it's going and get out ahead of it. Everything comes
 ## from the sea's shared state (the sea clock, its weather, the synced schools, fixed landmarks) and a hash, never
 ## randf: every peer's screen paints the same.
 
@@ -34,6 +36,11 @@ const BUOY_R := 12.0
 ## False gull rafts: one in this share of the CELL m squares round her, drifting.
 const CELL := 700.0
 const FALSE_RAFTS := 0.14
+## A flock's trail: where it was every TRAIL_STEP s back, this many of them, fading.
+const TRAIL := 6
+const TRAIL_STEP := 25.0
+## The clutter, sea and rain, never paints brighter than this (a dim green): only a real return goes yellow and red.
+const CLUTTER_MAX := 0.3
 
 const BG := Color(0.01, 0.025, 0.04)
 const WEAK := Color(0.1, 0.42, 0.22)
@@ -139,7 +146,11 @@ func _gather(t: float) -> void:
 		var flying := bool(s.call("feeding", t)) or going > 0.0 or (down != null and t < float(down))
 		var id := int(s.get("id"))
 		if flying:
-			_targets.append([c, FLOCK_R * (1.0 + going * 2.0), 0.68 * (1.0 - going * 0.8), 1.0, id])
+			_targets.append([c, FLOCK_R * (1.0 + going * 2.0), 0.9 * (1.0 - going * 0.8), 1.0, id])
+			# its trail, back along where it's been
+			for k in range(1, TRAIL + 1):
+				var was: Vector2 = s.call("center", t - k * TRAIL_STEP)
+				_targets.append([was, FLOCK_R * 0.45, 0.32 * (1.0 - float(k) / (TRAIL + 1)) + 0.1, 1.0, id])
 		else:
 			_targets.append([c, RAFT_R, 0.36, 0.4, id])
 	# gull rafts with nothing under them, drifting a little
@@ -197,7 +208,7 @@ func _paint(b: int, rev: int, t: float) -> void:
 			var sc := thick * exp(-r / reach)
 			var n := _hash(gx, gz, rev * 1.37)
 			if n < sc:
-				v = 0.18 + 0.5 * sc * _hash(gz, gx, rev * 0.71)
+				v = minf(0.12 + 0.4 * sc * _hash(gz, gx, rev * 0.71), CLUTTER_MAX)
 		# rain: patches drifting down the wind, speckled inside, and dimming what's beyond
 		var dim := 1.0
 		if rain > 0.02:
@@ -205,7 +216,7 @@ func _paint(b: int, rev: int, t: float) -> void:
 			var cloud := _noise(q.x, q.y) * 0.7 + _noise(q.x * 2.3 + 5.0, q.y * 2.3) * 0.3
 			var patch := smoothstep(1.0 - 0.45 * rain, 1.08 - 0.35 * rain, cloud)
 			if patch > 0.0 and _hash(gx, gz, rev * 2.11 + 9.0) < 0.2 + 0.45 * patch:
-				v = maxf(v, (0.12 + 0.33 * rain) * patch * (0.6 + 0.4 * _hash(gx, gz, 4.0 + rev)))
+				v = maxf(v, minf((0.12 + 0.33 * rain) * patch * (0.6 + 0.4 * _hash(gx, gz, 4.0 + rev)), CLUTTER_MAX))
 			dim = 1.0 - 0.45 * rain * r / RANGE
 		# the land and the breakwaters, solid (the first few hundred metres in: the hills behind are in its shadow)
 		if marks != null:

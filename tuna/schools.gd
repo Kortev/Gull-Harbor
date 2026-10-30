@@ -103,7 +103,7 @@ func _ready() -> void:
 
 
 ## How many pixels across a far-off bird is drawn, at least (so a flock reads on the horizon).
-const BIRD_PX := 5.0
+const BIRD_PX := 3.0
 const BIRD_SHADER := """
 shader_type spatial;
 render_mode unshaded, cull_disabled, fog_disabled;
@@ -157,13 +157,10 @@ func _process(delta: float) -> void:
 			k *= clampf(cam.fov / 75.0, 0.35, 1.0)     # (a narrower view sees through the haze better)
 		bird_mat.set_shader_parameter("haze", env.fog_light_color)
 		bird_mat.set_shader_parameter("haze_k", k)
-		# dark birds against a bright sky, pale ones (their white bellies, the gannets) against a dark one: the flock
-		# always stands out from what's behind it
-		var sky := env.fog_light_color
-		var lum := 0.3 * sky.r + 0.59 * sky.g + 0.11 * sky.b
-		var pale := smoothstep(0.5, 0.3, lum)
-		bird_mat.set_shader_parameter("color", Color(0.16, 0.15, 0.15).lerp(Color(0.93, 0.93, 0.9), pale))
-		bird_mat.set_shader_parameter("haze_k", k * (1.0 - 0.6 * pale))
+		# dark birds, a silhouette against the sky; as the light goes they go with it (no glowing in the dark: at
+		# night it's the radar that finds them)
+		var light := 1.0 - float(sea.call("_dark")) if sea.has_method("_dark") else 1.0
+		bird_mat.set_shader_parameter("color", Color(0.16, 0.15, 0.15) * lerpf(0.25, 1.0, light))
 	if Net.is_host() and not _docked():
 		_next -= delta
 		if _next <= 0.0:
