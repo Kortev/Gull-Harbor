@@ -94,7 +94,7 @@ func _ready() -> void:
 	var marks: Dictionary = plotter.get("marks")
 	_check(marks.has(int(s.get("id"))) and (marks[int(s.get("id"))][0] as Vector2).distance_to(c2) < 50.0,
 			"a flock picked out is marked where it was")
-	_check((plotter.get("_img") as Image).get_pixel(80, 62) != Color(0.04, 0.11, 0.24), "the plotter's painting")
+	_check(int(plotter.get("drawn")) > 0, "the plotter's drawing its chart")
 	_done()
 
 
