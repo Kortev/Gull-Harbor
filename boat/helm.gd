@@ -152,6 +152,15 @@ func _set_captain(who: int, at_heading: float) -> void:
 			hud.call("notify", str(tips.call("teach_once", keys)) if tips != null else keys)
 
 
+## Rivals: tied up alongside the fish pier (before GO, or home after the race in) her engines won't turn over: walk
+## about, take the wheel, swing it, but she's not going anywhere till the countdown lets both boats go.
+func held() -> bool:
+	var sea: Node = boat.get("sea") if boat else null
+	var vs: Node = sea.get("vs") if sea else null
+	var hold: Node = sea.get("fish_hold") if sea else null
+	return vs != null and bool(vs.get("on")) and hold != null and bool(hold.get("docked"))
+
+
 ## Whether a line's round her props now.
 func fouled() -> bool:
 	var ocean: Node = boat.get("ocean") if boat else null
@@ -245,9 +254,10 @@ func _process(delta: float) -> void:
 		var want_gas := Input.get_axis("move_back", "move_forward") if live else 0.0
 		steer = move_toward(steer, want_steer, delta * 2.5)
 		throttle = move_toward(throttle, want_gas, delta * 1.5)
-		if fouled():
+		if fouled() or held():
 			throttle = 0.0
-		heading = wrapf(heading + steer * turn * delta, -PI, PI)
+		if not held():
+			heading = wrapf(heading + steer * turn * delta, -PI, PI)
 	elif captain == 0:
 		steer = move_toward(steer, 0.0, delta * 2.5)
 		throttle = 0.0

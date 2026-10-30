@@ -254,14 +254,44 @@ func _process(delta: float) -> void:
 		_result(_last, fish, wins)
 
 
-## Boat i's berth (world x, z): A's on the fish pier's west side, B's mirrored on its east.
+## Boat i's berth (world x, z): A's on the fish pier's west side, B's on its east, set out along the pier as far as
+## makes her run to the harbour mouth as long as A's (the mouth's west of the pier: A heads straight for it, B has to
+## clear the pier's end first). Neither starts nearer: the same run, the same boat.
 func _berth(i: int) -> Vector2:
 	var harbour: Node = sea.get("harbour")
 	var boat: Node = sides[i].get("boat")
-	var at: Vector2 = harbour.call("berth", float(boat.get("beam")) * 0.5, float(boat.get("length")))
-	if i == 1:
-		at.x = 2.0 * float(harbour.get("PIER_X")) - at.x
+	var half := float(boat.get("beam")) * 0.5
+	var at: Vector2 = harbour.call("berth", half, float(boat.get("length")))
+	if i == 0:
+		return at
+	at.x = 2.0 * float(harbour.get("PIER_X")) - at.x
+	var a := _berth(0)
+	var mouth := _mouth()
+	var px := float(harbour.get("PIER_X"))
+	var corner := Vector2(px + float(harbour.get("PIER_W")) * 0.5 + half + 1.0,
+			float((sea.get("landmarks") as Node).call("shore_z", px)) - float(harbour.get("PIER_OUT")) - 1.0)
+	var z := corner.y + a.distance_to(mouth) - corner.distance_to(mouth)
+	at.y = clampf(z, corner.y + float(boat.get("length")) * 0.5, at.y)
 	return at
+
+
+## The middle of the harbour mouth, between the breakwaters' ends (world x, z).
+func _mouth() -> Vector2:
+	var arms: Array = (sea.get("landmarks") as Node).call("breakwater_arms")
+	return ((arms[0][1] as Vector2) + (arms[1][1] as Vector2)) * 0.5
+
+
+## How far boat i has to run from her berth to the harbour mouth (m): round the pier's end for B.
+func run_out(i: int) -> float:
+	var harbour: Node = sea.get("harbour")
+	var b := _berth(i)
+	if i == 0:
+		return b.distance_to(_mouth())
+	var half := float((sides[1].get("boat") as Node).get("beam")) * 0.5
+	var px := float(harbour.get("PIER_X"))
+	var corner := Vector2(px + float(harbour.get("PIER_W")) * 0.5 + half + 1.0,
+			float((sea.get("landmarks") as Node).call("shore_z", px)) - float(harbour.get("PIER_OUT")) - 1.0)
+	return maxf(b.y - corner.y, 0.0) + corner.distance_to(_mouth())
 
 
 ## Host: both alongside the fish pier (sea/harbour.gd), A at her berth on its west side, B on its east, bows out;
