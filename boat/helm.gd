@@ -211,7 +211,18 @@ func _process(delta: float) -> void:
 		throttle = 0.0
 	if driving:
 		speed = next_speed(speed, throttle, delta)
+		var was := at
 		at += ahead_of(heading) * speed * delta
+		# (the shore and the rig stop her dead: her bow or her stern, whichever end's going that way)
+		var marks: Node = boat.get("sea").get("landmarks") if boat.get("sea") != null else null
+		var end := at + ahead_of(heading) * signf(speed) * float(boat.get("length")) * 0.5
+		if marks != null and absf(speed) > 0.0 and bool(marks.call("blocked", end)):
+			at = was
+			if absf(speed) > 1.0 and is_mine():
+				var hud: Node = boat.get("sea").get("crew").get("hud")
+				hud.call("notify", "She's touched bottom! Back her off (S) and steer clear." if speed > 0.0
+						else "You're backing onto it! Ahead (W) and steer clear.")
+			speed = 0.0
 		_send_in -= delta
 		if Net.in_session() and _send_in <= 0.0:
 			_send_in = SEND if is_mine() else SEND * 3.0

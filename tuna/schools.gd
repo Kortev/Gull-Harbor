@@ -318,9 +318,21 @@ func _host_start() -> void:
 	var bearing := randf_range(-PI, PI)
 	var start := round_at + Vector2(cos(bearing), sin(bearing)) * far
 	var heading := Vector2.from_angle(randf_range(-PI, PI))
+	var speed := randf_range(CRUISE.x, CRUISE.y)
+	var life := randf_range(LIFE.x, LIFE.y)
+	# never on land, never cruising ashore (sea/landmarks.gd): another spot round her, or another way to go
+	var marks: Node = sea.get("landmarks") if sea != null else null
+	if marks != null:
+		for i in 24:
+			if bool(marks.call("at_sea", start, 150.0)) and bool(marks.call("at_sea", start + heading * speed * life, 150.0)):
+				break
+			if i % 2 == 0:
+				heading = Vector2.from_angle(randf_range(-PI, PI))
+			else:
+				bearing = randf_range(-PI, PI)
+				start = round_at + Vector2(cos(bearing), sin(bearing)) * far
 	var kg := randf_range(60.0, 330.0) if randf() < 0.85 else randf_range(330.0, 400.0)
-	var args := [_ids, randi(), now() + 0.5, start, heading, randf_range(CRUISE.x, CRUISE.y), kg,
-			randf_range(LIFE.x, LIFE.y)]
+	var args := [_ids, randi(), now() + 0.5, start, heading, speed, kg, life]
 	if Net.in_session():
 		_start.rpc.callv(args)
 	else:

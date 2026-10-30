@@ -232,6 +232,14 @@ your first flock ("Slow down under 10 knots near the birds").
   going for her tower or T-top).
 - The boat really moves through a fixed world: up to about 20 knots, twin screws, a wake, spray, the sea slopping
   in over the transom backing down hard.
+- **Landmarks** (sea/landmarks.gd, at fixed spots: everyone sees the same): the coast about 2 km astern of where you
+  start, with hills, the town round its harbour, the breakwaters and their lights, and the lighthouse on its
+  headland (its beam goes round after dark); an oil rig about 2.6 km out to the north-west, its flare always
+  burning; the fairway buoy, the channel buoys in, a cardinal off the headland and a yellow weather buoy offshore,
+  riding the swell and blinking after dark.
+- **Haze:** the land fades into the sky with distance and with the weather: clear on a sunny day, greyed back in
+  rain, gone in fog (its lights carry further than the land does).
+- **The shore and the rig stop the boat** ("She's touched bottom! Back her off"). Schools never turn up on land.
 
 ---
 

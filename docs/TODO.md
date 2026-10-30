@@ -5,8 +5,8 @@
 The sea looks like an endless dev test, and too much of the fishing is "hold E". In this order:
 
 1. **The world first.**
-   - Landmarks and haze: a coast and the harbour behind where you start, a lighthouse, an oil rig, buoys, all at
-     fixed spots, so you know where you are and the horizon isn't empty.
+   - Landmarks and haze (done, 2026-10-29: `docs/shots/landmarks_*.png`): the coast and the harbour town behind
+     where you start, the lighthouse, an oil rig, buoys, all at fixed spots; the haze fades them by the weather.
    - Whales and dolphins: something alive to find, and a lead to fish (they work bait like the birds do).
    - Other boats out working the flocks, with radio chatter.
    - The water and the sky (baseline shots: `docs/shots/sea_before_*.png`).

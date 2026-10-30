@@ -4,7 +4,7 @@ extends Node3D
 ## from Fathom in the space fishing game (ocean.gd, sea_fx.gd, visor_rain.gd, sky.gdshader).
 ##
 ## The weather comes and goes on its own (sea/weather.gd): sunny, calm, fog, rain, heavy, storm. Nobody picks it.
-## Screenshots: <godot> --path . -- --shot=<png> [--weather=calm|sunny|fog|rain|heavy|storm (pinned)] [--night]
+## Screenshots: <godot> --path . -- --shot=<png> [--weather=calm|sunny|fog|rain|heavy|storm (pinned)] [--night|--noon]
 ##   [--frames=<n>] [--cam=x,y,z,lookx,looky,lookz] [--look=<degrees round from aft>] [--wheel] [--strike=<rod>]
 ## Without --cam you're one of the crew, standing in the cockpit: WASD, mouse, Shift, Space, E; Esc for the menu.
 ## Co-op: --host, or --join=<address> (or from the Esc menu).
@@ -29,15 +29,17 @@ const Chum := preload("res://boat/chum.gd")
 const Jig := preload("res://boat/jig.gd")
 const Spotter := preload("res://crew/spotter.gd")
 const Tips := preload("res://ui/tips.gd")
+const Landmarks := preload("res://sea/landmarks.gd")
 
-## How rough the sea is (ocean.gd: 0 calm, 0.5 rain, 1 storm), the sun, and how thick the fog.
+## How rough the sea is (ocean.gd: 0 calm, 0.5 rain, 1 storm), the sun, how thick the fog, and how far you can see
+## the land and the rig (far, m: sea/landmarks.gd's haze).
 const CONDITIONS := {
-	"calm": {"sea": 0.12, "rain": 0.0, "sun": 0.55, "fog": 0.002, "sky": [Color(0.36, 0.42, 0.5), Color(0.62, 0.66, 0.7)]},
-	"sunny": {"sea": 0.25, "rain": 0.0, "sun": 1.3, "fog": 0.0012, "sky": [Color(0.22, 0.38, 0.6), Color(0.66, 0.74, 0.8)]},
-	"fog": {"sea": 0.08, "rain": 0.0, "sun": 0.15, "fog": 0.045, "sky": [Color(0.42, 0.45, 0.47), Color(0.5, 0.53, 0.55)]},
-	"rain": {"sea": 0.5, "rain": 0.6, "sun": 0.3, "fog": 0.0065, "sky": [Color(0.24, 0.27, 0.3), Color(0.42, 0.45, 0.48)]},
-	"heavy": {"sea": 0.75, "rain": 0.85, "sun": 0.2, "fog": 0.01, "sky": [Color(0.18, 0.2, 0.23), Color(0.33, 0.36, 0.39)]},
-	"storm": {"sea": 1.0, "rain": 1.0, "sun": 0.12, "fog": 0.0, "sky": [Color(0.13, 0.15, 0.17), Color(0.25, 0.28, 0.3)]},
+	"calm": {"sea": 0.12, "rain": 0.0, "sun": 0.55, "fog": 0.002, "far": 2600.0, "sky": [Color(0.36, 0.42, 0.5), Color(0.62, 0.66, 0.7)]},
+	"sunny": {"sea": 0.25, "rain": 0.0, "sun": 1.3, "fog": 0.0012, "far": 4500.0, "sky": [Color(0.22, 0.38, 0.6), Color(0.66, 0.74, 0.8)]},
+	"fog": {"sea": 0.08, "rain": 0.0, "sun": 0.15, "fog": 0.045, "far": 200.0, "sky": [Color(0.42, 0.45, 0.47), Color(0.5, 0.53, 0.55)]},
+	"rain": {"sea": 0.5, "rain": 0.6, "sun": 0.3, "fog": 0.0065, "far": 1300.0, "sky": [Color(0.24, 0.27, 0.3), Color(0.42, 0.45, 0.48)]},
+	"heavy": {"sea": 0.75, "rain": 0.85, "sun": 0.2, "fog": 0.01, "far": 800.0, "sky": [Color(0.18, 0.2, 0.23), Color(0.33, 0.36, 0.39)]},
+	"storm": {"sea": 1.0, "rain": 1.0, "sun": 0.12, "fog": 0.0, "far": 250.0, "sky": [Color(0.13, 0.15, 0.17), Color(0.25, 0.28, 0.3)]},
 }
 const WIND := Vector2(-0.8, -0.6)
 
@@ -48,6 +50,7 @@ var _mix: Array = ["", "", -1.0]
 var night := false
 var ocean: Ocean
 var env: Environment
+var landmarks: Landmarks
 var sky_mat: ShaderMaterial
 var sun: DirectionalLight3D
 var sea_fx: SeaFx
@@ -335,6 +338,9 @@ func _apply_look() -> void:
 	ocean.set_sky_color(hor.lerp(fog, 0.5))
 	sea_fx.night = dark
 	boat.set_lights(dark > 0.45 or storm + _share("fog") > 0.5)
+	# the land and the rig fade into the same colour as the sea's haze; their lights come on with the boat's
+	var far := lerpf(a["far"], b["far"], m) * (1.0 - 0.5 * dark)
+	landmarks.set_look(fog, far, dark, dark > 0.4 or storm + _share("fog") > 0.5)
 	var rain_mat := (rain.draw_pass_1 as QuadMesh).material as StandardMaterial3D
 	rain_mat.albedo_color = Color(0.75, 0.8, 0.86, lerpf(0.38, 0.22, dark))
 
@@ -343,6 +349,8 @@ func _apply_look() -> void:
 func _dark() -> float:
 	if night:
 		return 1.0
+	if _args.has("noon"):
+		return 0.0         # (screenshots: --noon pins the middle of the day)
 	return 1.0 - float(fish_hold.daylight()) if fish_hold != null else 0.0
 
 
@@ -351,6 +359,8 @@ func _move_sun() -> void:
 	if fish_hold == null or night:
 		return
 	var t := clampf(float(fish_hold.day_fraction()), 0.0, 1.0) if not fish_hold.docked else 0.04
+	if _args.has("noon"):
+		t = 0.4
 	var up := sin(PI * t)
 	sun.rotation_degrees = Vector3(-(5.0 + 55.0 * up), lerpf(80.0, -80.0, t), 0.0)
 
@@ -421,6 +431,10 @@ func _build_world() -> void:
 	add_child(sea_fx)
 	visor = VisorRain.new()
 	add_child(visor)
+	landmarks = Landmarks.new()
+	landmarks.name = "Landmarks"
+	landmarks.ocean = ocean
+	add_child(landmarks)
 	boat = Boat.new()
 	boat.name = "Boat"
 	boat.ocean = ocean

@@ -55,7 +55,16 @@ func _ready() -> void:
 	if spotter != null and spotter.get("_read") != null:
 		print("TRIP spotted: %s" % str((spotter.get("_read") as Label).text).replace("
 ", " | "))
-	_check(spotter != null and spotter.get("_looking") == school, "spotted it: the crosshair's on it")
+	# (the deck's rolling: give the crosshair a few seconds to sit on it, the way you'd hold your look)
+	var held := spotter != null and spotter.get("_looking") == school
+	var tries := 0
+	while not held and spotter != null and tries < 6:
+		tries += 1
+		await _face(school)
+		for f in 15:
+			await get_tree().process_frame
+			held = held or spotter.get("_looking") == school
+	_check(held, "spotted it: the crosshair's on it")
 	# the wheel: run to it, slow down near it
 	sea.crew.me.force_input = true
 	sea.boat.helm.request(true)
@@ -260,6 +269,18 @@ func _face_point(p: Vector3) -> void:
 			best_dot = dot
 			best_p = pitch
 	me.set("_pitch", best_p)
+	# then the yaw again, finer (the first pass is 5 degrees a step: too coarse for the spotter's crosshair)
+	var coarse := best
+	best_dot = -2.0
+	for i in 21:
+		var yaw := coarse - 0.09 + i * 0.009
+		me.set("_yaw", yaw)
+		await get_tree().process_frame
+		var dot := _aim_dot(p)
+		if dot > best_dot:
+			best_dot = dot
+			best = yaw
+	me.set("_yaw", best)
 	await get_tree().process_frame
 
 
