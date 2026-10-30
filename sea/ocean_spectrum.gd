@@ -13,11 +13,15 @@ extends RefCounted
 
 const N := 256
 ## Each tile: its size (m), the band of wavelengths it holds (longest, shortest, m), where its hump is (m), how wide
-## the hump is (ln units), and how tightly its waves follow the wind (cos^2s spreading).
+## the hump is (ln units), how tightly its waves follow the wind (cos^2s spreading), and how much of it runs back up
+## into the wind (a second lobe, that share of the first). Short waves go every way, mostly with the wind: met
+## head-on by others coming back, they rise and fall where they are instead of all streaming downwind together (the
+## chop's pattern drifts at 2 m/s and the ripples' at 0.3, not 3.5 and 0.9, which read as a boat under way when she's
+## still). The swell all goes one way.
 const CASCADES := [
-	{"size": 1100.0, "band": Vector2(1100.0, 32.0), "peak": 75.0, "width": 0.4, "spread": 14.0},
-	{"size": 233.0, "band": Vector2(32.0, 9.0), "peak": 16.0, "width": 0.6, "spread": 4.0},
-	{"size": 47.0, "band": Vector2(9.0, 0.35), "peak": 3.0, "width": 0.9, "spread": 1.0},
+	{"size": 1100.0, "band": Vector2(1100.0, 32.0), "peak": 75.0, "width": 0.4, "spread": 14.0, "back": 0.0},
+	{"size": 233.0, "band": Vector2(32.0, 9.0), "peak": 16.0, "width": 0.6, "spread": 4.0, "back": 0.3},
+	{"size": 47.0, "band": Vector2(9.0, 0.35), "peak": 3.0, "width": 0.9, "spread": 1.0, "back": 0.5},
 ]
 const G := 9.81
 
@@ -43,6 +47,7 @@ func _init(seed_value: int, wind: Vector2, keep: PackedInt32Array) -> void:
 		var k_peak := TAU / float(spec["peak"])
 		var width := float(spec["width"])
 		var s := float(spec["spread"])
+		var back := float(spec["back"])
 		var dk := TAU / size
 		var amp := PackedFloat32Array()
 		var phase := PackedFloat32Array()
@@ -63,7 +68,7 @@ func _init(seed_value: int, wind: Vector2, keep: PackedInt32Array) -> void:
 					continue
 				var hump := exp(-pow(log(k / k_peak), 2.0) / (2.0 * width * width))
 				var turn := wrapf(atan2(kz, kx) - away, -PI, PI)
-				var dir := pow(maxf(cos(turn * 0.5), 0.0), 2.0 * s)
+				var dir := pow(maxf(cos(turn * 0.5), 0.0), 2.0 * s) + back * pow(absf(sin(turn * 0.5)), 2.0 * s)
 				# (a density in k-space: the k^-2 keeps the energy right as the grid's points spread out)
 				var e := hump * dir / (k * k) * dk * dk
 				var a := sqrt(e) * sqrt(g1 * g1 + g2 * g2) * 0.7071
