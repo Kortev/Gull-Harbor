@@ -293,11 +293,32 @@ rules.
   Each boat has everything of her own: her wheel, rods, harpoon and tuna door, fish box, chum and jig. The other
   boat is right there on the water, her crew aboard her; her fish and her notes are hers.
 - **The birds** turn up round one boat, then the other, then between them, in turn, so neither crew gets the
-  better water. Any school is fair game for either boat; run through one fast and it goes down for both.
-- **The tally**, top right, quiet: your boat's pounds aboard (on deck and iced), and theirs.
-- **The end:** at dusk, or when the skipper heads in, both boats come in together and what each has aboard is
-  weighed: "You won by 66 lb" (or they did, or dead even), over the dock screen. Both catches are sold as usual
-  (boat A's money is the skipper's bank; boat B's is a bank of her own for the match).
+  better water.
+- **The boats are solid to each other** (`vs/contact.gd`): no passing through. Run into her and it's a thud where
+  the hulls meet, both boats heel over and rock back, both are shoved apart by how fast they met (some of it on
+  her way, some sideways, a slew round if she's hit off her middle), and anyone standing on deck staggers in a hard
+  one. Whoever's machine sees it first shoves both, so it's the same bump on every screen.
+- **Wakes:** cross the other boat's wake (or let it come to you) and she rocks: a roll crossing it side on, a pitch
+  head on, a slap at the bow, as big as she was going fast and fading as it ages; two arms, two knocks. (Only the
+  boat you're on paints her wake on the water: the sea draws one trail.)
+- **The wake bomb:** a hull throws her biggest wake ploughing along at 10 to 14 knots, not up on the plane flat out,
+  so slowing down to bury the other boat costs you time. Taken beam on and close, it's a hard roll: the sea slops
+  in over her transom, everyone standing staggers and their view jolts. Her captain turning her bow into it takes
+  it as a pitch, softer.
+- **The air horn** (`vs/horn.gd`), on the dash beside each wheel (E): a twin-tone blast heard a mile off. Within
+  about 120 m of the other boat it rattles her crew's view and jerks any fish on her lines (the rod tip snaps, a
+  little shock in the fight, never enough on its own to lose it). One blast every couple of seconds.
+- **Cutting her off:** run across her stern while her baits are out and your hull cuts her lines (her fish too, if
+  one's on): "Cut off.", the bait's gone, what's left lies out to be wound in.
+- **The tally**, top left under your own: a bar and the pounds aboard for each boat (yours on top, each in its
+  boat's colour, amber A, blue B), a pip for each day won, and a red dot blinking by theirs while they've a fish on.
+  When they hook up, your VHF squelch breaks.
+- **The end:** at dusk, or when the skipper heads in, both boats come in alongside the fish pier (the screen fades
+  up on them, A on its west side, B on its east), and the weigh-in: A's fish read off one at a time with the
+  scale's chain and clank, her total stamped, then B's, then who won and by how much ("You won by 66 lb"). Both
+  catches are sold as usual (boat A's money is the skipper's bank; boat B's is a bank of her own for the match).
+- **Best of three:** each day won is a pip; first to two wins the match ("The match: yours, 2-1"), and the next
+  trip starts a new one.
 - Limits: one chum slick on the sea at a time (whichever boat scooped last); the host runs both boats, so the host's
   machine works a little harder.
 - **Teach it:** the buttons say it all; nothing else on screen.

@@ -73,7 +73,9 @@ func _process(delta: float) -> void:
 	var stern := boat.global_transform * _transom
 	stern.y = float(ocean.call("height_at", stern)) + 0.05
 	_wake_in -= delta
-	if _wake_in <= 0.0:
+	# (the sea paints one trail: VS, the boat you're on; two boats' points in one trail would streak between them)
+	var follow: Variant = ocean.get("follow")
+	if _wake_in <= 0.0 and (follow == null or follow == boat):
 		_wake_in = clampf(2.5 / maxf(going, 0.5), 0.12, 0.6)
 		ocean.call("add_wake", stern, clampf(going / 8.0, 0.0, 1.0) if going > 0.3 else 0.0)
 	# the screws biting: white water boiling up astern of her

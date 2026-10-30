@@ -3,8 +3,9 @@ extends Node
 ## there's a second boat with her own rods, landing and fish hold; cross to her and she's the sea's boat (your camera,
 ## your screens, the sea round her). Head out and both go from the harbour, side by side, in the same kind of boat. A fish on one boat's rod
 ## is hers alone, and her things keep their notes off the other crew's screens. Schools turn up round one, the other
-## and between. Head in and both come in: the pounds aboard are weighed, and the winner's told by how much. Back to
-## one boat and it's the sea as it always was.
+## and between. Out there they meet (_meet): solid to each other, wakes (a wake bomb beam on, softer bow into it),
+## lines cut across a stern, the air horn. Head in and both come in alongside the fish pier: the fish read off, the
+## pounds weighed, the winner told by how much, a day to them. Back to one boat and it's the sea as it always was.
 ## Run: godot --headless --fixed-fps 30 --path . res://tests/vs_test.tscn
 
 const Sea := preload("res://sea/sea.gd")
@@ -81,19 +82,35 @@ func _ready() -> void:
 	b_hold.call("host_add", 60.0, 60.0)
 	b_hold.call("host_add", 50.0, 60.0)
 	await get_tree().create_timer(0.2).timeout
-	var tally := vs.get("_tally") as Label
-	_check(tally.visible and tally.text.contains("You  243 lb") and tally.text.contains("Them  220 lb"),
-			"the tally: yours and theirs (%s)" % tally.text.replace("\n", " / "))
-	# head in: both in, weighed
+	_check((vs.get("_race") as Control).visible and vs.shown == [243, 220],
+			"the tally, top left: yours and theirs (%s)" % [vs.shown])
+	await _meet(sea, vs, b, a_boat, b_boat)
+	# head in: both in alongside the fish pier, weighed a fish at a time
 	sea.fish_hold.call("head_in")
 	await get_tree().create_timer(0.3).timeout
 	_check(bool(a_hold.get("docked")) and bool(b_hold.get("docked")), "one heads in, both do")
 	_check(vs.result.size() == 2 and roundi(vs.result[0]) == 220 and roundi(vs.result[1]) == 243,
 			"weighed: A %s lb, B %s lb" % vs.result.map(func(x: float) -> int: return roundi(x)) if vs.result.size() == 2
 			else "weighed")
+	var pier := Vector2(sea.harbour.PIER_X, sea.landmarks.shore_z(sea.harbour.PIER_X))
+	var pa_in: Vector2 = a_boat.get("helm").get("at")
+	var pb_in: Vector2 = b_boat.get("helm").get("at")
+	_check(pa_in.distance_to(pier) < 80.0 and pb_in.distance_to(pier) < 80.0 and pa_in.x < pier.x and pb_in.x > pier.x,
+			"in alongside the fish pier, either side of it")
 	var verdict := vs.get("_verdict") as Label
+	_check(vs.weighing and not verdict.visible, "the fish read off first, the verdict after")
+	await get_tree().create_timer(2.6).timeout
+	var a_col := (vs.get("_board") as Node).get_node_or_null("Boat0")
+	_check(a_col != null and a_col.get_node("Fish").get_child_count() >= 1, "A's fish going up on the board")
+	while vs.weighing:
+		await get_tree().create_timer(0.2).timeout
+	await get_tree().create_timer(0.1).timeout
+	var b_col := (vs.get("_board") as Node).get_node_or_null("Boat1")
+	_check(b_col != null and b_col.get_node("Fish").get_child_count() == 2
+			and (b_col.get_node("Sum") as Label).text == "243 lb", "B's two read off, 243 lb")
 	_check(verdict.visible and verdict.text.begins_with("You won by 23 lb"), "the result: %s"
 			% verdict.text.replace("\n", " / "))
+	_check(vs.wins == [0, 1], "a day to B (%s)" % [vs.wins])
 	# A's crew would read it the other way round
 	vs.ask_team(0)
 	await get_tree().create_timer(0.2).timeout
@@ -106,6 +123,129 @@ func _ready() -> void:
 	_check(sea.boat == a_boat and sea.crew.me.boat == a_boat and a_hold.get("sea") == sea
 			and a_rods.get("sea") == sea, "and the sea's as it always was")
 	_done()
+
+
+## Out there, the two boats meeting: solid to each other (a bump shoves both apart, nobody passes through), a wake
+## rocks the other, running across her lines cuts them, and her horn rattles the other crew.
+## (Nobody's at either wheel: the host moves both, so the test sets their way on.)
+func _meet(sea: Sea, vs: Vs, b: Node, a_boat: Node3D, b_boat: Node3D) -> void:
+	var ha: Node = a_boat.get("helm")
+	var hb: Node = b_boat.get("helm")
+	var b_rods: Node = b.get("rods")
+	b_rods.call("host_clear")
+	# B lying still, A coming at her beam at 5 m/s
+	var at := Vector2(300.0, -600.0)
+	hb.set("at", at)
+	hb.set("heading", 0.0)
+	hb.set("speed", 0.0)
+	ha.set("at", at + Vector2(-20.0, 0.0))
+	ha.set("heading", -PI * 0.5)       # (bow to +x)
+	var closest := INF
+	for i in 150:
+		if i < 20:
+			ha.set("speed", 5.0)
+		await get_tree().process_frame
+		var c := Vs.Contact.contact(a_boat, b_boat, 1.0)
+		if not c.is_empty():
+			closest = minf(closest, float(c["gap"]))
+	var moved_b := (hb.get("at") as Vector2).distance_to(at)
+	_check(closest < 1.0 and closest > -0.6, "they meet, and don't pass through (overlap at most %.2f m)" % -closest)
+	_check(moved_b > 1.0, "the bump shoved B off (%.1f m)" % moved_b)
+	_check((ha.get("at") as Vector2).x < at.x - 3.0, "A's still on her own side (%.1f m short)"
+			% (at.x - (ha.get("at") as Vector2).x))
+	_check(float(vs.contact.get("_thud_t")) > -INF, "a thud")
+	_check((vs.contact.get("_rock_v") as Array).all(func(v: Vector2) -> bool: return v != Vector2.ZERO)
+			or ((b_boat.get("rock") as Vector2) != Vector2.ZERO and (a_boat.get("rock") as Vector2) != Vector2.ZERO),
+			"both knocked over")
+	# A runs past B at 9 m/s, 20 m off: her wake comes to B
+	for h: Node in [ha, hb]:
+		h.set("speed", 0.0)
+		h.set("drift", Vector2.ZERO)
+		h.set("spin", 0.0)
+	hb.set("at", at)
+	hb.set("heading", 0.0)
+	ha.set("at", at + Vector2(-60.0, 20.0))
+	ha.set("heading", -PI * 0.5)
+	var slapped := false
+	for i in 30 * 16:
+		ha.set("speed", 9.0)
+		hb.set("speed", 0.0)
+		await get_tree().process_frame
+		slapped = slapped or bool((vs.contact.get("_in_arm") as Array)[1])
+	_check(slapped, "A's wake comes to B and rocks her")
+	# the wake bomb: A ploughing past at 6 m/s, close, B beam on to it; then again with B's bow into it
+	_check(Vs.Contact.wake_power(6.0) > Vs.Contact.wake_power(10.0) * 1.5,
+			"the biggest wake's ploughing along, not flat out (%.2f to %.2f)"
+			% [Vs.Contact.wake_power(6.0), Vs.Contact.wake_power(10.0)])
+	for bow_in: bool in [false, true]:
+		await get_tree().create_timer(4.0).timeout
+		var before := int(vs.contact.bombs[1])
+		var most := 0.0
+		hb.set("at", at)
+		hb.set("heading", PI * 0.5 if bow_in else 0.0)      # (bow to -x, into it; or along A's way, beam on)
+		ha.set("at", at + Vector2(-15.0, 60.0))
+		ha.set("heading", 0.0)
+		for i in 30 * 18:
+			ha.set("speed", 6.0)
+			hb.set("speed", 0.0)
+			hb.set("at", at)
+			await get_tree().process_frame
+			most = maxf(most, (b_boat.get("rock") as Vector2).length())
+		ha.set("speed", 0.0)
+		var bombed := int(vs.contact.bombs[1]) > before
+		if bow_in:
+			_check(not bombed and most < 0.06, "her bow into it, she takes it softer (%.3f rad)" % most)
+		else:
+			_check(bombed and most > 0.06, "beam on, it buries her: a hard roll (%.3f rad), the sea in over her transom"
+					% most)
+	# B's baits out astern, and A runs across her stern through her lines
+	ha.set("speed", 0.0)
+	ha.set("at", at + Vector2(-150.0, 0.0))
+	hb.set("at", at)
+	hb.set("heading", 0.0)
+	for i in (b_rods.get("rods") as Array).size():
+		b_rods.call("_baited", i, float(sea.ocean.wave_time), false)
+		b_rods.call("host_cast", i)
+	await get_tree().create_timer(3.0).timeout
+	var out := (b_rods.get("rods") as Array).filter(func(r: Node) -> bool:
+		return not bool(r.get("bait_in")) and bool(r.get("baited")))
+	_check(out.size() >= 2, "B's baits out astern (%d)" % out.size())
+	ha.set("at", at + Vector2(-45.0, 25.0))      # (25 m astern of her middle: across her lines)
+	ha.set("heading", -PI * 0.5)
+	for i in 30 * 10:
+		ha.set("speed", 9.0)
+		hb.set("speed", 0.0)
+		hb.set("at", at)
+		await get_tree().process_frame
+	ha.set("speed", 0.0)
+	var cut := (b_rods.get("rods") as Array).filter(func(r: Node) -> bool: return not bool(r.get("baited")))
+	_check(cut.size() >= 2, "running across B's stern cut her lines (%d of %d)" % [cut.size(), out.size()])
+	await get_tree().create_timer(10.0).timeout
+	_check((b_rods.get("rods") as Array).all(func(r: Node) -> bool:
+		return bool(r.get("bait_in")) or bool(r.get("baited"))), "what's left wound in")
+	# the air horn: A's, 30 m off B with a fish on B's line
+	hb.set("at", at)
+	hb.set("heading", 0.0)
+	ha.set("at", at + Vector2(-30.0, 0.0))
+	b_rods.call("_baited", 0, float(sea.ocean.wave_time), false)
+	b_rods.call("host_cast", 0)
+	await get_tree().create_timer(2.5).timeout
+	b_rods.call("strike", 0, 150.0)
+	await get_tree().create_timer(1.0).timeout
+	var rod: Node = (b_rods.get("rods") as Array)[0]
+	var horn := a_boat.get_node_or_null("Horn")
+	_check(horn != null and b_boat.get_node_or_null("Horn") != null, "a horn on each console")
+	horn.call("interact", sea.crew.me)
+	var fight: Object = rod.get("fight")
+	_check(int(horn.get("blasts")) == 1 and float(rod.get("whip")) > 0.9 and fight != null
+			and float(fight.get("shock")) >= 0.1, "A's horn: a blast, and B's fish jerked on the line")
+	horn.call("interact", sea.crew.me)
+	_check(int(horn.get("blasts")) == 1, "not again straight away")
+	await get_tree().create_timer(0.1).timeout
+	_check(float(sea.crew.me.get("shake")) > 0.3, "B's crew rattled (%.2f)" % float(sea.crew.me.get("shake")))
+	await get_tree().create_timer(3.0).timeout
+	_check(bool(rod.get("hooked")), "and the fish still on")
+	b_rods.call("host_clear")
 
 
 func _done() -> void:
