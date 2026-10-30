@@ -1,10 +1,11 @@
 extends Node3D
-## An ocean to the horizon (Fathom): a confused sea, two swells crossing with chop from all round on
-## top, summed rolling waves (Gerstner: rounded troughs, sharp crests, whitecaps on the crests), never
-## tidy: rough patches drift through with the wind and a slow warp bends the crest lines. Drawn by
-## ocean.gdshader on a polar grid that's fine near this node (the rig) and coarse out to the horizon.
-## The same waves are worked out here, so anything can ask how high the sea is at a point right now
-## (`height_at`): a bobber riding the swell, spray where a crest hits a leg. `weather` sets how rough
+## An ocean to the horizon: a real sea's spectrum of waves (sea/ocean_spectrum.gd), the long swell down to the
+## ripples, drawn whole by an FFT on the GPU (sea/ocean_fft.gd, the way Sea of Thieves does it): sharp crests, wide
+## troughs, whitecaps where the crests are squeezed till they break. Never tidy: the swell comes in sets, rough patches
+## drift through with the wind, and it dies away in the shallows and behind the breakwaters (the shelter). Drawn by
+## ocean.gdshader on a polar grid that's fine near this node and coarse out to the horizon. The sea's biggest waves
+## are worked out here too, as rolling waves, so anything can ask how high the sea is at a point right now
+## (`height_at`): the boat riding the swell, the fish, the line. `weather` sets how rough
 ## it is: 0 calm, 0.5 the usual rain, 1 a storm; on a planet (planet.gd up the tree) it follows
 ## tonight's weather (`weathers`, a storm building through the night) and the planet's wind. The
 ## waves run on `wave_time`: the night clock while a night's on (every peer shares it, so everyone
@@ -19,17 +20,22 @@ const NIGHT_LENGTH := 15.0 * 60.0
 const SHADER := preload("res://sea/ocean.gdshader")
 const NOISE := preload("res://sea/textures/sky_noise.png")
 const G := 9.81
-## The sea is a spread of many waves (a spectrum), not a few tidy ones: lengths scattered so none line up, directions
-## fanned round the wind, phases at random. Close lengths beat against each other, so the swell comes in sets (a few
-## big ones, then a lull) and the chop never repeats. Made once from a fixed seed: every peer gets the same sea.
-## The swell: long waves with the wind and a cross swell; shares of its height (their squares sum to SWELL_POWER).
-const SWELL_N := 10
-const SWELL_LENGTHS := Vector2(70.0, 240.0)
-const SWELL_POWER := 0.2374
-## The chop: short waves from all round, more of them with the wind; metres at chop 1 (squares sum to CHOP_POWER).
-const CHOP_N := 18
-const CHOP_LENGTHS := Vector2(2.6, 20.0)
-const CHOP_POWER := 0.78
+## The sea is a spectrum (sea/ocean_spectrum.gd: Tessendorf's FFT ocean, three tiles from the long swell to the
+## ripples), drawn whole on the GPU (sea/ocean_fft.gd). Worked out here, for height_at: the biggest SWELL_N of the swell
+## tile's waves and CHOP_N of the chop's, as rolling waves (Gerstner); the shader falls back to the first of them where
+## there's no GPU sea. Each tile's height is its significant height (m) for the weather: the swell's from `swell`
+## (crest to trough) times SWELL_HS, the chop's and the ripples' from the chop.
+const Spectrum := preload("res://sea/ocean_spectrum.gd")
+const Fft := preload("res://sea/ocean_fft.gd")
+const SWELL_N := 48
+const CHOP_N := 24
+const SWELL_HS := 0.55
+const RIPPLE_HS := Vector2(0.12, 0.3)
+## How sharp each tile's crests are: its water's typical squeeze, as a share of the sea's steepness (`_steep`, the
+## weather's). A few times that where the waves line up, and the crest folds over and breaks (the foam).
+const TILE_STEEP := Vector3(0.12, 0.3, 0.16)
+## The shader's arrays hold 32: where there's no GPU sea it draws this many of the swell and the rest of the chop.
+const SHADER_SWELL := 20
 const SEA_SEED := 20261029
 ## Calm, the usual rain, a storm: (swell crest to trough m, chop, steepness 0..1, whitecaps 0..1).
 const CALM := [3.2, 0.5, 0.5, 0.1]
@@ -118,10 +124,10 @@ var gusty := 0.0
 ## The storm as it was (no white sea): the planet's `tame`, or a lab's own.
 var tame := false
 var _forced_at := -100.0
-var _waves: Array[PackedFloat32Array] = []  # each: dir x, dir z, k, amplitude, omega, phase
-## [wavelength m, share or amplitude, direction off the wind (degrees), phase] (see SWELL_N and CHOP_N)
-var _swell_spec: Array[PackedFloat32Array] = []
-var _chop_spec: Array[PackedFloat32Array] = []
+var _waves: Array[PackedFloat32Array] = []  # each: dir x, dir z, k, amplitude, omega, phase, sharpness (the swell's first)
+var _spectrum: Spectrum
+var _spectrum_wind := Vector2.ZERO
+var _fft: Fft
 var _swirl_r := PackedFloat32Array()
 var _swirl_g := PackedFloat32Array()
 var _swirl_size := 128
@@ -149,7 +155,6 @@ func _ready() -> void:
 	_mat.set_shader_parameter("noise", NOISE)
 	_mat.set_shader_parameter("swirl", NOISE)
 	_make_spectrum()
-	_mat.set_shader_parameter("swell_count", SWELL_N)
 	# the noise, here too, so height_at works the patches and the warp out the same way
 	var img := NOISE.get_image()
 	if img.is_compressed():
@@ -204,6 +209,8 @@ func _process(delta: float) -> void:
 		_update_waves()
 	wave_time = _wave_clock(delta)
 	_mat.set_shader_parameter("wave_time", wave_time)
+	if _fft != null:
+		_fft.update(wave_time)
 	if _planet != null:
 		gusty = 1.0 if String(_planet.get("weather")) == "storm" else 0.0
 		var pin := float(_planet.get("fury_override"))
@@ -371,7 +378,6 @@ func _displace(p: Vector2, t: float, drift: Vector2, from_middle := Vector2.ZERO
 	var g := 0.35 + 1.3 * _swirl(_swirl_r, p / 70.0 - drift)
 	g *= 0.45 + 1.1 * _swirl(_swirl_g, p / STRETCH_SCALE + Vector2(0.53, 0.19) - drift * (70.0 / STRETCH_SCALE))
 	var sw := (0.85 + 0.3 * _swirl(_swirl_g, p / 180.0 + Vector2(0.31, 0.77))) 			* (0.3 + 1.4 * _swirl(_swirl_r, p / SETS_SCALE + Vector2(0.71, 0.43) - _sets_at(t)))
-	var wp := (_swirl(_swirl_r, p / 120.0 + Vector2(0.37, 0.11)) - 0.5) * 3.8
 	var sh := _shelter_at(p)
 	g *= sh.y
 	sw *= sh.x
@@ -379,10 +385,10 @@ func _displace(p: Vector2, t: float, drift: Vector2, from_middle := Vector2.ZERO
 		var w := _waves[i]
 		var swell_wave := i < SWELL_N
 		var a: float = w[3] * (sw if swell_wave else g)
-		var th: float = w[2] * (w[0] * p.x + w[1] * p.y) - w[4] * t + w[5] + wp * (1.0 if swell_wave else 0.5)
+		var th: float = w[2] * (w[0] * p.x + w[1] * p.y) - w[4] * t + w[5]
 		var c := cos(th)
-		out.x += _q * a * w[0] * c
-		out.z += _q * a * w[1] * c
+		out.x += w[6] * a * w[0] * c
+		out.z += w[6] * a * w[1] * c
 		out.y += a * sin(th)
 	return out * (1.0 - smoothstep(FADE.x, FADE.y, from_middle.length())) * _calm_at(p)
 
@@ -434,25 +440,41 @@ func _update_waves() -> void:
 	var chop := lerpf(a[1], b[1], f)
 	_steep = lerpf(a[2], b[2], f)
 	var whitecaps := lerpf(a[3], b[3], f)
-	var base := atan2(wind.y, wind.x)
+	if wind != _spectrum_wind:
+		_make_spectrum()
+	var hs := Vector3(swell * SWELL_HS, chop, lerpf(RIPPLE_HS.x, RIPPLE_HS.y, weather))
 	_waves.clear()
-	for w in _swell_spec:
-		_waves.append(_wave(w[0], swell * 0.5 * w[1], base + deg_to_rad(w[2]), w[3]))
-	for w in _chop_spec:
-		_waves.append(_wave(w[0], w[1] * chop, base + deg_to_rad(w[2]), w[3]))
-	# one steepness for all: sharp crests, but never looping over
-	var sum := 0.0
+	for c in 2:
+		for w: Array in _spectrum.biggest[c]:
+			var kv := Vector2(float(w[1]), float(w[2]))
+			var k := kv.length()
+			# (the spectrum's wave 2|h0| cos(k.x + w t + phase) going toward -k, as a rolling wave: a sin(k dir.x - w t + p))
+			_waves.append(_wave(TAU / k, float(w[0]) * hs[c], atan2(-kv.y, -kv.x), PI * 0.5 - float(w[3])))
+	# each tile's crests as sharp as its share of the weather's steepness, every wave in it counted (the rolling waves
+	# here get their tile's: the GPU sea and these are the same waves)
+	var q := Vector3.ZERO
+	for c in 3:
+		q[c] = _steep * TILE_STEEP[c] / maxf(_spectrum.steepness[c] * hs[c], 0.0001)
 	for i in _waves.size():
-		sum += _waves[i][2] * _waves[i][3] * (1.15 if i < SWELL_N else 1.65)
-	_q = _steep / maxf(sum, 0.0001)
+		var w := _waves[i]
+		w.append(q[0] if i < SWELL_N else q[1])
+		_waves[i] = w
+	_q = q[0]
 	var wa := PackedVector4Array()
 	var wb := PackedVector4Array()
-	for w: PackedFloat32Array in _waves:
+	for i in _waves.size():
+		if (i < SWELL_N and i >= SHADER_SWELL) or wa.size() >= 32:
+			continue
+		var w := _waves[i]
 		wa.append(Vector4(w[0], w[1], w[2], w[3]))
-		wb.append(Vector4(w[4], w[5], _q, 0.0))
+		wb.append(Vector4(w[4], w[5], w[6], 0.0))
 	_mat.set_shader_parameter("waves", wa)
 	_mat.set_shader_parameter("waves_b", wb)
-	_mat.set_shader_parameter("wave_count", _waves.size())
+	_mat.set_shader_parameter("wave_count", wa.size())
+	_mat.set_shader_parameter("swell_count", mini(SHADER_SWELL, SWELL_N))
+	_mat.set_shader_parameter("fft_gain", hs)
+	if _fft != null:
+		_fft.chops = PackedFloat32Array([q[0], q[1], q[2]])
 	_mat.set_shader_parameter("steep", _steep)
 	_mat.set_shader_parameter("swell", swell)
 	_mat.set_shader_parameter("whitecaps", whitecaps)
@@ -465,34 +487,24 @@ func _update_waves() -> void:
 	_mat.set_shader_parameter("wind", wind)
 
 
-## The sea's waves, from SEA_SEED: lengths spread evenly on a log scale and jittered, heights rising with length.
+## The sea's spectrum, from SEA_SEED and the wind (made again if the wind ever changes), and the GPU sea drawing it.
 func _make_spectrum() -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = SEA_SEED
-	_swell_spec = _spread(rng, SWELL_N, SWELL_LENGTHS, SWELL_POWER, 1.3, true)
-	_chop_spec = _spread(rng, CHOP_N, CHOP_LENGTHS, CHOP_POWER, 0.9, false)
-
-
-static func _spread(rng: RandomNumberGenerator, n: int, lengths: Vector2, power: float, rise: float,
-		swell: bool) -> Array[PackedFloat32Array]:
-	var out: Array[PackedFloat32Array] = []
-	var sq := 0.0
-	for i in n:
-		var f := (i + rng.randf_range(0.15, 0.85)) / n
-		var length := lengths.x * pow(lengths.y / lengths.x, f)
-		var angle := 0.0
-		if swell:
-			# most run with the wind, give or take; every third is the cross swell
-			angle = rng.randf_range(60.0, 100.0) * (1.0 if rng.randf() < 0.5 else -1.0) if i % 3 == 2 \
-					else rng.randfn(0.0, 14.0)
-		else:
-			angle = clampf(rng.randfn(0.0, 70.0), -170.0, 170.0)
-		var a := pow(length / lengths.y, rise) * rng.randf_range(0.7, 1.3)
-		sq += a * a
-		out.append(PackedFloat32Array([length, a, angle, rng.randf_range(0.0, TAU)]))
-	for w in out:
-		w[1] *= sqrt(power / sq)
-	return out
+	_spectrum_wind = wind
+	_spectrum = Spectrum.new(SEA_SEED, wind, PackedInt32Array([SWELL_N, CHOP_N, 0]))
+	if _fft != null:
+		_fft.free_all()
+	_fft = Fft.new(_spectrum)
+	_fft.pace = PACE
+	if not _fft.ok():
+		_fft = null
+	_mat.set_shader_parameter("fft_on", _fft != null)
+	if _fft != null:
+		for c in 3:
+			_mat.set_shader_parameter("fft_a%d" % c, _fft.tex_a[c])
+			_mat.set_shader_parameter("fft_b%d" % c, _fft.tex_b[c])
+		_mat.set_shader_parameter("fft_size", Vector3(Spectrum.CASCADES[0]["size"], Spectrum.CASCADES[1]["size"],
+				Spectrum.CASCADES[2]["size"]))
+		_mat.set_shader_parameter("fft_n", float(Spectrum.N))
 
 
 static func _wave(length: float, amplitude: float, angle: float, phase: float) -> PackedFloat32Array:

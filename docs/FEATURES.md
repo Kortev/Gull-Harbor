@@ -306,9 +306,13 @@ rules.
   tall blow you can see from far off, then flukes up and down for over a minute) or a pod of dolphins leaping
   through (only close enough to see the splashes). A lead to bait, not a promise of bluefin: bait-only flocks have
   them too. The spotter names what you're looking at.
-- **A sea with depth:** a long swell runs with the wind in ridges that crowd together toward the horizon, coming in
-  sets (wide bands of bigger swell travelling downwind, then a lull), with the chop short enough to fade into texture
-  with distance. Wide rough and smooth stretches and cloud shadows go over the water, so far off it's never one even sheet.
+- **A real sea (an FFT ocean, the way Sea of Thieves makes its sea):** a wave spectrum, the long swell down to the
+  ripples, in three tiles of 256 x 256 waves each (1,100 m, 233 m and 47 m, so no tile's repeat ever shows), summed
+  on the GPU every frame (sea/ocean_spectrum.gd, sea/ocean_fft.gd). Sharp crests and wide troughs; **whitecaps** where
+  the chop's crests are squeezed till they fold over, lacy and thinning down the face, a few flecks on a sunny day,
+  breaking crests everywhere in heavy weather. The swell still comes in sets; wide rough and smooth stretches and
+  cloud shadows go over the water. The boat, the fish and the lines ride the same sea: its 72 biggest waves worked
+  out on the CPU (everything but the centimetre ripples). Without a GPU sea (headless), the shader draws those.
 - **Haze:** the land fades into the sky with distance and with the weather: clear on a sunny day, greyed back in
   rain, gone in fog (its lights carry further than the land does).
 - **The shore and the rig stop the boat** ("Aground! Back her off (S)"). Schools never turn up on land.

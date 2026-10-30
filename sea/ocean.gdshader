@@ -78,6 +78,21 @@ uniform float hull_floor = 0.35;
 uniform float hull_length = 14.0;
 uniform float hull_beam = 1.1163;
 
+// The FFT sea (sea/ocean_fft.gd): three tiles of the spectrum, each two textures (a: sideways x, z, height, slope x;
+// b: slope z, the squeeze dDx/dx, dDz/dz, dDx/dz), each tile's size (m) and how high (its significant height, m).
+// Off (no RenderingDevice): the rolling waves above, which are this same sea's biggest waves.
+uniform bool fft_on = false;
+uniform sampler2D fft_a0 : filter_linear, repeat_enable;
+uniform sampler2D fft_a1 : filter_linear, repeat_enable;
+uniform sampler2D fft_a2 : filter_linear, repeat_enable;
+uniform sampler2D fft_b0 : filter_linear, repeat_enable;
+uniform sampler2D fft_b1 : filter_linear, repeat_enable;
+uniform sampler2D fft_b2 : filter_linear, repeat_enable;
+uniform vec3 fft_size = vec3(1100.0, 233.0, 47.0);
+uniform vec3 fft_gain = vec3(1.0);
+uniform float fft_n = 256.0;
+uniform float fft_crest = 1.3;
+
 varying vec3 local;
 varying vec3 moved;
 
@@ -146,6 +161,17 @@ float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
 }
 
+// How much of each tile's sea is here: the swell's sets and the chop's rough patches, the shelter of the coast.
+vec3 tile_gain(vec2 q) {
+	vec2 sh = shelter_at(q);
+	float g = group_at(q) * sh.y;
+	return vec3(swell_at(q) * sh.x * fft_gain.x, g * fft_gain.y, g * fft_gain.z);
+}
+
+vec2 tile_uv(vec2 q, float size) {
+	return q / size + 0.5 / fft_n;
+}
+
 void vertex() {
 	vec3 p = VERTEX;
 	local = p;
@@ -156,16 +182,22 @@ void vertex() {
 	vec2 sh = shelter_at(wq);
 	float g = group_at(wq) * sh.y;
 	float sw = swell_at(wq) * sh.x;
-	float wp = warp_at(wq);
+	if (fft_on) {
+		vec3 tg = tile_gain(wq);
+		vec4 a0 = textureLod(fft_a0, tile_uv(wq, fft_size.x), 0.0);
+		vec4 a1 = textureLod(fft_a1, tile_uv(wq, fft_size.y), 0.0);
+		vec4 a2 = textureLod(fft_a2, tile_uv(wq, fft_size.z), 0.0);
+		d = tg.x * a0.xzy + tg.y * a1.xzy + tg.z * a2.xzy;
+	}
 	for (int i = 0; i < 32; i++) {
-		if (i >= wave_count) {
+		if (i >= wave_count || fft_on) {
 			break;
 		}
 		vec4 w = waves[i];
 		vec4 b = waves_b[i];
 		bool sl = i < swell_count;
 		float a = w.w * (sl ? sw : g);
-		float th = w.z * dot(w.xy, wq) - b.x * wave_time + b.y + wp * (sl ? 1.0 : 0.5);
+		float th = w.z * dot(w.xy, wq) - b.x * wave_time + b.y;
 		d.xz += b.z * a * w.xy * cos(th);
 		d.y += a * sin(th);
 	}
@@ -204,16 +236,39 @@ void fragment() {
 	vec2 sh = shelter_at(q);
 	float g = group_at(q) * sh.y;
 	float sw = swell_at(q) * sh.x;
-	float wp = warp_at(q);
+	if (fft_on) {
+		// every wave there is, per pixel: the height, the slope, and how squeezed the water is (1 - the Jacobian:
+		// where it's squeezed to nothing the crest is breaking)
+		vec3 tg = tile_gain(q);
+		// (the small tiles fade out where a pixel covers more than they can show: no sparkle far off)
+		float fw = length(fwidth(q));
+		tg.z *= 1.0 - smoothstep(0.08, 0.5, fw);
+		tg.y *= 1.0 - smoothstep(0.6, 3.0, fw);
+		vec4 a0 = texture(fft_a0, tile_uv(q, fft_size.x));
+		vec4 a1 = texture(fft_a1, tile_uv(q, fft_size.y));
+		vec4 a2 = texture(fft_a2, tile_uv(q, fft_size.z));
+		vec4 b0 = texture(fft_b0, tile_uv(q, fft_size.x));
+		vec4 b1 = texture(fft_b1, tile_uv(q, fft_size.y));
+		vec4 b2 = texture(fft_b2, tile_uv(q, fft_size.z));
+		y = tg.x * a0.z + tg.y * a1.z + tg.z * a2.z;
+		slope = vec2(tg.x * a0.w + tg.y * a1.w + tg.z * a2.w, tg.x * b0.x + tg.y * b1.x + tg.z * b2.x);
+		// the chop's crests break (thin, lacy, where they're squeezed hardest); the swell's broad tops only help them
+		float jxx = 1.0 + tg.y * b1.y + tg.z * b2.y;
+		float jzz = 1.0 + tg.y * b1.z + tg.z * b2.z;
+		float jxz = tg.y * b1.w + tg.z * b2.w;
+		float swell_squeeze = -tg.x * (b0.y + b0.z);
+		// (scaled to read like the rolling waves' crest measure: where the tiles' crests line up it goes past 1)
+		jac = (1.0 - (jxx * jzz - jxz * jxz) + 0.45 * swell_squeeze) * fft_crest;
+	}
 	for (int i = 0; i < 32; i++) {
-		if (i >= wave_count) {
+		if (i >= wave_count || fft_on) {
 			break;
 		}
 		vec4 w = waves[i];
 		vec4 b = waves_b[i];
 		bool sl = i < swell_count;
 		float a = w.w * (sl ? sw : g);
-		float th = w.z * dot(w.xy, q) - b.x * wave_time + b.y + wp * (sl ? 1.0 : 0.5);
+		float th = w.z * dot(w.xy, q) - b.x * wave_time + b.y;
 		float s = sin(th);
 		y += a * s;
 		jac += b.z * w.z * a * s;
@@ -239,8 +294,13 @@ void fragment() {
 	// whitecaps on the crests
 	float edge = 1.0 - 0.55 * whitecaps - 0.12 * spume - 0.2 * white;
 	// (soft-edged, a little lacy: painted foam, not hard pixels)
-	float foam = mix(smoothstep(edge - 0.06, edge + 0.06, crest + (grain - 0.5) * 0.3),
+	// (on the FFT sea, broken up more: lace, thick on the very crest and thinning down its face)
+	float lace = fft_on ? 0.75 : 0.3;
+	float foam = mix(smoothstep(edge - 0.06, edge + 0.06, crest + (grain - 0.5) * lace),
 			smoothstep(edge - 0.1, edge + 0.2, crest) * 0.6, far) * step(0.01, whitecaps);
+	if (fft_on) {
+		foam *= mix(0.55, 0.95, smoothstep(edge, edge + 0.5, crest));
+	}
 	// in a blow, streaks of foam laid along the wind
 	vec2 wd = normalize(wind);
 	vec2 along = vec2(dot(qk, wd), dot(qk, vec2(-wd.y, wd.x)));
