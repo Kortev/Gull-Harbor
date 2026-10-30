@@ -148,6 +148,7 @@ func _ready() -> void:
 	var sonar := Sonar.new()
 	sonar.name = "Sonar"
 	sonar.schools = schools
+	sonar.sea = self
 	add_child(sonar)
 	sonar.attach(boat)
 	var radar := Radar.new()

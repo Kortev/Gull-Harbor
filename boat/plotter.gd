@@ -154,6 +154,12 @@ func _contour_z(i: int, x: float, shore: float) -> float:
 	return shore - off
 
 
+## How deep it is (m) at p (world x, z), as the chart has it (tuna/sonar.gd reads it too).
+func depth_at(p: Vector2) -> float:
+	var lm: Node = sea.get("landmarks")
+	return _depth_off(float(lm.call("shore_z", p.x)) - p.y) if lm else 60.0
+
+
 ## How deep it is (m) this far off the water's edge: between the contours.
 func _depth_off(off: float) -> float:
 	var last := [0.0, 0.0]
@@ -308,9 +314,7 @@ func _draw_chart() -> void:
 	c.draw_rect(Rect2(0, 0, W, 30), BAR)
 	var knots := absf(float(helm.get("speed"))) * 1.944
 	var deg := fposmod(rad_to_deg(-hd), 360.0)
-	var under := 0.0
-	if lm != null:
-		under = _depth_off(float(lm.call("shore_z", at.x)) - at.y)
+	var under := depth_at(at)
 	_readout(font, 10, "SOG", "%.1f" % knots, "kn")
 	_readout(font, 170, "HDG", "%03d" % roundi(deg) + "°", "T")
 	_readout(font, 330, "DEPTH", "%d" % roundi(under), "m")
