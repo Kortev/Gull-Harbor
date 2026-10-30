@@ -1,8 +1,9 @@
 """The small boat: a weathered 28 ft (8.5 m) center console for one or two.
 
 An open fishing skiff: a deep-V glass hull, low sides you can gaff a fish over, a console amidships under a T-top with
-the wheel and the gauges on its aft face (a step from the rods; no sonar: a cheap boat. Her radar's bar and the radar
-and plotter screens on the console are built in Godot, boat/boat.gd from boat/kinds.gd), a leaning post behind it, a raised casting
+the wheel and the gauges on its aft face and an electronics box on top, the radar and the chart plotter flush in its
+raked face (a step from the rods; no sonar: a cheap boat. Her radar's bar is built in Godot, boat/boat.gd from
+boat/kinds.gd), a leaning post behind it, a raised casting
 deck at the bow, twin outboards hung on the transom, four rod holders in the gunwales (the two aft corners fish), a
 fish box in the deck forward of the console and a live well in the transom.
 
@@ -108,8 +109,8 @@ TILES = {
     "bottom": (2.0, 2.0), "boot": (2.0, 0.5), "topsides": (2.0, 2.0), "rubrail": (1.0, 1.0),
     "cap": (1.0, 1.0), "liner": (2.0, 2.0), "deck": (2.0, 2.0), "house": (2.0, 2.0), "inside": (2.0, 2.0),
     "dash": (1.0, 1.0), "glass": (1.0, 1.0), "steel": (1.0, 1.0), "rubber": (1.0, 1.0), "hatch": (1.0, 1.0),
-    "lamp": (0.5, 0.5), "sonar": (1.0, 1.0), "radar_scope": (1.0, 1.0), "gauge": (1.0, 1.0),
-    "rope": (0.5, 0.5), "buoy": (1.0, 1.0), "wood": (1.0, 1.0), "canvas": (1.0, 1.0), "motor": (1.0, 1.0),
+    "lamp": (0.5, 0.5), "sonar": (1.0, 1.0), "radar_scope": (1.0, 1.0), "plotter": (1.0, 1.0),
+    "gauge": (1.0, 1.0), "rope": (0.5, 0.5), "buoy": (1.0, 1.0), "wood": (1.0, 1.0), "canvas": (1.0, 1.0), "motor": (1.0, 1.0),
     "collider": (4.0, 4.0),
 }
 
@@ -134,6 +135,7 @@ def materials():
     m("lamp", "lamp_warm", emit=1.6)
     m("sonar", "sonar", emit=1.2)
     m("radar_scope", "radar_scope", emit=1.2)
+    m("plotter", "radar_scope", emit=1.2)          # (boat/plotter.gd paints it)
     m("gauge", "gauge", emit=0.4)
     m("rope", paint=(0.92, 0.76, 0.28), roughness=0.9)
     m("buoy", paint=(0.95, 0.35, 0.08), roughness=0.5)
@@ -244,7 +246,8 @@ def console(m, col):
     # the windscreen on top, raked aft
     face(m, [(-w, y1 - 0.3, CON_H), (w, y1 - 0.3, CON_H), (w, y1 - 0.55, CON_H + 0.45), (-w, y1 - 0.55, CON_H + 0.45)],
          "glass", (0, 1, 0.5))
-    # the dash: the aft face's top, sloped back toward the skipper (bare: the screens stand on the console top)
+    electronics(m, col)
+    # the dash: the aft face's top, sloped back toward the skipper
     dz0, dz1 = CON_H - 0.42, CON_H
     face(m, [(-w, y0, dz0), (w, y0, dz0), (w, y0 + 0.28, dz1), (-w, y0 + 0.28, dz1)], "dash", (0, -1, 1))
     for x in (-0.42, -0.2):
@@ -279,6 +282,43 @@ def console(m, col):
     # nav lights on the console's flanks
     for sx, mat in ((1, "green_light"), (-1, "red_light")):
         m.box((sx * CON_W - 0.02 * sx, 0.35, CON_H - 0.2), (sx * CON_W + 0.04 * sx, 0.5, CON_H - 0.12), mat)
+
+
+def electronics(m, col):
+    """The electronics box on the console top, its whole width, its face raked back at the skipper's eyes over the
+    wheel: a dark panel set in the gelcoat, the radar (port, square) and the chart plotter (starboard) flush in it, a
+    sun hood along the top. tuna/radar.gd and boat/plotter.gd find the screens by their materials."""
+    w = CON_W
+    a_y, b_y, top = CON_Y0 + 0.03, CON_Y0 + 0.39, CON_H + 0.3     # the face: its foot (aft) and its top edge
+    back = b_y + 0.06
+    # the gelcoat box: the raked face, a flat strip on top, the back and the two triangular cheeks
+    face(m, [(-w, a_y, CON_H), (w, a_y, CON_H), (w, b_y, top), (-w, b_y, top)], "house", (0, -1, 1.2))
+    face(m, [(-w, b_y, top), (w, b_y, top), (w, back, top), (-w, back, top)], "house", (0, 0, 1))
+    face(m, [(-w, back, CON_H), (w, back, CON_H), (w, back, top), (-w, back, top)], "house", (0, 1, 0))
+    for sx in (1, -1):
+        face(m, [(sx * w, a_y, CON_H), (sx * w, back, CON_H), (sx * w, back, top), (sx * w, b_y, top)], "house",
+             (sx, 0, 0))
+    col.box((-w, a_y, CON_H), (w, back, top), "collider")
+    # along the face: s across (port to starboard), t up the slope (0 at its foot, 1 at its top), lifted off it by d
+    up = Vector((0.0, b_y - a_y, top - CON_H))
+    n = Vector((0.0, -(top - CON_H), b_y - a_y)).normalized()
+
+    def at(x, t, d):
+        return tuple(Vector((x, a_y, CON_H)) + up * t + n * d)
+
+    def quad(x0, x1, t0, t1, d, mat, uvs=None):
+        pts = [at(x0, t0, d), at(x1, t0, d), at(x1, t1, d), at(x0, t1, d)]
+        if uvs:
+            m.face(pts, mat, uvs=uvs)
+        else:
+            face(m, pts, mat, tuple(n))
+
+    quad(-w + 0.04, w - 0.04, 0.05, 0.95, 0.003, "dash")         # the black panel the glass sits in
+    flat = [(0, 0), (1, 0), (1, 1), (0, 1)]
+    quad(-w + 0.07, -0.1, 0.11, 0.89, 0.006, "radar_scope", flat)
+    quad(-0.04, w - 0.07, 0.11, 0.89, 0.006, "plotter", flat)
+    # the sun hood over its top edge
+    m.box((-w - 0.01, b_y - 0.08, top), (w + 0.01, back + 0.01, top + 0.025), "house")
 
 
 def wheel_obj(coll):
