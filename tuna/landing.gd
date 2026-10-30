@@ -548,7 +548,6 @@ func host_alongside(i: int, kg: float, bearing: float, hook_t: float) -> void:
 @rpc("authority", "call_local", "reliable")
 func _alongside(i: int, kg: float, side: float, hook_t: float) -> void:
 	_add(i, kg, side, hook_t)
-	_note("Boatside!  %d kg" % roundi(kg))
 
 
 ## A fish up alongside, off rod i. `on_rod`: still on the line (not yet stuck), so the rod shows it.

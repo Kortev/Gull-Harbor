@@ -301,7 +301,7 @@ func _spook(id: int, until: float) -> void:
 			s.spooked_until = until
 			if fresh and sea.get("crew") != null:
 				((sea.get("crew") as Node).get("hud") as Node).call("notify",
-						"Too fast: they've gone deep")
+						"Gone deep")
 
 
 ## Host: a new school somewhere round her, cruising its own way.

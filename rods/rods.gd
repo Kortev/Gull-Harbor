@@ -428,8 +428,6 @@ func _line(i: int) -> void:
 	if i < 0 or i >= rods.size():
 		return
 	var r := rods[i]
-	if r.tangled >= 0:
-		_hud_note("Cleared the %s line!" % _name_of(i))
 	if not r.bait_in:
 		Sfx.play_point(self, r.global_position, "dock.reel", 0.9, 1.2)
 	r.bait_in = true
@@ -462,7 +460,7 @@ func _tangle(i: int, with_rod: int) -> void:
 		return
 	rods[i].tangled = with_rod
 	Sfx.play_point(self, rods[i].global_position, "kit.jolt")
-	_hud_note("%s line tangled" % _name_of(i).capitalize())
+	_hud_note("Tangled")
 
 
 func _name_of(i: int) -> String:
@@ -539,7 +537,6 @@ func _strike(i: int, kg: float, t: float, bearing: float, seed_value: int) -> vo
 	r.fight = null
 	r.wear = 0.0
 	r.set_meta("seed", seed_value)
-	_hud_note("Fish on!")
 
 
 @rpc("authority", "call_local", "reliable")
@@ -875,6 +872,10 @@ func _process(delta: float) -> void:
 			todo = str((sea.get("fish_hold") as Node).call("hint"))
 		if todo.is_empty() and not bool((sea.get("fish_hold") as Node).get("docked")):
 			todo = hint()
+		# (how-to words show the first couple of times; then you know)
+		var tips: Node = sea.get("tips")
+		if tips != null:
+			todo = str(tips.call("teach", todo))
 		hud.call("fight", todo, 0.0)
 	# the captain's plotter: where each fish on is, round the boat
 	var fish := []

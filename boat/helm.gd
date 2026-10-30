@@ -136,7 +136,9 @@ func _set_captain(who: int, at_heading: float) -> void:
 		p.call("place", spot.origin + Vector3(0, 0.05, 0), 0.0)
 		if p.is_multiplayer_authority():
 			var hud: Node = boat.get("sea").get("crew").get("hud")
-			hud.call("notify", "W/S throttle   A/D steer")
+			var tips: Node = boat.get("sea").get("tips")
+			var keys := "W/S throttle   A/D steer"
+			hud.call("notify", str(tips.call("teach_once", keys)) if tips != null else keys)
 
 
 @rpc("authority", "call_remote", "reliable")

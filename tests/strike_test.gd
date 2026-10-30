@@ -74,7 +74,7 @@ func _ready() -> void:
 	_hold("use_primary", false)
 	sea.rods.bot_aim = Vector3(NAN, 0.0, 0.0)
 	_check(moves.has("run") and moves.size() >= 3, "it fought: %s" % ", ".join(moves.keys()))
-	_check(rod.alongside and sea.landing.fish.has(rod.index) and sea.crew.hud._note.text.begins_with("Boatside"),
+	_check(rod.alongside and sea.landing.fish.has(rod.index),
 			"fought it to the boat, up alongside for the harpoon (%.0f s): %s" % [w, sea.crew.hud._note.text])
 	_done()
 

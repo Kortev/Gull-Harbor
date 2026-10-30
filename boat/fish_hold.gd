@@ -156,7 +156,7 @@ func _process(delta: float) -> void:
 	var t := day_fraction()
 	if t > 0.85 and _dusk_noted < 1:
 		_dusk_noted = 1
-		_note("Sun's going down   Esc to head in")
+		_note("Sun's going down")
 	_tally()
 
 

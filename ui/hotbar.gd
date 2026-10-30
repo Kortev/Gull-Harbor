@@ -1,12 +1,16 @@
 extends Control
 ## The hotbar, bottom middle: your kit (crew/kit.gd) as five little pictures, no words; what's in your hands is lit.
 ## Over it, while you wind up a throw or a cast, a bar filling (how hard it'll go). crew/hands.gd owns it.
+## It's only there while you're picking: a few seconds after you change what's in your hands it fades away (to a
+## ghost while you hold something, gone with empty hands), and comes back on the next pick.
 
 const Kit := preload("res://crew/kit.gd")
 const CELL := 46.0
 const GAP := 6.0
 
 var hands: Node               # crew/hands.gd
+var _held := "?"
+var _shown := 0.0             # s left fully shown
 
 
 func _init() -> void:
@@ -17,6 +21,18 @@ func _init() -> void:
 	offset_top = -64.0
 	offset_bottom = -64.0
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+func _process(delta: float) -> void:
+	if hands == null:
+		return
+	var held := str(hands.get("item"))
+	if held != _held:
+		_held = held
+		_shown = 2.5
+	_shown -= delta
+	var want := 1.0 if _shown > 0.0 else (0.3 if held != "" else 0.0)
+	modulate.a = move_toward(modulate.a, want, delta * (4.0 if want > modulate.a else 1.5))
 
 
 func _draw() -> void:
@@ -44,6 +60,7 @@ func _draw() -> void:
 	if mine:
 		wind = float(mine.get("wind"))
 	if wind > 0.0:
+		_shown = maxf(_shown, 0.5)
 		var bar := Rect2(Vector2(-60.0, -16.0), Vector2(120.0, 6.0))
 		draw_rect(bar, Color(0, 0, 0, 0.45))
 		draw_rect(Rect2(bar.position, Vector2(bar.size.x * wind, bar.size.y)),
