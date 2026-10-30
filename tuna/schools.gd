@@ -41,6 +41,9 @@ const BAIT_ONLY := 0.15
 const SPELL := 40.0
 ## Faster than this (m/s) the baits skip and nothing bites.
 const BITE_SPEED := 6.0
+## A stray: the chance a second that a bait out on the grounds, no school near, gets taken by a loner (about one in
+## twenty minutes a bait: one every ten minutes or so trolling two).
+const STRAY := 1.0 / 1200.0
 ## Where a travelling school eats: from AHEAD.x m behind its middle to AHEAD.y m ahead of its edge, within SIDE m of its
 ## edge to either side. Working a slick (not going anywhere) it eats all round.
 const AHEAD := Vector2(0.0, 45.0)
@@ -184,8 +187,10 @@ func _process(delta: float) -> void:
 			_drawing()
 
 
-## Host: a feeding school over a bait eats it now and then (more than one rod can go: a double header); not with
-## the baits skipping along behind her at speed.
+## Host: a school over a bait eats it now and then (more than one rod can go: a double header): best out in front of
+## its head, less over its middle, now and then out of its wake (School.bite_k); not with the baits skipping along
+## behind her at speed. And out on the grounds, with no school near, a stray single fish takes a bait once in a long
+## while (STRAY a second for each bait: a loner or two cruising, no birds over them), usually a smaller one.
 func _strikes(delta: float) -> void:
 	var spread := sea.get("rods") as Node
 	if spread == null or absf(boat_speed()) > BITE_SPEED or _docked():
@@ -196,22 +201,32 @@ func _strikes(delta: float) -> void:
 	for r: Node3D in spread.get("rods"):
 		on += 1 if bool(r.get("hooked")) else 0
 	var chance := 0.3 * (1.0 if on == 0 else 0.015)
-	for s in schools:
-		if s.bait_only or s.scattering(t) > 0.0:
+	var stray_ok := not _in_close()
+	for r: Node3D in spread.get("rods"):
+		if bool(r.get("hooked")) or bool(r.get("bait_in")):
 			continue
-		# (down between feeding spells they're still there, deeper: a bait across their head still gets eaten, less
-		# often)
-		var keen := 1.0 if s.feeding(t) else 0.3
-		var c := s.center(t)
-		for r: Node3D in spread.get("rods"):
-			if bool(r.get("hooked")) or bool(r.get("bait_in")):
+		var end: Vector3 = r.get("line_end")
+		var bait := Vector2(end.x, end.z)
+		# (a fresh bait more than a washed-out one, a live mackerel most: rods.gd's bite_odds)
+		var bite := float(spread.call("bite_odds", int(r.get("index"))))
+		# the school it's over, the keenest
+		var best := 0.0
+		var by: School = null
+		for s in schools:
+			if s.bait_only or s.scattering(t) > 0.0:
 				continue
-			var bait: Vector3 = r.get("line_end")
-			# (a fresh bait more than a washed-out one, a live mackerel most: rods.gd's bite_odds)
-			var odds := chance * keen * float(spread.call("bite_odds", int(r.get("index"))))
-			if s.eats_at(Vector2(bait.x, bait.z), t) and randf() < delta * odds:
-				spread.call("strike", int(r.get("index")), clampf(s.kg * randf_range(0.8, 1.2), Tuna.MIN_KG,
+			# (down between feeding spells they're still there, deeper: a bait across them still gets eaten, less
+			# often)
+			var k := s.bite_k(bait, t) * (1.0 if s.feeding(t) else 0.3)
+			if k > best:
+				best = k
+				by = s
+		if by != null:
+			if randf() < delta * chance * best * bite:
+				spread.call("strike", int(r.get("index")), clampf(by.kg * randf_range(0.8, 1.2), Tuna.MIN_KG,
 						Tuna.MAX_KG))
+		elif stray_ok and randf() < delta * STRAY * bite * (1.0 if on == 0 else 0.015):
+			spread.call("strike", int(r.get("index")), randf_range(Tuna.MIN_KG + 5.0, 110.0))
 
 
 ## Host: a scoop of chum went in (boat/chum.gd); the slick's heart is back among the baits, at `at` (world x, z).
@@ -515,6 +530,22 @@ class School extends Node3D:
 		var ahead := rel.dot(heading)
 		var across := absf(rel.dot(Vector2(-heading.y, heading.x)))
 		return ahead > -AHEAD.x and ahead < radius + AHEAD.y and across < radius + SIDE
+
+
+	## How keen it is on a bait at world p (0 .. 1): 1 out in front of its head (eats_at), about half over its
+	## middle, a little out of its wake behind it, nothing off to the side.
+	func bite_k(p: Vector2, t: float) -> float:
+		if eats_at(p, t):
+			return 1.0
+		var c := center(t)
+		var rel := p - c
+		if rel.length() < radius + 8.0:
+			return 0.45
+		var ahead := rel.dot(heading)
+		var across := absf(rel.dot(Vector2(-heading.y, heading.x)))
+		if ahead < 0.0 and ahead > -(radius + 40.0) and across < radius + SIDE * 0.5:
+			return 0.12
+		return 0.0
 
 
 	func feeding(t: float) -> bool:

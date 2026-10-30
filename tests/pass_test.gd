@@ -32,6 +32,10 @@ func _ready() -> void:
 	_check(s.eats_at(c + Vector2(r + 10.0, 0.0), t), "a bait out in front of its head gets eaten")
 	_check(not s.eats_at(c - Vector2(r + 10.0, 0.0), t), "one behind it doesn't")
 	_check(not s.eats_at(c + Vector2(0.0, r + 25.0), t), "nor one well off to its side")
+	_check(s.bite_k(c + Vector2(r + 10.0, 0.0), t) == 1.0 and s.bite_k(c, t) > 0.3 and s.bite_k(c, t) < 0.6
+			and s.bite_k(c - Vector2(r + 10.0, 0.0), t) > 0.0 and s.bite_k(c - Vector2(r + 10.0, 0.0), t) < 0.2
+			and s.bite_k(c + Vector2(0.0, r + 25.0), t) == 0.0,
+			"keenest out in front, about half over its middle, a little in its wake, nothing off to its side")
 	# her baits don't pull it: left alone it goes its own way
 	var was: Vector2 = s.center(schools.now())
 	schools._drawing()
