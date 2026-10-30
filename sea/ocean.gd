@@ -422,7 +422,7 @@ static func _shelter_at(p: Vector2) -> Vector2:
 	var k := Vector2(lerpf(0.85, 1.0, smoothstep(0.0, 300.0, d)), lerpf(0.8, 1.0, smoothstep(0.0, 150.0, d)))
 	var e := (p - Vector2(0.0, 2170.0)) / Vector2(300.0, 150.0)
 	var inside := 1.0 - smoothstep(0.75, 1.05, e.length())
-	return k.lerp(Vector2(0.07, 0.25), inside)
+	return k.lerp(Vector2(0.2, 0.45), inside)
 
 
 ## The surf rolling into the open coast (the shader's surf_at, the same): how far the water's moved by it at world p.
@@ -443,8 +443,12 @@ func _surf_at(p: Vector2, t: float) -> Vector3:
 	var sect := 0.45 + 1.1 * _swirl(_swirl_g, Vector2(x / 420.0 + 0.17, 0.61))
 	var env := smoothstep(420.0, 90.0, d) * smoothstep(-1.0, 14.0, d) * smoothstep(0.85, 1.25, e.length()) * sect
 	var a := surf_height * env
+	var a1 := a * (0.35 + 0.65 * (0.5 + 0.5 * sin(t * TAU / 70.0 + x / 520.0)))
+	var a2 := a * 0.55 * (0.3 + 0.7 * (0.5 + 0.5 * sin(t * TAU / 47.0 + x / 520.0 + 2.1)))
 	var th := SURF_K * d + sqrt(G * SURF_K) * 0.85 * t + sin(x / 160.0) * 2.2
-	return Vector3(0.0, a * cos(th), SURF_Q * a * sin(th))
+	var k2 := TAU / 23.0
+	var th2 := k2 * (d + x * 0.2) + sqrt(G * k2) * 0.85 * t + sin(x / 97.0 + 1.3) * 1.6
+	return Vector3(0.0, a1 * cos(th) + a2 * cos(th2), SURF_Q * (a1 * sin(th) + a2 * 0.6 * sin(th2)))
 
 
 func _calm_at(p: Vector2) -> float:

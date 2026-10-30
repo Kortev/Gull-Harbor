@@ -44,7 +44,8 @@ func _ready() -> void:
 		b.append(sea.ocean.height_at(Vector3(0.0, 0.0, 600.0), t))
 	var inside: float = a.max() - a.min()
 	var outside: float = b.max() - b.min()
-	_check(inside < outside * 0.25, "still in the harbour (%.2f m) next to the sea outside (%.2f m)" % [inside, outside])
+	_check(inside < outside * 0.45 and inside > 0.0, "quieter in the harbour (%.2f m) than the sea outside (%.2f m), "
+			% [inside, outside] + "but not dead flat")
 	print("HARBOUR TEST %s" % ("PASSED" if failed == 0 else "FAILED"))
 	get_tree().quit(1 if failed else 0)
 
