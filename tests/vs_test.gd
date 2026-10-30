@@ -226,7 +226,7 @@ func _meet(sea: Sea, vs: Vs, b: Node, a_boat: Node3D, b_boat: Node3D) -> void:
 	ha.set("speed", 0.0)
 	var cut := (b_rods.get("rods") as Array).filter(func(r: Node) -> bool: return not bool(r.get("baited")))
 	_check(cut.size() >= 2, "running across B's stern cut her lines (%d of %d)" % [cut.size(), out.size()])
-	_check(bool(a_boat.get("helm").call("fouled")), "and A's props took the line: her engines dead a while")
+	_check(float(a_boat.get("helm").get("fouled_until")) > 0.0, "and A's props took the line: her engines died a while")
 	await get_tree().create_timer(10.0).timeout
 	_check((b_rods.get("rods") as Array).all(func(r: Node) -> bool:
 		return bool(r.get("bait_in")) or bool(r.get("baited"))), "what's left wound in")
