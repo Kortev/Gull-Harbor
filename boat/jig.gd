@@ -95,14 +95,14 @@ func _prompt() -> String:
 	if hold == null or bool(hold.get("docked")):
 		return ""
 	if _jigging:
-		return "Jigging... (keep holding E)"
+		return "Jigging..."
 	if not bool(hold.call("has_gear", "bait")):
-		return "A jig for mackerel: you need a live-bait well to keep them (the dock)"
+		return "Jig: needs a live well"
 	if int(hold.get("well")) >= FishHold.WELL_MAX:
-		return "The live well's full (%d mackerel)" % int(hold.get("well"))
+		return "Live well full"
 	if absf(_speed()) > JIG_SPEED:
-		return "Slow her down to jig for mackerel"
-	return "Hold E: jig for mackerel (live bait %d/%d)" % [int(hold.get("well")), FishHold.WELL_MAX]
+		return "Too fast to jig"
+	return "Hold to jig  %d/%d" % [int(hold.get("well")), FishHold.WELL_MAX]
 
 
 func _start() -> void:
@@ -173,8 +173,7 @@ func _caught(who: int) -> void:
 	if who == Net.my_id():
 		var hold: Node = sea.get("fish_hold")
 		var hud := (sea.get("crew") as Node).get("hud") as Node
-		# (the hold's word with the new count comes just ahead of this one)
-		hud.call("notify", "A mackerel! Into the live well (%d/%d)" % [int(hold.get("well")), FishHold.WELL_MAX])
+		hud.call("notify", "Mackerel  %d/%d" % [int(hold.get("well")), FishHold.WELL_MAX])
 
 
 func _speed() -> float:

@@ -46,7 +46,7 @@ func interact(_player: Node) -> void:
 func interact_prompt() -> String:
 	if sitter == Net.my_id():
 		return "Get up"
-	return "Sit in the fighting chair" if sitter == 0 else ""
+	return "Sit" if sitter == 0 else ""
 
 
 ## Where you sit, in the boat's frame (your feet's spot: the seat's in front of the pedestal, facing aft).

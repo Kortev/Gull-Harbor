@@ -262,14 +262,14 @@ func interact_prompt(player: Node) -> String:
 		if alongside:
 			return ""          # (its fish is astern for the harpoon: nothing to do with the rod)
 		if hooked:
-			return "GRAB IT! Fish on!"
+			return "Grab it!"
 		if tangled >= 0:
-			return "Clear the tangle! (reel it in)"
+			return "Clear the tangle"
 		if bool(spread.call("fighting")):
-			return "" if bait_in else "Reel it in (clear the lines)"
+			return "" if bait_in else "Reel in"
 		if bait_in:
-			return "Put the bait back out"
+			return "Bait out"
 		return str(spread.call("rebait_prompt", index))
 	if hooked and holder != Net.my_id():
-		return "Take over the rod"
+		return "Take over"
 	return ""

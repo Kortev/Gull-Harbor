@@ -210,18 +210,18 @@ func hint() -> String:
 			wired = wired or not needs_wire(i)
 	if harpoon_holder == Net.my_id():
 		if waiting and unwired and not wired:
-			return "Wire it first (E at the transom), or it's too lively to stick  (Q puts the harpoon back)"
-		return "Aim at the fish, left mouse throws  (Q puts it back)" if waiting else "Q puts the harpoon back"
+			return "Wire it first   Q put back"
+		return "Click to throw   Q put back" if waiting else "Q put back"
 	if waiting and (sea.get("rods") as Node).call("held_by", Net.my_id()) != null:
-		return "Boatside! Q puts the rod back, then grab the harpoon (port side)"
+		return "Q: rod back, then the harpoon"
 	if waiting and wired:
-		return "Wired! Stick it now: the harpoon's along the port side"
+		return "Wired: harpoon it"
 	if waiting and unwired:
-		return "Boatside! Wire it (E at the transom), then stick it: the harpoon's along the port side"
+		return "Wire it, then harpoon it"
 	if waiting:
-		return "Boatside! Stick it: the harpoon's along the port side"
+		return "Harpoon it"
 	if stuck:
-		return "Stuck! Haul it in: hold E on the %s" % ("tuna door" if bool(spec.get("door", true)) else "gunwale by it")
+		return "Stuck: haul it in"
 	return ""
 
 
@@ -229,7 +229,7 @@ func _rack_prompt() -> String:
 	if harpoon_holder != 0:
 		return ""
 	if (sea.get("rods") as Node).call("held_by", Net.my_id()) != null:
-		return "Put the rod back first (Q)"
+		return "Q: rod back first"
 	var helm: Node = (sea.get("boat") as Node).get("helm")
 	if int(helm.get("captain")) == Net.my_id():
 		return ""
@@ -239,14 +239,14 @@ func _rack_prompt() -> String:
 func _door_prompt(side: float) -> String:
 	var i := _stuck_on(side)
 	if i >= 0:
-		return "Hold to haul it aboard (%d%%)" % roundi(float(fish[i]["haul"]) * 100.0)
+		return "Hold to haul  %d%%" % roundi(float(fish[i]["haul"]) * 100.0)
 	var j := _waiting_on(side)
 	if j >= 0:
 		if needs_wire(j):
-			return "Wire it: grab the leader"
+			return "Wire it"
 		if bool(spec.get("wire", false)):
-			return "Wired! Stick it now (%d s)" % ceili(wire_left(j))
-		return "Stick it first (the harpoon)"
+			return "Wired  %d s" % ceili(wire_left(j))
+		return "Harpoon it first"
 	return ""
 
 
@@ -382,20 +382,19 @@ func _ask_throw_as(who: int, i: int) -> void:
 	_host_set_harpoon(0)
 	if fish.has(i) and not bool(fish[i]["stuck"]) and needs_wire(i):
 		if Net.in_session():
-			_missed.rpc(who, "Too lively to stick: wire it first (E at the transom)")
+			_missed.rpc(who, "Wire it first")
 		else:
-			_missed(who, "Too lively to stick: wire it first (E at the transom)")
+			_missed(who, "Wire it first")
 	elif fish.has(i) and not bool(fish[i]["stuck"]):
 		if Net.in_session():
 			_stuck.rpc(i)
 		else:
 			_stuck(i)
-		(sea.get("rods") as Node).call("host_off", i, "Stuck! Now haul it in: hold E on the %s"
-				% ("tuna door" if bool(spec.get("door", true)) else "gunwale by it"))
+		(sea.get("rods") as Node).call("host_off", i, "Stuck!")
 	elif Net.in_session():
-		_missed.rpc(who, "Missed! Grab the harpoon and try again")
+		_missed.rpc(who, "Missed")
 	else:
-		_missed(who, "Missed! Grab the harpoon and try again")
+		_missed(who, "Missed")
 
 
 @rpc("authority", "call_local", "reliable")
@@ -483,7 +482,6 @@ func _ask_wire_as(i: int) -> void:
 func _wired(i: int, until: float) -> void:
 	if fish.has(i):
 		fish[i]["wired_until"] = until
-		_note("Wired! Stick it before it shakes free (%d s)" % roundi(WIRE_HOLD))
 		Sfx.play_point(self, (fish[i]["node"] as Node3D).global_position, "kit.chain")
 
 
@@ -518,7 +516,7 @@ func _host_tick(delta: float) -> void:
 		f["t"] = float(f["t"]) + delta
 		if not bool(f["stuck"]):
 			if float(f["t"]) > HOOK_HOLDS:
-				_host_gone(i, "The hook pulled at the boat! Stick it quicker.")
+				_host_gone(i, "The hook pulled")
 			continue
 		var hands := hands_on(i)
 		if hands == 0:
@@ -550,7 +548,7 @@ func host_alongside(i: int, kg: float, bearing: float, hook_t: float) -> void:
 @rpc("authority", "call_local", "reliable")
 func _alongside(i: int, kg: float, side: float, hook_t: float) -> void:
 	_add(i, kg, side, hook_t)
-	_note("Boatside! A %d kg bluefin. Stick it: the harpoon's along the port side" % roundi(kg))
+	_note("Boatside!  %d kg" % roundi(kg))
 
 
 ## A fish up alongside, off rod i. `on_rod`: still on the line (not yet stuck), so the rod shows it.

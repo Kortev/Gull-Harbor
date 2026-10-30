@@ -32,7 +32,7 @@ func _ready() -> void:
 		return
 	var me := sea.crew.me
 	me.force_input = true
-	_check(seat.interact_prompt() == "Sit in the fighting chair", "it says: %s" % seat.interact_prompt())
+	_check(seat.interact_prompt() == "Sit", "it says: %s" % seat.interact_prompt())
 	seat.interact(me)
 	await get_tree().create_timer(0.5).timeout
 	_check(bool(me.get("seated")) and seat.sitter == 1, "E on it: sat down")

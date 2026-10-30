@@ -136,7 +136,7 @@ func _set_captain(who: int, at_heading: float) -> void:
 		p.call("place", spot.origin + Vector3(0, 0.05, 0), 0.0)
 		if p.is_multiplayer_authority():
 			var hud: Node = boat.get("sea").get("crew").get("hud")
-			hud.call("notify", "At the wheel: hold W to run her ahead, S to back down, A/D to steer. E or Q to leave.")
+			hud.call("notify", "W/S throttle   A/D steer")
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -220,8 +220,8 @@ func _process(delta: float) -> void:
 			at = was
 			if absf(speed) > 1.0 and is_mine():
 				var hud: Node = boat.get("sea").get("crew").get("hud")
-				hud.call("notify", "She's touched bottom! Back her off (S) and steer clear." if speed > 0.0
-						else "You're backing onto it! Ahead (W) and steer clear.")
+				hud.call("notify", "Aground! Back her off (S)" if speed > 0.0
+						else "Aground! Ahead (W)")
 			speed = 0.0
 		_send_in -= delta
 		if Net.in_session() and _send_in <= 0.0:
@@ -239,7 +239,7 @@ func _process(delta: float) -> void:
 	_show_helm()
 
 
-## Your own readout at the wheel (the HUD's bottom line): knots, which way, and the throttle.
+## Your own readout at the wheel (the HUD's bottom bar): knots and the throttle.
 var _showing := false
 
 
@@ -247,15 +247,11 @@ func _show_helm() -> void:
 	var hud: Node = boat.get("sea").get("crew").get("hud")
 	if not is_mine():
 		if _showing:
-			hud.call("helm_line", "")
+			hud.call("helm", -1.0)
 			_showing = false
 		return
 	_showing = true
-	var knots := absf(speed) * 1.944
-	var way := "ahead" if speed > 0.2 else ("astern" if speed < -0.2 else "stopped")
-	var gear := "ahead %d%%" % roundi(throttle * 100.0) if throttle > 0.02 else \
-			("astern %d%%" % roundi(-throttle * 100.0) if throttle < -0.02 else "neutral")
-	hud.call("helm_line", "%d knots %s   ·   throttle %s" % [roundi(knots), way, gear])
+	hud.call("helm", absf(speed) * 1.944, throttle)
 
 
 func _crew_member(id: int) -> Node:

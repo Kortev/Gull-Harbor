@@ -103,7 +103,7 @@ func _ready() -> void:
 	col.add_child(without)
 	_host = _button("Host with a join code", func() -> void:
 		var err := Net.host()
-		_status.text = "Hosting. Opening the door on your router..." if err == OK else "Couldn't host (port in use?)")
+		_status.text = "Hosting..." if err == OK else "Couldn't host (port in use?)")
 	col.add_child(_host)
 	# the join code, once hosting has it, to copy and send to your friend
 	_code_row = HBoxContainer.new()
@@ -114,7 +114,7 @@ func _ready() -> void:
 	_code_row.add_child(_code)
 	_code_row.add_child(_button("Copy", func() -> void:
 		DisplayServer.clipboard_set(Net.code)
-		_status.text = "Copied. Send it to your friend: they paste it in and press Join."))
+		_status.text = "Copied"))
 	_code_row.visible = false
 	col.add_child(_code_row)
 	var row := HBoxContainer.new()
@@ -135,11 +135,11 @@ func _ready() -> void:
 	Net.joined.connect(func() -> void: _status.text = "Aboard.")
 	Net.hosted.connect(func() -> void:
 		if Net.mode == "steam":
-			_status.text = "Hosting on Steam. Invite a friend, or they'll see your boat in their menu.")
+			_status.text = "Hosting on Steam")
 	Net.opened.connect(func(ok: bool, code: String) -> void:
 		_code.text = code
-		_status.text = "Your join code: send it to your friend." if ok else \
-				"Your router wouldn't open the door (UPnP is off there),\nso this code works on your own Wi-Fi only.\nOver the internet: both install Tailscale and join its address.")
+		_status.text = "Send your friend this code" if ok else \
+				"Your router said no: this code works on your Wi-Fi only.\nOver the internet: Tailscale.")
 	Net.dropped.connect(func(reason: String) -> void: _status.text = reason)
 
 
@@ -175,7 +175,6 @@ func _process(_delta: float) -> void:
 	(get_node("CloseManual") as Control).visible = _reading
 	if not open:
 		return
-	var session := Net.in_session()
 	_host.disabled = Net.in_session_or_hosting()
 	_join.disabled = Net.in_session_or_hosting()
 	_leave.disabled = not Net.in_session_or_hosting()
@@ -189,8 +188,6 @@ func _process(_delta: float) -> void:
 		if _friends_in <= 0.0:
 			_friends_in = 2.0
 			_list_friends()
-	if _status.text.is_empty():
-		_status.text = "Alone on the boat." if not session else ""
 	var hold := _fish_hold()
 	var docked: bool = hold != null and bool(hold.get("docked"))
 	_back.visible = not docked
@@ -223,26 +220,24 @@ func _fill_dock(hold: Node, docked: bool) -> void:
 		var q: Array = sold["quota"]
 		_dock.add_child(_slip_line("QUOTA %d MADE: $%s of $%s" % [int(q[0]), _money(int(q[1])), _money(int(q[2]))],
 				24, Color(0.6, 1.0, 0.6)))
-		_dock.add_child(_slip_line("The bank wants $%s next, in %d days." % [_money(int(sold["next"])),
-				FishHold.DAYS]))
+		_dock.add_child(_slip_line("Next: $%s in %d days" % [_money(int(sold["next"])), FishHold.DAYS]))
 		_dock.add_child(HSeparator.new())
 	elif verdict == "lost":
 		var q: Array = sold["quota"]
 		var run: Dictionary = sold["run"]
 		_dock.add_child(_slip_line("THE BANK TOOK THE BOAT", 26, Color(1.0, 0.45, 0.4)))
-		_dock.add_child(_slip_line("$%s of the $%s owed. That run made %d quota%s: %d fish, the biggest %d kg." % [
+		_dock.add_child(_slip_line("$%s of $%s.   The run: %d quota%s, %d fish, biggest %d kg" % [
 				_money(int(q[1])), _money(int(q[2])), int(run["quotas"]), "" if int(run["quotas"]) == 1 else "s",
 				int(run["fish"]), roundi(float(run["biggest"]))]))
-		_dock.add_child(_slip_line("A new start: the skiff and $%s." % _money(FishHold.START_CASH)))
+		_dock.add_child(_slip_line("Start again: the skiff and $%s" % _money(FishHold.START_CASH)))
 		_dock.add_child(HSeparator.new())
 	if bool(sold.get("abandoned", false)):
-		_dock.add_child(_slip_line("Last time you left her out there. That day's gone, and the fuel's still owed.",
-				15, Color(1.0, 0.75, 0.6)))
+		_dock.add_child(_slip_line("Left her out there: the day's gone, the fuel's owed", 14, Color(1.0, 0.75, 0.6)))
 	if not sold.is_empty():
 		_dock.add_child(_slip_line("SOLD AT THE DOCK", 20))
 		var lines: Array = sold["lines"]
 		if lines.is_empty():
-			_dock.add_child(_slip_line("Nothing in the hold this trip."))
+			_dock.add_child(_slip_line("No fish"))
 		for l: Array in lines:
 			_dock.add_child(_slip_line("%d kg bluefin   %s   $%s" % [roundi(float(l[0])), str(l[1]),
 					_money(int(l[2]))]))
@@ -264,9 +259,9 @@ func _fill_dock(hold: Node, docked: bool) -> void:
 	bar.custom_minimum_size = Vector2(0, 10)
 	_dock.add_child(bar)
 	if earned < quota:
-		_dock.add_child(_slip_line("Sell $%s more by the end of day %d, or the bank takes the boat." % [
-				_money(quota - earned), FishHold.DAYS], 15, Color(0.85, 0.75, 0.7)))
-	_dock.add_child(_slip_line("Bank $%s   (best run: %d quotas)" % [_money(int(hold.get("bank"))),
+		_dock.add_child(_slip_line("$%s more by day %d, or the bank takes her" % [_money(quota - earned),
+				FishHold.DAYS], 14, Color(0.85, 0.75, 0.7)))
+	_dock.add_child(_slip_line("Bank $%s   Best run %d" % [_money(int(hold.get("bank"))),
 			int(hold.get("best_run"))]))
 	# the boats
 	var bank := int(hold.get("bank"))
@@ -329,7 +324,7 @@ func _fill_dock(hold: Node, docked: bool) -> void:
 		go.add_theme_font_size_override("font_size", 22)
 		_dock.add_child(go)
 	else:
-		_dock.add_child(_slip_line("Waiting for the skipper to head out."))
+		_dock.add_child(_slip_line("Waiting for the skipper"))
 
 
 func _slip_line(text: String, size := 16, tint := Color(1, 1, 1)) -> Label:

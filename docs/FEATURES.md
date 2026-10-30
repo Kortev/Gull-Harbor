@@ -32,7 +32,8 @@ bigger. Miss it and the bank takes the boat, and the run's over.
 | Q | put the rod (or the harpoon) back |
 | Esc | the menu: head in and sell, host / join, Steam friends |
 
-**Teach it:** the HUD prompt ("E: ...") names every action under the crosshair. Gap: no controls screen; the
+**Teach it:** the HUD prompt (an E key cap and a word or two: "Grab it!", "Bleed it") names every action under
+the crosshair. Gap: no controls screen; the
 binoculars and the pump are only in hints.
 
 ---
@@ -48,8 +49,9 @@ binoculars and the pump are only in hints.
 - The best run (most quotas) is kept.
 - Fuel comes off each sale: **$60** the skiff, **$400** the sportfisher. A chartered boat: **$2,500** a day.
 
-**Teach it:** the dock screen shows QUOTA n: $earned of $quota, Day d of 3, a bar; the tally at sea shows it too.
-Gap: nothing explains what happens if you miss it until it happens.
+**Teach it:** the dock screen shows QUOTA n: $earned of $quota, Day d of 3, a bar, and "$x more by day 3, or the
+bank takes her". At sea, top left: the quota as a bar (what's aboard ghosted on), "$earned / $quota", "Day d/3", and
+the fish box as pips (filled once iced, amber for one still on deck).
 
 ## The dock
 
@@ -82,12 +84,12 @@ said anywhere in game.
 ## A day out
 
 - **Head out** at dawn (5:30 am). The day runs to dusk (7:30 pm) in **20 real minutes**, then it's night.
-- The light follows: warm at dawn and dusk, the boat's lights on at dark. A word at dusk and at dark.
+- The light follows: warm at dawn and dusk, the boat's lights on at dark. A word at dusk ("Sun's going down").
 - **Head in** whenever (Esc, skipper): the catch sells, fuel and any charter come off, back to the dock. Heading in
   cuts loose anything still on a line or alongside.
 - Nothing turns up or bites at the dock.
 
-**Teach it:** the clock is in the tally; the dusk and dark notes. Gap: "Head in" lives only in the Esc menu.
+**Teach it:** the sun is the clock; the dusk note says "Esc to head in".
 
 ---
 
@@ -111,21 +113,23 @@ said anywhere in game.
   glow as the sweep passes. Birds sitting on the water don't paint, and it can't tell gulls from tuna birds.
 - **The sonar** (the dash) marks fish right under her.
 
-**Teach it:** the HUD says "Find the birds: hold B for the binoculars..." until you've used them a few times; the
-binoculars read each flock. Gap: nothing says decoys exist or that spells come and go, except the binocular text.
+**Teach it:** Dale's first tip ("Tuna feed under birds. Find a flock."). A flock under the crosshair reads one line
+over the plotter's spot: far off "Birds   1.4 km off the port bow"; inside 700 m what they're on ("BLUEFIN!", "Tuna
+down: wait", "Just gulls", "Scattering: moved on"). The birds themselves show it too: diving and white water, or
+sitting.
 
 ## Coming up on them
 
 - **Never run over a school fast.** Go through one faster than about **10 knots** (5 m/s) and it **goes down for
-  40 s** ("You ran right over them!"). Come up slow.
+  40 s** ("Too fast: they've gone deep"). Come up slow.
 - **No bites above about 12 knots** (6 m/s): the baits skip along the top.
 - Get within about **160 m** and slow to trolling speed (under 12 knots; a few knots is right), and the school
   **finds your baits** and works round them, following as you troll.
 - A feeding bluefin school over a bait eats it now and then (the reel screams). A second fish while one's on is rare
   (a double header).
 
-**Teach it:** the "ran right over them" note, after the fact. Gap: say it before: a first-time tip as you near
-your first flock ("Slow down under 10 knots near the birds").
+**Teach it:** Dale's tip as you near birds fast ("Under 10 knots near the birds, or they dive"); the "too fast"
+note after the fact.
 
 ## Baits
 
@@ -133,8 +137,8 @@ your first flock ("Slow down under 10 knots near the birds").
   along behind the rod tip, held out wide while she's moving, swinging round her turns, dropping back with the line
   slack when she stops, skipping along the top at speed.
 - **Baits go off:** a dead bait's washed out after about **5 minutes**, a live one **10**. A washed-out bait gets a
-  **quarter** of the bites. The HUD says when one has ("The port corner bait's washed out: E on that rod to
-  rebait"); E on it reels it in and a fresh one goes out **4 s** later.
+  **quarter** of the bites. The HUD says when one has ("Port corner bait washed out"); E on it
+  reels it in and a fresh one goes out **4 s** later.
 - **Live bait** (with the live-bait well): baits go out live while there's a mackerel in the well: **half as many
   bites again**, and they last twice as long. E on a dead-baited rod while there are mackerel swaps it for a live
   one.
@@ -160,35 +164,42 @@ your first flock ("Slow down under 10 knots near the birds").
 
 | Move | Tell | Do |
 |---|---|---|
-| Run | "It's running! Let it go" | nothing: let the drag tire it (cranking against it strains the line) |
-| Sounding | "It's sounding deep! Pump: heave, then crank down" | pump |
-| Head shakes | "Head shakes! Keep it tight" | keep cranking or heaving, or the hook pulls |
-| Circling | "It's circling! Pump" | pump |
-| Resting | "It's resting! Crank" | crank |
-| Death spiral | "Death spiral! Crank, it's coming up" / "Ease off, it's going under her" | crank as it comes up, ease off as it goes under |
+| Run | "Let it run" (amber) | nothing: let the drag tire it (cranking against it strains the line) |
+| Sounding | "Pump" | pump |
+| Head shakes | "Keep it tight" | keep cranking or heaving, or the hook pulls |
+| Circling | "Pump" | pump |
+| Resting | "Crank" (green) | crank |
+| Death spiral | "Crank!" (green) / "Ease off" (amber) | crank as it comes up, ease off as it goes under |
+
+  The word says what to do; the colour says it first (green crank, amber hold off, red trouble: "OUT OF GEAR!",
+  "Under the boat: no throttle", "Tangled", "On the hull: go port"). What the fish is doing you see: the water
+  boils on a run, slaps in a headshake, its back breaks the surface in the spiral.
 
 - **The strain ring** round the crosshair shows how wrong you're fighting it. Red for **1.2 s** and the line
   parts.
-- **The line readout:** metres out, gaining or losing, how fresh the fish is, how worn the line is.
+- **The meter under the word:** metres to boatside (green with an arrow up while you gain, red while it takes
+  line), and a little fish with a bar of the fight it's got left. The line's wear on the hull is a thin red ring
+  outside the strain ring, filling as it wears.
 - **No tiredness:** your arms never tire (removed 2026-10-29). Hand the rod to a crewmate (they E on it) and the
   fight carries on.
 - **The captain** (E on the wheel; A/D steer, W/S throttle): the tuna swings round the boat.
   - **Keep the stern on it.** Let it swing round toward her bow so the line runs over her house or bow and **the
-    line rubs** and wears through ("Swing her stern to it", or the angler takes it to that **corner**). Over the
+    line rubs** and wears through ("On the hull: swing her stern", or the angler takes it to that **corner**). Over the
     open cockpit, or off your own corner going away from her, it never rubs.
   - **Backing down** (S) on the fish wins line back fast and eases the strain.
   - **Under the boat:** if the fish goes under her, **no throttle**: steer her stern round with A/D only. Touch W
     or S while it's under her and the props cut the line after **1.5 s** ("OUT OF GEAR!").
-  - The captain gets a plotter of where each fish is.
+  - The captain gets a plotter of where each fish is (red where its line's on the hull), and at the wheel always
+    her knots over a throttle bar (green ahead, amber astern, from the middle).
 - **Other lines:** while a fish is on, its runs can cross the other baits and **tangle** them. E on each other rod
-  reels it in ("clear the lines"). A tangle left alone saws the line through.
+  reels it in ("Reel in"). A tangle ("Port line tangled") left alone saws the line through.
 - **How you lose one:** the line parted (too much strain), pulled the hook (slack in a headshake), spooled (it took
   all 500 m: don't crank against a run; back down on it), chafed through on the hull, cut by the props, sawed
-  through in a tangle. Each loss says why.
+  through in a tangle. Each loss says why, in a few words ("Line parted: too much strain").
 - A big fish alone takes about 10-13 minutes fought right; with a captain a few minutes.
 
-**Teach it:** tells, ring, readout, captain hints, loss reasons. Gap: the first fight needs a walkthrough, and
-"anyone can grab it / hand it off" isn't said.
+**Teach it:** the word and its colour, the ring, the meter, the captain's word and plotter, loss reasons, Dale's
+fight tip. Gap: "anyone can grab it / hand it off" is only in the manual.
 
 ## Boatside
 
@@ -201,7 +212,8 @@ your first flock ("Slow down under 10 knots near the birds").
   of hands adds as much again.
 - Leave it alongside unstuck **90 s** and the hook pulls.
 
-**Teach it:** door and rack prompts and the hint walk you through it.
+**Teach it:** "Boatside!  219 kg" at the top, then a word at a time under the crosshair ("Harpoon it",
+"Click to throw", "Stuck: haul it in"); the door's prompt counts the haul ("Hold to haul  40%").
 
 ## On deck, and the sale
 
@@ -211,7 +223,7 @@ your first flock ("Slow down under 10 knots near the birds").
   **iced within 3 minutes**. Left warm on deck costs more.
 - **Price:** about $18/kg times 0.35 to 1.25 by quality. A #1 200 kg fish is around $4,000.
 
-**Teach it:** the hints ("A fish on deck: bleed it, the sooner the better"). Gap: the grade rules.
+**Teach it:** the prompts ("Bleed it", "Ice it"), the amber pip top left. Gap: the grade rules (manual only).
 
 ---
 
@@ -242,7 +254,7 @@ your first flock ("Slow down under 10 knots near the birds").
   with distance. Wide rough and smooth stretches and cloud shadows go over the water, so far off it's never one even sheet.
 - **Haze:** the land fades into the sky with distance and with the weather: clear on a sunny day, greyed back in
   rain, gone in fog (its lights carry further than the land does).
-- **The shore and the rig stop the boat** ("She's touched bottom! Back her off"). Schools never turn up on land.
+- **The shore and the rig stop the boat** ("Aground! Back her off (S)"). Schools never turn up on land.
 
 ---
 

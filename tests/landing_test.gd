@@ -36,7 +36,7 @@ func _ready() -> void:
 	landing.host_alongside(0, 200.0, float(rod.bearing), float(rod.hook_t))
 	await get_tree().process_frame
 	_check(rod.hooked and rod.alongside and landing.fish.has(0), "a beaten fish comes up alongside")
-	_check(landing.hint().begins_with("Boatside"), "the HUD says to stick it: %s" % landing.hint())
+	_check(landing.hint().to_lower().contains("harpoon it"), "the HUD says to stick it: %s" % landing.hint())
 	# the harpoon's rack, looked at from the cockpit
 	var rack := sea.boat.get_node("HarpoonRack")
 	_check(await _can_look_at(me, Vector3(-1.0, 0.6, 3.8), rack, PI * 0.5),
@@ -97,7 +97,7 @@ func _ready() -> void:
 	var on_deck: Node = (hold._deck.values()[0] as Node).get_node("Handle")
 	_check(await _can_look_at(me, Vector3(1.0, 0.6, 4.95), on_deck, PI),
 			"from the cockpit you can put the crosshair on the fish on deck")
-	_check(hold.hint().begins_with("A fish on deck"), "the HUD says to bleed it: %s" % hold.hint())
+	_check(hold.hint().begins_with("Bleed it"), "the HUD says to bleed it: %s" % hold.hint())
 	var id := int(hold.fish[0]["id"])
 	hold._work(id)
 	_check(float(hold.fish[0]["bled_s"]) >= 0.0 and hold._deck.size() == 1, "E on it: bled, still on deck")

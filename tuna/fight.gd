@@ -30,9 +30,8 @@ const MOVES := {
 	"spiral": {"answer": "reel",  "out": 0.0,  "pull": 0.35, "turn": 0.3,  "depth": 2.0,   "dur": [6.0, 9.0]},
 }
 const TELLS := {
-	"run": "It's running! Let it go", "sound": "It's sounding deep! Pump: heave, then crank down",
-	"shake": "Head shakes! Keep it tight", "circle": "It's circling! Pump: heave, then crank down",
-	"rest": "It's resting! Crank", "spiral": "Death spiral! Crank!",
+	"run": "Let it run", "sound": "Pump", "shake": "Keep it tight", "circle": "Pump", "rest": "Crank",
+	"spiral": "Crank!",
 }
 const STRAIN_GRACE := 1.2       # s at full strain before the line parts
 const SLACK_GRACE := 1.6        # s of slack in a headshake before the hook pulls
@@ -152,23 +151,22 @@ func answer() -> String:
 func tell() -> String:
 	# worst first: the props about to cut it, then it under her, then the line rubbing her side
 	if _prop_t > 0.0:
-		return "OUT OF GEAR! It's under the props!"
+		return "OUT OF GEAR!"
 	# (a spiral goes under her every lap: its own hints say when)
 	if move != "spiral" and b_now() > UNDER - 0.2 and depth < 25.0:
-		return "It's under the boat! No throttle: steer her stern round to it (A/D)"
+		return "Under the boat: no throttle"
 	if tangled:
-		return "TANGLED in another line! Get it cleared: E on that rod"
+		return "Tangled"
 	# (in a spiral it brushes her every lap: only a real rub, or a worn line, outranks the spiral's own hints)
 	var warn := chafe > (0.18 if move == "spiral" else 0.08) or (chafe > 0.0 and wear > 0.3)
 	if warn:
 		# (it's swung round: the line's lying over her house or bow, wearing through)
 		var side := "starboard" if sin(bearing) > 0.0 else "port"
 		if _at_corner():
-			return "The line's rubbing the hull! Swing her stern to it (the wheel)"
-		return "The line's rubbing the hull! Take it to the %s corner, or swing her stern to it" % side
+			return "On the hull: swing her stern"
+		return "On the hull: go %s" % side
 	if move == "spiral":
-		return "DEATH SPIRAL: it's going under her. EASE OFF, stop cranking" if answer() == "ease" \
-				else "DEATH SPIRAL: it's coming up. CRANK!"
+		return "Ease off" if answer() == "ease" else "Crank!"
 	return str(TELLS.get(move, ""))
 
 
