@@ -226,6 +226,25 @@ your first flock ("Slow down under 10 knots near the birds").
 - The jobs: captain, angler, line-clearer, spotter (binoculars), wirer, harpooner, haulers, the one who bleeds and
   ices, chum and jig while you wait.
 
+### VS: two boats racing for the same birds (`vs/vs.gd`)
+
+- **Start one:** host a crew (Steam or a join code) and let your friends join. At the dock the skipper presses
+  **Two boats: race for the birds**. Everyone's shared out between **Boat A** and **Boat B** (the skipper on A);
+  at the dock anyone can press the other boat's button to cross to her. **One boat** goes back to co-op.
+  (Dev: `--vs`, and `--team=b` to start on B.)
+- **Head out** and both boats go, side by side 90 m apart, in the same kind of boat (whichever the skipper took).
+  Each boat has everything of her own: her wheel, rods, harpoon and tuna door, fish box, chum and jig. The other
+  boat is right there on the water, her crew aboard her; her fish and her notes are hers.
+- **The birds** turn up round one boat, then the other, then between them, in turn, so neither crew gets the
+  better water. Any school is fair game for either boat; run through one fast and it goes down for both.
+- **The tally**, top right, quiet: your boat's pounds aboard (on deck and iced), and theirs.
+- **The end:** at dusk, or when the skipper heads in, both boats come in together and what each has aboard is
+  weighed: "You won by 66 lb" (or they did, or dead even), over the dock screen. Both catches are sold as usual
+  (boat A's money is the skipper's bank; boat B's is a bank of her own for the match).
+- Limits: one chum slick on the sea at a time (whichever boat scooped last); the host runs both boats, so the host's
+  machine works a little harder.
+- **Teach it:** the buttons say it all; nothing else on screen.
+
 ## The sea
 
 - Weather comes and goes on its own: calm, sunny, fog, rain, heavy, storm (the fog closing to a wall, lightning

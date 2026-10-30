@@ -83,8 +83,8 @@ repo, now `main`), tick it here.
     (the baits skip); run through a school fast and it goes down for 40 s. The dash radar paints the birds out to
     1.5 km (`tuna/radar.gd`); the sonar marks what's under her.
   - The fight uses where she really is: backing down closes on the fish, running away pays out line.
-  - With two boats (VS, later): birds should turn up fairly round both, and some between them, for both crews
-    to race to. Grounds can come later, on top, once fuel and trip length make "where do we go today" a choice.
+  - [x] With two boats (VS, `vs/vs.gd`): birds turn up round one, the other, then between them, in turn, for both
+    crews to race to. Grounds can come later, on top, once fuel and trip length make "where do we go today" a choice.
 - [x] **Two boats, picked by the host at the dock** (`boat/kinds.gd`, `art/skiff.py`; not yet played) (like Sea of Thieves' sloop and galleon; same tuna on both):
   - [ ] **The small boat (the default, for 1-2):** about 28 ft, an open center console, so the wheel is a few
     steps from the rods. Two rods out, low sides (one person can gaff a fish), turns fast and follows a fish
@@ -138,4 +138,5 @@ repo, now `main`), tick it here.
 - [x] **Steam as the main way to play together:** host a friends-only Steam lobby, friends join from the menu's list or an invite, traffic through Steam's relays (`core/steam_link.gd`; needs the GodotSteam add-on from the AssetLib; `tools/steam_test.sh` against a stand-in for Steam). The join code stays as the backup.
 - Later: **longer fights.** Real ones on heavy tackle run twenty minutes to over an hour for a giant; ours are a
   few. Raise the tiring time (`_goal_s` in `tuna/fight.gd`) once the crew has enough to do during one.
-- Later: **VS mode** (two boats on the same sea, the most pounds by the end wins); proximity voice; trips cost money; a rounds structure; upgrades.
+- [x] **VS mode** (`vs/vs.gd`: two boats on the same sea, the most pounds by the end wins; not yet played by people).
+- Later: proximity voice; trips cost money; a rounds structure; upgrades.

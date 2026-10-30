@@ -31,6 +31,7 @@ const Jig := preload("res://boat/jig.gd")
 const Spotter := preload("res://crew/spotter.gd")
 const Tips := preload("res://ui/tips.gd")
 const Landmarks := preload("res://sea/landmarks.gd")
+const Vs := preload("res://vs/vs.gd")
 
 ## How rough the sea is (ocean.gd: 0 calm, 0.5 rain, 1 storm), the sun, how thick the fog, and how far you can see
 ## the land and the rig (far, m: sea/landmarks.gd's haze).
@@ -71,6 +72,8 @@ var jig: Jig
 var spotter: Spotter
 ## Dale from the bank on the radio: the first-time tips.
 var tips: Tips
+## Two boats racing for the same birds (vs/vs.gd); off, it's the one boat.
+var vs: Vs
 var _args := {}
 var _frames := 0
 var _steered := false
@@ -128,6 +131,10 @@ func _ready() -> void:
 	tips.name = "Tips"
 	tips.sea = self
 	add_child(tips)
+	vs = Vs.new()
+	vs.name = "Vs"
+	vs.sea = self
+	add_child(vs)
 	var sonar := Sonar.new()
 	sonar.name = "Sonar"
 	sonar.schools = schools
@@ -158,6 +165,10 @@ func _ready() -> void:
 	# the game itself (not a test, which builds the sea under its own node): the boat you last took, at the dock
 	if get_parent() == get_tree().root:
 		boat.use_kind(fish_hold.kind)
+	if _args.has("vs"):        # (tests: two boats from the start; --team=b puts you on boat B)
+		vs.host_set_on(true)
+		if str(_args.get("team", "")) == "b":
+			vs.ask_team(1)
 	if _args.has("school"):    # (screenshots and tests: a school starts right away, <n> m off)
 		schools.set("_next", 0.0)
 		if not str(_args["school"]).is_empty():
