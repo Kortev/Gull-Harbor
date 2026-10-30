@@ -273,6 +273,8 @@ func arrive() -> void:
 	if _came_alongside:
 		_came_alongside = false
 		return
+	if vs != null and vs.on and vs.came_home(vs.my_team):
+		return
 	if _fade == null:
 		_fade = CanvasLayer.new()
 		_fade.layer = 20

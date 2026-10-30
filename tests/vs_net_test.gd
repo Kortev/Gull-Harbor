@@ -101,7 +101,7 @@ func _as_host() -> void:
 	(sea.vs.sides[0].get("fish_hold") as Node).call("host_add", 60.0, 60.0)
 	(sea.vs.sides[1].get("fish_hold") as Node).call("host_add", 90.0, 60.0)
 	await get_tree().create_timer(3.0).timeout
-	sea.fish_hold.call("head_in")
+	sea.vs.host_bring_home()
 	await get_tree().create_timer(1.0).timeout
 	while sea.vs.weighing:
 		await get_tree().create_timer(0.2).timeout

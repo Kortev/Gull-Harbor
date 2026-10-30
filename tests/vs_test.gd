@@ -90,10 +90,10 @@ func _ready() -> void:
 	_check((vs.get("_race") as Control).visible and vs.shown == [243, 220],
 			"the tally, top left: yours and theirs (%s)" % [vs.shown])
 	await _meet(sea, vs, b, a_boat, b_boat)
-	# head in: both in alongside the fish pier, weighed a fish at a time
-	sea.fish_hold.call("head_in")
+	# home: both in alongside the fish pier (the race home run for them), weighed a fish at a time
+	vs.host_bring_home()
 	await get_tree().create_timer(0.3).timeout
-	_check(bool(a_hold.get("docked")) and bool(b_hold.get("docked")), "one heads in, both do")
+	_check(bool(a_hold.get("docked")) and bool(b_hold.get("docked")), "both home, tied up")
 	_check(vs.result.size() == 2 and roundi(vs.result[0]) == 220 and roundi(vs.result[1]) == 243,
 			"weighed: A %s lb, B %s lb" % vs.result.map(func(x: float) -> int: return roundi(x)) if vs.result.size() == 2
 			else "weighed")

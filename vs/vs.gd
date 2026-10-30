@@ -17,9 +17,10 @@ extends Node
 ## schools turn up round one boat, then the other, then between them (spawn_anchor). Out there they're solid to each
 ## other, rock in each other's wakes and cut each other's lines (vs/contact.gd). Top left, small: both boats' pounds
 ## aboard, and a blinking dot and the squelch on the radio when the other crew hooks up. An air horn at each console
-## (vs/horn.gd) to rattle the other crew. It ends at dusk, or when the
-## skipper heads in: both come in alongside the fish pier, and what each had aboard (on deck and iced) is weighed, a
-## fish at a time, A's then B's, and the winner said. Best of three days: the first to two wins the match.
+## (vs/horn.gd) to rattle the other crew. At dusk the race home: HOME s to bring her in alongside her own berth
+## (slow, TIE s, and she's tied up and her catch sold there, no cut); once both are in, or time's up, what each had
+## aboard (on deck and iced) is weighed, a fish at a time, A's then B's, and the winner said. A boat not home in time
+## is towed in (the one cut left) and her catch weighs half. Best of three days: the first to two wins the match.
 ##
 ## Dev and tests: --vs turns it on at the start (with --team=b, the host takes boat B).
 
@@ -52,6 +53,9 @@ const BETWEEN := 1.2
 const MATCH := 2
 ## The countdown to casting off (s), and the breather before it after a weigh-in (longer once a match is won).
 const COUNT := 10.0
+## The race home at dusk: how long they've got (s), how long alongside her berth, slow, ties her up (s).
+const HOME := 360.0
+const TIE := 2.0
 const BREATHER := 12.0
 const MATCH_BREATHER := 30.0
 
@@ -79,6 +83,10 @@ var _anchor := 0
 var _draw_in := 0.0
 ## When (the sea clock) both boats are let go, while the countdown's running (-1: it isn't).
 var count_end := -1.0
+## The race home: when time's up (the sea clock; -1 before dusk), and which boats are in alongside their berths.
+var home_by := -1.0
+var home := [false, false]
+var _alongside_for := [0.0, 0.0]
 ## The weigh-in finished at (the sea clock): the breather runs from it.
 var _weighed_at := -1.0
 var _go_shown := -10.0
@@ -187,24 +195,57 @@ func _process(delta: float) -> void:
 		elif docked[0] and docked[1]:
 			_host_count(holds)
 		return
-	if not docked[0] and not docked[1] and float(holds[0].call("day_fraction")) < 1.0:
-		for i in 2:
+	for i in 2:
+		if not docked[i]:
 			_last[i] = _pounds(holds[i])
-		_others_fish(delta)
+	_others_fish(delta)
+	if home_by < 0.0:
+		if float(holds[0].call("day_fraction")) < 1.0 and float(holds[1].call("day_fraction")) < 1.0:
+			return
+		# dusk: the race home
+		if Net.in_session():
+			_homeward.rpc(_now() + HOME, [false, false])
+		else:
+			_homeward(_now() + HOME, [false, false])
+	# a boat alongside her own berth, slow, a moment: tied up, her catch sold there
+	for i in 2:
+		if docked[i]:
+			continue
+		var helm: Node = (sides[i].get("boat") as Node).get("helm")
+		var near := (helm.get("at") as Vector2).distance_to(_berth(i)) < 9.0 and absf(float(helm.get("speed"))) < 0.8
+		_alongside_for[i] = float(_alongside_for[i]) + delta if near else 0.0
+		if float(_alongside_for[i]) > TIE:
+			_alongside_for[i] = 0.0
+			var now_home := home.duplicate()
+			now_home[i] = true
+			if Net.in_session():
+				_homeward.rpc(home_by, now_home)
+			else:
+				_homeward(home_by, now_home)
+			Sfx.play_point(sides[i].get("boat"), (sides[i].get("boat") as Node3D).global_position, "kit.thud", 0.6, 0.6)
+			holds[i].call("head_in")
+			docked[i] = true
+	if not (docked[0] and docked[1]) and _now() < home_by:
 		return
-	# the trip's over (the skipper headed in, or it's dusk): both in alongside the fish pier, and the weigh-in
+	# the trip's over: both in (or time's up, and the late one's towed in), and the weigh-in
 	_out = false
 	var fish := [[], []]
 	for i in 2:
-		# (the one the skipper headed in has sold hers already: they're on her slip)
+		# (a boat home in time sold hers at her berth: they're on her slip)
 		var kgs: Array = ((holds[i].get("sale") as Dictionary).get("lines", []) as Array).map(
 				func(l: Array) -> float: return float(l[0])) if docked[i] \
 				else (holds[i].get("fish") as Array).map(func(f: Dictionary) -> float: return float(f["kg"]))
-		fish[i] = kgs.map(func(kg: float) -> float: return kg * LB_PER_KG)
-		if not docked[i]:
-			_last[i] = _pounds(holds[i])
-			holds[i].call("head_in")
-	_moor()
+		var late := not bool(home[i])
+		fish[i] = kgs.map(func(kg: float) -> float: return kg * LB_PER_KG * (0.5 if late else 1.0))
+		if late:
+			_last[i] = _pounds(holds[i]) * 0.5 if not docked[i] else float(_last[i]) * 0.5
+			if not docked[i]:
+				holds[i].call("head_in")
+	_moor(home)
+	if Net.in_session():
+		_homeward.rpc(-1.0, home)
+	else:
+		_homeward(-1.0, home)
 	if roundi(_last[0]) != roundi(_last[1]):
 		wins[0 if _last[0] > _last[1] else 1] += 1
 	if Net.in_session():
@@ -213,17 +254,28 @@ func _process(delta: float) -> void:
 		_result(_last, fish, wins)
 
 
-## Host: both alongside the fish pier (sea/harbour.gd), A at her berth on its west side, B on its east, bows out.
-func _moor() -> void:
+## Boat i's berth (world x, z): A's on the fish pier's west side, B's mirrored on its east.
+func _berth(i: int) -> Vector2:
+	var harbour: Node = sea.get("harbour")
+	var boat: Node = sides[i].get("boat")
+	var at: Vector2 = harbour.call("berth", float(boat.get("beam")) * 0.5, float(boat.get("length")))
+	if i == 1:
+		at.x = 2.0 * float(harbour.get("PIER_X")) - at.x
+	return at
+
+
+## Host: both alongside the fish pier (sea/harbour.gd), A at her berth on its west side, B on its east, bows out;
+## but not a boat that's already come in herself (`keep`: true for each one that has).
+func _moor(keep := [false, false]) -> void:
 	var harbour: Node = sea.get("harbour")
 	if harbour == null:
 		return
 	for i in 2:
+		if bool(keep[i]):
+			continue
 		var boat: Node = sides[i].get("boat")
 		var helm: Node = boat.get("helm")
-		var at: Vector2 = harbour.call("berth", float(boat.get("beam")) * 0.5, float(boat.get("length")))
-		if i == 1:
-			at.x = 2.0 * float(harbour.get("PIER_X")) - at.x
+		var at := _berth(i)
 		helm.set("at", at)
 		helm.set("heading", 0.0)
 		helm.set("speed", 0.0)
@@ -275,6 +327,11 @@ func _host_set_out(holds: Array, first: int) -> void:
 	if wins.max() >= MATCH:
 		wins = [0, 0]         # (a new match)
 	holds[1 - first].call("head_out", str(holds[first].get("kind")))
+	_alongside_for = [0.0, 0.0]
+	if Net.in_session():
+		_homeward.rpc(-1.0, [false, false])
+	else:
+		_homeward(-1.0, [false, false])
 	if Net.in_session():
 		_go.rpc()
 	else:
@@ -335,6 +392,34 @@ func _teams(t: Dictionary) -> void:
 	var crew := sea.get("crew") as Node
 	for id: int in crew.get("slots").keys():
 		crew.call("reseat", id)
+
+
+## Everyone: the race home (until `by`, the sea clock; -1 when it's over) and which boats are in.
+@rpc("authority", "call_local", "reliable")
+func _homeward(by: float, in_: Array) -> void:
+	var was := home_by
+	home_by = by
+	home = in_
+	if was < 0.0 and by > 0.0:
+		_radio("dusk", 2.0)
+
+
+## Host (tests, dev): the race home run for them: both alongside their berths, tied up, in time.
+func host_bring_home() -> void:
+	if not _out:
+		return
+	if Net.in_session():
+		_homeward.rpc(_now() + HOME, [true, true])
+	else:
+		_homeward(_now() + HOME, [true, true])
+	_moor()
+	for side: Node in sides:
+		(side.get("fish_hold") as Node).call("head_in")
+
+
+## Whether boat `t` brought herself home this trip (so there's no cut to black for her crew).
+func came_home(t: int) -> bool:
+	return bool(home[t])
 
 
 ## Everyone: GO, the horns blow, the countdown's done.
@@ -558,9 +643,20 @@ func _draw_count() -> void:
 	elif now - _go_shown < 2.0:
 		text = "GO!"
 		col = Color(0.6, 1.0, 0.6)
+	elif home_by > 0.0:
+		var left := maxi(ceili(home_by - now), 0)
+		var clock := "%d:%02d" % [left / 60, left % 60]
+		text = ("HOME. WAITING FOR THEM  " if bool(home[my_team]) else "DUSK: BRING HER HOME  ") + clock
+		col = Color(0.6, 1.0, 0.6) if bool(home[my_team]) else (Color(1.0, 0.78, 0.34) if left > 60 else Color(1.0, 0.45, 0.3))
+		var sub := "THEY'RE IN." if bool(home[1 - my_team]) else "ALONGSIDE YOUR BERTH AT THE FISH PIER, SLOW. LATE: HALF WEIGHT."
+		var sa := Vector2((_count.size.x - PixFont.width(sub, 2)) * 0.5, 82)
+		PixFont.draw(_count, sa + Vector2(2, 2), sub, Color(0, 0, 0, 0.8), 2)
+		PixFont.draw(_count, sa, sub, Color(0.9, 0.93, 0.96), 2)
 	if text.is_empty():
 		return
 	var sc := 5 if text != "GO!" else 9
+	if home_by > 0.0 and count_end < 0.0 and text != "GO!":
+		sc = 4
 	var w := PixFont.width(text, sc)
 	var at := Vector2((_count.size.x - w) * 0.5, 40.0)
 	PixFont.draw(_count, at + Vector2(sc * 0.6, sc * 0.6), text, Color(0, 0, 0, 0.8), sc)
