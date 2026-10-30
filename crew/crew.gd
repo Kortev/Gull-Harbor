@@ -31,12 +31,31 @@ func _ready() -> void:
 
 ## The boat was rebuilt as another kind (boat/boat.gd): everyone back to their spot on her new deck.
 func _on_rebuilt() -> void:
-	var boat := sea.get("boat") as Node
 	for id: int in slots:
 		var p := get_player(id)
 		if p:
-			var at: Transform3D = boat.call("spawn_local", int(slots[id]))
+			var at: Transform3D = p.boat.call("spawn_local", int(slots[id]))
 			p.place(at.origin, at.basis.get_euler().y)
+
+
+## Which boat crew member `id` is on: the one boat, or in VS (vs/vs.gd) their side's.
+func boat_of(id: int) -> Node3D:
+	var vs: Node = sea.get("vs")
+	if vs != null and bool(vs.get("on")):
+		return vs.call("boat_of", id)
+	return sea.get("boat") as Node3D
+
+
+## Crew member `id`'s boat changed (VS): made again on her, at their spot.
+func reseat(id: int) -> void:
+	var p := get_player(id)
+	if p == null or p.boat == boat_of(id):
+		return
+	remove_child(p)
+	p.queue_free()
+	if me == p:
+		me = null
+	_add(id, int(slots[id]))
 
 
 func start_solo() -> void:
@@ -146,7 +165,7 @@ func _add(id: int, slot: int) -> void:
 	slots[id] = slot          # (first: the player's oilskins take their colour from it as it's made)
 	var p := Player.new()
 	p.name = str(id)
-	p.boat = sea.get("boat") as Node3D
+	p.boat = boat_of(id)
 	add_child(p)
 	var at: Transform3D = p.boat.call("spawn_local", slot)
 	p.place(at.origin, at.basis.get_euler().y)

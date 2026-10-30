@@ -249,8 +249,10 @@ func _process(delta: float) -> void:
 	if ocean == null:
 		return
 	global_transform = pose()
-	# her hull pushes the sea down where she sits: no crest shows up through her deck
-	ocean.set_hull(global_transform, length, beam)
+	# her hull pushes the sea down where she sits: no crest shows up through her deck (the boat you're on: the sea
+	# keeps one hull out, and in VS the other's far enough off not to tell)
+	if ocean.follow == self or ocean.follow == null:
+		ocean.set_hull(global_transform, length, beam)
 
 
 ## Where the hull sits on the swell right now: a plane fitted to the water under her (five stations along, three

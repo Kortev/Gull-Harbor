@@ -198,6 +198,9 @@ func _process(_delta: float) -> void:
 	var now := [docked, Net.is_host(), (hold.get("sale") as Dictionary).duplicate(true), hold.get("bank"),
 			hold.get("kind"), (hold.get("owned") as Array).duplicate(), (hold.get("gear") as Array).duplicate(),
 			hold.get("quota"), hold.get("earned"), hold.get("day")] if hold else []
+	var vs := get_parent().get("vs") as Node
+	if vs != null:
+		now.append_array([vs.get("on"), (vs.get("teams") as Dictionary).duplicate()])
 	if now != _dock_of:
 		_dock_of = now
 		_fill_dock(hold, docked)
@@ -324,12 +327,35 @@ func _fill_dock(hold: Node, docked: bool) -> void:
 			line.add_child(b)
 		_dock.add_child(line)
 	_dock.add_child(HSeparator.new())
+	_vs_rows(skipper)
 	if skipper:
 		var go := _button("Head out", func() -> void: hold.call("head_out"))
 		go.add_theme_font_size_override("font_size", 22)
 		_dock.add_child(go)
 	else:
 		_dock.add_child(_slip_line("Waiting for the skipper to head out."))
+
+
+## VS (vs/vs.gd): the skipper's switch to two boats and back, and while it's on, the two boats with how many aboard
+## each (yours lit): press the other to cross to her.
+func _vs_rows(skipper: bool) -> void:
+	var vs := get_parent().get("vs") as Node
+	if vs == null:
+		return
+	var on := bool(vs.get("on"))
+	if skipper:
+		_dock.add_child(_button("One boat" if on else "Two boats: race for the birds", func() -> void:
+			vs.call("host_set_on", not on)))
+	if on:
+		var row := HBoxContainer.new()
+		var teams: Array = (vs.get("teams") as Dictionary).values()
+		for t in 2:
+			var b := _button("Boat %s  (%d)" % ["AB"[t], teams.count(t)], func() -> void: vs.call("ask_team", t))
+			b.disabled = int(vs.get("my_team")) == t
+			b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			row.add_child(b)
+		_dock.add_child(row)
+	_dock.add_child(HSeparator.new())
 
 
 func _slip_line(text: String, size := 16, tint := Color(1, 1, 1)) -> Label:
