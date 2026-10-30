@@ -27,9 +27,10 @@ extends RefCounted
 ##   box, box_size the fish box: the middle of its hatch in her sole, and how big it is (x across, z along)
 ##   chum          where the chum bucket stands (boat/chum.gd); jig: the holder the mackerel jig sits in (boat/jig.gd)
 ##   price         what she costs to buy at the dock; fuel: what a trip in her costs (taken from the sale)
-##   screens       the displays on her dash, each [its screen ("radar_scope": tuna/radar.gd, "plotter":
-##                 boat/plotter.gd), the middle of its face, its face's size (m)]: boat/boat.gd builds each a case on
-##                 a bracket, turned to the captain's eyes at the wheel
+##   pod           her electronics set into the console: [where its foot sits on the console top, its size m]
+##   screens       the displays in it, each [its screen ("radar_scope": tuna/radar.gd, "plotter":
+##                 boat/plotter.gd), the middle of its face across the pod, its face's size (m)]: boat/boat.gd sets
+##                 them in the pod (the sportfisher's are her own panel's, in her model)
 ##   radar_bar     where her radar's spinning bar sits, if her model hasn't one (boat.gd builds it)
 
 const DEFAULT := "sportfisher"
@@ -58,8 +59,9 @@ const KINDS := {
 		"cabin_light": Vector3(0.0, 2.3, 0.4), "crown": Vector3(0.0, 2.75, 0.0),
 		"chum": Vector3(-0.25, 1.03, 3.92), "jig": 2,
 		"price": 0, "fuel": 60,
-		"screens": [["radar_scope", Vector3(-0.25, 1.79, -0.22), Vector2(0.28, 0.28)],
-				["plotter", Vector3(0.23, 1.79, -0.22), Vector2(0.36, 0.28)]],
+		"screens": [["radar_scope", Vector2(-0.165, 0.0), Vector2(0.27, 0.22)],
+				["plotter", Vector2(0.165, 0.0), Vector2(0.31, 0.22)]],
+		"pod": [Vector3(0.0, 1.6, 0.12), Vector2(0.7, 0.28)],
 		"radar_bar": Vector3(0.0, 2.68, -0.3),
 	},
 	"sportfisher": {
@@ -87,8 +89,6 @@ const KINDS := {
 		"cabin_light": Vector3(0.0, 2.45, -1.3), "crown": Vector3(0.0, 7.6, -1.3),
 		"chum": Vector3(-0.3, 1.3, 6.6), "jig": 4,
 		"price": 20000, "fuel": 400,
-		"screens": [["radar_scope", Vector3(0.58, 2.0, -2.74), Vector2(0.3, 0.3)],
-				["plotter", Vector3(1.24, 2.0, -2.74), Vector2(0.38, 0.3)]],
 	},
 }
 

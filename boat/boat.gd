@@ -159,8 +159,10 @@ func _build() -> void:
 		_radar = _radar_bar(visual, spec["radar_bar"])
 	var h0 := src.find_child("helm", true, false) as Node3D
 	var eye := (_src_transform(h0, src).origin if h0 else Vector3.ZERO) + Vector3(0.0, 1.62, 0.0)
-	for sc: Array in spec.get("screens", []):
-		_screen(visual, str(sc[0]), sc[1], sc[2], eye)
+	if spec.has("pod"):
+		var pod := _pod(visual, spec["pod"][0], spec["pod"][1], eye)
+		for sc: Array in spec.get("screens", []):
+			_pod_screen(pod, str(sc[0]), sc[1], sc[2])
 	var col_mesh := src.find_child("collider", true, false) as MeshInstance3D
 	if col_mesh:
 		var shape := col_mesh.mesh.create_trimesh_shape()
@@ -226,6 +228,65 @@ func _build() -> void:
 	_built.append(cabin)
 	floods.append(cabin)
 	src.free()
+
+
+## Her electronics, set into the console (boat/kinds.gd's pod: where its bottom edge sits on the console top, its size):
+## one wide bezel, its foot on the console top, tilted back to face the helmsman's eyes, low enough to look over; the
+## radar and the chart side by side in it (_pod_screen). The housing fills in behind and under it down to the console.
+func _pod(visual: Node3D, foot: Vector3, size: Vector2, eye: Vector3) -> Node3D:
+	var dark := StandardMaterial3D.new()
+	dark.albedo_color = Color(0.07, 0.075, 0.08)
+	dark.roughness = 0.5
+	# tilted back toward her eyes: its face's normal points at them, its foot on the console
+	var to_eye := (eye - foot).normalized()
+	var up_face := Vector3.UP - to_eye * Vector3.UP.dot(to_eye)
+	var unit := Node3D.new()
+	unit.name = "electronics"
+	var z := to_eye
+	var y := up_face.normalized()
+	var x := y.cross(z).normalized()
+	unit.transform = Transform3D(Basis(x, y, z), foot + y * size.y * 0.5)
+	visual.add_child(unit)
+	# the bezel round both screens
+	var bezel := MeshInstance3D.new()
+	var bb := BoxMesh.new()
+	bb.size = Vector3(size.x + 0.04, size.y + 0.04, 0.05)
+	bezel.mesh = bb
+	bezel.position = Vector3(0.0, 0.0, -0.03)
+	bezel.material_override = dark
+	unit.add_child(bezel)
+	# the housing behind it, sunk back and down into the console
+	var back := MeshInstance3D.new()
+	var kb := BoxMesh.new()
+	kb.size = Vector3(size.x + 0.02, size.y + 0.02, 0.22)
+	back.mesh = kb
+	back.position = Vector3(0.0, 0.0, -0.05 - 0.11)
+	back.material_override = dark
+	unit.add_child(back)
+	# a thin brow over the top edge against the glare
+	var brow := MeshInstance3D.new()
+	var wb := BoxMesh.new()
+	wb.size = Vector3(size.x + 0.04, 0.012, 0.06)
+	brow.mesh = wb
+	brow.position = Vector3(0.0, size.y * 0.5 + 0.025, 0.015)
+	brow.material_override = dark
+	unit.add_child(brow)
+	return unit
+
+
+## One screen in the pod: `what` ("radar_scope", "plotter") at `at` across its face (m from its middle), `size` m.
+func _pod_screen(pod: Node3D, what: String, at: Vector2, size: Vector2) -> void:
+	var face := MeshInstance3D.new()
+	var q := QuadMesh.new()
+	q.size = size
+	var m := StandardMaterial3D.new()
+	m.resource_name = what
+	m.albedo_color = Color(0.02, 0.03, 0.04)
+	q.material = m
+	face.mesh = q
+	face.position = Vector3(at.x, at.y, 0.0)
+	face.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	pod.add_child(face)
 
 
 ## A display on her dash (boat/kinds.gd's screens): a dark case on a bracket down to the dash, a hood over its top
