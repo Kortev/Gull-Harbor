@@ -8,7 +8,12 @@ extends Node
 ## every peer at the same path, so the host runs both and each peer sees both, exactly as it sees its own boat in
 ## co-op. The sea's own `boat`, `rods`, ... are whichever boat you're on (your camera, your HUD, your screens).
 ##
-## The trip: when one boat heads out the other goes too, both from the harbour side by side, in the same kind of boat. The
+## The start: both boats wait at their berths either side of the fish pier, mirrored (neither's nearer the harbour
+## mouth), the crews free to walk about. Once the title's down (and after a trip, once the weigh-in's been read off and
+## a breather), a countdown runs at the top of everyone's screen with a tick a second, and on GO the horns blow and
+## both are let go at once: each crew takes her out through the harbour mouth themselves. No skipper's button, no
+## moving the boats anywhere.
+## The trip: when one boat heads out the other goes too, in the same kind of boat. The
 ## schools turn up round one boat, then the other, then between them (spawn_anchor). Out there they're solid to each
 ## other, rock in each other's wakes and cut each other's lines (vs/contact.gd). Top left, small: both boats' pounds
 ## aboard, and a blinking dot and the squelch on the radio when the other crew hooks up. An air horn at each console
@@ -30,6 +35,7 @@ const Contact := preload("res://vs/contact.gd")
 const Horn := preload("res://vs/horn.gd")
 const Hud := preload("res://ui/hud.gd")
 const Sfx := preload("res://audio/sfx.gd")
+const PixFont := preload("res://ui/pixfont.gd")
 ## Each boat's things, the sea's and a side's (the sea's point at the boat you're on).
 const PARTS := ["boat", "rods", "landing", "fish_hold", "chum", "jig"]
 ## The boats set out from the harbour (sea/landmarks.gd): side by side inside the breakwaters, IN m off the beach,
@@ -44,6 +50,10 @@ const READ := 0.8
 const BETWEEN := 1.2
 ## Days won to win the match.
 const MATCH := 2
+## The countdown to casting off (s), and the breather before it after a weigh-in (longer once a match is won).
+const COUNT := 10.0
+const BREATHER := 12.0
+const MATCH_BREATHER := 30.0
 
 var sea: Node                 # sea/sea.gd
 var on := false
@@ -67,6 +77,13 @@ var _out := false
 var _last := [0.0, 0.0]
 var _anchor := 0
 var _draw_in := 0.0
+## When (the sea clock) both boats are let go, while the countdown's running (-1: it isn't).
+var count_end := -1.0
+## The weigh-in finished at (the sea clock): the breather runs from it.
+var _weighed_at := -1.0
+var _go_shown := -10.0
+var _ticked := -1
+var _count: Control
 var _ui: CanvasLayer
 var _race: Control
 var _verdict: Label
@@ -152,6 +169,12 @@ func _process(delta: float) -> void:
 		return
 	_show(delta)
 	_weigh(delta)
+	_count.queue_redraw()
+	if count_end > 0.0:
+		var left := ceili(count_end - _now())
+		if left != _ticked and left <= 5 and left > 0:
+			_ticked = left
+			Sfx.play("ui.tick", 1.0, 1.0 if left > 3 else 1.3)
 	# (the sea lights the boat you're on: hers come on with them)
 	(sides[1 - my_team].get("boat") as Node).call("set_lights", bool((sea.get("boat") as Node).get("_lights_on")))
 	if not Net.is_host():
@@ -161,6 +184,8 @@ func _process(delta: float) -> void:
 	if not _out:
 		if docked[0] != docked[1]:
 			_host_set_out(holds, 0 if docked[1] else 1)
+		elif docked[0] and docked[1]:
+			_host_count(holds)
 		return
 	if not docked[0] and not docked[1] and float(holds[0].call("day_fraction")) < 1.0:
 		for i in 2:
@@ -209,24 +234,51 @@ func _moor() -> void:
 			helm.rpc("_sync", int(helm.get("captain")), 0.0, at, 0.0)
 
 
-## Host: one boat's headed out (`first`): the other goes with her in the same kind of boat, and they set off from the
-## harbour side by side.
+## Host, both at the dock: once the title's down and the last weigh-in's been read off (and a breather), the countdown;
+## at its end, both let go together.
+func _host_count(holds: Array) -> void:
+	var now := _now()
+	if count_end < 0.0:
+		var title: Node = sea.get("title")
+		if (title != null and bool(title.get("up"))) or weighing:
+			return
+		if result.size() == 2:
+			if _weighed_at < 0.0:
+				_weighed_at = now
+			var wait := MATCH_BREATHER if int(wins.max()) >= MATCH else BREATHER
+			if now - _weighed_at < wait:
+				return
+		_weighed_at = -1.0
+		if Net.in_session():
+			_counting.rpc(now + COUNT)
+		else:
+			_counting(now + COUNT)
+	elif now >= count_end:
+		holds[0].call("head_out")
+		_host_set_out(holds, 0)
+
+
+@rpc("authority", "call_local", "reliable")
+func _counting(end: float) -> void:
+	count_end = end
+	_ticked = -1
+
+
+func _now() -> float:
+	return float((sea.get("ocean") as Node).get("wave_time"))
+
+
+## Host: one boat's let go (`first`): the other goes with her, in the same kind of boat, from her own berth.
 func _host_set_out(holds: Array, first: int) -> void:
 	_out = true
 	_last = [0.0, 0.0]
 	if wins.max() >= MATCH:
 		wins = [0, 0]         # (a new match)
 	holds[1 - first].call("head_out", str(holds[first].get("kind")))
-	var marks: Node = sea.get("landmarks")
-	var x := Landmarks.HARBOUR_X
-	var z: float = float(marks.call("shore_z", x)) - IN if marks != null else 0.0
-	for i in 2:
-		var helm: Node = (sides[i].get("boat") as Node).get("helm")
-		helm.set("at", Vector2(x + APART * (i * 2 - 1), z))
-		helm.set("heading", 0.0)
-		helm.set("speed", 0.0)
-		if Net.in_session():
-			helm.rpc("_sync", int(helm.get("captain")), 0.0, helm.get("at"), 0.0)
+	if Net.in_session():
+		_go.rpc()
+	else:
+		_go()
 	if Net.in_session():
 		_result.rpc([], [], wins)
 	else:
@@ -283,6 +335,17 @@ func _teams(t: Dictionary) -> void:
 	var crew := sea.get("crew") as Node
 	for id: int in crew.get("slots").keys():
 		crew.call("reseat", id)
+
+
+## Everyone: GO, the horns blow, the countdown's done.
+@rpc("authority", "call_local", "reliable")
+func _go() -> void:
+	count_end = -1.0
+	_go_shown = _now()
+	for side: Node in sides:
+		var horn := (side.get("boat") as Node).get_node_or_null("Horn")
+		if horn != null:
+			(horn.get("_player") as AudioStreamPlayer3D).play()
 
 
 @rpc("authority", "call_local", "reliable")
@@ -348,7 +411,11 @@ func _build() -> void:
 		horn.boat.add_child(horn)
 	on = true
 	_out = false
+	count_end = -1.0
+	_weighed_at = -1.0
 	_ui.visible = true
+	if Net.is_host():
+		_moor()
 
 
 func _side(team: int) -> BoatSide:
@@ -427,6 +494,12 @@ func _build_ui() -> void:
 	_verdict.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	_ui.add_child(_verdict)
 	# the weigh-in: a column for each boat, right of the dock's slip, her fish read off down it
+	# the countdown, big, top middle (the pixel font, ui/pixfont.gd)
+	_count = Control.new()
+	_count.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_count.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_count.draw.connect(_draw_count)
+	_ui.add_child(_count)
 	_board = VBoxContainer.new()
 	_board.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	_board.position = Vector2(-380, 110)
@@ -471,6 +544,31 @@ func _show(delta: float) -> void:
 		var ours := int(wins[my_team])
 		_verdict.text += "\nThe match: %s, %d-%d" % ["yours" if ours >= MATCH else "theirs", int(wins.max()),
 				int(wins.min())]
+
+
+func _draw_count() -> void:
+	var now := _now()
+	var text := ""
+	var col := Hud.CREAM
+	if count_end > 0.0:
+		var left := ceili(count_end - now)
+		text = "CAST OFF IN %d" % maxi(left, 0)
+		col = Color(1.0, 0.78, 0.34) if left > 3 else Color(1.0, 0.45, 0.3)
+	elif now - _go_shown < 2.0:
+		text = "GO!"
+		col = Color(0.6, 1.0, 0.6)
+	if text.is_empty():
+		return
+	var sc := 5 if text != "GO!" else 9
+	var w := PixFont.width(text, sc)
+	var at := Vector2((_count.size.x - w) * 0.5, 40.0)
+	PixFont.draw(_count, at + Vector2(sc * 0.6, sc * 0.6), text, Color(0, 0, 0, 0.8), sc)
+	PixFont.draw(_count, at, text, col, sc)
+	if count_end > 0.0:
+		var sub := "BOTH BOATS LET GO TOGETHER. TAKE THE WHEEL!"
+		var sa := Vector2((_count.size.x - PixFont.width(sub, 2)) * 0.5, 82)
+		PixFont.draw(_count, sa + Vector2(2, 2), sub, Color(0, 0, 0, 0.8), 2)
+		PixFont.draw(_count, sa, sub, Color(0.9, 0.93, 0.96), 2)
 
 
 func _draw_race() -> void:

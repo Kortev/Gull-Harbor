@@ -230,7 +230,8 @@ func _process(delta: float) -> void:
 				to.make_current()
 			_view.visible = false
 			var hold := sea.get("fish_hold") as Node
-			if hold == null or not bool(hold.get("docked")):
+			var vs := sea.get("vs") as Node
+			if hold == null or not bool(hold.get("docked")) or (vs != null and bool(vs.get("on"))):
 				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 

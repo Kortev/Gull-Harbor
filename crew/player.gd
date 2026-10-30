@@ -604,6 +604,9 @@ func _lurch(delta: float) -> void:
 func _at_dock() -> bool:
 	var sea: Node = boat.get("sea") if boat else null
 	var hold: Node = sea.get("fish_hold") if sea else null
+	var vs: Node = sea.get("vs") if sea else null        # (the sea's, or a VS side's: vs/side.gd)
+	if vs != null and bool(vs.get("on")):
+		return false        # (rivals: no shop at the dock, walk about while the countdown runs)
 	return hold != null and bool(hold.get("docked"))
 
 

@@ -125,8 +125,10 @@ func _as_friend() -> void:
 		await get_tree().create_timer(0.2).timeout
 	await get_tree().create_timer(2.5).timeout
 	_check(not bool((vs.sides[0].get("fish_hold") as Node).get("docked")), "both boats out")
-	var gap := a_boat.global_position.distance_to(b_boat.global_position)
-	_check(gap > 40.0, "apart: %.0f m" % gap)
+	var ax := a_boat.global_position.x
+	var bx := b_boat.global_position.x
+	_check(ax < sea.harbour.PIER_X and bx > sea.harbour.PIER_X, "from their own berths either side of the pier (%.0f, %.0f)"
+			% [ax, bx])
 	# take B's wheel and lie at SPOT
 	var hb: Node = b_boat.get("helm")
 	hb.call("request", true)

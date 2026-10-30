@@ -38,7 +38,10 @@ func _ready() -> void:
 	_check(sea.boat == b_boat and sea.fish_hold == b.get("fish_hold") and sea.ocean.follow == b_boat,
 			"B is the sea's boat for you (the sea under her, her fish hold)")
 	_check(a.get("crew").get("me") == null and b.get("crew") == sea.crew, "A's things don't see you aboard; B's do")
-	# head out: both go, apart, the same kind
+	# at the dock the countdown runs; its end lets both go together (here the skipper's let go early, in the boat
+	# the test wants)
+	await get_tree().process_frame
+	_check(vs.count_end > 0.0, "at the dock, the countdown to casting off runs (%.0f s)" % (vs.count_end - vs._now()))
 	sea.fish_hold.call("head_out", "sportfisher")
 	await get_tree().create_timer(0.3).timeout
 	var a_hold: Node = a.get("fish_hold")
@@ -47,8 +50,10 @@ func _ready() -> void:
 	_check(not bool(a_hold.get("docked")) and not bool(b_hold.get("docked")), "one heads out, both do")
 	_check(str(a_boat.get("kind")) == "sportfisher" and str(b_boat.get("kind")) == "sportfisher",
 			"in the same kind of boat")
-	var gap := a_boat.global_position.distance_to(b_boat.global_position)
-	_check(gap > Vs.APART * 1.5, "they set out apart (%.0f m)" % gap)
+	var ax := (a_boat.get("helm").get("at") as Vector2).x
+	var bx := (b_boat.get("helm").get("at") as Vector2).x
+	_check(ax < sea.harbour.PIER_X and bx > sea.harbour.PIER_X,
+			"they set out from their own berths, either side of the fish pier (%.0f, %.0f)" % [ax, bx])
 	for boat: Node3D in [a_boat, b_boat]:
 		var at: Vector2 = boat.get("helm").get("at")
 		_check(at.y > sea.landmarks.shore_z(at.x) - 300.0 and not sea.landmarks.blocked(at),

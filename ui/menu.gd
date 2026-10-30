@@ -198,7 +198,8 @@ func _process(_delta: float) -> void:
 	var hold := _fish_hold()
 	var docked: bool = hold != null and bool(hold.get("docked"))
 	_back.visible = not docked
-	_head_in.visible = hold != null and Net.is_host() and not docked
+	var vs_on := get_parent().get("vs") != null and bool((get_parent().get("vs") as Node).get("on"))
+	_head_in.visible = hold != null and Net.is_host() and not docked and not vs_on
 	var now := [docked, Net.is_host(), (hold.get("sale") as Dictionary).duplicate(true), hold.get("bank"),
 			hold.get("kind"), (hold.get("owned") as Array).duplicate(), (hold.get("gear") as Array).duplicate(),
 			hold.get("quota"), hold.get("earned"), hold.get("day")] if hold else []
@@ -257,8 +258,12 @@ func _fill_dock(hold: Node, docked: bool) -> void:
 		_dock.add_child(HSeparator.new())
 	else:
 		_dock.add_child(_slip_line("GULL HARBOR, AT THE FISH PIER", 18, Color(0.75, 0.8, 0.85)))
-	# the way out first: everything under it is for when you want it
-	if skipper:
+	# the way out first: everything under it is for when you want it (rivals: the countdown lets both go)
+	var vs := get_parent().get("vs") as Node
+	if vs != null and bool(vs.get("on")):
+		_dock.add_child(_slip_line("RIVALS: both boats cast off together when the countdown runs out", 16,
+				Color(1.0, 0.86, 0.6)))
+	elif skipper:
 		var go := _button("Cast off", func() -> void:
 			hold.call("head_out")
 			_resume()
