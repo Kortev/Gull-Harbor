@@ -249,6 +249,24 @@ func moor() -> void:
 		helm.rpc("_sync", helm.captain, 0.0, at, 0.0)
 
 
+## Dev: F8 puts a fish on a free rod and the rod in your hands (out on the grounds first if she's at the dock), to
+## practise the fight without the hunt.
+func _unhandled_key_input(e: InputEvent) -> void:
+	var k := e as InputEventKey
+	if k == null or not k.pressed or k.echo or k.keycode != KEY_F8 or not Net.is_host() 			or (title != null and title.up):
+		return
+	if fish_hold.docked:
+		fish_hold.head_out()
+		boat.helm.at = Vector2(0.0, -1500.0)
+	for r: Node in rods.rods:
+		if not bool(r.get("hooked")):
+			var i := int(r.get("index"))
+			rods.host_cast(i)
+			rods.strike(i, randf_range(120.0, 280.0))
+			rods.request_grab(i)
+			return
+
+
 ## Coming in: the screen cuts to black and fades up on her alongside the pier (every peer, as the trip ends); not
 ## when you brought her in alongside yourself.
 func arrive() -> void:

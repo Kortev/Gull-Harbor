@@ -8,7 +8,8 @@ extends Node3D
 ## How you find them (a hunt: it takes a while): birds, far off. With the naked eye a flock's a smudge on the horizon;
 ## closer in (crew/spotter.gd) you can tell what they're doing: diving on bluefin busting white water, or
 ## working little bait with no tuna under them (BAIT_ONLY of flocks: not worth the run), or sitting on the water
-## because the tuna have gone down (they feed in spells, SPELL s at a time: wait and they'll come up). Call a flock
+## because the tuna have gone down (they feed in spells, SPELL s at a time: wait and they'll come up; they still take
+## a bait across their head now and then while down). Call a flock
 ## and it's marked on the radar for everyone (call_out); the radar itself paints birds in the air within its range
 ## (tuna/radar.gd), and the sonar marks what's right under her. Run her to them, then set up a pass: a school
 ## travels its own way and feeds at its head, so a bait gets eaten (rods.gd hooks the fish, host only, strike()) only
@@ -36,14 +37,14 @@ const SCATTER := 25.0
 const CRUISE := Vector2(0.8, 2.2)
 ## Of the flocks, how many are only birds over little bait (no bluefin), and how long a feeding spell or a spell down
 ## lasts (s: a spell's up or down by the seed's dice).
-const BAIT_ONLY := 0.35
+const BAIT_ONLY := 0.15
 const SPELL := 40.0
 ## Faster than this (m/s) the baits skip and nothing bites.
 const BITE_SPEED := 6.0
 ## Where a travelling school eats: from AHEAD.x m behind its middle to AHEAD.y m ahead of its edge, within SIDE m of its
 ## edge to either side. Working a slick (not going anywhere) it eats all round.
-const AHEAD := Vector2(4.0, 35.0)
-const SIDE := 16.0
+const AHEAD := Vector2(0.0, 45.0)
+const SIDE := 22.0
 ## The chum slick: how long a scoop keeps it fresh (s), how far off a school smells it (m), how fast it comes up it
 ## (m/s), where new ones turn up while it's fresh (m from it), and how long one stays on it after the last scoop (s).
 const SLICK := 90.0
@@ -196,15 +197,18 @@ func _strikes(delta: float) -> void:
 		on += 1 if bool(r.get("hooked")) else 0
 	var chance := 0.3 * (1.0 if on == 0 else 0.015)
 	for s in schools:
-		if s.bait_only or not s.feeding(t):
+		if s.bait_only or s.scattering(t) > 0.0:
 			continue
+		# (down between feeding spells they're still there, deeper: a bait across their head still gets eaten, less
+		# often)
+		var keen := 1.0 if s.feeding(t) else 0.3
 		var c := s.center(t)
 		for r: Node3D in spread.get("rods"):
 			if bool(r.get("hooked")) or bool(r.get("bait_in")):
 				continue
 			var bait: Vector3 = r.get("line_end")
 			# (a fresh bait more than a washed-out one, a live mackerel most: rods.gd's bite_odds)
-			var odds := chance * float(spread.call("bite_odds", int(r.get("index"))))
+			var odds := chance * keen * float(spread.call("bite_odds", int(r.get("index"))))
 			if s.eats_at(Vector2(bait.x, bait.z), t) and randf() < delta * odds:
 				spread.call("strike", int(r.get("index")), clampf(s.kg * randf_range(0.8, 1.2), Tuna.MIN_KG,
 						Tuna.MAX_KG))
@@ -518,7 +522,7 @@ class School extends Node3D:
 			return false
 		# (spells counted from when it turned up, not from a steer: a chum slick doesn't reset them)
 		var spell := floorf((t - born) / SPELL_S)
-		return (owner_node as Node).call("hash1", float(seed % 1000), spell) > 0.38
+		return (owner_node as Node).call("hash1", float(seed % 1000), spell) > 0.22
 
 	## 0 while it works; 0 .. 1 over its last SCATTER s, as the birds lift and go.
 	func scattering(t: float) -> float:

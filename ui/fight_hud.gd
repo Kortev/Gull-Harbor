@@ -9,7 +9,9 @@ extends Control
 ## - right, the hook: how well it's holding, flashing as it works loose
 ## - over the arc, what to do now, as a mouse with the button lit: hands off while it runs, pump when the reel grinds,
 ##   tip down when it jumps, wheel down (ease the drag) in the red
-## And the moments: FISH ON when it takes, a crack and red when it's lost.
+##   and beside it the same in words, with the button: HOLD LEFT MOUSE: REEL, and a warning as it comes up to jump
+## And the moments: FISH ON when it takes; when it's lost, why in red and under it what would have saved it (a first
+## fight's a lot to take in: the words are the teacher).
 
 const GREEN := Color(0.45, 0.95, 0.55)
 const AMBER := Color(1.0, 0.75, 0.3)
@@ -29,6 +31,20 @@ var _banner := 0.0                    # FISH ON, counting down
 var _banner_text := ""
 var _banner_col := PALE
 var _edge: ColorRect
+var _lesson := ""                     # under a loss: what would have saved it
+
+## What each loss means, and what to do about it next time (rods.gd's WHY, said plainly).
+const LESSONS := {
+	"Thrown on the jump.": "HE JUMPED WITH THE ROD UP. WHEN HE JUMPS, MOUSE DOWN: DROP THE TIP.",
+	"Hook pulled.": "THE HOOK WORKED LOOSE. DON'T LET THE LINE GO SLACK: KEEP REELING WHEN HE COMES AT YOU.",
+	"Line parted.": "TOO TIGHT. LET GO WHILE HE RUNS, SCROLL DOWN TO EASE THE DRAG IN THE RED.",
+	"Line parted on the rail.": "THE LINE RUBBED THE BOAT. CAPTAIN: KEEP THE STERN TO THE FISH.",
+	"Chafed through on the hull.": "THE LINE RUBBED THE HULL. CAPTAIN: KEEP THE STERN TO THE FISH.",
+	"Spooled.": "HE TOOK ALL THE LINE. CAPTAIN: BACK DOWN TOWARD HIM (S).",
+	"Cut on the props.": "THE LINE WENT IN THE PROPS. CAPTAIN: KEEP HIM OFF THE STERN, IN NEUTRAL.",
+	"Lines tangled and parted.": "TWO LINES CROSSED. REEL THE OTHER RODS IN WHILE YOU FIGHT ONE.",
+	"Cut off.": "SOMETHING CUT THE LINE. THE OTHER BOAT CROSSING YOUR STERN?",
+}
 
 
 func _init() -> void:
@@ -70,6 +86,7 @@ func show_fight(s: Dictionary) -> void:
 		return
 	if not _on:
 		_line = float(s.get("line_out", 0.0))
+		_lesson = ""
 		_banner_text = "FISH ON!"
 		_banner_col = AMBER
 		_banner = 1.8
@@ -81,13 +98,15 @@ func show_fight(s: Dictionary) -> void:
 func lost(why: String) -> void:
 	_banner_text = why.trim_suffix(".").to_upper()
 	_banner_col = RED
-	_banner = 2.2
+	_lesson = str(LESSONS.get(why, ""))
+	_banner = 6.0 if not _lesson.is_empty() else 2.2
 	_on = false
 
 
 ## Up alongside: a moment of green.
 func won() -> void:
 	_banner_text = "BOATSIDE"
+	_lesson = "GAFF OR HARPOON HIM, HAUL HIM ABOARD."
 	_banner_col = GREEN
 	_banner = 2.0
 	_on = false
@@ -229,6 +248,18 @@ func _draw_do(at: Vector2, a: float) -> void:
 	elif bool(_s.get("grinding", false)):
 		what = "pump"
 	var pulse := 0.75 + 0.25 * sin(_t * 8.0)
+	# the same in words, under the mouse: what's happening and the button for it
+	var words := {"crank": "HOLD LEFT MOUSE: REEL HIM IN",
+			"pump": "REEL'S GRINDING: HOLD RIGHT TO LIFT, THEN LEFT TO REEL AS YOU DROP",
+			"hands_off": "HE'S RUNNING! LET GO OF THE MOUSE",
+			"ease": "TOO TIGHT! SCROLL DOWN TO EASE THE DRAG",
+			"tip_down": "HE'S JUMPING! MOUSE DOWN: DROP THE ROD TIP"}[what] as String
+	var col := {"crank": GREEN, "pump": Color(0.4, 0.85, 1.0), "hands_off": AMBER, "ease": RED,
+			"tip_down": AMBER}[what] as Color
+	if what == "crank" and str(_s.get("move", "")) == "jump":
+		words = "HE'S COMING UP TO JUMP! GET READY: MOUSE DOWN"
+		col = AMBER
+	_plate(at + Vector2(0, -34), words, Color(col, (pulse if what != "crank" else 0.95) * a), a)
 	var body := Rect2(at - Vector2(13, 18), Vector2(26, 36))
 	var base := Color(PALE, 0.35 * a)
 	draw_rect(body, Color(INK, INK.a * a))
@@ -268,3 +299,13 @@ func _draw_banner() -> void:
 	draw_string_outline(font, Vector2(-300, y), _banner_text, HORIZONTAL_ALIGNMENT_CENTER, 600, 46, 10,
 			Color(0, 0, 0, 0.7 * k))
 	draw_string(font, Vector2(-300, y), _banner_text, HORIZONTAL_ALIGNMENT_CENTER, 600, 46, Color(_banner_col, k))
+	if not _lesson.is_empty() and _banner_col != AMBER:
+		_plate(Vector2(0, y + 30), _lesson, Color(PALE, k), k)
+
+
+## Words on a dark plate, centred on `at` (the pixel font reads cleanest on a solid ground, not outlined).
+func _plate(at: Vector2, text: String, col: Color, a: float) -> void:
+	var font := get_theme_default_font()
+	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x
+	draw_rect(Rect2(at + Vector2(-w * 0.5 - 8, -16), Vector2(w + 16, 24)), Color(0.02, 0.03, 0.05, 0.78 * a))
+	draw_string(font, at + Vector2(-w * 0.5, 0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, col)
