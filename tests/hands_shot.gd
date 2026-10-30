@@ -111,6 +111,21 @@ func _ready() -> void:
 	me.cam.make_current()
 	await get_tree().create_timer(0.1).timeout
 	await _grab("catch_gaff_fp")
+	# a scoop of chum: dipped, thrown out to port
+	node.get_node("Handle").call("use_item", me, "gaff", false)
+	me.place(Vector3(0.0, float(sea.boat.spec["deck"]) + 0.05, 2.0), PI * 0.5)
+	me.set("_pitch", 0.05)
+	me.hands.pick("scoop")
+	me.hands.scoop_full = true
+	await get_tree().create_timer(0.3).timeout
+	me.hands.press(true)
+	await get_tree().create_timer(0.6).timeout
+	await _grab("chum_windup")
+	me.hands.press(false)
+	await get_tree().create_timer(0.45).timeout
+	await _grab("chum_flying")
+	await get_tree().create_timer(1.5).timeout
+	await _grab("chum_slick")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(sea.fish_hold.save_path))
 	get_tree().quit()
 

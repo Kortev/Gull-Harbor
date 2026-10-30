@@ -165,4 +165,33 @@ func _catch() -> void:
 
 
 func _chum() -> void:
-	pass
+	var hold := sea.fish_hold
+	var chum: Node = sea.chum
+	var bucket: Node = chum.get("_bucket").get_node("Scoop")
+	var left := hold.chum
+	me.place(Vector3(0.0, float(sea.boat.spec["deck"]) + 0.05, 1.5), PI * 0.5)       # (facing out to port)
+	me.set("_pitch", 0.0)
+	me.hands.pick("scoop")
+	await _frames(2)
+	_check(str(bucket.call("interact_prompt")).is_empty(), "the bucket: no words")
+	_check(bucket.call("use_item", me, "knife", true) == false, "the knife does nothing in the bucket")
+	_check(bucket.call("use_item", me, "scoop", true) and me.hands.scoop_full, "the scoop in the bucket: it comes up full")
+	_check(hold.chum == left, "nothing gone till it's thrown")
+	_check(bucket.call("use_item", me, "scoop", true) == false, "a full scoop on the bucket winds up a throw instead")
+	me.hands.press(true)
+	await _wait(0.5)
+	_check(me.hands.wind > 0.4, "holding: winding up (%.2f)" % me.hands.wind)
+	me.hands.press(false)
+	_check(not me.hands.scoop_full and hold.chum == left - 1, "let go: thrown, a scoop out of the bucket")
+	for i in 600:
+		if (chum.get("_flying") as Array).is_empty():
+			break
+		await get_tree().process_frame
+	var slick: Vector2 = sea.schools.slick
+	var l: Vector3 = sea.boat.global_transform.affine_inverse() * Vector3(slick.x, 0.0, slick.y)
+	_check(l.x < -float(sea.boat.spec["beam"]) * 0.5, "the slick's where it went: out to port, over the side (%.1f m)" % l.x)
+	var shown := false
+	for p: MeshInstance3D in chum.get("_patches"):
+		shown = shown or (p.visible and Vector2(p.global_position.x, p.global_position.z).distance_to(slick) < 0.5)
+	_check(shown, "and it's there on the water")
+	me.hands.pick("")
