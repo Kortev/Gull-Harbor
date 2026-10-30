@@ -13,6 +13,7 @@ extends Node3D
 const Rod := preload("res://rods/rod.gd")
 const Fight := preload("res://tuna/fight.gd")
 const Sfx := preload("res://audio/sfx.gd")
+const FightHud := preload("res://ui/fight_hud.gd")
 const Tuna := preload("res://tuna/tuna.gd")
 const Splash := preload("res://sea/splash.gd")
 ## A rod nobody's holding sits in its holder with the drag set: the host plays the fish against the drag (it takes
@@ -76,6 +77,7 @@ var _splash: Splash
 ## (a cast starts on a fresh press, not the end of winding in).
 var _fresh_press := false
 var _shook := false
+var _fight_hud: FightHud
 var _whoosh: AudioStreamPlayer3D
 
 
@@ -660,6 +662,8 @@ func _off(i: int, why: String) -> void:
 	if i < 0 or i >= rods.size():
 		return        # (a rod she hasn't got: a word from before she was rebuilt)
 	var r := rods[i]
+	if r.holder == Net.my_id() and _fight_hud != null and r.hooked and not why.is_empty():
+		_fight_hud.lost(why)
 	# what's left of the line, lying out there slack, to be wound in the whole way: all of it when the hook pulled or
 	# it threw it, the broken end when it parted, nothing when it spooled her (or it was let go heading in)
 	var left := r.line_out
@@ -751,11 +755,31 @@ func _host_end(i: int, how: String) -> void:
 		_host_off(i, str(WHY.get(how, "Lost it.")))
 
 
+## The fight read out (ui/fight_hud.gd) while you've a fish on, and nothing the rest of the time.
+func _show_fight_hud(hud: Node, mine: Rod) -> void:
+	if _fight_hud == null and hud != null:
+		_fight_hud = FightHud.new()
+		_fight_hud.name = "FightHud"
+		hud.add_child(_fight_hud)
+	if _fight_hud == null:
+		return
+	if mine == null or not mine.hooked or mine.alongside or mine.fight == null:
+		_fight_hud.show_fight({})
+		return
+	var f := mine.fight as Fight
+	_fight_hud.show_fight({"tension": f.strain + f.shock, "danger": clampf(float(f.get("_over_t")) / Fight.BREAK_HOLD,
+			0.0, 1.0), "drag": mine.drag, "line_out": mine.line_out, "spool": mine.line_out / Fight.CAPACITY,
+			"energy": f.energy, "hold": f.hold, "move": f.move, "slipping": f.slipping, "grinding": f.grinding,
+			"airborne": f.airborne})
+
+
 ## Everyone (tuna/landing.gd): rod i's fish is up alongside, beaten: no more fight on it.
 func set_alongside(i: int) -> void:
 	if i < 0 or i >= rods.size():
 		return        # (a rod she hasn't got: a word from before she was rebuilt)
 	var r := rods[i]
+	if r.holder == Net.my_id() and _fight_hud != null and not r.alongside:
+		_fight_hud.won()
 	r.hooked = true
 	r.alongside = true
 	r.fight = null
@@ -985,8 +1009,8 @@ func _process(delta: float) -> void:
 			shook = clampf(f.shock * 1.5 + (0.25 * f.strain if f.slipping else 0.0), 0.0, 1.0)
 		me_node.set("shake", shook)
 		_shook = mine != null
+	_show_fight_hud(hud, mine)
 	if mine != null and mine.hooked:
-		# nothing to read: the rod, the reel and the line say it all
 		hud.call("fight", "", 0.0)
 	else:
 		_trend_out = -1.0
