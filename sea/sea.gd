@@ -187,6 +187,12 @@ func _ready() -> void:
 		set_condition(str(_args["weather"]))
 	else:
 		_follow_weather()
+	# (everyone aboard has the host's weather: the seed's sent to each who joins, and the days and the clock are
+	# shared already)
+	Net.peer_joined.connect(func(id: int) -> void:
+		if multiplayer.is_server():
+			print("Weather: sending ours (seed %d)" % weather.seed)
+			_weather_seed.rpc_id(id, weather.seed, str(_args.get("weather", ""))))
 	add_child(Menu.new())
 	# the game itself (not a test, which builds the sea under its own node): the boat you last took, at the dock,
 	# and the title over it
@@ -250,6 +256,16 @@ func moor() -> void:
 	helm.throttle = 0.0
 	if Net.in_session():
 		helm.rpc("_sync", helm.captain, 0.0, at, 0.0)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _weather_seed(s: int, pinned: String) -> void:
+	print("Weather: the host's (seed %d)" % s)
+	weather.seed = s
+	if not pinned.is_empty():
+		set_condition(pinned)
+	else:
+		_follow_weather()
 
 
 ## Dev: F8 puts a fish on a free rod and the rod in your hands (out on the grounds first if she's at the dock), to
@@ -517,7 +533,9 @@ func set_weather(from: String, to: String, m: float) -> void:
 
 
 func _follow_weather() -> void:
-	weather.day = int(fish_hold.day) + 1000 * int(fish_hold.quota_n)
+	# (Rivals: boat A's books, the same for both boats, whichever you're on)
+	var hold: Node = fish_hold if vs == null or not vs.on else vs.sides[0].get("fish_hold")
+	weather.day = int(hold.get("day")) + 1000 * int(hold.get("quota_n"))
 	var now := weather.at(ocean.wave_time)
 	set_weather(str(now[0]), str(now[1]), float(now[2]))
 
