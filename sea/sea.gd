@@ -197,6 +197,8 @@ func _ready() -> void:
 			title.name = "Title"
 			title.sea = self
 			add_child(title)
+			if _args.has("intro"):      # (screenshots: straight into the intro, as if SOLO was picked)
+				get_tree().create_timer(2.0).timeout.connect(func() -> void: title.call("_solo"))
 	if _args.has("vs"):        # (tests: two boats from the start; --team=b puts you on boat B)
 		vs.host_set_on(true)
 		if str(_args.get("team", "")) == "b":

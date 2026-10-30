@@ -30,14 +30,14 @@ func _ready() -> void:
 	var gaps: Array[float] = []
 	var last := cam.global_position
 	var steps := 0
-	while get_viewport().get_camera_3d() == cam and steps < 200:
+	while get_viewport().get_camera_3d() == cam and steps < 500:
 		await get_tree().process_frame
 		gaps.append(cam.global_position.distance_to(last))
 		last = cam.global_position
 		steps += 1
 	_check(not t.up, "SOLO takes the title down")
 	_check(get_viewport().get_camera_3d() == me_cam, "and hands over to your own eyes (%d frames)" % steps)
-	_check(gaps.max() < 2.5, "with no jump on the way (biggest step %.2f m)" % gaps.max())
+	_check(gaps.max() < 4.0, "the intro and the glide, with no jump on the way (biggest step %.2f m)" % gaps.max())
 	# rivals, hosted: the crew list, then START, two boats
 	t.queue_free()
 	sea.title = _title()

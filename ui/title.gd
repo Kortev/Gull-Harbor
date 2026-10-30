@@ -8,8 +8,9 @@ extends CanvasLayer
 ##   QUIT
 ## Rivals and co-op ask HOST or JOIN. Hosting opens the crew list (who's aboard which boat, the join code to send, a
 ## Steam invite) and the host's START; joining is your Steam friends with a boat out, or typing in their code. START
-## (or SOLO) closes it for everyone aboard: the letters fade, and the camera glides down from its drift into your eyes
-## on the dock, no cut.
+## (or SOLO) closes it for everyone aboard: the letters fade and a short intro plays, the camera pulling up and out
+## over the harbour mouth and sweeping back in low past the boats at the pier, a line or two in big pixel letters (what
+## the day is), then gliding down into your eyes on the dock, no cut. Any key or click skips on to the glide.
 ##
 ## Mouse or keys (up, down, Enter, Esc back). Only in the game itself: tests and screenshots never see it.
 
@@ -24,8 +25,9 @@ const LOGO := 15
 const SUB := 3
 const ITEM := 5
 const SMALL := 2
-## How long the camera takes gliding down into your eyes (s).
+## How long the camera takes gliding down into your eyes (s); the intro's two legs before it (s).
 const GLIDE := 2.4
+const LEG := 3.4
 
 var sea: Node                # sea/sea.gd
 ## Up: the title's showing (and the dock menu, ui/menu.gd, waits under it).
@@ -42,6 +44,9 @@ var _cam: Camera3D
 var _spin := 0.0
 var _fade := 0.0             # 0 showing .. 1 gone
 var _glide := -1.0           # the camera's glide into your eyes, s in (-1: not yet)
+var _intro := -1.0           # the intro, s in (-1: not playing)
+var _keys: Array[Transform3D] = []
+var _caption: Control
 var _from: Transform3D
 var _friends_in := 0.0
 
@@ -55,6 +60,11 @@ func _ready() -> void:
 	_view.draw.connect(_draw_view)
 	_view.gui_input.connect(_on_input)
 	add_child(_view)
+	_caption = Control.new()
+	_caption.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_caption.draw.connect(_draw_caption)
+	add_child(_caption)
 	_cam = Camera3D.new()
 	_cam.fov = 60.0
 	_cam.far = 6000.0
@@ -181,9 +191,48 @@ func _begin() -> void:
 	if not up:
 		return
 	up = false
-	_glide = 0.0
-	_from = _cam.global_transform
 	_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# the intro's path: from the drift, up and out over the harbour mouth, then back in low past the boats
+	var c := _middle()
+	var hi := Transform3D(Basis.IDENTITY, c + Vector3(-45.0, 34.0, -115.0))
+	hi = hi.looking_at(c + Vector3(0, 2, 0), Vector3.UP)
+	var lo := Transform3D(Basis.IDENTITY, c + Vector3(16.0, 4.5, -24.0))
+	lo = lo.looking_at(c + Vector3(-2, 1.8, 6), Vector3.UP)
+	_keys = [_cam.global_transform, hi, lo]
+	_intro = 0.0
+
+
+## Whether the title's still between you and the game (up, or its intro and glide playing).
+func busy() -> bool:
+	return up or _intro >= 0.0 or _glide >= 0.0
+
+
+## Where the camera looks: the boat, or in Rivals between the two.
+func _middle() -> Vector3:
+	var boat := sea.get("boat") as Node3D
+	var c := boat.global_position if boat else Vector3.ZERO
+	var vs := sea.get("vs") as Node
+	if vs != null and bool(vs.get("on")):
+		c = Vector3.ZERO
+		for side: Object in vs.get("sides"):
+			c += (side.get("boat") as Node3D).global_position * 0.5
+	return c
+
+
+## The intro's skipped (a key, a click): on to the glide from wherever the camera's got to, no jump.
+func _skip() -> void:
+	if _intro >= 0.0:
+		_intro = -1.0
+		_glide = 0.0
+		_from = _cam.global_transform
+		_caption.queue_redraw()
+
+
+func _input(e: InputEvent) -> void:
+	if _intro >= 0.0 and ((e is InputEventKey and (e as InputEventKey).pressed)
+			or (e is InputEventMouseButton and (e as InputEventMouseButton).pressed)):
+		_skip()
+		get_viewport().set_input_as_handled()
 
 
 func _process(delta: float) -> void:
@@ -192,12 +241,7 @@ func _process(delta: float) -> void:
 		# the drift: out over the water off the pier's end, swinging slowly from side to side, looking back in at the
 		# boats and the harbour behind them
 		_spin += delta * 0.06
-		var c := boat.global_position if boat else Vector3.ZERO
-		var vs := sea.get("vs") as Node
-		if vs != null and bool(vs.get("on")):
-			c = Vector3.ZERO
-			for side: Object in vs.get("sides"):
-				c += (side.get("boat") as Node3D).global_position * 0.5
+		var c := _middle()
 		var a := PI + 0.8 * sin(_spin * 0.5)
 		var eye := c + Vector3(sin(a) * 32.0, 8.0 + 2.0 * sin(_spin * 0.7), cos(a) * 32.0)
 		_cam.global_position = eye
@@ -213,14 +257,25 @@ func _process(delta: float) -> void:
 					_code = keep
 				_view.queue_redraw()
 		return
+	if _intro >= 0.0:
+		_intro += delta
+		_view.modulate.a = 1.0 - clampf(_intro / 0.8, 0.0, 1.0)
+		var leg := mini(int(_intro / LEG), 1)
+		var k := clampf((_intro - leg * LEG) / LEG, 0.0, 1.0)
+		k = k * k * (3.0 - 2.0 * k)
+		_cam.global_transform = _keys[leg].interpolate_with(_keys[leg + 1], k)
+		_caption.queue_redraw()
+		if _intro >= LEG * 2.0:
+			_skip()
+		return
 	if _glide >= 0.0:
 		var me: Node = (sea.get("crew") as Node).get("me")
 		var to: Camera3D = me.get("cam") if me else null
 		_glide += delta
 		var k := clampf(_glide / GLIDE, 0.0, 1.0)
 		k = k * k * (3.0 - 2.0 * k)
-		_fade = clampf(_glide / 0.8, 0.0, 1.0)
-		_view.modulate.a = 1.0 - _fade
+		_fade = 1.0
+		_view.modulate.a = 0.0
 		if to != null:
 			_cam.global_transform = _from.interpolate_with(to.global_transform, k)
 			_cam.fov = lerpf(60.0, to.fov, k)
@@ -233,6 +288,29 @@ func _process(delta: float) -> void:
 			var vs := sea.get("vs") as Node
 			if hold == null or not bool(hold.get("docked")) or (vs != null and bool(vs.get("on"))):
 				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+## The intro's lines, big, low in the middle, fading in and out with each leg.
+func _draw_caption() -> void:
+	if _intro < 0.0:
+		return
+	var vs := sea.get("vs") as Node
+	var rivals := vs != null and bool(vs.get("on"))
+	var lines := ["GULL HARBOR, FIRST LIGHT",
+			"TWO BOATS. ONE DAY." if rivals else ("ONE BOAT, A CREW." if _mode == "coop" else "ONE BOAT. JUST YOU."),
+			"MOST POUNDS AT DUSK WINS." if rivals else "FIND THE BIRDS, FIND THE TUNA."]
+	var span := LEG * 2.0 / lines.size()
+	var i := mini(int(_intro / span), lines.size() - 1)
+	var u := (_intro - i * span) / span
+	var a := clampf(minf(u / 0.2, (1.0 - u) / 0.2), 0.0, 1.0)
+	var text: String = lines[i]
+	var sc := 5
+	var at := Vector2((_caption.size.x - PixFont.width(text, sc)) * 0.5, _caption.size.y * 0.72)
+	PixFont.draw(_caption, at + Vector2(4, 4), text, Color(SHADOW, SHADOW.a * a), sc)
+	PixFont.draw(_caption, at, text, Color(CREAM, a), sc)
+	var skip := "ANY KEY TO SKIP"
+	PixFont.draw(_caption, Vector2(_caption.size.x - PixFont.width(skip, 2) - 24, _caption.size.y - 30), skip,
+			Color(DIM, 0.6), 2)
 
 
 func _on_input(e: InputEvent) -> void:

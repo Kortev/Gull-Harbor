@@ -292,7 +292,7 @@ func _host_count(holds: Array) -> void:
 	var now := _now()
 	if count_end < 0.0:
 		var title: Node = sea.get("title")
-		if (title != null and bool(title.get("up"))) or weighing:
+		if (title != null and bool(title.call("busy"))) or weighing:
 			return
 		if result.size() == 2:
 			if _weighed_at < 0.0:
