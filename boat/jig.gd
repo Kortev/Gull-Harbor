@@ -27,6 +27,7 @@ var _line: MeshInstance3D
 var _mackerel: Node3D
 var _show_fish := 0.0
 var _jigging := false
+var lift := 0.0
 var _bite_in := 0.0
 var _jig_t := 0.0
 var _side := 1.0

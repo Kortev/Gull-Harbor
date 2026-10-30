@@ -26,6 +26,7 @@ const SEAT_DROP := 0.37
 signal prompt_changed(text: String)
 
 const MODEL := preload("res://crew/crew.glb")
+const Hands := preload("res://crew/hands.gd")
 ## Each crew member's oilskins, by spawn slot order (crew/crew.gd): yellow, orange, green, red.
 const OILSKINS: Array[Color] = [Color(0.85, 0.62, 0.08), Color(0.92, 0.38, 0.06), Color(0.18, 0.45, 0.18),
 		Color(0.7, 0.12, 0.08)]
@@ -37,6 +38,9 @@ var head: Node3D
 var cam: Camera3D
 var hand: Node3D
 var body_mesh: MeshInstance3D
+## Your kit and what's in your hands (crew/hands.gd), and what a crewmate's peer last said they're holding.
+var hands: Hands
+var _net_item := ""
 ## Tests drive the keys without a captured mouse.
 var force_input := false
 ## A fish pulling on the rod in your hands, 0..1 (rods.gd): your view trembles with it and gets tugged toward it.
@@ -126,6 +130,10 @@ func _ready() -> void:
 	head.add_child(hand)
 	# What the others see: a deckhand in oilskins (art/crew.py), in pieces that swing at the joints
 	_build_body()
+	hands = Hands.new()
+	hands.name = "Hands"
+	hands.player = self
+	add_child(hands)
 	if is_multiplayer_authority():
 		for part: MeshInstance3D in _parts.values():
 			part.layers = 1 << 19      # layer 20: your own camera leaves it out, it still casts your shadow
@@ -265,6 +273,10 @@ func _pose_body(delta: float) -> void:
 		p["arm_r"] = Vector3(1.15 - steer * 0.3, 0.0, 0.05)
 		p["fore_r"] = Vector3(0.75, 0.0, 0.0)
 		p["torso"] = Vector3(-0.04, steer * 0.12, 0.0)
+	if hands != null and not hands.stowed() and hands.shown_item() != "":
+		# something of the kit in your right hand, held out in front
+		p["arm_r"] = Vector3(0.45, 0.0, 0.1)
+		p["fore_r"] = Vector3(1.15, 0.0, 0.0)
 	if doing & ACT_HAUL:
 		# leaning back on it, hand over hand
 		_haul_ph += delta * 4.5
@@ -457,7 +469,7 @@ func _physics_process(delta: float) -> void:
 		_send_in -= 1
 		if Net.in_session() and _send_in <= 0:
 			_send_in = 2      # 30 a second
-			_state.rpc(body.position, _yaw, _pitch, act)
+			_state.rpc(body.position, _yaw, _pitch, act, hands.item)
 	else:
 		body.position = body.position.lerp(_net_at, 0.4)
 		_yaw = lerp_angle(_yaw, _net_yaw, 0.4)
@@ -487,11 +499,12 @@ func _doing() -> int:
 
 ## Where a crew member is on deck and where they look: sent by their own peer to everyone else.
 @rpc("authority", "call_remote", "unreliable_ordered")
-func _state(at: Vector3, yaw: float, pitch: float, doing := 0) -> void:
+func _state(at: Vector3, yaw: float, pitch: float, doing := 0, item := "") -> void:
 	_net_at = at
 	_net_yaw = yaw
 	_net_pitch = pitch
 	_net_act = doing
+	_net_item = item
 
 
 func _walk(delta: float) -> void:
