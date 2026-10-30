@@ -18,7 +18,12 @@ const CHAPTERS := [
 		+ "- Birds diving on white water: BLUEFIN.\n"
 		+ "- Birds sitting on the water: tuna down. They come up again. Wait.\n"
 		+ "- Gulls over little splashes: no tuna. About a third of flocks.\n\n"
-		+ "The sportfisher's radar paints birds in the air out to 1.5 km. It can't tell gulls from tuna birds."],
+		+ "The radar on the dash (2 km out, rings every 500 m) paints birds in the air: a tight return in the same "
+		+ "spot every sweep, drifting. Sea clutter round her and rain clutter change every sweep; buoys don't move. "
+		+ "It can't tell gulls from tuna birds: go and look.
+
+"
+		+ "The plotter beside it (north up) shows her track and marks every flock you've picked out."],
 	["4. Working a school", "A school travels its own way and feeds at its head: watch which way the birds go. "
 		+ "Only a bait out in front of it gets eaten.\n\n"
 		+ "Your baits trail behind you: cut across ahead of it and drag them through its path, run alongside just "

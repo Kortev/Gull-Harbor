@@ -3,7 +3,8 @@ extends CanvasLayer
 ## can make of it from where you are: from far off only that there are birds, which way and how far; closer than READ
 ## m, what they're doing (tuna/schools.gd's spot_text: diving on bluefin busting the water, gulls over little bait,
 ## sitting on the water while the tuna are down). Not with a fish on in your hands. (No calling them out: the user's
-## call. The sportfisher's radar paints birds in the air on its own; the skiff has none.)
+## call. But a flock you pick out goes on the chart plotter as a mark where it was then, for everyone aboard:
+## boat/plotter.gd. The radar paints birds in the air on its own: tuna/radar.gd.)
 ##
 ## Not from the wheel with her running (faster than RUNNING): she's slamming along and the captain's eyes are on the
 ## water ahead. The mate picks the birds out; the captain eases off to look for himself.
@@ -46,6 +47,9 @@ func _process(_delta: float) -> void:
 	_looking = _aimed_at(cam) if live else null
 	if _looking != null and _looking != _last:
 		used += 1
+		var plotter: Node = sea.get("plotter")
+		if plotter != null:
+			plotter.call("saw", _looking)
 	_last = _looking
 	_read.visible = _looking != null
 	if _looking == null:

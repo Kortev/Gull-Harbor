@@ -398,7 +398,7 @@ func _point_sea() -> void:
 			sea.set(k, sides[my_team].get(k))
 	var boat := sea.get("boat") as Node3D
 	(sea.get("ocean") as Node).set("follow", boat)
-	for screen: String in ["Sonar", "Radar"]:
+	for screen: String in ["Sonar", "Radar", "Plotter"]:
 		var n := sea.get_node_or_null(screen)
 		if n != null:
 			n.call("attach", boat)

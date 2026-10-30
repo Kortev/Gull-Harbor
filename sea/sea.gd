@@ -23,6 +23,7 @@ const Rods := preload("res://rods/rods.gd")
 const Schools := preload("res://tuna/schools.gd")
 const Sonar := preload("res://tuna/sonar.gd")
 const Radar := preload("res://tuna/radar.gd")
+const Plotter := preload("res://boat/plotter.gd")
 const Weather := preload("res://sea/weather.gd")
 const Landing := preload("res://tuna/landing.gd")
 const FishHold := preload("res://boat/fish_hold.gd")
@@ -76,6 +77,8 @@ var fish_hold: FishHold
 var chum: Chum
 var jig: Jig
 var spotter: Spotter
+## The chart plotter on her dash: her track, the flocks picked out.
+var plotter: Plotter
 ## Dale from the bank on the radio: the first-time tips.
 var tips: Tips
 ## Two boats racing for the same birds (vs/vs.gd); off, it's the one boat.
@@ -152,10 +155,16 @@ func _ready() -> void:
 	radar.schools = schools
 	add_child(radar)
 	radar.attach(boat)
+	plotter = Plotter.new()
+	plotter.name = "Plotter"
+	plotter.sea = self
+	add_child(plotter)
+	plotter.attach(boat)
 	# (another boat at the dock: the screens are on her new dash)
 	boat.rebuilt.connect(func() -> void:
 		sonar.attach(boat)
-		radar.attach(boat))
+		radar.attach(boat)
+		plotter.attach(boat))
 	var look := deg_to_rad(float(_args.get("look", "0")))
 	if look != 0.0:
 		crew.me_changed.connect(func(me: Node) -> void:
@@ -177,6 +186,9 @@ func _ready() -> void:
 		vs.host_set_on(true)
 		if str(_args.get("team", "")) == "b":
 			vs.ask_team(1)
+	if _args.has("boat"):      # (screenshots: in this boat, --boat=skiff|sportfisher)
+		fish_hold.kind = str(_args["boat"])
+		boat.use_kind(fish_hold.kind)
 	if _args.has("school"):    # (screenshots and tests: out on the grounds, a school starting right away, <n> m off)
 		if fish_hold.docked:
 			fish_hold.head_out()

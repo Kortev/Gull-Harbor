@@ -2,7 +2,7 @@
 
 The ask: a two-player trip in the skiff should be clearly more fun than solo, and neither of you should be stuck
 with nothing to do. Your rules still hold: no tiredness, no binoculars or calling flocks out in game, show don't tell,
-nothing snaps, not too gamey, no radar or sonar on the skiff, and solo must still work.
+nothing snaps, not too gamey, no sonar on the skiff (her radar and plotter came back 2026-10-30, made honest: tuna/radar.gd), and solo must still work.
 
 ## How the good co-op games do it
 

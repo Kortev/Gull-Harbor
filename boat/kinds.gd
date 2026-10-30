@@ -27,6 +27,10 @@ extends RefCounted
 ##   box, box_size the fish box: the middle of its hatch in her sole, and how big it is (x across, z along)
 ##   chum          where the chum bucket stands (boat/chum.gd); jig: the holder the mackerel jig sits in (boat/jig.gd)
 ##   price         what she costs to buy at the dock; fuel: what a trip in her costs (taken from the sale)
+##   screens       the displays on her dash, each [its screen ("radar_scope": tuna/radar.gd, "plotter":
+##                 boat/plotter.gd), the middle of its face, its face's size (m)]: boat/boat.gd builds each a case on
+##                 a bracket, turned to the captain's eyes at the wheel
+##   radar_bar     where her radar's spinning bar sits, if her model hasn't one (boat.gd builds it)
 
 const DEFAULT := "sportfisher"
 
@@ -34,8 +38,8 @@ const KINDS := {
 	"skiff": {
 		"name": "the skiff",
 		"title": "28 ft center console",
-		"blurb": "Quick and handy, one or two can fish her: two rods, the wheel a step from them. No radar, no "
-				+ "sonar: you find the birds by eye. Rough in a blow, and her fish box takes two.",
+		"blurb": "Quick and handy, one or two can fish her: two rods, the wheel a step from them. A little radar "
+				+ "and a plotter on the console, no sonar. Rough in a blow, and her fish box takes two.",
 		"model": "res://boat/skiff.glb",
 		"length": 8.5, "beam": 2.9, "deck": 0.45, "sink": 0.05,
 		"pitch_follow": 1.0, "roll_follow": 1.0,
@@ -54,11 +58,14 @@ const KINDS := {
 		"cabin_light": Vector3(0.0, 2.3, 0.4), "crown": Vector3(0.0, 2.75, 0.0),
 		"chum": Vector3(-0.25, 1.03, 3.92), "jig": 2,
 		"price": 0, "fuel": 60,
+		"screens": [["radar_scope", Vector3(-0.25, 1.79, -0.22), Vector2(0.28, 0.28)],
+				["plotter", Vector3(0.23, 1.79, -0.22), Vector2(0.36, 0.28)]],
+		"radar_bar": Vector3(0.0, 2.68, -0.3),
 	},
 	"sportfisher": {
 		"name": "the sportfisher",
 		"title": "46 ft sportfisher",
-		"blurb": "Four rods, radar and sonar, the fighting chair, the tower and a big fish hold: the money boat. Slow to turn and stop, "
+		"blurb": "Four rods, radar, plotter and sonar, the fighting chair, the tower and a big fish hold: the money boat. Slow to turn and stop, "
 				+ "and it takes a crew to fish her well.",
 		"model": "res://boat/boat.glb",
 		"length": 14.0, "beam": 4.8, "deck": 0.55, "sink": 0.12,
@@ -80,6 +87,8 @@ const KINDS := {
 		"cabin_light": Vector3(0.0, 2.45, -1.3), "crown": Vector3(0.0, 7.6, -1.3),
 		"chum": Vector3(-0.3, 1.3, 6.6), "jig": 4,
 		"price": 20000, "fuel": 400,
+		"screens": [["radar_scope", Vector3(0.58, 2.0, -2.74), Vector2(0.3, 0.3)],
+				["plotter", Vector3(1.24, 2.0, -2.74), Vector2(0.38, 0.3)]],
 	},
 }
 
