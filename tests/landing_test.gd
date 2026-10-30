@@ -54,6 +54,8 @@ func _ready() -> void:
 	_check(sea.rods.rods[1].holder == 0, "and no rod with the harpoon in your hands")
 	# aiming: straight at it sticks, the other way doesn't
 	var cam := sea.crew.me.get("cam") as Node3D
+	landing.fish[0]["up_t"] = landing._now()      # (lying quiet between its kicks: tests/coop_test.tscn has those)
+	landing.fish[0]["sheer"] = 0.0
 	var from := cam.global_position
 	var at := landing.fish_point(0)
 	_check(landing.aimed_at(from, (at - from).normalized()) == 0, "a throw straight at it would stick")

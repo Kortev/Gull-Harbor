@@ -185,8 +185,9 @@ func _ask_grab(i: int) -> void:
 	var who := _sender()
 	if i < 0 or i >= rods.size() or held_by(who) != null:
 		return
-	# a free rod, or taking over a crewmate's fish (their arms are going); not one whose fish is up alongside
-	if rods[i].holder != 0 and not rods[i].hooked or rods[i].alongside:
+	# a free rod, or taking over a crewmate's fish; one whose fish is up alongside only if nobody's on it (to hold
+	# it up for the harpoon: tuna/landing.gd)
+	if rods[i].holder != 0 and (not rods[i].hooked or rods[i].alongside):
 		return
 	# an empty rod while a fish is on: E clears its line (reels it in)
 	if not rods[i].hooked and rods[i].holder == 0 and fighting():

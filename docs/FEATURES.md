@@ -125,6 +125,8 @@ said anywhere in game.
 - **The radar** (the dash, heading up, 1.5 km to the edge, rings every 500 m) paints **birds in the air**: blobs that
   glow as the sweep passes. Birds sitting on the water don't paint, and it can't tell gulls from tuna birds.
 - **The sonar** (the dash) marks fish right under her.
+- **At the wheel running faster than about 12 knots you can't pick birds out** (eyes on the water ahead): whoever's
+  on deck reads them and tells the captain. Ease her down to look for yourself.
 
 **Teach it:** Dale's first tip ("Tuna feed under birds. Find a flock."). A flock under the crosshair reads one line
 over the plotter's spot: far off "Birds   1.4 km off the port bow"; inside 700 m what they're on ("BLUEFIN!", "Tuna
@@ -244,6 +246,10 @@ fight tip. Gap: "anyone can grab it / hand it off" is only in the manual.
 - **Haul it aboard:** hold E at the tuna door (or the gunwale). Alone a giant takes about **22 s**; each extra pair
   of hands adds as much again.
 - Leave it alongside unstuck **90 s** and the hook pulls.
+- **Someone has to hold it there:** the angler keeps the rod (E on a rod whose fish is alongside: "Hold it"), or on
+  the sportfisher the wire does. On a rod in its holder it isn't held: every **9 s** it kicks, sheers off and goes
+  down out of the harpoon's reach for about **4 s** (the rod bending over in its holder), then comes back up. Two
+  aboard: one holds it, the other sticks it. Alone: rod back, and throw between kicks.
 
 **Teach it:** "Boatside!  219 kg" at the top, then a word at a time under the crosshair ("Harpoon it",
 "Click to throw", "Stuck: haul it in"); the door's prompt counts the haul ("Hold to haul  40%").

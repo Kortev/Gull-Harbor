@@ -4,10 +4,14 @@ extends CanvasLayer
 ## m, what they're doing (tuna/schools.gd's spot_text: diving on bluefin busting the water, gulls over little bait,
 ## sitting on the water while the tuna are down). Not with a fish on in your hands. (No calling them out: the user's
 ## call. The sportfisher's radar paints birds in the air on its own; the skiff has none.)
+##
+## Not from the wheel with her running (faster than RUNNING): she's slamming along and the captain's eyes are on the
+## water ahead. The mate picks the birds out; the captain eases off to look for himself.
 
 const AIM := 0.06             # how close to the middle of your view a flock has to be (rad)
 const REACH := 4500.0         # the furthest a flock can be picked out (m)
 const READ := 700.0           # closer than this you can tell what the birds are on (m)
+const RUNNING := 6.0          # at the wheel faster than this (m/s, about 12 knots), no spotting
 
 var sea: Node                 # sea/sea.gd
 var _read: Label
@@ -38,7 +42,7 @@ func _process(_delta: float) -> void:
 	var cam: Camera3D = me.get("cam") if me else null
 	if cam == null:
 		return
-	var live := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and not _fish_in_hands()
+	var live := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and not _fish_in_hands() and can_spot(me)
 	_looking = _aimed_at(cam) if live else null
 	if _looking != null and _looking != _last:
 		used += 1
@@ -80,6 +84,15 @@ func _aimed_at(cam: Camera3D) -> Node:
 			best_a = a
 			best = s
 	return best
+
+
+## Whether `who` can pick birds out: not at the wheel with her running.
+static func can_spot(who: Node) -> bool:
+	if who == null or not bool(who.get("steering")):
+		return true
+	var boat: Node = who.get("boat")
+	var helm: Node = boat.get("helm") if boat != null else null
+	return helm == null or absf(float(helm.get("speed"))) <= RUNNING
 
 
 ## Both hands on a rod with a fish on: no spotting.
