@@ -23,6 +23,9 @@ const RIG_SCALE := 1.5                 # (the model's in metres of a modest plat
 const RIG_KEEP_OFF := 60.0             # m from its middle the boat can't come (its legs, its anchor chains)
 const SHORE_KEEP_OFF := 30.0           # m off the water's edge the boat touches bottom
 const COAST_X := Vector2(-9000.0, 9000.0)
+## The harbour front (world x from .. to, and how far up from the water): sea/harbour.gd builds its houses up close.
+const FRONT_X := Vector2(-190.0, 200.0)
+const FRONT_D := 110.0
 const CHUNK := 2000.0                 # m of coast per piece (each sinks and shrinks on its own)
 const DRAW := 3500.0                  # m: anything further is drawn in at this distance, shrunk to match
 const CURVE_START := 350.0            # (ocean.gd's)
@@ -263,6 +266,9 @@ func _town(st: SurfaceTool, anchor: Vector3) -> void:
 		var y := land_h(x, d)
 		if y > 120.0:
 			continue
+		# (the harbour front's are sea/harbour.gd's, built for seeing up close)
+		if x > FRONT_X.x - 10.0 and x < FRONT_X.y + 10.0 and d < FRONT_D + 12.0:
+			continue
 		var at := Vector3(x, y, shore_z(x) + d) - anchor
 		var w := 8.0 + 5.0 * _hash(tries * 3)
 		var l := 9.0 + 7.0 * _hash(tries * 5)
@@ -287,6 +293,8 @@ func _town(st: SurfaceTool, anchor: Vector3) -> void:
 	# the fish quay: a warehouse and sheds along the water, and the ice plant
 	for i in 5:
 		var qx := HARBOUR_X - 160.0 + i * 70.0
+		if qx > FRONT_X.x and qx < FRONT_X.y:
+			continue           # (sea/harbour.gd's, up close)
 		var q := Vector3(qx, land_h(qx, 18.0), shore_z(qx) + 18.0) - anchor
 		var big := i == 2
 		var sz := Vector3(40, 10, 22) if big else Vector3(22, 7, 14)

@@ -37,8 +37,11 @@ func _ready() -> void:
 	_pier(st, FINGER_X, FINGER_OUT, FINGER_W, DECK_Y - 0.6, false)
 	_shed(st)
 	_clutter(st)
+	_warehouses(st)
+	_front(st)
 	_finish(st)
 	_sign()
+	_front_signs()
 	_boats()
 	_birds()
 
@@ -205,6 +208,36 @@ func _lamp(st: SurfaceTool, at: Vector3) -> void:
 	_lamps.append(glass)
 
 
+## The quay's other sheds: the ice plant (the big one), net stores and a boat shed, each corrugated tin with its
+## ribs, a roller door or two, a row of high windows, a pitched roof.
+func _warehouses(st: SurfaceTool) -> void:
+	for w: Array in [[-150.0, Vector3(20, 7, 13), Color(0.82, 0.78, 0.7), "NETS"],
+			[-95.0, Vector3(22, 8, 14), Color(0.55, 0.62, 0.66), ""],
+			[-25.0, Vector3(38, 10, 20), Color(0.62, 0.66, 0.68), "GULL HARBOR ICE"],
+			[130.0, Vector3(20, 7, 13), Color(0.7, 0.5, 0.38), "BOATYARD"]]:
+		var x := float(w[0])
+		var size: Vector3 = w[1]
+		var tin: Color = w[2]
+		var c := Vector3(x, QUAY_Y, _shore(x) + 17.0)
+		var front := c.z - size.z * 0.5
+		_box(st, c + Vector3(0, size.y * 0.5, 0), size, tin, 0.0)
+		for k in int(size.x / 0.5):
+			_box(st, Vector3(c.x - size.x * 0.5 + 0.25 + k * 0.5, c.y + size.y * 0.5, front - 0.02),
+					Vector3(0.08, size.y, 0.05), tin.darkened(0.14), 0.0)
+		_roof(st, c + Vector3(0, size.y, 0), size.x + 1.0, size.z + 1.0, 2.2, Color(0.36, 0.4, 0.43))
+		# roller doors (one half up, showing the dark), a row of high windows along the front
+		for k: int in [-1, 1] if size.x > 30.0 else [0]:
+			var dx: float = c.x + k * size.x * 0.25
+			_box(st, Vector3(dx, c.y + 2.0, front - 0.05), Vector3(5.0, 4.0, 0.06), Color(0.07, 0.08, 0.09), 0.0)
+			_box(st, Vector3(dx, c.y + (3.4 if k != 1 else 2.2), front - 0.08),
+					Vector3(5.2, 1.4 if k != 1 else 3.8, 0.06), tin.darkened(0.25), 0.0)
+		for k in int(size.x / 3.0):
+			var wx := c.x - size.x * 0.5 + 1.5 + k * 3.0
+			_box(st, Vector3(wx, c.y + size.y - 1.4, front - 0.05), Vector3(1.6, 0.8, 0.05), Color(0.12, 0.14, 0.17), 0.0)
+		if not str(w[3]).is_empty():
+			_shops.append([Vector3(c.x, c.y + size.y - 2.8, front - 0.1), str(w[3]), 0.022])
+
+
 ## The fish buyer's: a corrugated shed on the quay at the pier's root, its roller door open on the pier, a gantry
 ## out over the edge with the hanging scale under it.
 func _shed(st: SurfaceTool) -> void:
@@ -290,6 +323,179 @@ func _clutter(st: SurfaceTool) -> void:
 				Color(0.7, 0.18, 0.12) if k != 2 else Color(0.2, 0.35, 0.6))
 	# a coil of line by the pier's root
 	_cyl(st, base + Vector3(-1.4, 0.0, 1.8), 0.25, 0.5, 0.45, 9, Color(0.75, 0.68, 0.45))
+
+
+## The harbour front: a street along the back of the quay (lamps, benches, a couple of pickups), and the houses
+## facing the water in two rows up the slope behind it, each with its windows, door, chimney and eaves; the harbour
+## master's office, the bait and tackle shop, the cafe and the chandlery among them. Some windows lit after dark.
+const WALLS := [Color(0.92, 0.9, 0.84), Color(0.86, 0.8, 0.66), Color(0.62, 0.72, 0.8), Color(0.88, 0.76, 0.5),
+		Color(0.72, 0.4, 0.32), Color(0.95, 0.95, 0.93), Color(0.55, 0.62, 0.55)]
+const ROOFS := [Color(0.5, 0.2, 0.16), Color(0.28, 0.3, 0.34), Color(0.4, 0.28, 0.22), Color(0.22, 0.24, 0.27)]
+const SHOPS := {3: "HARBOR MASTER", 9: "BAIT & TACKLE", 15: "THE GULL CAFE", 22: "CHANDLERY"}
+var _shops := []          # [where the sign goes, what it says]
+
+
+func _front(st: SurfaceTool) -> void:
+	# the street: tarmac behind the quay apron, a kerb, lamps and benches
+	var x := Landmarks.FRONT_X.x
+	while x < Landmarks.FRONT_X.y:
+		var x1 := x + 10.0
+		var z0 := _shore(x) + 28.0
+		var z1 := _shore(x1) + 28.0
+		_quad(st, Vector3(x, QUAY_Y + 0.02, z0), Vector3(x1, QUAY_Y + 0.02, z1), Vector3(x1, QUAY_Y + 0.02, z1 + 7.0),
+				Vector3(x, QUAY_Y + 0.02, z0 + 7.0), Color(0.24, 0.25, 0.26))
+		_box(st, Vector3((x + x1) * 0.5, QUAY_Y + 0.08, (z0 + z1) * 0.5 + 7.2), Vector3(10.0, 0.16, 0.4),
+				Color(0.6, 0.6, 0.58), -atan2(z1 - z0, 10.0))
+		if posmod(int(x), 30) == 0:
+			_lamp(st, Vector3(x + 0.5, QUAY_Y, (z0 + z1) * 0.5 - 0.6))
+		if posmod(int(x), 40) == 10:
+			_bench(st, Vector3(x + 3.0, QUAY_Y, (z0 + z1) * 0.5 - 1.2))
+		x = x1
+	_pickup(st, Vector3(-30.0, QUAY_Y, _shore(-30.0) + 31.5), Color(0.55, 0.12, 0.1))
+	_pickup(st, Vector3(95.0, QUAY_Y, _shore(95.0) + 33.0), Color(0.82, 0.82, 0.8))
+	# the houses: a row along the street and a row above, shoulder to shoulder, each its own width and colour
+	var n := 0
+	for row in 2:
+		var hx := Landmarks.FRONT_X.x + 4.0 + row * 7.0
+		while hx < Landmarks.FRONT_X.y - 8.0:
+			var w := 7.0 + 4.0 * _hash(n * 13 + 1)
+			var d := 39.0 + row * 24.0 + 3.0 * _hash(n * 7)
+			var cx := hx + w * 0.5
+			var ground := marks.land_h(cx, d) if marks != null else QUAY_Y
+			var c := Vector3(cx, ground, _shore(cx) + d)
+			var shop: String = SHOPS.get(n, "") if row == 0 else ""
+			_house(st, c, w, 8.0 + 3.0 * _hash(n * 3), 5.5 + 4.5 * _hash(n * 11) + (1.5 if row == 1 else 0.0),
+					WALLS[(n * 5 + row) % WALLS.size()], ROOFS[(n * 3) % ROOFS.size()], n, shop)
+			hx += w + 0.6 + 2.5 * _hash(n * 17)
+			n += 1
+
+
+## A house facing the sea (-z) at `c` (the middle of its front, at the ground): walls, a gabled roof with eaves, a
+## ridge cap and a fascia, windows with frames and sills, a door with its step, a chimney. `shop`: a shopfront instead
+## of the ground floor windows, a striped awning, its sign.
+func _house(st: SurfaceTool, c: Vector3, w: float, l: float, tall: float, wall: Color, roof: Color, n: int,
+		shop: String) -> void:
+	_box(st, c + Vector3(0.0, tall * 0.5 - 1.5, l * 0.5), Vector3(w, tall + 3.0, l), wall, 0.0)
+	# a plinth, darker, where it meets the street
+	_box(st, c + Vector3(0.0, 0.25, l * 0.5 - 0.02), Vector3(w + 0.06, 0.5, l + 0.06), wall.darkened(0.35), 0.0)
+	# the roof: pitched front and back (a gable at each side), the eaves out over the walls
+	var top := c + Vector3(0.0, tall, l * 0.5)
+	var rise := 2.2 + 1.6 * _hash(n * 29)
+	var e := 0.45
+	var a := top + Vector3(-w * 0.5 - e, -0.1, -l * 0.5 - e)
+	var b := top + Vector3(w * 0.5 + e, -0.1, -l * 0.5 - e)
+	var f := top + Vector3(w * 0.5 + e, -0.1, l * 0.5 + e)
+	var g := top + Vector3(-w * 0.5 - e, -0.1, l * 0.5 + e)
+	var r0 := top + Vector3(-w * 0.5 - e, rise, 0.0)
+	var r1 := top + Vector3(w * 0.5 + e, rise, 0.0)
+	_quad(st, a, r0, r1, b, roof)
+	_quad(st, g, f, r1, r0, roof * 0.85)
+	_tri(st, top + Vector3(-w * 0.5, 0, -l * 0.5), top + Vector3(-w * 0.5, 0, l * 0.5),
+			top + Vector3(-w * 0.5, rise - 0.05, 0), wall * 0.85)
+	_tri(st, top + Vector3(w * 0.5, 0, -l * 0.5), top + Vector3(w * 0.5, rise - 0.05, 0),
+			top + Vector3(w * 0.5, 0, l * 0.5), wall * 0.85)
+	_box(st, top + Vector3(0, rise + 0.05, 0), Vector3(w + e * 2.0 + 0.1, 0.12, 0.25), roof.darkened(0.3), 0.0)
+	_box(st, top + Vector3(0, -0.12, -l * 0.5 - e), Vector3(w + e * 2.0, 0.2, 0.06), Color(0.92, 0.92, 0.9), 0.0)
+	# the chimney, off to one side
+	var side := -1.0 if _hash(n * 31) < 0.5 else 1.0
+	_box(st, top + Vector3(side * w * 0.3, rise * 0.7 + 0.6, 0.6), Vector3(0.7, rise * 0.6 + 1.6, 0.7),
+			Color(0.55, 0.32, 0.26) if n % 3 else Color(0.6, 0.6, 0.58), 0.0)
+	_box(st, top + Vector3(side * w * 0.3, rise + 1.45, 0.6), Vector3(0.85, 0.12, 0.85), Color(0.3, 0.3, 0.3), 0.0)
+	# the windows: upstairs, and down unless it's a shop
+	var floors := 2 if tall > 7.0 else 1
+	var cols := maxi(2, int(w / 2.6))
+	var front := c.z - 0.03
+	for fl in floors:
+		if fl == 0 and not shop.is_empty():
+			continue
+		var y := c.y + 1.6 + 3.0 * fl
+		if floors == 1:
+			y = c.y + tall - 2.4
+		for k in cols:
+			if fl == 0 and k == cols / 2:
+				continue           # (the door's there)
+			_window(st, Vector3(c.x - w * 0.5 + (k + 0.5) * w / cols, y, front), n * 10 + fl * 5 + k)
+	if shop.is_empty():
+		var dx := c.x - w * 0.5 + (cols / 2 + 0.5) * w / cols
+		var doors := [Color(0.15, 0.3, 0.5), Color(0.5, 0.15, 0.12), Color(0.2, 0.35, 0.22), Color(0.25, 0.2, 0.15)]
+		_box(st, Vector3(dx, c.y + 1.05, front), Vector3(0.95, 2.1, 0.08), doors[n % 4], 0.0)
+		_box(st, Vector3(dx, c.y + 2.15, front - 0.02), Vector3(1.2, 0.12, 0.12), Color(0.92, 0.92, 0.9), 0.0)
+		_box(st, Vector3(dx, c.y + 0.08, front - 0.3), Vector3(1.3, 0.16, 0.6), Color(0.55, 0.55, 0.53), 0.0)
+	else:
+		_box(st, Vector3(c.x, c.y + 1.4, front), Vector3(w - 1.0, 2.4, 0.06), Color(0.85, 0.75, 0.5), 0.0)
+		_box(st, Vector3(c.x, c.y + 1.3, front - 0.03), Vector3(w - 1.4, 2.0, 0.04), Color(0.12, 0.14, 0.16), 0.0)
+		for k in 6:
+			var sx := c.x - (w - 1.0) * 0.5 + (k + 0.5) * (w - 1.0) / 6.0
+			_box(st, Vector3(sx, c.y + 2.9, front - 0.6), Vector3((w - 1.0) / 6.0, 0.08, 1.2),
+					Color(0.85, 0.2, 0.15) if k % 2 == 0 else Color(0.95, 0.94, 0.9), 0.0)
+		_shops.append([Vector3(c.x, c.y + 3.5, front - 0.06), shop])
+		_window_glow(Vector3(c.x, c.y + 1.3, front - 0.05), Vector2(w - 1.6, 1.8))
+
+
+## A window: the dark glass, a white frame and glazing bar, the sill under it. About one in four lit after dark.
+func _window(st: SurfaceTool, at: Vector3, n: int) -> void:
+	_box(st, at, Vector3(1.1, 1.3, 0.05), Color(0.92, 0.92, 0.9), 0.0)
+	_box(st, at - Vector3(0, 0, 0.02), Vector3(0.9, 1.1, 0.04), Color(0.1, 0.12, 0.15), 0.0)
+	_box(st, at - Vector3(0, 0, 0.03), Vector3(0.06, 1.1, 0.04), Color(0.92, 0.92, 0.9), 0.0)
+	_box(st, at + Vector3(0, -0.7, -0.08), Vector3(1.3, 0.1, 0.2), Color(0.8, 0.8, 0.78), 0.0)
+	if _hash(n * 37 + 5) < 0.28:
+		_window_glow(at - Vector3(0, 0, 0.05), Vector2(0.85, 1.05))
+
+
+## A lit pane, showing after dark only.
+func _window_glow(at: Vector3, size: Vector2) -> void:
+	var q := MeshInstance3D.new()
+	var qm := QuadMesh.new()
+	qm.size = size
+	q.mesh = qm
+	q.rotation.y = PI
+	q.position = at
+	if _glow == null:
+		_glow = StandardMaterial3D.new()
+		_glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_glow.albedo_color = Color(1.0, 0.8, 0.5)
+		_glow.cull_mode = BaseMaterial3D.CULL_DISABLED
+	q.material_override = _glow
+	q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(q)
+	_lamps.append(q)
+
+
+var _glow: StandardMaterial3D
+
+
+func _bench(st: SurfaceTool, at: Vector3) -> void:
+	var wood := Color(0.45, 0.32, 0.2)
+	_box(st, at + Vector3(0, 0.45, 0), Vector3(1.8, 0.06, 0.45), wood, 0.0)
+	_box(st, at + Vector3(0, 0.8, 0.22), Vector3(1.8, 0.35, 0.05), wood, 0.0)
+	for s: float in [-0.8, 0.8]:
+		_box(st, at + Vector3(s, 0.22, 0), Vector3(0.06, 0.45, 0.45), Color(0.15, 0.15, 0.16), 0.0)
+
+
+## A pickup parked along the street.
+func _pickup(st: SurfaceTool, at: Vector3, paint: Color) -> void:
+	_box(st, at + Vector3(0, 0.75, 0), Vector3(5.2, 0.7, 1.9), paint, 0.0)
+	_box(st, at + Vector3(-0.6, 1.45, 0), Vector3(1.9, 0.8, 1.8), paint, 0.0)
+	_box(st, at + Vector3(-0.6, 1.5, 0), Vector3(1.95, 0.55, 1.7), Color(0.12, 0.15, 0.18), 0.0)
+	_box(st, at + Vector3(1.4, 1.15, 0), Vector3(2.2, 0.1, 1.9), paint.darkened(0.3), 0.0)
+	for wx: float in [-1.7, 1.7]:
+		for wz: float in [-0.9, 0.9]:
+			_box(st, at + Vector3(wx, 0.38, wz), Vector3(0.75, 0.75, 0.3), Color(0.08, 0.08, 0.08), 0.0)
+
+
+## The shops' signs, over their awnings.
+func _front_signs() -> void:
+	for s: Array in _shops:
+		var t := Label3D.new()
+		t.text = str(s[1])
+		t.font_size = 64
+		t.pixel_size = float(s[2]) if s.size() > 2 else 0.008
+		t.modulate = Color(0.15, 0.17, 0.2)
+		t.outline_modulate = Color(0.95, 0.93, 0.85)
+		t.outline_size = 18
+		t.position = s[0]
+		t.rotation.y = PI
+		add_child(t)
 
 
 ## The other boats: one on each side of the finger pier, tied up, bobbing a little.
