@@ -818,7 +818,7 @@ func _doing() -> int:
 	if rods != null and rods.call("held_by", str(name).to_int()) != null and live \
 			and Input.is_action_pressed("use_primary"):
 		out |= ACT_CRANK
-	if aloft and not _tower_legs.is_empty() and _tower_t > 0.0 and _tower_t < _tower_length():
+	if aloft and not _tower_legs.is_empty() and _tower_t > float(_tower_legs[0][1]) and _tower_t < _tower_length():
 		out |= ACT_TOWER
 	return out
 
@@ -956,9 +956,11 @@ func climb_tower(tower: Node3D) -> void:
 func climb_down_tower() -> void:
 	if not aloft or _tower_legs.is_empty():
 		return
-	_tower_way = -1
-	# (down to the foot of the ladder, not back across the deck to wherever you started)
-	_tower_t = maxf(_tower_t, float(_tower_legs[0][1]))
+	if _tower_t <= float(_tower_legs[0][1]):
+		aloft = false             # (not on it yet: still on her deck, walking)
+		_tower_legs = []
+		return
+	_tower_way = -1           # (down to the foot of the ladder, not back across the deck to where you started)
 
 
 ## The whole tower climb (s).
