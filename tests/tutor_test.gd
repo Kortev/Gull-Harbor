@@ -68,7 +68,8 @@ func _ready() -> void:
 	_check(not f.paused and bool(tutor.taught("run")), "on again")
 	# he goes off to the side: alone, the card says the rod goes in its holder while you steer; it only wants reading
 	var wide_up := false
-	for k in 240:
+	var waited := 0.0
+	while waited < 6.0:
 		f.carry_on("dog", f.stretch, 1.0, 1.0)
 		f.bearing = 1.7
 		f.depth = 5.0
@@ -76,6 +77,7 @@ func _ready() -> void:
 			wide_up = true
 			break
 		await get_tree().process_frame
+		waited += get_process_delta_time()
 	var said: Array = tutor.call("_steps", "wide")
 	_check(wide_up and f.paused and str(said[0][0]).contains("HOLDER"),
 			"he's gone wide: the card, alone (%s)" % str(said[0][0]))
@@ -87,7 +89,8 @@ func _ready() -> void:
 	# his arms go: the card says rest them in the holder
 	f.bearing = 0.0
 	var arms_up := false
-	for k in 240:
+	waited = 0.0
+	while waited < 6.0:
 		f.carry_on("dog", f.stretch, 1.0, 1.0)
 		f.bearing = 0.0
 		f.arms = 0.2
@@ -96,6 +99,7 @@ func _ready() -> void:
 			arms_up = true
 			break
 		await get_tree().process_frame
+		waited += get_process_delta_time()
 	_check(arms_up and f.paused, "arms tiring: the card")
 	await _wait(1.5)
 	await _next()
