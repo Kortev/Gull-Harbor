@@ -11,14 +11,20 @@ extends Node3D
 ##
 ## Off the deck (`mode`): your spot is then in `frame`'s space (a boat, or the world: null) and the same smoothing
 ## and the same word to the others carry it, so nothing jumps whichever frame you're in.
-##   SWIM   in the sea: afloat at the real waves' height (ocean.gd's height_at, the boats' own), your eyes just over
-##          the water, bobbing up after them a beat late, drifting down wind and off the face of a swell; WASD swims
-##          where you look, slowly. You can't jump out: swim to a boat's boarding ladder (boat/ladder.gd) and hold E.
-##          Going in: a splash and a ring of foam, the sea over your eyes; coming up after it, a gasp.
-##   CLIMB  up a ladder, a step at a time while you hold E (let go and you hang there), over the transom's cap and
-##          down onto her deck: any boat's.
-##   HOP    over the rail: Space into it. A boat alongside: over both rails onto her deck, and you're aboard her
-##          (her deck space, riding her). Nothing there: over and into the sea. A hard shove into it does the same.
+##   SWIM   in the sea: afloat at the real waves' height (ocean.gd's height_at, the boats' own), your eyes at the
+##          waterline, lifted by each swell a beat late, drifting down wind and off the face of one. WASD swims where you
+##          look, in strokes: a pull that surges you on and a glide, your head rising with each pull, the water slapping
+##          (and now and then a wave washing over the lens: the visor). Shift sprints, quicker strokes, blowing hard;
+##          Ctrl (or C) held dives you under for a few seconds, the murk round you; coming up after it, a gasp. The two
+##          share your breath (AIR_*): run it out and you're winded till it's back. You can't jump out: swim to a boat's
+##          boarding ladder (boat/ladder.gd) and E, anywhere near its foot. Going in: a splash and a ring of foam.
+##   CLIMB  on a ladder: W up it a step at a time, S down, neither and you hang there; at the top over the transom's
+##          cap and down onto her deck (any boat's), at the bottom S lets you back into the water, and E lets go where
+##          you are. From her deck, E at the top of her ladder takes you over the cap and onto it, going down.
+##   HOP    over the rail: Space at it (against it or a step off, going or looking its way). A boat within a jump
+##          (LEAP m past the rail: alongside, or lying just off): over both rails, across the gap and down onto her
+##          deck, and you're aboard her (her deck space, riding her) from the moment you land, nothing jumping. Nothing
+##          there: over and into the sea. A hard shove into it does the same.
 ## Shoving (F, VS's rough stuff, any boat): a windup everyone sees and hears (arms back, a grunt, SHOVE_WINDUP s),
 ## then a push on whoever's in front of you then (the host says who and how hard): they stagger off across the deck,
 ## and hit the rail hard enough and they go over it. Braced (a fish on the rod in your hands, the wheel, the chair)
@@ -122,20 +128,44 @@ const Voice := preload("res://crew/voice.gd")
 const Splash := preload("res://sea/splash.gd")
 const Sfx := preload("res://audio/sfx.gd")
 const WHOOSH := preload("res://audio/fish/whoosh.wav")
-## Afloat: your feet this far under the surface (your eyes just out of it); swimming, flat out with Shift (m/s), how
-## quickly you get going, the sea's spring and its damping (your bob lagging the waves), your drift down wind (m/s)
-## and off a slope (m/s per unit of it).
-const FLOAT := 1.35
-const SWIM_SPEED := 1.0
-const SWIM_FAST := 1.6
-const SWIM_ACCEL := 2.2
+## Afloat: your feet this far under the surface (your eyes at the waterline); swimming, flat out with Shift (m/s: a
+## boat goes four times that, so a swim's to her ladder, not a chase after her), how quickly you get going, the sea's
+## spring and its damping (your bob lagging the waves), your drift down wind (m/s) and off a slope (m/s per unit).
+const FLOAT := 1.42
+const SWIM_SPEED := 1.5
+const SWIM_FAST := 2.4
+const SWIM_ACCEL := 5.0
 const BUOY := 22.0
 const BUOY_DAMP := 7.5
 const DRIFT := 0.2
 const SLIDE := 0.9
+## Strokes a second (sprinting; treading water, this much of it); how much of your way comes in the pull (the rest
+## carries you on between); your head's rise on a pull (m).
+const STROKE := 0.95
+const STROKE_FAST := 1.45
+const TREAD := 0.45
+const SURGE := 0.55
+const BOB := 0.05
+## Diving (Ctrl or C, held): how far under you go (m), how much slower you swim there, the sea's spring on you this
+## much softer. Your breath: s of it under, s of sprinting flat out, s to get it all back; winded (run out) till this
+## much is back.
+const DIVE := 1.7
+const DIVE_SLOW := 0.7
+const DIVE_SPRING := 0.45
+const AIR_UNDER := 5.0
+const AIR_SPRINT := 8.0
+const AIR_BACK := 4.0
+const WINDED := 0.4
+## E for a ladder from the water this near its foot (m), or from her deck this near where you'd step off it.
+const GRAB := 1.8
+const GRAB_DECK := 1.2
 ## A swimmer is kept this far off any hull (m).
 const SWIMMER := 0.35
-## Over a rail onto another boat (s); into the sea, over it (s; a shove's tumble quicker).
+## Space at the rail: this near it (m, past your shoulder). Over a rail onto another boat (s), and each m of a gap
+## between them (s) up to LEAP m past the rail; into the sea, over it (s; a shove's tumble quicker).
+const RAIL_REACH := 0.6
+const LEAP := 3.0
+const LEAP_TIME := 0.12
 const HOP_TIME := 0.75
 const OVER_TIME := 0.4
 const TUMBLE_TIME := 0.28
@@ -157,19 +187,32 @@ var mode := DECK
 ## `boat` is the boat you're on or were last; `home` your crew's (crew/crew.gd: VS's team, else the one boat).
 var frame: Node3D
 var home: Node3D
-## Swimming: your way through the water (world, m/s); in it yet; your eyes under it (for the gasp coming up).
+## Swimming: your way through the water (world, m/s); in it yet; your eyes under it (for the gasp coming up); the
+## stroke (0..1 round, every peer's own: a slap of water each time round) and strokes made; your breath (1 full) and
+## winded (run out of it); the lens's clearance over the water lately (a wave over it), the murk in your eyes under,
+## and whether the visor's showing for the sea on the lens.
 var _swim_v := Vector3.ZERO
 var _wet := false
 var _under := false
 var _in_for := 0.0
-## Up a ladder: the boat's ladder, where you took hold, the legs of the climb (boat/ladder.gd's path), how far up
-## (s of climbing), and the arms' and legs' phase.
+var _stroke := 0.0
+var _stroke_was := 0.0
+var strokes := 0
+var _breath := 1.0
+var _winded := false
+var _clear := 1.0
+var _murk: ColorRect
+var _deep: Environment
+var _lens := false
+## On a ladder: the boat's ladder, where you took hold, the legs of the climb (boat/ladder.gd's path), how far along
+## them (s of climbing), which way you last went (+1 up), and the arms' and legs' phase.
 var _ladder: Node3D
 var _climb_from := Vector3.ZERO
 var _climb_legs: Array = []
 var _climb_t := 0.0
+var _climb_way := 1
 var _climb_ph := 0.0
-## Tests climb without holding E.
+## Tests climb without holding W.
 var force_climb := false
 ## Over a rail: from where, over to where (this boat's space), onto which boat (null: the sea) and where on her deck
 ## (her space), how far into it (s), the way out (this boat's space), and whether a shove threw you.
@@ -178,6 +221,7 @@ var _hop_over := Vector3.ZERO
 var _hop_boat: Node3D
 var _hop_land := Vector3.ZERO
 var _hop_t := 0.0
+var _hop_dur := HOP_TIME
 var _hop_out := Vector3.ZERO
 var _tumble := false
 ## Shoved: s left with no say in where your feet go.
@@ -258,6 +302,16 @@ func _ready() -> void:
 			part.layers = 1 << 19      # layer 20: your own camera leaves it out, it still casts your shadow
 		cam.cull_mask &= ~(1 << 19)
 		cam.make_current()
+		# under the sea, your eyes in the murk (over the 3D, under the visor's water and the HUD)
+		var murk := CanvasLayer.new()
+		murk.layer = -2
+		add_child(murk)
+		_murk = ColorRect.new()
+		_murk.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_murk.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_murk.color = Color(0.03, 0.19, 0.21, 0.0)
+		_murk.visible = false
+		murk.add_child(_murk)
 		if not _at_dock():
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -468,8 +522,8 @@ func _pose_body(delta: float) -> void:
 	# off the deck: treading water, up a ladder, over a rail
 	match mode:
 		SWIM:
-			# treading water: arms sculling out to the sides, legs kicking, leaning into a stroke
-			var ph := t * (3.2 + 2.0 * pace)
+			# treading water: arms sculling out to the sides, legs kicking, leaning into a stroke (in time with it)
+			var ph := _stroke * TAU
 			p["torso"] = Vector3(-0.25 * pace + 0.05 * sin(ph * 0.5), 0.0, 0.0)
 			p["head"] = Vector3(clampf(_pitch * 0.6, -0.3, 0.6) + 0.25 * pace, 0.0, 0.0)
 			p["arm_l"] = Vector3(0.6 + 0.9 * pace + 0.25 * sin(ph), 0.2 * cos(ph), -0.9 + 0.3 * sin(ph))
@@ -655,17 +709,19 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("shove"):
 		shove()
 	elif mode != DECK:
-		# in the sea the only thing to put your hands on is a ladder
+		# in the sea the only thing to put your hands on is a ladder; on one, E lets go
 		if event.is_action_pressed("interact") and mode == SWIM:
-			var target := _looked_at()
+			var target := _target()
 			if target and target.is_in_group("ladders"):
 				target.call("interact", self)
+		elif event.is_action_pressed("interact") and mode == CLIMB:
+			_let_go_ladder()
 	elif event.is_action_pressed("interact") and steering:
 		(boat.get("helm") as Node).call("request", false)
 	elif event.is_action_pressed("interact") and seated and _looked_at() == null:
 		(boat.get("seat") as Node).call("request", false)
 	elif event.is_action_pressed("interact"):
-		var target := _looked_at()
+		var target := _target()
 		if target:
 			target.call("interact", self)
 
@@ -766,7 +822,7 @@ func _walk(delta: float) -> void:
 	if body.is_on_floor() and v.y <= 0.0:
 		v.y = 0.0
 		if live and _knock <= 0.0 and Input.is_action_just_pressed("jump"):
-			# into the rail: over it
+			# at the rail: over it
 			var out := _rail_ahead(wish)
 			if out != Vector3.ZERO:
 				_hop(out, false)
@@ -789,15 +845,24 @@ func _walk(delta: float) -> void:
 		_into_sea(boat.global_basis * body.velocity + _boat_velocity(boat))
 
 
-## Your way over the rail ahead (boat-local, flat), if you're against her side and pushing into it; else zero.
+## Your way over the rail (boat-local, flat), if her side's within RAIL_REACH of you the way you're going (standing
+## still, the way you're looking) and it's her side, the sea past it; else zero.
 func _rail_ahead(wish: Vector3) -> Vector3:
-	if not body.is_on_wall() or wish.length() < 0.5:
-		return Vector3.ZERO
-	var n := body.get_wall_normal()
-	var into := -Vector3(n.x, 0.0, n.z).normalized()
-	if absf(n.y) > 0.5 or wish.normalized().dot(into) < 0.6:
-		return Vector3.ZERO
-	return into if _is_side(into) else Vector3.ZERO
+	var way := wish if wish.length() > 0.3 else Basis(Vector3.UP, _yaw) * Vector3.FORWARD
+	way = Vector3(way.x, 0.0, way.z).normalized()
+	var space := body.get_world_3d().direct_space_state
+	for h: float in [0.5, 0.85]:
+		var at := body.position + Vector3(0.0, h, 0.0)
+		var q := PhysicsRayQueryParameters3D.create(at, at + way * (0.3 + RAIL_REACH))
+		q.exclude = [body.get_rid()]
+		var hit := space.intersect_ray(q)
+		if hit.is_empty():
+			continue
+		var n: Vector3 = hit["normal"]
+		var into := -Vector3(n.x, 0.0, n.z).normalized()
+		if absf(n.y) < 0.5 and way.dot(into) > 0.5 and _is_side(into):
+			return into
+	return Vector3.ZERO
 
 
 ## Whether the wall `into` (boat-local, flat) of you is her side: nothing of her past it, just the sea.
@@ -828,16 +893,21 @@ func _hop(out: Vector3, tumble: bool) -> void:
 	_hop_over.y = _rail_y(boat) + 0.15
 	_hop_boat = null
 	_tumble = tumble
-	for b: Node3D in _boats():
-		if b == boat:
-			continue
-		var land: Variant = _deck_at(b, boat.global_transform * (body.position + out * (wall + 0.9)))
-		if land == null:
-			land = _deck_at(b, boat.global_transform * (body.position + out * (wall + 1.4)))
-		if land != null:
-			_hop_boat = b
-			_hop_land = land
-			break
+	_hop_dur = HOP_TIME
+	# the nearest deck out that way within a jump (a shove only tips you over alongside)
+	var far := wall + 0.35 + (LEAP if not tumble else 1.1)
+	var d := wall + 0.6
+	while d <= far and _hop_boat == null:
+		for b: Node3D in _boats():
+			if b == boat:
+				continue
+			var land: Variant = _deck_at(b, boat.global_transform * (body.position + out * d))
+			if land != null:
+				_hop_boat = b
+				_hop_land = land
+				_hop_dur = HOP_TIME + LEAP_TIME * maxf(d - wall - 0.9, 0.0)
+				break
+		d += 0.25
 	_hop_t = 0.0
 	_let_go()
 	_set_mode(HOP)
@@ -853,6 +923,8 @@ func _deck_at(b: Node3D, w: Vector3) -> Variant:
 	if hit.is_empty() or (hit["normal"] as Vector3).y < 0.7:
 		return null
 	var stand: Vector3 = hit["position"] + Vector3(0.0, 0.03, 0.0)
+	if stand.y > float(b.get("deck")) + 0.7:
+		return null         # (her cabin top, not her deck)
 	var fit := PhysicsShapeQueryParameters3D.new()
 	fit.shape = (body.get_child(0) as CollisionShape3D).shape
 	fit.transform = Transform3D(Basis.IDENTITY, stand + Vector3(0.0, 0.9, 0.0))
@@ -863,10 +935,10 @@ func _deck_at(b: Node3D, w: Vector3) -> Variant:
 func _hopping(delta: float) -> void:
 	_hop_t += delta
 	if _hop_boat != null and is_instance_valid(_hop_boat):
-		# over both rails and down onto her deck, wherever she's got to
-		var u := clampf(_hop_t / HOP_TIME, 0.0, 1.0)
+		# over both rails, across any gap and down onto her deck, wherever she's got to (a longer leap, a higher arc)
+		var u := clampf(_hop_t / _hop_dur, 0.0, 1.0)
 		var to := boat.global_transform.affine_inverse() * (_hop_boat.global_transform * _hop_land)
-		var top := maxf(_rail_y(boat), _rail_y(_hop_boat)) + 0.2
+		var top := maxf(_rail_y(boat), _rail_y(_hop_boat)) + 0.2 + 0.4 * (_hop_dur - HOP_TIME)
 		var p := _hop_from.lerp(to, smoothstep(0.0, 1.0, u))
 		p.y = lerpf(_hop_from.y, to.y, u) + maxf(top - maxf(_hop_from.y, to.y), 0.3) * sin(PI * u)
 		_local = p
@@ -945,8 +1017,9 @@ func _let_go() -> void:
 	_knock = 0.0
 
 
-## Afloat: the sea lifts you to its surface and lets you down again a beat behind the waves; you swim where you look;
-## the wind and the slope of a swell carry you; no hull lets you through it.
+## Afloat: the sea lifts you to its surface and lets you down again a beat behind the waves; you swim where you look,
+## stroke by stroke, and dive under while you've the breath; the wind and the slope of a swell carry you; no hull lets
+## you through it.
 func _swim(delta: float) -> void:
 	var ocean := _ocean()
 	var at := _local
@@ -960,14 +1033,33 @@ func _swim(delta: float) -> void:
 		return
 	var live := force_input or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back") if live else Vector2.ZERO
+	var going := minf(input.length(), 1.0)
+	var dive := live and not _winded and Input.is_action_pressed("swim_down")
+	var fast := live and not _winded and not dive and going > 0.1 and Input.is_action_pressed("sprint")
+	# your breath: going under it, sprinting it, and back again at the surface
+	if at.y + 1.62 < water - 0.05:
+		_breath -= delta / AIR_UNDER
+	elif fast:
+		_breath -= delta / AIR_SPRINT
+	else:
+		_breath += delta / AIR_BACK
+	_breath = clampf(_breath, 0.0, 1.0)
+	if _breath <= 0.0:
+		_winded = true
+	elif _winded and _breath >= WINDED:
+		_winded = false
+	# the stroke: the pull surges you on, the glide carries you to the next (treading water, slower and nowhere)
+	_stroke = fmod(_stroke + delta * (STROKE_FAST if fast else STROKE) * maxf(going, TREAD), 1.0)
+	var pull := pow(sin(PI * _stroke), 2.0)
+	var speed := (SWIM_FAST if fast else SWIM_SPEED) * (DIVE_SLOW if dive else 1.0)
 	var wish := Basis(Vector3.UP, _yaw) * Vector3(input.x, 0.0, input.y)
-	wish = wish.normalized() * (SWIM_FAST if Input.is_action_pressed("sprint") else SWIM_SPEED) * minf(input.length(), 1.0)
+	wish = wish.normalized() * speed * going * (1.0 - SURGE + 2.0 * SURGE * pull)
 	var flat := Vector3(v.x, 0.0, v.z)
 	# (water's thick: going in fast, it soon takes your way off you)
 	flat = flat.move_toward(wish, (SWIM_ACCEL + maxf(flat.length() - SWIM_FAST, 0.0) * 2.5) * delta)
-	var rest := water - FLOAT
-	# (going in hard, you go right under before the sea brings you up)
-	var plunge := 0.25 if v.y < -1.2 else 1.0
+	var rest := water - FLOAT - (DIVE if dive else 0.0)
+	# (going in hard, you go right under before the sea brings you up; diving, you go down softer)
+	var plunge := 0.25 if v.y < -1.2 and not dive else (DIVE_SPRING if dive or at.y < water - FLOAT - 0.6 else 1.0)
 	v = Vector3(flat.x, v.y + (BUOY * plunge * (rest - at.y) - BUOY_DAMP * plunge * v.y) * delta, flat.z)
 	var sea := Vector3.ZERO
 	if ocean:
@@ -1005,48 +1097,107 @@ func _clear_hulls(at: Vector3) -> Vector3:
 	return at
 
 
-## Hold of boat `on`'s ladder (boat/ladder.gd's interact): climbing it while you hold E.
+## Hold of boat `on`'s ladder (boat/ladder.gd's interact): from the sea, at its foot, to climb; from her deck, at its
+## top, to go down it (your path's last leg ends where you stand, so nothing moves as you take hold).
 func climb(on: Node3D) -> void:
 	var ladder: Node3D = on.get("ladder") if on else null
-	if mode != SWIM or ladder == null:
+	if ladder == null:
 		return
-	_set_frame(on)
+	if mode == SWIM:
+		_set_frame(on)
+		_climb_from = _local
+		_climb_legs = ladder.call("path", _local)
+		_climb_t = 0.0
+		_climb_way = 1
+	elif mode == DECK and on == boat and not steering and not seated:
+		_let_go()
+		var foot: Vector3 = (ladder.call("path", Vector3.ZERO) as Array)[0][0]
+		_climb_from = foot
+		_climb_legs = ladder.call("path", foot)
+		var last: Array = _climb_legs.back()
+		var was: Vector3 = (_climb_legs[_climb_legs.size() - 2] as Array)[0]
+		_climb_legs[_climb_legs.size() - 1] = [body.position, clampf(was.distance_to(body.position) / 1.4,
+				float(last[1]), 1.0)]
+		_climb_t = _climb_length()
+		_climb_way = -1
+	else:
+		return
 	_ladder = ladder
-	_climb_from = _local
-	_climb_legs = ladder.call("path", _local)
-	_climb_t = 0.0
 	_set_mode(CLIMB)
 
 
+## The whole climb, foot to deck (s).
+func _climb_length() -> float:
+	var total := 0.0
+	for leg: Array in _climb_legs:
+		total += float(leg[1])
+	return total
+
+
+## On a ladder: W up, S down, neither and you hang there. The swim in to its foot and the way over her transom's cap
+## carry you along by themselves (the cap's no place to hang); at the foot S lets you back into the water, at the
+## top W steps you onto her deck.
 func _climbing(delta: float) -> void:
 	if _ladder == null or not is_instance_valid(_ladder):
 		_into_sea(Vector3.ZERO)
 		return
 	var live := force_input or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
-	if force_climb or (live and Input.is_action_pressed("interact")):
-		_climb_t += delta
-	# (facing her, the way you'll go over her transom)
-	_yaw = lerp_angle(_yaw, 0.0, 1.0 - exp(-5.0 * delta))
+	var up := force_climb or (live and Input.is_action_pressed("move_forward"))
+	var down := not force_climb and live and Input.is_action_pressed("move_back")
+	var foot := float(_climb_legs[0][1])
+	var cap := foot + float(_climb_legs[1][1])
+	var total := _climb_length()
+	if up:
+		_climb_way = 1
+	elif down:
+		_climb_way = -1
+	var was := _climb_t
+	if _climb_t < foot:
+		_climb_t += delta                 # (in to it)
+	elif _climb_t > cap or up or down:
+		_climb_t += delta * _climb_way * (1.0 if _climb_way > 0 else 1.25)
+	_climb_t = clampf(_climb_t, minf(was, foot), total)
+	if _climb_t != was:
+		# (facing her, the way you'll go over her transom)
+		_yaw = lerp_angle(_yaw, 0.0, 1.0 - exp(-4.0 * delta))
+	_local = _climb_at(_climb_t)
+	if _climb_t >= total and _climb_way > 0:
+		# aboard
+		body.position = _local
+		body.velocity = Vector3.ZERO
+		_set_mode(DECK)
+		_follow_me()
+	elif _climb_t <= foot and was <= foot + 0.001 and down and _climb_way < 0:
+		# at the foot and down: back into the water
+		_into_sea(_boat_velocity(boat))
+		_wet = true
+
+
+## Where `t` s along the climb puts you (boat-local).
+func _climb_at(t: float) -> Vector3:
 	var steps := int(_ladder.call("steps"))
 	var from := _climb_from
-	var t := _climb_t
 	for i in _climb_legs.size():
 		var leg: Array = _climb_legs[i]
 		var dur := float(leg[1])
-		if t <= dur:
-			var u := t / dur
+		if t <= dur or i == _climb_legs.size() - 1:
+			var u := clampf(t / dur, 0.0, 1.0)
 			# (up the ladder a step at a time: a pause on each, then the next)
 			var s := u - 0.6 * sin(TAU * steps * u) / (TAU * steps) if i == 1 else smoothstep(0.0, 1.0, u)
-			_local = from.lerp(leg[0], s)
-			return
+			return from.lerp(leg[0], s)
 		t -= dur
 		from = leg[0]
-	# aboard
-	body.position = from
-	body.velocity = Vector3.ZERO
-	_local = from
-	_set_mode(DECK)
-	_follow_me()
+	return from
+
+
+## E on a ladder: let go. On it, you drop into the water below; over her transom's cap, you go on over onto her deck.
+func _let_go_ladder() -> void:
+	if mode != CLIMB:
+		return
+	if _climb_t > float(_climb_legs[0][1]) + float(_climb_legs[1][1]):
+		_climb_way = 1
+		return
+	_into_sea(_boat_velocity(boat))
 
 
 ## Takes you into `to`'s space (a boat, or null: the world) where you are now: your spot, your heading and your eyes
@@ -1231,13 +1382,23 @@ func _pushed(v: Vector3) -> void:
 
 ## Every peer, every frame: going in (a splash, a ring of foam, water over your eyes) and coming up again (a gasp).
 func _water_fx(delta: float) -> void:
+	var ocean := _ocean()
 	if mode != SWIM:
 		_wet = mode == CLIMB
 		_under = false
+		_breath = 1.0
+		_winded = false
+		if _lens and ocean != null:
+			# (out of it: the visor's the weather's again)
+			_lens = false
+			var sea: Node = boat.get("sea") if boat else null
+			var visor: CanvasLayer = sea.get("visor") if sea else null
+			if visor != null:
+				visor.visible = float(ocean.get("rain")) > 0.0
 		return
-	var ocean := _ocean()
 	if ocean == null:
 		return
+	_strokes(delta, ocean)
 	var at := global_position
 	var water := float(ocean.call("height_at", at))
 	_in_for += delta
@@ -1260,6 +1421,32 @@ func _water_fx(delta: float) -> void:
 		_voice.pitch_scale = randf_range(0.95, 1.08)
 		_voice.play()
 	_under = under
+
+
+## Every peer, swimming: each stroke's pull a slap of water at your hands (none treading water, none under), and
+## going hard (sprinting, or out of breath) a blow every other one. Your own stroke's yours (_swim); a crewmate's is
+## worked out here from how fast they're going, near enough.
+func _strokes(delta: float, ocean: Node) -> void:
+	var moved := (_local - _prev_local) * float(Engine.physics_ticks_per_second)
+	var pace := Vector2(moved.x, moved.z).length()
+	if not is_multiplayer_authority():
+		var k := clampf(pace / SWIM_SPEED, 0.0, 1.0)
+		_stroke = fmod(_stroke + delta * lerpf(STROKE * TREAD, STROKE, k) * (1.0 + 0.5 * smoothstep(SWIM_SPEED,
+				SWIM_FAST, pace)), 1.0)
+	var came_round := _stroke < _stroke_was
+	_stroke_was = _stroke
+	if not came_round or pace < 0.4 or _under or not _wet:
+		return
+	strokes += 1
+	var hands := global_transform * Vector3(0.0, 0.0, -0.5)
+	var water := float(ocean.call("height_at", hands))
+	Sfx.play_point(self, Vector3(hands.x, water, hands.z), "dock.slap", clampf(0.12 + 0.12 * pace, 0.12, 0.45),
+			randf_range(1.3, 1.55))
+	var hard := pace > SWIM_SPEED * 1.2 or _breath < 0.35
+	if hard and strokes % 2 == 0 and not _voice.playing:
+		_voice.stream = Voice.blow()
+		_voice.pitch_scale = randf_range(0.94, 1.08)
+		_voice.play()
 
 
 ## Every frame: your spot (smoothed between physics ticks) carried by its frame as it is right now: the boat, or the
@@ -1293,10 +1480,10 @@ func _process(delta: float) -> void:
 		_pitch += clampf((cam_goal.y - _pitch) * k, -6.0 * delta, 6.0 * delta)
 	head.global_basis = eyes * Basis(Vector3.RIGHT, _pitch)
 	if ocean != null:
-		# your eyes stay just out of the water (it washes over the lens instead: the visor)
-		var water := float(ocean.call("height_at", head.global_position))
-		if head.global_position.y < water + 0.1:
-			head.global_position.y = water + 0.1
+		_eyes_afloat(ocean, delta)
+	elif is_multiplayer_authority() and _murk != null and _murk.visible:
+		_murk.visible = false
+		cam.environment = null
 	if is_multiplayer_authority():
 		if mode == DECK:
 			_lurch(delta)
@@ -1305,6 +1492,59 @@ func _process(delta: float) -> void:
 			var tremble := Vector3(sin(t * 31.0) + sin(t * 13.0 + 2.0), sin(t * 23.0 + 1.0), 0.0) * 0.006 * shake
 			head.global_basis = head.global_basis * Basis.from_euler(tremble + Vector3(-0.035 * shake, 0.0, 0.0))
 		_update_prompt()
+
+
+## Your eyes in the sea: rising with each stroke's pull and nodding with it; kept at the waterline, never under it
+## unless you are (diving, or plunged in), and the waves washing over the lens (the visor) when one comes up round it;
+## under, the murk, darker as your breath runs out.
+func _eyes_afloat(ocean: Node, delta: float) -> void:
+	var going := clampf(Vector2(_swim_v.x, _swim_v.z).length() / SWIM_SPEED, 0.0, 1.0)
+	var bob := BOB * sin(TAU * _stroke) * lerpf(0.4, 1.0, going)
+	head.global_basis = head.global_basis * Basis(Vector3.RIGHT, 0.04 * cos(TAU * _stroke) * going)
+	head.global_position.y += bob
+	var water := float(ocean.call("height_at", head.global_position))
+	var at_water := float(ocean.call("height_at", global_position))
+	# (how far under where the sea would hold you you are: your eyes may go that far under the waterline too)
+	var deep := maxf(0.0, at_water - FLOAT - global_position.y - 0.2)
+	head.global_position.y = maxf(head.global_position.y, water + 0.06 - deep)
+	var clear := head.global_position.y - water
+	if clear < 0.09 and _clear >= 0.15 and _wet and deep <= 0.0:
+		var sea: Node = boat.get("sea") if boat else null
+		var visor: Node = sea.get("visor") if sea else null
+		if visor != null:
+			visor.call("splash", randf_range(0.25, 0.45))
+	_clear = clear if clear < 0.09 or clear >= 0.15 else _clear
+	# the lens wet while you're in (the visor, shown whatever the weather: sea/sea.gd hides it when it isn't raining)
+	var sea: Node = boat.get("sea") if boat else null
+	var visor: CanvasLayer = sea.get("visor") if sea else null
+	if visor != null and not visor.visible:
+		visor.visible = true
+		_lens = true
+	if _murk != null:
+		var under := clear < -0.02
+		_murk.visible = under
+		# (and the sea's own murk: your camera's world under the surface, a few metres of seeing in it)
+		cam.environment = _deep_sea() if under else null
+		if under:
+			_murk.color.a = clampf(0.2 + 0.08 * -clear + 0.5 * (1.0 - _breath), 0.2, 0.85)
+
+
+## Under the sea: green-blue water all round, thick enough that a hull a few metres off is a shadow and past ten
+## metres there's nothing; the light from above.
+func _deep_sea() -> Environment:
+	if _deep == null:
+		_deep = Environment.new()
+		_deep.background_mode = Environment.BG_COLOR
+		_deep.background_color = Color(0.04, 0.2, 0.22)
+		_deep.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+		_deep.ambient_light_color = Color(0.3, 0.55, 0.55)
+		_deep.ambient_light_energy = 0.8
+		_deep.fog_enabled = true
+		_deep.fog_light_color = Color(0.05, 0.24, 0.26)
+		_deep.fog_density = 0.18
+		_deep.fog_mode = Environment.FOG_MODE_EXPONENTIAL
+		_deep.fog_sky_affect = 1.0
+	return _deep
 
 
 ## A big sea throwing the deck about: lose your feet now and then (a stumble, everyone sees), not at the wheel.
@@ -1352,10 +1592,45 @@ func _looked_at() -> Node:
 	return n
 
 
-func _update_prompt() -> void:
+## What E would act on: what you're looking at, else a ladder you're right by (its foot from the water, its top on
+## her deck facing aft: no need to find it with the crosshair).
+func _target() -> Node:
 	var t := _looked_at()
+	return t if t != null else _ladder_near()
+
+
+func _ladder_near() -> Node3D:
+	if mode == SWIM:
+		var best: Node3D = null
+		var near := GRAB
+		for b: Node3D in _boats():
+			var ladder: Node3D = b.get("ladder")
+			if ladder == null:
+				continue
+			var foot := ladder.global_transform * Vector3(0.0, 0.0, 0.42)
+			var d := Vector2(foot.x - global_position.x, foot.z - global_position.z).length()
+			if d < near:
+				near = d
+				best = ladder
+		return best
+	if mode == DECK and boat != null and not steering and not seated:
+		var ladder: Node3D = boat.get("ladder")
+		if ladder == null:
+			return null
+		var spot: Vector3 = ladder.get("spot")
+		var top := Vector3(spot.x, body.position.y, spot.z - 0.75)
+		var aft := (Basis(Vector3.UP, _yaw) * Vector3.FORWARD).z
+		if body.position.distance_to(top) < GRAB_DECK and aft > 0.4:
+			return ladder
+	return null
+
+
+func _update_prompt() -> void:
+	var t := _target()
 	var text := ""
-	if t:
+	if mode == CLIMB:
+		text = "W|Up the ladder, S down, E lets go"
+	elif t:
 		text = str(t.call("interact_prompt")) if t.has_method("interact_prompt") else "Use"
 	if text != _prompt:
 		_prompt = text

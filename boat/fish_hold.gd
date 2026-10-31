@@ -567,6 +567,12 @@ func _hear_work() -> void:
 ## aboard; the dusk notes start over.
 func _dock_changed(now_docked: bool) -> void:
 	_dusk_noted = 0
+	# (only the boat you're on: in Rivals the other boat tying up is nothing to you; and Rivals has no dock screen at
+	# all, the weigh-in and the countdown show over the game)
+	var real: Node = sea.get("sea") if sea.get("sea") != null else sea
+	var vs: Node = real.get("vs")
+	if real.get("fish_hold") != self or (vs != null and bool(vs.get("on"))):
+		return
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if now_docked else Input.MOUSE_MODE_CAPTURED
 
 

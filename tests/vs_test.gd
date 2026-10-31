@@ -4,7 +4,7 @@ extends Node
 ## your screens, the sea round her). Head out and both go from the harbour, side by side, in the same kind of boat. A fish on one boat's rod
 ## is hers alone, and her things keep their notes off the other crew's screens. Schools turn up round one, the other
 ## and between. Out there they meet (_meet): solid to each other, wakes (a wake bomb beam on, softer bow into it),
-## lines cut across a stern, the air horn; boarding her (_board: over both rails alongside, up her ladder). Head in
+## no lines cut running across a stern, the air horn; boarding her (_board: over both rails alongside, up her ladder). Head in
 ## and both come in alongside the fish pier: the fish read off, the pounds weighed, the winner told by how much, a day to them. Back to one boat and it's the sea as it always was.
 ## Run: godot --headless --fixed-fps 30 --path . res://tests/vs_test.tscn
 
@@ -136,7 +136,7 @@ func _ready() -> void:
 
 
 ## Out there, the two boats meeting: solid to each other (a bump shoves both apart, nobody passes through), a wake
-## rocks the other, running across her lines cuts them, and her horn rattles the other crew.
+## rocks the other, running across her lines leaves them be (no cutting her off), and her horn rattles the other crew.
 ## (Nobody's at either wheel: the host moves both, so the test sets their way on.)
 func _meet(sea: Sea, vs: Vs, b: Node, a_boat: Node3D, b_boat: Node3D) -> void:
 	var ha: Node = a_boat.get("helm")
@@ -228,12 +228,12 @@ func _meet(sea: Sea, vs: Vs, b: Node, a_boat: Node3D, b_boat: Node3D) -> void:
 		hb.set("at", at)
 		await get_tree().process_frame
 	ha.set("speed", 0.0)
-	var cut := (b_rods.get("rods") as Array).filter(func(r: Node) -> bool: return not bool(r.get("baited")))
-	_check(cut.size() >= 2, "running across B's stern cut her lines (%d of %d)" % [cut.size(), out.size()])
-	_check(float(a_boat.get("helm").get("fouled_until")) > 0.0, "and A's props took the line: her engines died a while")
-	await get_tree().create_timer(10.0).timeout
-	_check((b_rods.get("rods") as Array).all(func(r: Node) -> bool:
-		return bool(r.get("bait_in")) or bool(r.get("baited"))), "what's left wound in")
+	var kept := (b_rods.get("rods") as Array).filter(func(r: Node) -> bool:
+		return not bool(r.get("bait_in")) and bool(r.get("baited")))
+	_check(kept.size() == out.size(), "running across B's stern leaves her lines be (%d of %d still out)"
+			% [kept.size(), out.size()])
+	_check(float(ha.get("speed")) == 0.0 and not "fouled_until" in ha, "and A's engines are fine")
+	b_rods.call("host_clear")
 	# the air horn: A's, 30 m off B with a fish on B's line
 	hb.set("at", at)
 	hb.set("heading", 0.0)
@@ -261,7 +261,8 @@ func _meet(sea: Sea, vs: Vs, b: Node, a_boat: Node3D, b_boat: Node3D) -> void:
 
 ## Boarding her (crew/player.gd): A lying alongside B, you (B's crew) jump her rail and you're over both onto A's deck,
 ## riding her as she moves; her wheel isn't yours to take. In the sea, up her ladder: any boat's. Back to B the same
-## way, over the rails.
+## way, over the rails. Then A lying a couple of metres off: a step off B's rail, looking at A, Space, and you leap the
+## gap onto her deck, nothing jumping; too far off, it's into the sea.
 func _board(sea: Sea, a_boat: Node3D, b_boat: Node3D) -> void:
 	var ha: Node = a_boat.get("helm")
 	var hb: Node = b_boat.get("helm")
@@ -336,8 +337,37 @@ func _board(sea: Sea, a_boat: Node3D, b_boat: Node3D) -> void:
 		await get_tree().process_frame
 		t += 1.0 / 30.0
 	Input.action_release("move_forward")
-	me.force_input = false
 	_check(me.boat == b_boat and int(me.get("mode")) == 0, "and back over the rails to B")
+	# A two metres off B's starboard side: a step off the rail, looking her way, Space
+	for gap: float in [2.0, 6.0]:
+		ha.set("at", at + Vector2(float(b_boat.get("beam")) + gap, 0.0))
+		hb.set("at", at)
+		await get_tree().create_timer(0.3).timeout
+		me.place(Vector3(1.6, deck + 0.02, 3.5), -PI * 0.5, b_boat)
+		await get_tree().create_timer(0.3).timeout
+		Input.action_press("jump")
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		Input.action_release("jump")
+		t = 0.0
+		step = 0.0
+		prev = me.global_position
+		while int(me.get("mode")) != 0 and int(me.get("mode")) != 1 or t < 0.1:
+			await get_tree().process_frame
+			step = maxf(step, me.global_position.distance_to(prev))
+			prev = me.global_position
+			t += 1.0 / 30.0
+			if t > 4.0:
+				break
+		if gap < 3.0:
+			_check(me.boat == a_boat and int(me.get("mode")) == 0, "a %.0f m gap: the leap onto A's deck (%.1f s)"
+					% [gap, t])
+			_check(step < 0.3, "across it, nothing jumping (at most %.2f m a frame)" % step)
+			await get_tree().create_timer(0.5).timeout
+			_check(me.body.is_on_floor(), "standing on A's deck")
+		else:
+			_check(int(me.get("mode")) == 1, "a %.0f m gap: too far, into the sea" % gap)
+	me.force_input = false
 
 
 func _done() -> void:

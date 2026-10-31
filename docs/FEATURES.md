@@ -309,12 +309,20 @@ rules.
   difference is what extra hands can do, and the boats (the skiff for one or two, the sportfisher wants a crew).
 - The jobs: captain, angler, line-clearer, spotter (binoculars), wirer, harpooner, haulers, the one who bleeds and
   ices, chum and jig while you wait.
-- **Over the side** (`crew/player.gd`): Space into the rail and you're over it, into the sea with a splash. You float
-  at the real waves' height (the height the boats ride), your eyes just out of the water, bobbing up after the
-  swell a beat late and drifting down wind; go in hard and you go right under and come up gasping. WASD swims,
-  slowly; you can't jump out. Whatever you had hold of is let go: a rod goes back in its holder, fish and all.
-- **The boarding ladder** (`boat/ladder.gd`) hooked over every boat's transom, beside the engines: swim to it and
-  hold E, and you climb it a step at a time, over the cap and down onto her deck (let go of E and you hang there).
+- **Over the side** (`crew/player.gd`): Space at the rail (against it or a step off, walking or looking its way)
+  and you're over it, into the sea with a splash. Another boat within a jump (about 3 m past the rail) and you
+  leap the gap onto her deck instead, riding her from the moment you land. Whatever you had hold of is let go: a rod
+  goes back in its holder, fish and all.
+- **Swimming:** you float at the real waves' height (the height the boats ride), your eyes at the waterline, lifted
+  by each swell a beat late and drifting down wind, a wave washing over the lens now and then. WASD swims in strokes
+  (a pull that surges you on, a glide, your head rising with each pull, a slap of water); Shift sprints (quicker
+  strokes, blowing hard); Ctrl or C held dives you under into the murk. Sprinting and diving share your breath
+  (about 8 s of sprint, 5 s under): run it out and you're winded till it's back. Go in hard and you go right under
+  and come up gasping. A boat's four times faster than a sprint: a swim's for her ladder, not a chase.
+- **The boarding ladder** (`boat/ladder.gd`) hooked over every boat's transom, beside the engines: swim up to its
+  foot and E (no need to find it with the crosshair). W climbs a step at a time, S goes back down (at the foot,
+  back into the water), neither and you hang there, E lets go; at the top you're over the cap and onto her deck.
+  From her deck, E at the top of it (facing aft) takes you over the cap and onto it, going down.
 - **Shoving** (F, either mode): arms back and a grunt first (0.4 s: everyone sees it coming and can step aside),
   then both hands out. Whoever's in front then staggers off across the deck; into the rail hard and they're over
   it. Braced (a fish on the rod in your hands, the wheel, the chair) you go half as far. One shove every 6 s, never
@@ -346,11 +354,11 @@ rules.
 - **The air horn** (`vs/horn.gd`), on the dash beside each wheel (E): a twin-tone blast heard a mile off. Within
   about 120 m of the other boat it rattles her crew's view and jerks any fish on her lines (the rod tip snaps, a
   little shock in the fight, never enough on its own to lose it). One blast every couple of seconds.
-- **Boarding her:** alongside, jump her rail (Space into it) and you're over both onto her deck, riding her; or up
-  her ladder from the sea. Her wheel and rods aren't yours to take, but you can shove her crew about, and over.
+- **Boarding her:** within a jump (alongside, or up to about 3 m off), Space at your rail and you leap over both
+  onto her deck, riding her; or up her ladder from the sea. Her wheel and rods aren't yours to take, but you can shove her crew about, and over.
   The cost: your own boat's a hand short while you're over there.
-- **Cutting her off:** run across her stern while her baits are out and your hull cuts her lines (her fish too, if
-  one's on): "Cut off.", the bait's gone, what's left lies out to be wound in.
+- **No cutting her off:** running across her stern doesn't part her lines (it used to, and two boats could cut each
+  other off till nobody had a fish).
 - **The tally**, top left under your own: a bar and the pounds aboard for each boat (yours on top, each in its
   boat's colour, amber A, blue B), a pip for each day won, and a red dot blinking by theirs while they've a fish on.
   When they hook up, your VHF squelch breaks.
