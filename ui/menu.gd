@@ -326,6 +326,15 @@ func _fill_board(hold: Node, docked: bool) -> void:
 			buy.disabled = not skipper or bank < int(item["price"])
 			line.add_child(buy)
 		shop.add_child(line)
+	# the bait: not for sale. Every boat's well goes out with a few live mackerel; tuna take nothing else
+	var well := HBoxContainer.new()
+	var says := _label("LIVE BAIT ONLY, NO LURES: A MACKEREL ON EVERY HOOK, %d IN THE WELL. JIG MORE: THE JIG ROD (3)"
+			% FishHold.WELL_START, SMALL, CREAM)
+	says.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	says.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	well.add_child(says)
+	well.add_child(_label("ABOARD", SMALL, GOOD))
+	shop.add_child(well)
 	# the way out
 	if skipper:
 		_dock.add_child(_button("CAST OFF", func() -> void:

@@ -283,7 +283,7 @@ func _land_step(landing: Node, f: Dictionary) -> Array:
 			return ["WIRE HIM FIRST: E AT THE TRANSOM", "key:E"]
 		if bool(landing.call("down", i)):
 			return ["HE'S GONE DOWN. WAIT, HE COMES BACK UP", "none"]
-		return ["LOOK AT HIM. LEFT MOUSE: THROW", "left"]
+		return ["HOLD LEFT MOUSE: WIND UP. LET GO: THROW. LEAD HIM", "left"]
 	if bool(landing.call("needs_wire", i)):
 		return ["E AT THE TRANSOM: GRAB THE LEADER (WIRE HIM)", "key:E"]
 	if harpoon != 0:

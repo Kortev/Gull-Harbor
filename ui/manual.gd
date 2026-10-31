@@ -32,10 +32,12 @@ const CHAPTERS := [
 		+ "Only a bait out in front of it gets eaten.\n\n"
 		+ "Your baits trail behind you: cut across ahead of it and drag them through its path, run alongside just "
 		+ "ahead of it at its pace, or stop in its way and cast. Nothing bites over 12 knots."],
-	["5. Bait", "Baits wash out in 5 minutes (live ones 10) and get a quarter of the bites. E on the rod for a "
-		+ "fresh one.\n\n"
-		+ "Live mackerel (the live-bait well, $1,500): half as many bites again. Hold E on the jig rod, slowed "
-		+ "right down, for more.\n\n"
+	["5. Bait", "Tuna take ONLY A LIVE MACKEREL. No lures. Every boat has a live well: a mackerel on every hook "
+		+ "and 4 more in the well each trip (8 at most).\n\n"
+		+ "A mackerel tires out in 10 minutes and gets a quarter of the bites: bait in hand (5), E on the rod "
+		+ "for a fresh one from the well, then cast.\n\n"
+		+ "Well empty? Jig more: the jig rod (3), stopped, rod out over the rail. Click to drop it, tap to work "
+		+ "it, tap on the knock, hold to wind it up.\n\n"
 		+ "Chum (the transom bucket, 24 scoops a trip): a slick pulls schools from about 450 m and keeps them "
 		+ "while you keep it coming, a scoop a minute or so."],
 	["6. The fight", "Reel screams: grab the rod (E). Anyone can, and anyone can take over.\n\n"
@@ -53,8 +55,10 @@ const CHAPTERS := [
 		+ "fine.\n\n"
 		+ "Reel the other baits in (E on each rod) or a running fish tangles them."],
 	["8. Landing it", "At about 7 m of line it's alongside.\n\n"
-		+ "The big boat: wire it first (hold E at the tuna door). Then the harpoon off the port rack: aim, left "
-		+ "click. Then hold E at the door to haul; more hands, quicker. The skiff skips the wiring.\n\n"
+		+ "The big boat: wire it first (hold E at the tuna door). Then the harpoon off the port rack: hold left "
+		+ "mouse to wind up (the dots show where it comes down), let go to throw. It swims while the harpoon "
+		+ "flies: lead it. Then hold E at the door to haul; more hands, quicker. The skiff skips the wiring.\n\n"
+		+ "EVERY MISS CAN LOSE IT: 25% the first, then 40, 55, 70.\n\n"
 		+ "Leave it 90 s and the hook pulls."],
 	["9. Getting paid", "On deck: E bleeds it, E again ices it. The grade (#1, #2, #3) is speed: landed quick, "
 		+ "bled within a minute, iced within three. A #1 pays about twice a warm one.\n\n"
@@ -62,8 +66,7 @@ const CHAPTERS := [
 	["10. Boats and gear", "The skiff: 2 rods, quick, handy alone or with two. Box for 2.\n"
 		+ "The sportfisher ($20,000, or $2,500 a day chartered): 4 rods, box for 12, slow to turn, and the tuna "
 		+ "door means wiring. She wants a crew. Her fighting chair: E to sit, E or jump to get up.\n\n"
-		+ "Gear lasts the run: a two-speed reel (winds a quarter faster), heavier line (rubs the hull longer), the "
-		+ "live-bait well."],
+		+ "Gear lasts the run: a two-speed reel (winds a quarter faster), heavier line (rubs the hull longer)."],
 ]
 
 var _page: Label

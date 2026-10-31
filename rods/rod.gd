@@ -9,7 +9,7 @@ const MODEL := preload("res://rods/rod.glb")
 const BEND := preload("res://rods/rod_bend.gdshader")
 const LENGTH := 1.76
 
-const LURES := [Color(0.95, 0.35, 0.6), Color(0.2, 0.55, 0.95), Color(0.95, 0.8, 0.2), Color(0.3, 0.85, 0.4)]
+const Kit := preload("res://crew/kit.gd")
 
 static var _materials := {}
 
@@ -62,7 +62,7 @@ var alongside := false
 var bait_in := false
 var tangled := -1
 ## The bait on it: whether there is one (a fish takes it), when it went on (sea clock) and whether it's a live
-## mackerel from the well (rods.gd's freshness).
+## mackerel from the well (rods.gd's freshness; it always is now: nothing else gets taken).
 var baited := true
 var baited_t := 0.0
 var live := false
@@ -87,13 +87,15 @@ var whip := 0.0
 var bait_p := Vector3.INF
 var bait_v := Vector3.ZERO
 var slack := 0.0
-var _lure: MeshInstance3D
+var _lure: Node3D
+var _lure_back: StandardMaterial3D
 ## The fish on it, seen (rods.gd's _show_fish): its body in the water, the move it was last seen making, and the next
 ## splash it throws up.
 var fish_node: Node3D
 var seen_move := ""
 var splash_in := 0.0
 var _scream: AudioStreamPlayer3D
+var _kick := 0.0
 var _whir: AudioStreamPlayer3D
 var _grind: AudioStreamPlayer3D
 var _spool: MeshInstance3D
@@ -157,18 +159,13 @@ func _ready() -> void:
 	lm.albedo_color = Color(0.85, 0.86, 0.78)
 	_line.material_override = lm
 	add_child(_line)
-	# the bait on the end of it: a skirted trolling lure (a live mackerel's a dark one)
-	_lure = MeshInstance3D.new()
-	var cone := CylinderMesh.new()
-	cone.top_radius = 0.012
-	cone.bottom_radius = 0.05
-	cone.height = 0.28
-	cone.radial_segments = 6
-	cone.rings = 1
-	_lure.mesh = cone
+	# the bait on the end of it: a live mackerel, hooked through the lips
+	_lure = Kit._mackerel()
 	_lure.top_level = true
-	_lure.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_lure.material_override = StandardMaterial3D.new()
+	for mi in _lure.find_children("*", "MeshInstance3D", true, false):
+		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_lure_back = ((_lure.get_node("Back") as MeshInstance3D).material_override as StandardMaterial3D).duplicate()
+	(_lure.get_node("Back") as MeshInstance3D).material_override = _lure_back
 	add_child(_lure)
 	_scream = AudioStreamPlayer3D.new()
 	var wav := (preload("res://audio/fish/drag_scream.wav") as AudioStreamWAV).duplicate() as AudioStreamWAV
@@ -306,22 +303,22 @@ func _draw_line() -> void:
 		p.y = maxf(p.y, minf(b.y, a.y) - 0.05)       # (not through the water)
 		_line_mesh.surface_add_vertex(p)
 	_line_mesh.surface_end()
-	# the lure, nose toward the rod, riding just in the water; or hanging off the tip with the line in, or flying
+	# the mackerel, nose toward the rod, swimming just under the top; or hanging off the tip by its lips with the line
+	# in, kicking, or flying. Tiring, it kicks slower and goes pale.
 	var flying := bool(spread.call("flying", index)) if spread else false
 	var out := baited and not hooked and tangled < 0 and (bait_in or flying or bait_p != Vector3.INF)
 	_lure.visible = out
 	if out:
-		var to := (a - b) * Vector3(1, 0, 1)
-		if bait_in:
-			_lure.global_transform = Transform3D(Basis.IDENTITY, b + Vector3(0.0, -0.12, 0.0))
-		elif to.length() > 0.01:
-			_lure.global_transform = Transform3D(Basis.looking_at(to.normalized(), Vector3.UP)
-					* Basis(Vector3.RIGHT, -PI * 0.5), b + Vector3(0.0, 0.02, 0.0))
-		# (washing out as it goes off: the colour leaves it)
-		var lm := _lure.material_override as StandardMaterial3D
 		var fresh := float(spread.call("freshness", index)) if spread else 1.0
-		var col: Color = Color(0.15, 0.25, 0.3) if live else LURES[index % LURES.size()]
-		lm.albedo_color = col.lerp(Color(0.62, 0.6, 0.55), (1.0 - fresh) * 0.85)
+		_kick += get_process_delta_time() * (3.0 + 9.0 * fresh)
+		var wiggle := Basis(Vector3.UP, sin(_kick) * (0.12 + 0.25 * fresh))
+		var to := (a - b) * Vector3(1, 0, 1)
+		if bait_in or flying:
+			_lure.global_transform = Transform3D(Basis(Vector3.RIGHT, PI * 0.5) * wiggle, b + Vector3(0.0, -0.14, 0.0))
+		elif to.length() > 0.01:
+			_lure.global_transform = Transform3D(Basis.looking_at(to.normalized(), Vector3.UP) * wiggle,
+					b + Vector3(0.0, -0.06, 0.0))
+		_lure_back.albedo_color = Color(0.18, 0.42, 0.4).lerp(Color(0.6, 0.62, 0.6), (1.0 - fresh) * 0.8)
 
 
 func interact_prompt(player: Node) -> String:
@@ -335,6 +332,9 @@ func interact_prompt(player: Node) -> String:
 		if bool(spread.call("fighting")):
 			return "" if bait_in else "Reel in"
 		if player != null and str(player.get("hands").get("item")) == "bait":
+			var hold: Node = spread.get("sea").get("fish_hold") if spread else null
+			if hold != null and int(hold.get("well")) <= 0:
+				return "Well's empty: jig some (3)"
 			return "Bait it"
 		return "Pick it up"
 	if hooked and holder != Net.my_id():

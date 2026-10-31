@@ -72,6 +72,9 @@ func _draw() -> void:
 	var mine: Node = spread.call("held_by", str(p.name).to_int()) if spread else null
 	if mine:
 		wind = float(mine.get("wind"))
+	var landing: Node = sea.get("landing") if sea else null
+	if landing != null and int(landing.get("harpoon_holder")) == str(p.name).to_int():
+		wind = float(landing.get("draw"))       # (the harpoon wound up to throw)
 	if wind > 0.0:
 		_shown = maxf(_shown, 0.5)
 		var bar := Rect2(Vector2(-60.0, -16.0), Vector2(120.0, 6.0))
@@ -93,7 +96,7 @@ func _count(item: String) -> int:
 		"scoop":
 			return int(hold.get("chum"))
 		"bait":
-			return int(hold.get("well")) if bool(hold.call("has_gear", "bait")) else -1
+			return int(hold.get("well"))
 	return -1
 
 

@@ -35,20 +35,21 @@ func _ready() -> void:
 	_check(not any, "a school right on the baits at the dock: nothing bites")
 	sea.schools.schools[0].life = 0.0
 	await get_tree().process_frame
-	# out with the well: four live mackerel in it, a dead bait on each hook, every line in for the crew to cast
-	hold.gear = ["bait"]
+	# out (no gear bought: every boat has the well): four live mackerel in it, a live one on each hook, every line in
+	# for the crew to cast
+	hold.gear = []
 	hold.head_out("skiff")
 	await get_tree().create_timer(0.3).timeout
 	_check(hold.chum == FishHold.CHUM, "a full chum bucket going out (%d)" % hold.chum)
-	_check(rods.rods[0].bait_in and rods.rods[0].baited and not rods.rods[0].live and hold.well == FishHold.WELL_START,
-			"lines in, dead baits on, four mackerel in the well (%d)" % hold.well)
-	# a bait in your hands, E on each rod: a live mackerel on
+	_check(rods.rods[0].bait_in and rods.rods[0].baited and rods.rods[0].live and hold.well == FishHold.WELL_START,
+			"lines in, a live mackerel on each hook, four more in the well (%d)" % hold.well)
+	# a bait in your hands, E on each rod: a fresh mackerel on from the well
 	var me: Node = sea.crew.me
 	me.hands.pick("bait")
 	rods.request_bait(0)
 	rods.request_bait(1)
 	_check(rods.rods[0].live and rods.rods[1].live and hold.well == FishHold.WELL_START - 2,
-			"a bait in your hands, E on each rod: live mackerel on, two left in the well (%d)" % hold.well)
+			"a bait in your hands, E on each rod: fresh mackerel on, two left in the well (%d)" % hold.well)
 	rods.host_cast(0)
 	rods.host_cast(1)
 	while rods.flying(0) or rods.flying(1):

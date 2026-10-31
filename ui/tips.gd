@@ -26,7 +26,9 @@ const TIPS := {
 	"lines": "Reel the other lines in before they tangle.",
 	"deck": "Bleed it, ice it. Quick. A cold fish pays double.",
 	"spiral": "Colour! He's beat. Keep reeling, keep it in the green.",
-	"stale": "That bait's washed out. Bait in hand, E on the rod, cast it again.",
+	"stale": "That mackerel's tired out. Bait in hand (5), E on the rod: a fresh one from the well. Cast it again.",
+	"well": "Well's empty, and a tuna takes nothing but a live mackerel. Stop her, jig rod (3), over the rail.",
+	"bait": "They only take a live mackerel. One's on every hook, a few more in the well. Jig more: the jig rod, 3.",
 	"cast": "Get some baits out. Pick up a rod, hold the click, let go.",
 	"wait": "Slow? Chum off the transom brings them to you.",
 	"rivals": "Rivals: most pounds aboard at dusk wins the day, first to two days. Both boats go on GO.",
@@ -281,6 +283,11 @@ func _watch() -> void:
 				show_tip("stale")
 	if out_n == 0 and not on and now - _out_since > 25.0:
 		show_tip("cast")
+	# the bait: live mackerel only; once some are out, where more come from; the well run dry, jig
+	if out_n > 0 and now - _out_since > 40.0:
+		show_tip("bait")
+	if int(hold.get("well")) <= 0:
+		show_tip("well")
 	# a while out with nothing doing
 	if not _had_fish and now - _out_since > 150.0:
 		show_tip("wait")
@@ -289,5 +296,5 @@ func _watch() -> void:
 func _alongside_text() -> String:
 	var spec: Dictionary = (sea.get("boat") as Node).get("spec")
 	if bool(spec.get("wire", false)):
-		return "Wire it at the door, harpoon it off the port rack, haul. Ninety seconds."
-	return "Harpoon off the port rack, then haul it in. Ninety seconds."
+		return "Wire it at the door, then the harpoon off the port rack: hold the click, let go, lead him. Miss and he " 				+ "might tear off. Ninety seconds."
+	return "Harpoon off the port rack: hold the click, let go, lead him. Miss and he might tear off. Ninety seconds."
