@@ -1,12 +1,14 @@
 extends Node
 ## Hooking up and the fight: a feeding school crosses the spread and a bait gets eaten; the line pours off with the
 ## drag screaming; grab the rod and fight it right (let it run, pump it up when it sounds, crank otherwise, ease off
-## as a spiralling fish goes under her, and take a breather when your arms are gone) till it's up alongside for the
-## harpoon, with a captain (the test's stand-in, swinging her heading) keeping the stern on it. Run: godot --headless --path . res://tests/strike_test.tscn
+## as a spiralling fish goes under her) till it's up alongside for the harpoon, with a captain (the test's stand-in,
+## swinging her heading) keeping the stern on it and a crewmate taking the rod when the angler's arms go (fresh arms).
+## The fight runs at TIME_SCALE (it's the real game, in real time). Run: godot --headless --path . res://tests/strike_test.tscn
 
 const Sea := preload("res://sea/sea.gd")
 
 const FightBot := preload("res://tests/fight_bot.gd")
+const TIME_SCALE := 4.0
 var fails: Array[String] = []
 
 
@@ -59,10 +61,13 @@ func _ready() -> void:
 	var moves := {}
 	var helm: Node = sea.boat.get("helm")
 	var mem := {}
+	Engine.time_scale = TIME_SCALE
 	while rod.hooked and not rod.alongside and w < 900.0:
 		await get_tree().process_frame
 		var dt := get_process_delta_time()
 		w += dt
+		if float(sea.rods.arms) < 0.15:
+			sea.rods.arms = 1.0          # (a crewmate takes the rod)
 		var b := wrapf(float(rod.bearing), -PI, PI)
 		helm.set("heading", float(helm.get("heading")) + clampf(b * 1.5, -1.0, 1.0) * 0.3 * dt)
 		moves[rod.move] = true
@@ -72,6 +77,7 @@ func _ready() -> void:
 			sea.rods.bot_aim = Vector3(float(act["pitch"]), float(act["side"]), 0.0)
 			_hold("use_primary", float(act["crank"]) > 0.5)
 	_hold("use_primary", false)
+	Engine.time_scale = 1.0
 	sea.rods.bot_aim = Vector3(NAN, 0.0, 0.0)
 	_check(moves.has("run") and moves.size() >= 3, "it fought: %s" % ", ".join(moves.keys()))
 	_check(rod.alongside and sea.landing.fish.has(rod.index),

@@ -24,10 +24,15 @@ const WHY := {"broke": "Line parted.", "broke_rail": "Line parted on the rail.",
 		"cut": "Cut on the props.", "tangle": "Lines tangled and parted.", "cutoff": "Cut off."}
 ## How heavy the rod's tip feels with a fish on (0: not at all .. 1: it fights your heave and drags the tip down).
 const ROD_WEIGHT := 1.0
-## While a fish is on, how often (s) the host looks for its run crossing another line that's still out, and the
-## chance each time it does that tangles them.
-const TANGLE_EVERY := 1.0
-const TANGLE_CHANCE := 0.2
+## While a fish is on, how often (s) the host looks for its run crossing another line that's still out. Within NEAR
+## rad of a line's bearing (and out past it) he's heading for it: everyone's told; within CROSS he's across it, and
+## FOUL_IN s of that tangles them, every time. Winding the other line in (E on it) frees the fish's line at once.
+const TANGLE_EVERY := 0.25
+const NEAR := 0.5
+const CROSS := 0.2
+const FOUL_IN := 3.0
+## Your arms off the rod: s to get them all back (tuna/fight.gd's ARM_HOLDER: nothing on them).
+const ARM_FREE := 12.0
 ## A bait out goes off: washed out, chewed by little fish, swimming tired (s till it's no good: a dead bait, a live
 ## mackerel); worse than STALE and it's worth putting a fresh one on (its colour's going). A fresh live bait gets
 ## LIVE_BITES times the bites; a washed-out one a quarter of a fresh one's.
@@ -70,6 +75,9 @@ var bot_aim := Vector3(NAN, 0.0, 0.0)
 var _look_off := 0.0
 var _spill_t := 0.0
 var _tangle_in := 0.0
+## Your own arms (tuna/fight.gd): handed to the fight when you take a rod with a fish on, taken back from it as it
+## goes, and coming back while you're off the rod. Each machine keeps its own player's.
+var arms := 1.0
 var _splash: Splash
 ## Your rod with no fish on: how long you've held left mouse winding its line in, and whether you've let go since
 ## (a cast starts on a fresh press, not the end of winding in).
@@ -557,41 +565,84 @@ func _tangle(i: int, with_rod: int) -> void:
 		return
 	rods[i].tangled = with_rod
 	Sfx.play_point(self, rods[i].global_position, "kit.jolt")
-	_hud_note("Tangled")
+	_hud_note("Tangled in the %s line! E on it: wind it in" % _name_of(i))
 
 
 func _name_of(i: int) -> String:
 	return names[i] if i >= 0 and i < names.size() else "other"
 
 
-## Whether another rod's line is tangled in rod i's fish.
+## Whether another rod's line is tangled in rod i's fish (not once someone's winding it in: that frees it).
 func is_tangled(i: int) -> bool:
 	for r in rods:
-		if r.tangled == i:
+		if r.tangled == i and r.auto_in == 0:
 			return true
 	return false
 
 
-## Host, while a fish is on: its run crossing a line that's still out tangles them now and then.
+## How much rod b's line, still out, is in the way of a running fish on another rod: 0 clear, 0.5 he's heading for it
+## (within NEAR of its bearing, and out past it), 1 he's across it (within CROSS). Every peer works it out from the
+## fish's synced bearing, for the HUD; the host acts on it.
+func threat(b: Rod) -> float:
+	if b.hooked or b.bait_in or b.tangled >= 0 or b.auto_in != 0 or flying(b.index):
+		return 0.0
+	var worst := 0.0
+	for a in rods:
+		if a == b or not a.hooked or a.alongside:
+			continue
+		var hd := sqrt(maxf(a.line_out * a.line_out - a.depth * a.depth, 0.0))
+		var bait := b.spot - stern
+		if hd < bait.length() * 0.6:
+			continue
+		var off := absf(wrapf(a.bearing - atan2(bait.x, bait.z), -PI, PI))
+		if off < CROSS:
+			return 1.0
+		if off < NEAR:
+			worst = 0.5
+	return worst
+
+
+## The other lines still out while a fish is on (for the HUD's REEL THE OTHER LINES IN!), the worst threat to one of
+## them, and that one's name.
+func lines_out() -> Array:
+	var n := 0
+	var worst := 0.0
+	var which := ""
+	for r in rods:
+		if r.hooked or r.bait_in or r.auto_in != 0:
+			continue
+		n += 1
+		if r.foul > worst:
+			worst = r.foul
+			which = _name_of(r.index)
+	return [n, worst, which]
+
+
+## Host, while a fish is on: its run across a line that's still out for FOUL_IN s tangles them (everyone's warned
+## first: threat).
 func _host_lines(delta: float) -> void:
 	_tangle_in -= delta
 	if _tangle_in > 0.0:
 		return
 	_tangle_in = TANGLE_EVERY
-	for a in rods:
-		if not a.hooked or a.alongside:
+	for b in rods:
+		if b.foul < 1.0:
+			b.foul_t = 0.0
 			continue
-		var hd := sqrt(maxf(a.line_out * a.line_out - a.depth * a.depth, 0.0))
-		for b in rods:
-			if b == a or b.hooked or b.bait_in or b.tangled >= 0:
-				continue
-			var bait := b.spot - stern
-			var crossing := absf(wrapf(a.bearing - atan2(bait.x, bait.z), -PI, PI)) < 0.3
-			if crossing and hd > bait.length() * 0.6 and randf() < TANGLE_CHANCE:
-				if Net.in_session():
-					_tangle.rpc(b.index, a.index)
-				else:
-					_tangle(b.index, a.index)
+		b.foul_t += TANGLE_EVERY
+		if b.foul_t < FOUL_IN:
+			continue
+		b.foul_t = 0.0
+		for a in rods:
+			if a != b and a.hooked and not a.alongside:
+				var hd := sqrt(maxf(a.line_out * a.line_out - a.depth * a.depth, 0.0))
+				var bait := b.spot - stern
+				if absf(wrapf(a.bearing - atan2(bait.x, bait.z), -PI, PI)) < CROSS and hd >= bait.length() * 0.6:
+					if Net.in_session():
+						_tangle.rpc(b.index, a.index)
+					else:
+						_tangle(b.index, a.index)
+					break
 
 
 ## Host: rod i's line cut at `at` (world) by something run across it (VS: the other boat, vs/contact.gd): its bait's
@@ -695,7 +746,8 @@ func _off(i: int, why: String) -> void:
 ## The holder's word on how the fight's going (any peer: the holder's own; everyone else draws it).
 @rpc("any_peer", "call_remote", "unreliable_ordered")
 func _fight_state(i: int, out: float, strain: float, bearing: float, depth: float, energy: float, aim: Vector2,
-		move: String, wear: float, stretch: float, turn: float, drag: float, hold: float, reeling: float) -> void:
+		move: String, wear: float, stretch: float, turn: float, drag: float, hold: float, reeling: float,
+		holder_arms: float) -> void:
 	if i < 0 or i >= rods.size():
 		return        # (a rod she hasn't got: a word from before she was rebuilt)
 	var r := rods[i]
@@ -715,6 +767,7 @@ func _fight_state(i: int, out: float, strain: float, bearing: float, depth: floa
 		r.drag = drag
 		r.hold = hold
 		r.reeling = reeling
+		r.arms = holder_arms
 
 
 ## The host's word on a fish on a rod in its holder (nobody holding it: the host plays it against the drag).
@@ -779,10 +832,15 @@ func _show_fight_hud(hud: Node, mine: Rod) -> void:
 		_fight_hud.show_fight({})
 		return
 	var f := mine.fight as Fight
+	var landing := sea.get("landing") as Node
+	var helm: Node = (sea.get("boat") as Node).get("helm")
 	_fight_hud.show_fight({"tension": f.strain, "slack_t": f.slack_t, "red_t": float(f.get("_over_t")),
 			"line_out": mine.line_out, "energy": f.energy, "move": f.move, "slipping": f.slipping,
 			"airborne": f.airborne, "reeling": f.reeling, "paused": f.paused, "chafe": f.chafe, "wear": f.wear,
-			"props": f.prop_t(), "beaten": f.energy < Fight.BEATEN})
+			"props": f.prop_t(), "beaten": f.energy < Fight.BEATEN, "angle": f.angle_k(),
+			"bearing": wrapf(f.bearing, -PI, PI), "arms": f.arms, "tangled": f.tangled, "lines": lines_out(),
+			"crew": int(landing.call("_crew_aboard")) if landing != null else 1,
+			"captain": int(helm.get("captain")) != 0})
 
 
 ## Everyone (tuna/landing.gd): rod i's fish is up alongside, beaten: no more fight on it.
@@ -898,6 +956,8 @@ func _process(delta: float) -> void:
 	var landing := sea.get("landing") as Node
 	var me := Net.my_id()
 	var mine: Rod = null
+	for r in rods:
+		r.foul = threat(r)
 	if Net.is_host():
 		_host_lines(delta)
 	_send_in -= delta
@@ -986,6 +1046,8 @@ func _process(delta: float) -> void:
 			r.slack = 0.25
 		r.line_end = end
 		_show_fish(r, boat, ocean, delta)
+	if mine == null:
+		arms = minf(arms + delta / ARM_FREE, 1.0)       # (off the rod, your arms come back)
 	var hud := crew.get("hud") as Node
 	var me_node := crew.get("me") as Node
 	if me_node != null and (mine != null or _shook):
@@ -1018,9 +1080,11 @@ func _process(delta: float) -> void:
 		elif tips != null:
 			todo = str(tips.call("teach", todo))
 		hud.call("fight", todo, 0.0)
-	# the captain's plotter: where each fish on is, round the boat
+	# the captain's plotter: where each fish on is, round the boat; and for everyone off the rod, what the fight
+	# needs of them (the captain's words first)
 	var fish := []
-	if bool(helm.call("is_mine")):
+	var at_wheel := bool(helm.call("is_mine"))
+	if at_wheel:
 		for r in rods:
 			if r.hooked and not r.alongside:
 				var hd := sqrt(maxf(r.line_out * r.line_out - r.depth * r.depth, 0.0))
@@ -1028,28 +1092,57 @@ func _process(delta: float) -> void:
 				var tip := Fight.corner_tip(r.bearing, hd, 1.0, _half_beam, _aft, stern.z)
 				var fish_at := Vector2(0.0, stern.z) + Vector2(sin(r.bearing), cos(r.bearing)) * hd
 				fish.append([r.bearing, hd, Fight.rub(tip, fish_at, _half_beam, _house, _fore)])
-		if not fish.is_empty() and mine == null:
-			var worst := 0.0
-			var spiral := false
-			for f: Array in fish:
-				worst = maxf(worst, float(f[2]))
-			for r in rods:
-				spiral = spiral or (r.hooked and not r.alongside and r.move == "spiral")
-			var under := false
-			var cutting := false
-			for r in rods:
-				if r.hooked and not r.alongside and absf(wrapf(r.bearing, -PI, PI)) > Fight.UNDER - 0.2 and r.depth < 25.0:
-					under = true
-					cutting = cutting or absf(float(helm.get("throttle"))) > 0.05
-			var say := ""
-			if cutting:
-				say = "OUT OF GEAR!"
-			elif spiral or under:
-				say = "Under her: out of gear"
-			elif worst >= 0.3:
-				say = "On the hull: swing her stern"
+	if mine == null:
+		var say := crew_says(at_wheel, float(helm.get("throttle")))
+		if not say.is_empty():
 			hud.call("fight", say, 0.0)
 	hud.call("plot", fish)
+
+
+## What the fight needs of you while you're off the rod, most urgent first (or ""). At the wheel: the props, the line
+## under her or on her hull, him gone off to the side (which key swings her stern to him: A brings it to starboard, D
+## to port); and the rod waiting in its holder once he's astern again. Anyone: a line tangled in his, him heading
+## for a line still out, the other lines to reel in, your mate's arms going.
+func crew_says(at_wheel: bool, throttle: float) -> String:
+	var on: Rod = null
+	for r in rods:
+		if r.hooked and not r.alongside and (on == null or r.holder == 0):
+			on = r
+	if on == null:
+		return ""
+	var b := wrapf(on.bearing, -PI, PI)
+	var key := "A" if b >= 0.0 else "D"
+	var side := "STARBOARD" if b >= 0.0 else "PORT"
+	var hd := sqrt(maxf(on.line_out * on.line_out - on.depth * on.depth, 0.0))
+	var far := absf(b)
+	if at_wheel:
+		if far > Fight.UNDER - 0.2 and on.depth < 25.0 and absf(throttle) > 0.05:
+			return "OUT OF GEAR! HE'S UNDER THE PROPS!"
+		if far > Fight.UNDER - 0.2:
+			return "HE'S GONE UNDER THE BOAT! SWING HER: %s" % key
+		if far > Fight.SIDE_FROM:
+			return "LINE ON THE HULL! SWING HER STERN TO HIM: %s" % key
+	for r in rods:
+		if r.tangled >= 0 and r.auto_in == 0:
+			return "TANGLED IN THE %s LINE! E ON IT: WIND IT IN" % _name_of(r.index).to_upper()
+	var lines := lines_out()
+	if float(lines[1]) > 0.0:
+		var near: Rod = null
+		for r in rods:
+			if r.foul > 0.0 and (near == null or r.foul > near.foul):
+				near = r
+		return "HE'S HEADING FOR THE %s LINE! E ON IT: REEL IT IN!" % _name_of(near.index).to_upper()
+	if at_wheel and far > Fight.SQUARE + 0.25 and hd > 3.0:
+		return "HE'S OFF TO %s! %s: SWING HER STERN TO HIM" % [side, key]
+	if int(lines[0]) > 0:
+		return "REEL THE OTHER LINES IN! E ON EACH ROD"
+	if on.holder != 0 and on.holder != Net.my_id() and on.arms < 0.25:
+		return "YOUR MATE'S ARMS ARE GOING! E ON THE ROD: TAKE OVER"
+	if on.holder == 0 and far < Fight.SQUARE:
+		return "HE'S ASTERN! E ON THE ROD: FIGHT HIM" + (" (LEAVE THE WHEEL: E)" if at_wheel else "")
+	if on.holder == 0 and at_wheel:
+		return "ROD'S IN THE HOLDER: SWING HER STERN TO HIM, %s" % key
+	return ""
 
 
 ## The fish on rod r, seen: mostly it's down there out of sight, but it boils the water where the line goes in when it
@@ -1156,8 +1249,9 @@ func _tow(r: Rod, spot: Vector3, speed: float, ocean: Node, delta: float) -> Vec
 
 
 ## Your rod with a fish on: you fight it here and tell the rest. Left mouse reels (tuna/fight.gd: keep the needle in
-## the green); the mouse still swings the rod about and right mouse lifts it, for the look of it, the camera following
-## it part of the way so the line and the water stay in view. `throttle`: the captain's.
+## the green); the mouse still swings the rod about and right mouse lifts it (which tires your arms), the camera
+## following it part of the way so the line and the water stay in view. Your arms go into the fight and come back
+## out of it, so they're yours whichever rod you pick up. `throttle`: the captain's.
 func _fight_mine(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	var me := (sea.get("crew") as Node).get("me") as Node
 	var live := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or (me != null and bool(me.get("force_input")))
@@ -1174,13 +1268,16 @@ func _fight_mine(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	fight.tip = _tip_local(r)
 	fight.rub_now = rub_on_hull(r)
 	fight.tangled = is_tangled(r.index)
+	fight.arms = arms
 	_step_fight(fight, delta, crank, r.aim_pitch, side, r.drag)
+	arms = fight.arms
+	r.arms = arms
 	if not r.hooked or r.alongside:
 		return       # (it ended this step: lost, or up alongside)
 	_take(r, fight)
 	if send:
 		_fight_state.rpc(r.index, r.line_out, r.strain, r.bearing, r.depth, r.energy, Vector2(r.aim_pitch, r.aim_side),
-				r.move, r.wear, r.stretch, r.turn_sign, r.drag, r.hold, r.reeling)
+				r.move, r.wear, r.stretch, r.turn_sign, r.drag, r.hold, r.reeling, r.arms)
 
 
 ## A fight moved on `delta` s, in slices no longer than FIGHT_STEP: a stutter (a slow frame, a hitch) is the same fight

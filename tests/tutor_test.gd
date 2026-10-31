@@ -66,7 +66,42 @@ func _ready() -> void:
 	await _next()
 	await _frames(2)
 	_check(not f.paused and bool(tutor.taught("run")), "on again")
-	for id: String in ["reel", "run"]:
+	# he goes off to the side: alone, the card says the rod goes in its holder while you steer; it only wants reading
+	var wide_up := false
+	for k in 240:
+		f.carry_on("dog", f.stretch, 1.0, 1.0)
+		f.bearing = 1.7
+		f.depth = 5.0
+		if str(tutor.get("_id")) == "wide":
+			wide_up = true
+			break
+		await get_tree().process_frame
+	var said: Array = tutor.call("_steps", "wide")
+	_check(wide_up and f.paused and str(said[0][0]).contains("HOLDER"),
+			"he's gone wide: the card, alone (%s)" % str(said[0][0]))
+	await _wait(1.5)
+	_check(str(tutor.get("_phase")) == "why", "read: and why")
+	await _next()
+	await _frames(2)
+	_check(bool(tutor.taught("wide")) and not f.paused, "taught: wide, and on again")
+	# his arms go: the card says rest them in the holder
+	f.bearing = 0.0
+	var arms_up := false
+	for k in 240:
+		f.carry_on("dog", f.stretch, 1.0, 1.0)
+		f.bearing = 0.0
+		f.arms = 0.2
+		sea.rods.arms = 0.2
+		if str(tutor.get("_id")) == "arms":
+			arms_up = true
+			break
+		await get_tree().process_frame
+	_check(arms_up and f.paused, "arms tiring: the card")
+	await _wait(1.5)
+	await _next()
+	await _frames(2)
+	_check(bool(tutor.taught("arms")) and not f.paused, "taught: arms, and on again")
+	for id: String in ["reel", "run", "wide", "arms"]:
 		_check(bool(tutor.taught(id)), "taught: %s" % id)
 	# the landing
 	sea.landing.host_alongside(0, 120.0, float(r.get("bearing")), float(r.get("hook_t")))

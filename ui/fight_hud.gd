@@ -1,12 +1,16 @@
 extends Control
 ## The fight, read at a glance (rods.gd feeds it every frame while you've a fish on; it's gone the rest of the time).
-## One rule, so one bar (tuna/fight.gd): bottom middle, the tension bar with its GREEN band and the needle, KEEP IT IN
-## THE GREEN over it; above it one line saying what to do right now (HOLD LEFT MOUSE: REEL, HE'S RUNNING! LET GO,
-## TOO TIGHT! LET GO, TOO SLACK! REEL, ...), coloured by how urgent, a little mouse beside it with the button lit or
-## crossed out; under it just the line out and how much fight he's got left. Too slack or too tight for long and the
-## screen's edges pulse red. And the moments: FISH ON when it takes; when it's lost, why in red and under it what
-## would have saved it. While the first fish's lesson is up (ui/fight_tutor.gd, `teaching`) its card does the talking,
-## so the words line stands down, and the bar glows when the lesson's about it (`highlight`).
+## Bottom middle, the tension bar with its GREEN band and the needle, KEEP IT IN THE GREEN over it; above it one line
+## saying what to do right now (HOLD LEFT MOUSE: REEL, HE'S RUNNING! LET GO, HE'S CHARGING THE BOAT! REEL, REEL!,
+## HE'S GONE UNDER THE BOAT: CAPTAIN, SWING HER, ARMS GONE! ...), coloured by how urgent, a little mouse beside it
+## with the button lit or crossed out; under the bar how much fight he's got left, the line out, your ARMS and how
+## square on him you are. To the bar's right, her from above, bow up, and where he is round her: the green astern is
+## where you can lift him, the red forward of her beam is where the line's on her hull (tuna/fight.gd's angle_k and
+## side_rub). Over it all, while other lines are still out, a plate: REEL THE OTHER LINES IN!, red once he's heading
+## for one. Too slack or too tight for long and the screen's edges pulse red. And the moments: FISH ON when it takes;
+## when it's lost, why in red and under it what would have saved it. While the first fish's lesson is up
+## (ui/fight_tutor.gd, `teaching`) its card does the talking, so the words line stands down, and the bar glows when the
+## lesson's about it (`highlight`).
 
 const Fight := preload("res://tuna/fight.gd")
 const GREEN := Color(0.45, 0.95, 0.55)
@@ -41,11 +45,11 @@ const LESSONS := {
 	"Thrown on the jump.": "YOU REELED WHILE HE JUMPED. WHEN HE JUMPS, LET GO.",
 	"Hook pulled.": "THE LINE WENT SLACK. REEL TO KEEP THE NEEDLE IN THE GREEN.",
 	"Line parted.": "TOO TIGHT TOO LONG. IN THE RED, OR WHEN HE RUNS: LET GO.",
-	"Line parted on the rail.": "THE LINE RUBBED THE BOAT. CAPTAIN: KEEP THE STERN TO THE FISH.",
-	"Chafed through on the hull.": "THE LINE RUBBED THE HULL. CAPTAIN: KEEP THE STERN TO THE FISH.",
+	"Line parted on the rail.": "THE LINE RUBBED THE BOAT. CAPTAIN: KEEP THE STERN TO THE FISH (A/D).",
+	"Chafed through on the hull.": "HE GOT UNDER THE BOAT. CAPTAIN: STERN TO HIM (A/D). ALONE: ROD IN THE HOLDER, STEER.",
 	"Spooled.": "HE TOOK ALL THE LINE. REEL IN THE GREEN BETWEEN RUNS. CAPTAIN: BACK DOWN TOWARD HIM (S).",
 	"Cut on the props.": "THE LINE WENT IN THE PROPS. CAPTAIN: KEEP HIM OFF THE STERN, IN NEUTRAL.",
-	"Lines tangled and parted.": "TWO LINES CROSSED. REEL THE OTHER RODS IN WHILE YOU FIGHT ONE.",
+	"Lines tangled and parted.": "HE CROSSED A LINE LEFT OUT. FISH ON: E ON EVERY OTHER ROD, REEL THEM IN.",
 	"Cut off.": "SOMETHING CUT THE LINE. THE OTHER BOAT CROSSING YOUR STERN?",
 }
 
@@ -143,9 +147,11 @@ func _draw() -> void:
 	var t := _tension
 	var shake := (Vector2(sin(_t * 61.0), cos(_t * 47.0)) * 3.0 * smoothstep(Fight.RED, 1.05, t)).round()
 	var x0 := -W * 0.5
-	draw_rect(Rect2(Vector2(x0 - 18.0, -138.0), Vector2(W + 36.0, 100.0)), Color(INK, INK.a * a))
+	draw_rect(Rect2(Vector2(x0 - 18.0, -138.0), Vector2(W + 36.0, 122.0)), Color(INK, INK.a * a))
+	_draw_round(Vector2(x0 + W + 26.0, -138.0), a)
 	if _words_a > 0.01:
 		_draw_do(Vector2(0.0, -172.0), a * _words_a)
+		_draw_lines(Vector2(0.0, -218.0), a * _words_a)
 	# the bar: slack, the green band, the red; the needle
 	var bar := Rect2(Vector2(x0, -108.0) + shake, Vector2(W, 24.0))
 	var g0 := roundf(W * Fight.GREEN_LO / FULL)
@@ -180,6 +186,77 @@ func _draw() -> void:
 	var ltxt := "LINE OUT %d M" % roundi(_line)
 	var ltw := font.get_string_size(ltxt, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
 	_text(font, Vector2(x0 + W - ltw, -48.0), ltxt, 12, Color(lc, a))
+	# your arms: going down as you reel, back up hands off (the notch: under it, tired)
+	var arm := clampf(float(_s.get("arms", 1.0)), 0.0, 1.0)
+	var ac := PALE if arm >= Fight.TIRED else (RED if arm < 0.12 else AMBER)
+	var flash := (0.6 + 0.4 * sin(_t * 9.0)) if arm < 0.12 else 1.0
+	_text(font, Vector2(x0, -26.0), "ARMS", 12, Color(ac, 0.9 * a * flash))
+	var ab := Rect2(Vector2(x0 + 42.0, -34.0), Vector2(150.0, 10.0))
+	draw_rect(ab, Color(0, 0, 0, 0.55 * a))
+	draw_rect(Rect2(ab.position, Vector2(roundf(ab.size.x * arm), ab.size.y)), Color(ac, a * flash))
+	draw_rect(Rect2(ab.position + Vector2(roundf(ab.size.x * Fight.TIRED), 0.0), Vector2(2.0, ab.size.y)),
+			Color(INK, a))
+	# how square on him you are (tuna/fight.gd's angle_k): off to the side you win less, abeam nothing
+	var ang := clampf(float(_s.get("angle", 1.0)), 0.0, 1.0)
+	var atxt := "ANGLE GOOD" if ang > 0.8 else ("ANGLE POOR" if ang > 0.4 else "NO ANGLE")
+	var atw := font.get_string_size(atxt, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+	_text(font, Vector2(x0 + W - atw, -26.0), atxt, 12,
+			Color(GREEN if ang > 0.8 else (AMBER if ang > 0.4 else RED), a))
+
+
+## Her from above, bow up, and him round her, on a plate `at` (top left). The ring's green astern (where you can lift
+## him), red forward of her beam (where the line's on her), dim between; him a square out along his bearing coloured
+## by the angle, the line to him from her stern.
+func _draw_round(at: Vector2, a: float) -> void:
+	draw_rect(Rect2(at, Vector2(122.0, 122.0)), Color(INK, INK.a * a))
+	var font := get_theme_default_font()
+	_text(font, at + Vector2(10.0, 18.0), "HIM", 12, Color(PALE, 0.6 * a))
+	var c := at + Vector2(61.0, 64.0)
+	var r := 44.0
+	for k in 48:
+		var rb := TAU * k / 48.0
+		var d := absf(wrapf(rb, -PI, PI))
+		var col := GREEN if d < Fight.SQUARE else (RED if d > Fight.SIDE_FROM else PALE)
+		var al := 0.9 if d < Fight.SQUARE or d > Fight.SIDE_FROM else 0.3
+		var p := (c + Vector2(sin(rb), cos(rb)) * r).round()
+		draw_rect(Rect2(p - Vector2(2, 2), Vector2(4, 4)), Color(col, al * a))
+	# her: a hull 14 wide, bow up, pointed, her cockpit dark
+	var hull := Color(PALE, 0.9 * a)
+	draw_rect(Rect2(c + Vector2(-7, -12), Vector2(14, 28)), hull)
+	draw_rect(Rect2(c + Vector2(-5, -18), Vector2(10, 6)), hull)
+	draw_rect(Rect2(c + Vector2(-3, -22), Vector2(6, 4)), hull)
+	draw_rect(Rect2(c + Vector2(-5, 4), Vector2(10, 10)), Color(INK, a))
+	# him, and the line from her stern
+	var bearing := float(_s.get("bearing", 0.0))
+	var stern := c + Vector2(0, 16)
+	var fish := (c + Vector2(sin(bearing), cos(bearing)) * r).round()
+	for k in 16:
+		var q := stern.lerp(fish, float(k) / 16.0).round()
+		draw_rect(Rect2(q, Vector2(2, 2)), Color(PALE, 0.6 * a))
+	var ang := float(_s.get("angle", 1.0))
+	var fc := GREEN if ang > 0.8 else (AMBER if ang > 0.4 else RED)
+	draw_rect(Rect2(fish - Vector2(6, 6), Vector2(12, 12)), Color(0, 0, 0, 0.85 * a))
+	draw_rect(Rect2(fish - Vector2(4, 4), Vector2(8, 8)), Color(fc, a))
+
+
+## While other lines are still out: REEL THE OTHER LINES IN! on a plate, red once he's heading for one (rods.gd's
+## lines_out: how many, the worst threat, its name).
+func _draw_lines(at: Vector2, a: float) -> void:
+	var lines: Array = _s.get("lines", [0, 0.0, ""])
+	if bool(_s.get("tangled", false)) or int(lines[0]) <= 0:
+		return
+	var words := "REEL THE OTHER LINES IN! %d STILL OUT" % int(lines[0])
+	var col := AMBER
+	if float(lines[1]) > 0.0:
+		words = "HE'S HEADING FOR THE %s LINE! REEL IT IN!" % str(lines[2]).to_upper()
+		col = RED
+	var pulse := 0.75 + 0.25 * sin(_t * 8.0)
+	var font := get_theme_default_font()
+	var w := font.get_string_size(words, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+	var x := roundf(at.x - w * 0.5)
+	draw_rect(Rect2(Vector2(x - 14.0, at.y - 16.0), Vector2(w + 24.0, 24.0)), Color(INK, INK.a * a))
+	draw_rect(Rect2(Vector2(x - 14.0, at.y - 16.0), Vector2(4.0, 24.0)), Color(col, pulse * a))
+	_text(font, Vector2(x, at.y), words, 12, Color(col, pulse * a))
 
 
 ## What to do right now: the words on a plate, coloured by how urgent, the mouse beside them.
@@ -189,6 +266,14 @@ func _draw_do(at: Vector2, a: float) -> void:
 	var words := "HOLD LEFT MOUSE: REEL"
 	var col := GREEN
 	var icon := "left"
+	var solo := int(_s.get("crew", 1)) <= 1
+	var b := float(_s.get("bearing", 0.0))
+	var side := "STARBOARD" if b >= 0.0 else "PORT"
+	var arms := float(_s.get("arms", 1.0))
+	var angle := float(_s.get("angle", 1.0))
+	# (whose job the boat is: the captain's, somebody's if nobody's at the wheel, or yours from the holder)
+	var swing := "ROD IN THE HOLDER (Q), STEER" if solo else (
+			"CAPTAIN, SWING HER" if bool(_s.get("captain", false)) else "SOMEONE TAKE THE WHEEL")
 	if t > Fight.RED:
 		words = "TOO TIGHT! LET GO"
 		col = RED
@@ -197,6 +282,9 @@ func _draw_do(at: Vector2, a: float) -> void:
 		words = "HE'S JUMPING! LET GO"
 		col = AMBER
 		icon = "none"
+	elif m == "charge":
+		words = "HE'S CHARGING THE BOAT! REEL, REEL!"
+		col = RED
 	elif bool(_s.get("slipping", false)):
 		words = "HE'S RUNNING! LET GO"
 		col = AMBER
@@ -207,16 +295,29 @@ func _draw_do(at: Vector2, a: float) -> void:
 	elif float(_s.get("props", 0.0)) > 0.0:
 		words = "HE'S UNDER THE PROPS! CAPTAIN: OUT OF GEAR"
 		col = RED
-		icon = "left"
-	elif float(_s.get("chafe", 0.0)) > 0.3:
-		var worn := float(_s.get("wear", 0.0)) >= 0.5
-		words = "LINE WEARING THROUGH! SWING THE STERN!" if worn else "LINE RUBBING THE HULL! CAPTAIN: STERN TO HIM"
+	elif bool(_s.get("tangled", false)):
+		words = "LINES TANGLED! " + ("ROD IN THE HOLDER (Q), E ON THE OTHER" if solo else "MATE: E ON THE OTHER ROD, WIND IT IN")
 		col = RED
-		icon = "left"
+	elif float(_s.get("chafe", 0.0)) > 0.3:
+		var under := absf(b) > Fight.UNDER - 0.3
+		words = ("HE'S GONE UNDER THE BOAT: " if under else "LINE ON THE HULL: ") + swing
+		col = RED
+		icon = "none" if solo else "left"
+	elif arms < 0.12:
+		words = "ARMS GONE! " + ("Q: REST THE ROD IN A HOLDER" if solo else "HAND OVER: A MATE PRESSES E ON YOUR ROD")
+		col = RED
+		icon = "none"
+	elif angle < 0.6:
+		words = "HE'S OFF TO %s: %s" % [side, swing]
+		col = AMBER
+		icon = "none" if solo else "left"
 	elif t > Fight.GREEN_HI:
 		words = "EASE OFF: LET GO A MOMENT"
 		col = AMBER
 		icon = "none"
+	elif arms < Fight.TIRED:
+		words = "ARMS TIRING: " + ("REST THEM IN THE HOLDER SOON" if solo else "TIME TO SWAP ON THE ROD")
+		col = AMBER
 	elif m == "spiral" or bool(_s.get("beaten", false)):
 		words = "HE'S BEATEN, CIRCLING: REEL HIM UP"
 	else:
