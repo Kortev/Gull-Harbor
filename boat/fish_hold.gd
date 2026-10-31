@@ -15,8 +15,15 @@ extends Node
 ## let go over the open box: it drops in on the ice. A bluefin's price is all in how it was handled, so the sooner
 ## the better. Heading in (the Esc menu)
 ## sells the lot by the kilo at its grade, #1, #2 or #3, worked out from how fast it was landed and how soon it was
-## bled and iced; one still on deck sells as it is, warm. The money goes in the bank (kept between games on the
-## host's machine) and she heads back out with an empty hold.
+## bled and iced; one still on deck sells as it is, warm. The money goes in the bank and she heads back out with an
+## empty hold.
+##
+## The career (the bank, the boats and gear, the run, the bests) is kept between games on the host's machine, in
+## user://career.cfg (VERSION in it; missing, unreadable or from a newer game: a fresh start). Written after a sale,
+## a purchase, a boat picked, casting off, and as the game closes or goes back to the title. A crewmate's own career
+## is never touched by the host's (`_borrowed`), and Rivals (vs/vs.gd: set_career(false)) plays from an even fresh
+## start that's never saved. Tests and screenshots (headless, a scene under tests/, a sea not at the root, --shot)
+## never read or write it (`save_path` is "" there, unless a test sets it).
 ##
 ## The run (Lethal Company's quota): the crew owes the bank for the boat. Each quota is a sum to sell within DAYS
 ## trips (one a day). Every fish sold counts toward it and goes in the bank to spend at the dock. Make the quota by
@@ -29,8 +36,10 @@ const Tuna := preload("res://tuna/tuna.gd")
 const Action := preload("res://core/action.gd")
 const Kinds := preload("res://boat/kinds.gd")
 const Sfx := preload("res://audio/sfx.gd")
-const SAVE := "user://bluefin.cfg"
-const TEST_SAVE := "user://bluefin_test.cfg"
+const SAVE := "user://career.cfg"
+## The bank's file before the career had a version (read once, if there's no career yet).
+const OLD_SAVE := "user://bluefin.cfg"
+const VERSION := 1
 ## Dollars a kilo for a fish of quality 1 is 0.35 + 0.9 = 1.25 times this; quality 0, 0.35 times.
 const PRICE_PER_KG := 18.0
 ## The day out there: real seconds from dawn to dusk, and the hours they stand for.
@@ -107,16 +116,21 @@ var _drag_send := 0.0
 var _dragged := {}
 ## The last game ended out at sea (quit, or the host dropped): that day's gone, settled as an empty trip (_ready).
 var _abandoned := false
-## Where the bank's kept (tests point it somewhere else so they don't touch yours).
+## Where the career's kept ("": nowhere, in tests and screenshots, unless a test points it somewhere).
 var save_path := SAVE
+## Off in Rivals (and on boat B's hold, set before _ready): an even fresh start, never saved.
+var career := true
+## The books are a host's we're crewing for (their _sync), not ours: never saved over ours.
+var _borrowed := false
 
 
 func _ready() -> void:
-	if sea.get_parent() != get_tree().root or "--shot" in " ".join(OS.get_cmdline_user_args()):
-		# (a test, which builds the sea under its own node, or a screenshot: a clean bank of its own, never yours)
-		save_path = TEST_SAVE
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(TEST_SAVE))
-	_load()
+	if _testing():
+		save_path = ""
+	if career:
+		_load()
+	else:
+		_new_run()
 	(sea.get("boat") as Node).connect("rebuilt", func() -> void:
 		# (another boat: lay what's on deck out again on her, and her fish box)
 		for id: int in _deck.keys():
@@ -148,6 +162,7 @@ func _ready() -> void:
 ## Back on your own boat after crewing for someone: your own bank and gear, an empty hold (theirs stays theirs),
 ## at the dock.
 func _own_boat() -> void:
+	_borrowed = false
 	_load()
 	fish = []
 	sale = {}
@@ -442,6 +457,7 @@ func pick(k: String) -> void:
 		(sea.get("boat") as Node).call("use_kind", kind)      # (there she is, alongside the dock)
 		if sea.has_method("moor"):
 			sea.call("moor")
+		_save()
 		_host_changed()
 
 
@@ -512,6 +528,8 @@ func _state() -> Dictionary:
 
 @rpc("authority", "call_local", "reliable")
 func _sync(state: Dictionary) -> void:
+	if not multiplayer.is_server():
+		_borrowed = true
 	fish = state["fish"]
 	bank = int(state["bank"])
 	best = int(state["best"])
@@ -1009,41 +1027,69 @@ func _note(text: String) -> void:
 	(crew.get("hud") as Node).call("notify", text)
 
 
+## Tests and screenshots: never the player's career (Settings' rule, and a sea a test built under its own node).
+func _testing() -> bool:
+	if DisplayServer.get_name() == "headless" or "--shot" in " ".join(OS.get_cmdline_user_args()):
+		return true
+	for a in OS.get_cmdline_args():
+		if a.contains("tests/"):
+			return true
+	return sea != null and sea.get_parent() != get_tree().root
+
+
+## The career from its file (or the old bank file, the first time); missing, unreadable or newer: a fresh one.
 func _load() -> void:
+	best = 0
+	best_run = 0
+	_new_run()
+	if save_path.is_empty():
+		return
+	var from := save_path
+	if save_path == SAVE and not FileAccess.file_exists(SAVE) and FileAccess.file_exists(OLD_SAVE):
+		from = OLD_SAVE
 	var cfg := ConfigFile.new()
-	if cfg.load(save_path) == OK:
-		bank = int(cfg.get_value("trips", "bank", 0))
-		best = int(cfg.get_value("trips", "best", 0))
-		owned = cfg.get_value("trips", "owned", ["skiff"])
-		gear = cfg.get_value("trips", "gear", [])
-		kind = str(cfg.get_value("trips", "kind", "skiff"))
-		best_run = int(cfg.get_value("run", "best_run", 0))
-		if cfg.has_section_key("run", "quota"):
-			quota_n = int(cfg.get_value("run", "quota_n", 1))
-			quota = int(cfg.get_value("run", "quota", quota_for(1)))
-			earned = int(cfg.get_value("run", "earned", 0))
-			day = int(cfg.get_value("run", "day", 1))
-			run_fish = int(cfg.get_value("run", "run_fish", 0))
-			run_biggest = float(cfg.get_value("run", "run_biggest", 0.0))
-		else:
-			# (a save from before the quota: keep its bank, boats and gear; the first quota starts now)
-			quota_n = 1
-			quota = quota_for(1)
-			earned = 0
-			day = 1
-			run_fish = 0
-			run_biggest = 0.0
-		if bool(cfg.get_value("run", "at_sea", false)):
-			_abandoned = true
-	else:
-		best = 0
-		best_run = 0
-		_new_run()
+	if cfg.load(from) != OK:
+		if FileAccess.file_exists(from):
+			push_warning("Career: %s won't read; a fresh start" % from)
+		return
+	var v: Variant = cfg.get_value("career", "version", 0)
+	var o: Variant = cfg.get_value("trips", "owned", ["skiff"])
+	var g: Variant = cfg.get_value("trips", "gear", [])
+	var k := str(cfg.get_value("trips", "kind", "skiff"))
+	if not (v is int) or int(v) > VERSION or (int(v) < 1 and from != OLD_SAVE) or not (o is Array) \
+			or not (g is Array) or not Kinds.KINDS.has(k):
+		push_warning("Career: %s isn't one this game reads; a fresh start" % from)
+		return
+	bank = int(cfg.get_value("trips", "bank", START_CASH))
+	best = int(cfg.get_value("trips", "best", 0))
+	owned = ["skiff"]
+	for x: Variant in o:
+		if Kinds.KINDS.has(str(x)) and not owned.has(str(x)):
+			owned.append(str(x))
+	gear = []
+	for x: Variant in g:
+		if GEAR.has(str(x)) and not gear.has(str(x)):
+			gear.append(str(x))
+	kind = k
+	best_run = int(cfg.get_value("run", "best_run", 0))
+	if cfg.has_section_key("run", "quota"):
+		quota_n = maxi(int(cfg.get_value("run", "quota_n", 1)), 1)
+		quota = int(cfg.get_value("run", "quota", quota_for(quota_n)))
+		earned = int(cfg.get_value("run", "earned", 0))
+		day = clampi(int(cfg.get_value("run", "day", 1)), 1, DAYS)
+		run_fish = int(cfg.get_value("run", "run_fish", 0))
+		run_biggest = float(cfg.get_value("run", "run_biggest", 0.0))
+	# (else a save from before the quota: its bank, boats and gear; the first quota starts now)
+	if bool(cfg.get_value("run", "at_sea", false)):
+		_abandoned = true
 
 
+## Host: the career into its file (not Rivals', not a host's we're crewing for, not in tests).
 func _save() -> void:
+	if save_path.is_empty() or not career or _borrowed or not Net.is_host():
+		return
 	var cfg := ConfigFile.new()
-	cfg.load(save_path)
+	cfg.set_value("career", "version", VERSION)
 	cfg.set_value("trips", "bank", bank)
 	cfg.set_value("trips", "best", best)
 	cfg.set_value("trips", "owned", owned)
@@ -1057,7 +1103,54 @@ func _save() -> void:
 	cfg.set_value("run", "run_biggest", run_biggest)
 	cfg.set_value("run", "best_run", best_run)
 	cfg.set_value("run", "at_sea", not docked)
-	cfg.save(save_path)
+	if cfg.save(save_path) != OK:
+		push_warning("Career: couldn't write %s" % save_path)
+
+
+## As the game closes or goes back to the title (the scene goes).
+func _exit_tree() -> void:
+	_save()
+
+
+## Rivals on (false): the career saved and set aside, an even fresh start in its place (the boat picked stays).
+## Off (true): the career back from its file. Everyone runs it (vs/vs.gd's _switch); the host's books are synced.
+func set_career(on: bool) -> void:
+	if on == career:
+		return
+	if not on:
+		_save()
+		career = false
+		var k := kind
+		best = 0
+		best_run = 0
+		_new_run()
+		kind = k
+	else:
+		career = true
+		if not _borrowed:
+			_load()
+			if not owned.has(kind):
+				kind = "skiff"      # (a boat picked for Rivals isn't yours to keep)
+	sale = {}
+	fish = []
+	if Net.is_host() and not _borrowed:
+		_host_changed()
+
+
+## Host, at the dock: the career wiped (the board's NEW CAREER): the skiff, START_CASH, the first quota, no bests.
+func new_career() -> void:
+	if not Net.is_host() or not docked or not career or _borrowed:
+		return
+	best = 0
+	best_run = 0
+	_new_run()
+	sale = {}
+	_abandoned = false
+	(sea.get("boat") as Node).call("use_kind", kind)
+	if sea.has_method("moor"):
+		sea.call("moor")
+	_save()
+	_host_changed()
 
 
 ## 12345 -> "12,345".
