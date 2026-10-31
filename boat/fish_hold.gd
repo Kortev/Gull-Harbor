@@ -47,11 +47,10 @@ const GEAR := {
 	"reel": {"name": "A two-speed reel", "blurb": "Winds line in a quarter faster.", "price": 3000},
 	"line": {"name": "Heavier line", "blurb": "Takes half as much again rubbing the hull, and holds a moment longer "
 			+ "at full strain.", "price": 2000},
-	"bait": {"name": "A live-bait well", "blurb": "Keeps mackerel alive: four aboard each trip, and the ones you jig. "
-			+ "A live bait gets half as many bites again and lasts twice as long.", "price": 1500},
 }
-## Bait for the trip: live mackerel in the well (with the well: WELL_START each trip, WELL_MAX jigged), and scoops
-## of chum in the bucket (CHUM each trip: boat/chum.gd).
+## Bait for the trip: live mackerel in the well (every boat has one: WELL_START in it each trip on top of one on every
+## hook, WELL_MAX with what you jig; tuna take nothing else, rods.gd), and scoops of chum in the bucket (CHUM each
+## trip: boat/chum.gd). The same for every boat and every crew, so a Rivals day starts even.
 const WELL_START := 4
 const WELL_MAX := 8
 const CHUM := 24
@@ -428,7 +427,7 @@ func head_out(k := "") -> void:
 	sale = {}
 	docked = false
 	trip_t0 = _now()
-	well = WELL_START if has_gear("bait") else 0
+	well = WELL_START
 	chum = CHUM
 	(sea.get("boat") as Node).call("use_kind", kind)
 	_save()
@@ -470,18 +469,18 @@ func buy(item: String) -> bool:
 	return true
 
 
-## Host: a live mackerel out of the well for a bait (false: none, or no well).
+## Host: a live mackerel out of the well for a bait (false: it's empty).
 func host_take_live() -> bool:
-	if docked or not has_gear("bait") or well <= 0:
+	if docked or well <= 0:
 		return false
 	well -= 1
 	_host_changed()
 	return true
 
 
-## Host: a jigged mackerel into the well (false: no well, or it's full).
+## Host: a jigged mackerel into the well (false: it's full).
 func host_add_live() -> bool:
-	if docked or not has_gear("bait") or well >= WELL_MAX:
+	if docked or well >= WELL_MAX:
 		return false
 	well += 1
 	_host_changed()

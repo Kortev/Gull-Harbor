@@ -8,7 +8,9 @@ extends Node3D
 ## mouse to wind up and let go to cast: the bait flies out where you're looking, as far as you wound it, and lands
 ## with a splash; then drop the rod back in its holder (Q) and it trolls from there, swinging in behind her as she
 ## goes. With its line out, holding left mouse winds it back in. A fish takes the bait off the hook: hold a bait (the
-## hotbar) and E on a rod to put a fresh one on (a live mackerel while the well has one), and cast it again.
+## hotbar) and E on a rod to put a fresh one on, and cast it again. Tuna take only a live mackerel: every bait is one,
+## out of the well (boat/fish_hold.gd: every boat has one, a few aboard each trip); the well empty, there's no bait
+## till someone jigs more (boat/jig.gd, the jig rod on the hotbar).
 
 const Rod := preload("res://rods/rod.gd")
 const Fight := preload("res://tuna/fight.gd")
@@ -28,13 +30,10 @@ const ROD_WEIGHT := 1.0
 ## chance each time it does that tangles them.
 const TANGLE_EVERY := 1.0
 const TANGLE_CHANCE := 0.2
-## A bait out goes off: washed out, chewed by little fish, swimming tired (s till it's no good: a dead bait, a live
-## mackerel); worse than STALE and it's worth putting a fresh one on (its colour's going). A fresh live bait gets
-## LIVE_BITES times the bites; a washed-out one a quarter of a fresh one's.
-const BAIT_LIFE := 300.0
+## A live mackerel out on a hook tires: LIVE_LIFE s till it's barely swimming; worse than STALE and it's worth
+## putting a fresh one on (it's going pale). A tired one gets a quarter of a fresh one's bites.
 const LIVE_LIFE := 600.0
 const STALE := 0.5
-const LIVE_BITES := 1.5
 ## A cast: how long to wind it all the way up (s), how far it goes from a flick to everything you've got (m), how high
 ## it arcs for each metre out, and how fast it flies (m/s, plus a moment to leave the tip). Winding a line in: holding
 ## left mouse winds it at REEL_SPEED m/s, the bait skipping back over the water the whole way to the tip.
@@ -215,7 +214,7 @@ func _ask_return(i: int) -> void:
 
 
 ## A fresh bait on rod i (E on it with a bait in your hands): its line comes in if it's out, and on goes a live
-## mackerel from the well if there's one, else a dead bait. Then it wants casting.
+## mackerel from the well. Then it wants casting. The well empty, nothing goes on, and you're told to jig.
 func request_bait(i: int) -> void:
 	if Net.is_host():
 		_ask_bait(i)
@@ -232,14 +231,29 @@ func _ask_bait(i: int) -> void:
 		return
 	if rods[i].auto_in != 0:
 		return
-	var live := hold != null and bool(hold.call("host_take_live"))
+	if hold == null or not bool(hold.call("host_take_live")):
+		_tell(_sender(), "The live well's empty. Jig some mackerel: the jig rod (3), stopped")
+		return
 	if not rods[i].bait_in:
-		host_wind_in(i, true, live)      # (its line comes in first, the whole way)
+		host_wind_in(i, true, true)      # (its line comes in first, the whole way)
 		return
 	if Net.in_session():
-		_baited.rpc(i, _now(), live)
+		_baited.rpc(i, _now(), true)
 	else:
-		_baited(i, _now(), live)
+		_baited(i, _now(), true)
+
+
+## Host: a word on screen for one of the crew (`who`: a peer id).
+func _tell(who: int, text: String) -> void:
+	if who == Net.my_id():
+		_hud_note(text)
+	elif Net.in_session():
+		_told.rpc_id(who, text)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _told(text: String) -> void:
+	_hud_note(text)
 
 
 @rpc("authority", "call_local", "reliable")
@@ -536,14 +550,15 @@ func freshness(i: int) -> float:
 	if i < 0 or i >= rods.size():
 		return 0.0
 	var r := rods[i]
-	return clampf(1.0 - (_now() - r.baited_t) / (LIVE_LIFE if r.live else BAIT_LIFE), 0.0, 1.0)
+	return clampf(1.0 - (_now() - r.baited_t) / LIVE_LIFE, 0.0, 1.0)
 
 
-## How readily rod i's bait gets eaten (tuna/schools.gd), against a fresh dead bait's 1 (none in, flying or bare).
+## How readily rod i's bait gets eaten (tuna/schools.gd), against a fresh live mackerel's 1: nothing but a live one
+## (none in, flying, a bare hook, no lures) is ever taken.
 func bite_odds(i: int) -> float:
-	if i < 0 or i >= rods.size() or rods[i].bait_in or not rods[i].baited or flying(i):
+	if i < 0 or i >= rods.size() or rods[i].bait_in or not rods[i].baited or not rods[i].live or flying(i):
 		return 0.0
-	return (0.25 + 0.75 * freshness(i)) * (LIVE_BITES if rods[i].live else 1.0)
+	return 0.25 + 0.75 * freshness(i)
 
 
 ## For the HUD while nothing else wants doing (the baits show it themselves: nothing).
@@ -809,16 +824,17 @@ func host_clear() -> void:
 			_host_line(r.index, true)
 
 
-## Host, heading out: every line in, a fresh bait on every hook, for the crew to cast.
+## Host, heading out: every line in, a live mackerel on every hook (the crew baited up at the dock, on top of the
+## well's), for the crew to cast.
 func host_baits_out() -> void:
 	for r in rods:
 		if r.hooked:
 			continue
 		_host_line(r.index, true)
 		if Net.in_session():
-			_baited.rpc(r.index, _now(), false)
+			_baited.rpc(r.index, _now(), true)
 		else:
-			_baited(r.index, _now(), false)
+			_baited(r.index, _now(), true)
 
 
 ## Host: rod i's fish is gone (lost alongside, or stuck and on the harpoon now), with why.

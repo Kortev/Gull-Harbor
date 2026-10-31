@@ -6,9 +6,9 @@ extends Node3D
 ##   - a knock on the fall: the tip jerks down and your view with it. Tap again, quick, to set the hook; too slow and
 ##     it's gone
 ##   - hold left mouse: wind it up; with a mackerel on, it comes up wriggling and you swing it aboard, into the live
-##     well (boat/fish_hold.gd: you need the well, bought at the dock, to keep them; without it it goes back)
+##     well (boat/fish_hold.gd: every boat has one; full, it goes back)
 ## Not while she's under way (JIG_SPEED): the jig streams out behind her and nothing takes it. A live mackerel's the
-## best bait there is (rods.gd).
+## only bait a tuna takes (rods.gd): this is where they come from once the few you went out with are used.
 ##
 ## The jigging is yours (on your machine: what you see and feel); each mackerel is the host's to give
 ## (_ask_mackerel), and everyone sees it come up on your rod (_caught). The others see your line go down and you
@@ -92,9 +92,9 @@ func hint() -> String:
 			return "KNOCK! TAP NOW TO HOOK IT!"
 		"on":
 			var hold: Node = sea.get("fish_hold")
-			if hold != null and not bool(hold.call("has_gear", "bait")):
-				return "HOLD LEFT MOUSE: WIND IT UP (NO LIVE WELL: IT GOES BACK)"
-			return "MACKEREL ON! HOLD LEFT MOUSE: WIND IT UP"
+			if hold != null and int(hold.get("well")) >= FishHold.WELL_MAX:
+				return "HOLD LEFT MOUSE: WIND IT UP (THE WELL'S FULL: IT GOES BACK)"
+			return "MACKEREL ON! HOLD LEFT MOUSE: WIND IT UP, INTO THE WELL"
 	return ""
 
 

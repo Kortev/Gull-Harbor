@@ -20,6 +20,7 @@ func _ready() -> void:
 	await get_tree().create_timer(0.3).timeout
 	sea.schools.set("_next", 9999.0)
 	var landing := sea.landing
+	landing.escape_odds = [0.0]        # (a miss never loses it here: tests/harpoon_test.tscn has that)
 	var hold := sea.fish_hold
 	hold.save_path = "user://bluefin_test.cfg"
 	hold.bank = 0
@@ -120,8 +121,9 @@ func _ready() -> void:
 	# the dock's shop: gear you can afford, not a boat you can't
 	hold.bank = 2000
 	hold.owned = ["skiff"]
-	_check(hold.buy("bait") and hold.has_gear("bait") and hold.bank == 500, "bought a live-bait well for $1,500")
-	_check(not hold.buy("bait") and not hold.buy("sportfisher"), "not twice, and not a boat the bank can't stand")
+	_check(not FishHold.GEAR.has("bait"), "no live-bait well for sale: every boat has one")
+	_check(hold.buy("line") and hold.has_gear("line") and hold.bank == 0, "bought heavier line for $2,000")
+	_check(not hold.buy("line") and not hold.buy("sportfisher"), "not twice, and not a boat the bank can't stand")
 	hold.owned = ["skiff", "sportfisher"]
 	hold.head_out()
 	for r in sea.rods.rods:
@@ -141,7 +143,9 @@ func _ready() -> void:
 	await get_tree().process_frame
 	landing.fish[2]["t"] = Landing.HOOK_HOLDS - 0.2
 	await get_tree().create_timer(0.5).timeout
-	_check(not landing.fish.has(2) and not rod2.hooked, "left alongside unstuck, the hook pulls")
+	_check(landing.fish.has(2) and float(landing.fish[2]["leave_t"]) >= 0.0, "left alongside unstuck, the hook pulls: off it swims")
+	await get_tree().create_timer(Landing.LEAVE + 0.5).timeout
+	_check(not landing.fish.has(2) and not rod2.hooked, "and it's gone")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(hold.save_path))
 	_done()
 

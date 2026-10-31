@@ -153,6 +153,12 @@ var drag := STRIKE_DRAG
 
 var _len := 1.0
 var _turn_sign := 1.0
+## How fast it's swinging round her and going up or down right now (rad/s, m/s): they ease toward the move's
+## (TURN_EASE rad/s a second, DIVE_EASE m/s a second), so the fish you see turns and dives smoothly.
+var _turn_v := 0.0
+var _dive_v := 0.0
+const TURN_EASE := 0.2
+const DIVE_EASE := 4.0
 var _prop_t := 0.0
 var _goal_s := 90.0
 var _jit := 0.0
@@ -332,7 +338,10 @@ func step(dt: float, crank: float, _rod_pitch: float, _side: float, drag_set: fl
 	if move == "circle" and kg < 60.0:
 		turn *= 1.6
 	var was_b := bearing
-	bearing += turn * _turn_sign * dt * clampf(20.0 / hd, 0.2, 1.2)
+	# (it swings round at the move's pace, but eases into it and out of it: a fish turning back the other way slows,
+	# comes round and picks up again, never flicks)
+	_turn_v = move_toward(_turn_v, turn * _turn_sign, TURN_EASE * dt)
+	bearing += _turn_v * dt * clampf(20.0 / hd, 0.2, 1.2)
 	var c := cos(bearing)
 	if c < -0.1:
 		_going_under = true
@@ -347,7 +356,11 @@ func step(dt: float, crank: float, _rod_pitch: float, _side: float, drag_set: fl
 	elif energy < 0.25 and line_out < SPIRAL_IN:
 		goal_d = minf(goal_d, 3.0)
 	if move != "jump":
-		depth = move_toward(depth, goal_d, dt * 6.0)
+		# (diving and rising with way on it: it gathers speed down, and slows as it comes to its depth)
+		_dive_v = move_toward(_dive_v, clampf((goal_d - depth) * 0.9, -6.0, 6.0), DIVE_EASE * dt)
+		depth = maxf(depth + _dive_v * dt, 0.0)
+	else:
+		_dive_v = 0.0
 	pull = fish
 
 	if energy < 0.2 and line_out <= BOATSIDE:
@@ -446,6 +459,7 @@ func carry_on(m: String, stretch_was := 0.0, turn := 0.0, hold_was := 1.0) -> vo
 	slack_t = (1.0 - hold_was) * SLACK_HOLD
 	if turn != 0.0:
 		_turn_sign = signf(turn)
+	_turn_v = float(MOVES[move]["turn"]) * _turn_sign      # (still swinging round as it was)
 	_going_under = cos(bearing) < 0.0
 	grace = 1.0
 
