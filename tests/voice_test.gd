@@ -150,6 +150,7 @@ func _as_friend() -> void:
 	until = Time.get_ticks_msec() + 20000
 	while Time.get_ticks_msec() < until:
 		await get_tree().process_frame
+		s = talk.speakers.get(1, s)          # (gone quiet a while, he's heard anew)
 		vhf = vhf or int(talk.talking().get(1, -1)) == Talk.VHF
 		rows = rows or talk._rows.has(1)
 		if s.vhf.pushed > int(SAY * 0.6 * Talk.RATE) and s.heard_t > 0.6:

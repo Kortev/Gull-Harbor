@@ -248,7 +248,9 @@ func _as_friend() -> void:
 	await _until(func() -> bool: return card.t > card.T_BUTTONS, 6.0)
 	vs.press_ready()
 	await _until(func() -> bool: return card.ready_ids.has(Net.my_id()), 3.0)
-	_check(card.states == [0, 1] and card._status() == "WAITING FOR THEM...", "pressed: waiting for them")
+	# (the host presses as soon as he sees us ready, so he may have already)
+	_check(int(card.states[1]) == 1 and (int(card.states[0]) == 1 or card._status() == "WAITING FOR THEM..."),
+			"pressed: B ready, waiting for them (%s, %s)" % [card.states, card._status()])
 	var black := 0.0
 	while card.up():
 		black = maxf(black, card.dark())
