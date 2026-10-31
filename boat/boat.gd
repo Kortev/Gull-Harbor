@@ -22,6 +22,7 @@ const Ladder := preload("res://boat/ladder.gd")
 const Tower := preload("res://boat/tower.gd")
 const GreenWater := preload("res://boat/green_water.gd")
 const Cooler := preload("res://boat/cooler.gd")
+const LiveWell := preload("res://boat/live_well.gd")
 
 ## Under way: her bow up (rad) flat out ahead, and how far her stern digs in (rad, m down) backing down flat out.
 const SQUAT := 0.07
@@ -63,6 +64,8 @@ var ladder: Ladder
 var tower: Tower
 ## Big seas coming aboard over her rail (boat/green_water.gd).
 var green: GreenWater
+## Her live well, its lid that opens and the mackerel in it (boat/live_well.gd).
+var live_well: LiveWell
 var _radar: Node3D
 ## The still world the crew walk in (see above): add crew bodies under deck_root.
 var deck_space: SubViewport
@@ -150,7 +153,7 @@ func _build() -> void:
 	visual.name = "Visual"
 	add_child(visual)
 	_built.append(visual)
-	for n: String in ["boat", "chair", "wheel", "radar"]:
+	for n: String in ["boat", "chair", "wheel", "radar", "well_lid"]:
 		var mi := src.find_child(n, true, false) as Node3D
 		if mi:
 			var t := _src_transform(mi, src)
@@ -244,6 +247,15 @@ func _build() -> void:
 		ladder.spot = spec["ladder"]
 		add_child(ladder)
 		_built.append(ladder)
+	live_well = null
+	var well_lid := visual.get_node_or_null("well_lid") as Node3D
+	if well_lid:
+		live_well = LiveWell.new()
+		live_well.name = "LiveWell"
+		live_well.boat = self
+		add_child(live_well)
+		live_well.setup(well_lid)
+		_built.append(live_well)
 	if spec.has("cooler"):
 		var c := Cooler.new()
 		c.name = "Cooler"

@@ -25,7 +25,8 @@ extends RefCounted
 ##   cabin_light   the dim red night light at the helm; crown: her highest point (the lightning goes for it)
 ##   haul_lift     m the fish is lifted over her gunwale as it's hauled in (0 through a tuna door)
 ##   box, box_size the fish box: the middle of its hatch in her sole, and how big it is (x across, z along)
-##   chum          where the chum bucket stands (boat/chum.gd); jig: the holder the mackerel jig sits in (boat/jig.gd)
+##   chum          where the chum bucket stands, on deck by the live well (not on its lid: that opens; boat/chum.gd);
+##                 jig: the holder the mackerel jig sits in (boat/jig.gd)
 ##   price         what she costs to buy at the dock; fuel: what a trip in her costs (taken from the sale)
 ##   radar_bar     where her radar's spinning bar sits, if her model hasn't one (boat.gd builds it)
 ##   seats         somewhere to sit (boat/chair.gd): the middle of its seat, which way you face, its name, and lean
@@ -63,7 +64,7 @@ const KINDS := {
 		"ahead": 11.0, "astern": 2.6, "spurt": 2.4, "back": 3.0, "coast": 4.5, "turn": 0.75,
 		"transom": Vector3(0.0, 0.0, 4.9), "house": 0.25, "engines": Vector3(0.0, 0.9, 4.7), "bow": Vector3(0.5, 0.45, -3.3),
 		"cabin_light": Vector3(0.0, 2.3, 0.4), "crown": Vector3(0.0, 2.75, 0.0),
-		"chum": Vector3(-0.25, 1.03, 3.92), "jig": 2,
+		"chum": Vector3(0.75, 0.46, 3.85), "jig": 2,
 		"price": 0, "fuel": 60,
 		"radar_bar": Vector3(0.0, 2.68, -0.3),
 		"ladder": Vector3(-1.0, 1.15, 4.25),
@@ -96,7 +97,7 @@ const KINDS := {
 		"ahead": 10.0, "astern": 2.6, "spurt": 1.4, "back": 2.2, "coast": 9.0, "turn": 0.45,
 		"transom": Vector3(0.0, 0.0, 7.3), "house": 0.4, "engines": Vector3(0.0, 0.3, 3.5), "bow": Vector3(1.7, 0.6, -5.0),
 		"cabin_light": Vector3(0.0, 2.45, -1.3), "crown": Vector3(0.0, 7.6, -1.3),
-		"chum": Vector3(-0.3, 1.3, 6.6), "jig": 4,
+		"chum": Vector3(-0.9, 0.56, 6.55), "jig": 4,
 		"price": 20000, "fuel": 400,
 		"ladder": Vector3(-1.35, 1.45, 7.0),
 		"seats": [{"at": Vector3(0.9, 1.23, -1.47), "face": PI, "name": "the skipper's seat"},
