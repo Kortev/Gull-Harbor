@@ -31,6 +31,7 @@ extends RefCounted
 ##   seats         somewhere to sit (boat/chair.gd): the middle of its seat, which way you face, its name, and lean
 ##                 (a leaning post: you lean on it rather than sit). The sportfisher's fighting chair is her model's.
 ##   cooler        where the cooler stands (the top of its lid; boat/cooler.gd): grab a drink
+##   outriggers    rod -> the outrigger's release clip its line runs through (boat-local; rods.gd's _outrigger)
 ##   rail          points along her starboard rail (port mirrors them) and across her transom, where a big sea can
 ##                 come aboard (boat/green_water.gd)
 ##   tower, tower_foot where you stand up her tuna tower (your feet), and the foot of the ladder up to it on deck
@@ -105,6 +106,7 @@ const KINDS := {
 				Vector3(2.39, 1.49, -1.4), Vector3(2.02, 1.97, -4.2), Vector3(0.0, 1.45, 7.0),
 				Vector3(1.1, 1.45, 7.0)],
 		"cooler": Vector3(-1.4, 1.11, 1.37),
+		"outriggers": {2: Vector3(6.43, 7.88, 4.33), 3: Vector3(-6.43, 7.88, 4.33)},
 		"tower": Vector3(0.0, 5.46, -0.75), "tower_foot": Vector3(-1.2, 0.55, 2.1),
 	},
 }

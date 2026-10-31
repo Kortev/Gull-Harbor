@@ -92,6 +92,11 @@ var whip := 0.0
 ## slack its line is (0 bar-tight .. 1: she's stopped and it's dropped back).
 var bait_p := Vector3.INF
 var bait_v := Vector3.ZERO
+## The outrigger's release clip its line can run through (world; INF: it hasn't one), whether it's in it (rods.gd's
+## _outrigger), and how far the line's up to it as drawn (0 straight from the tip .. 1 through the clip).
+var clip := Vector3.INF
+var clip_on := false
+var clip_k := 0.0
 var slack := 0.0
 var _lure: Node3D
 var _lure_back: StandardMaterial3D
@@ -244,7 +249,7 @@ func tip_position() -> Vector3:
 
 func _process(delta: float) -> void:
 	# bend toward the line: the pull's direction seen from the rod, scaled by how hard it pulls
-	var pull := line_end - global_position
+	var pull := (_via() if clip_k > 0.01 else line_end) - global_position
 	var local := global_transform.basis.inverse() * pull.normalized()
 	var want := Vector2(local.x, local.y) * (0.05 + 0.55 * strain + 0.5 * slam) * LENGTH * 0.45
 	# near the limit the tip quivers: the line's about to go
@@ -331,15 +336,17 @@ func _draw_line() -> void:
 	_line_mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
 	# a line always droops a little; a slack one (she's stopped) a lot, down onto the water; a fish on pulls it
 	# straight
-	var d := a.distance_to(b)
-	var sag := (0.02 + 0.3 * slack) * d * (1.0 - 0.85 * strain)
-	for i in 17:
-		var f := i / 16.0
-		var p := a.lerp(b, f)
-		p.y -= sag * 4.0 * f * (1.0 - f)
-		p.y = maxf(p.y, minf(b.y, a.y) - 0.05)       # (not through the water)
-		_line_mesh.surface_add_vertex(p)
+	var from := a
+	if clip_k > 0.01:
+		# up to the outrigger's clip (or falling from it), then out from there to the bait
+		var via := _via()
+		_sag_line(a, via, 0.02 * (1.0 - 0.85 * strain), false)
+		from = via
+		_sag_line(via, b, (0.02 + 0.3 * slack) * (1.0 - 0.85 * strain), true)
+	else:
+		_sag_line(a, b, (0.02 + 0.3 * slack) * (1.0 - 0.85 * strain), false)
 	_line_mesh.surface_end()
+	a = from
 	# the mackerel, nose toward the rod, swimming just under the top; or hanging off the tip by its lips with the line
 	# in, kicking, or flying. Tiring, it kicks slower and goes pale.
 	var flying := bool(spread.call("flying", index)) if spread else false
@@ -356,6 +363,23 @@ func _draw_line() -> void:
 			_lure.global_transform = Transform3D(Basis.looking_at(to.normalized(), Vector3.UP) * wiggle,
 					b + Vector3(0.0, -0.06, 0.0))
 		_lure_back.albedo_color = Color(1, 1, 1).lerp(Color(0.75, 0.78, 0.78), (1.0 - fresh) * 0.8)
+
+
+## Where the line bends: at the outrigger's clip, or on its way down from it to the straight line (clip_k).
+func _via() -> Vector3:
+	var straight := tip_position().lerp(line_end, 0.25)
+	return straight.lerp(clip, smoothstep(0.0, 1.0, clip_k)) if clip != Vector3.INF else straight
+
+
+## A drooping stretch of line from a to b (`droop`: how far it sags, for its length), into the strip being drawn.
+func _sag_line(a: Vector3, b: Vector3, droop: float, skip_first: bool) -> void:
+	var sag := droop * a.distance_to(b)
+	for i in range(1 if skip_first else 0, 17):
+		var f := i / 16.0
+		var p := a.lerp(b, f)
+		p.y -= sag * 4.0 * f * (1.0 - f)
+		p.y = maxf(p.y, minf(b.y, a.y) - 0.05)       # (not through the water)
+		_line_mesh.surface_add_vertex(p)
 
 
 func interact_prompt(player: Node) -> String:

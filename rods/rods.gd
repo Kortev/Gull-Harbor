@@ -62,6 +62,11 @@ var holders: Array[int] = []
 var baits: Array[Vector3] = []
 var names: Array[String] = []
 var stern := Vector3(0.0, 0.0, 7.05)
+## Rods whose lines run out through an outrigger's release clip (rod -> the clip, boat-local: her kind's
+## "outriggers"): the wide baits, held out high and clear of the others' lines. A strike pops the line out of the clip
+## and it falls to come straight from the rod (rod.gd's clip_k: down in a moment, not in a frame); a cast, a wind-in or
+## someone picking the rod up takes it out too, and once the bait's back out wide astern it's clipped up again.
+var clips := {}
 ## Her outline for the line rubbing (tuna/fight.gd's rub): half her beam, her transom, her house's aft face and her
 ## bow (z, her frame).
 var _half_beam := 2.4
@@ -139,6 +144,7 @@ func _lay_out() -> void:
 	for n in spec["rod_names"]:
 		names.append(str(n))
 	stern = spec["stern"]
+	clips = (spec.get("outriggers", {}) as Dictionary).duplicate()
 	_half_beam = float(spec["beam"]) * 0.5
 	_aft = (spec.get("transom", stern) as Vector3).z
 	_fore = _aft - float(spec["length"])
@@ -1078,6 +1084,7 @@ func _process(delta: float) -> void:
 		elif flying(r.index):
 			r.slack = 0.25
 		r.line_end = end
+		_outrigger(r, boat, tangled_in, delta)
 		_show_fish(r, boat, ocean, delta)
 	if mine == null:
 		arms = minf(arms + delta / ARM_FREE, 1.0)       # (off the rod, your arms come back)
@@ -1564,6 +1571,23 @@ func _end_mine(r: Rod, how: String) -> void:
 	else:
 		r.hooked = false
 	_report_end.rpc_id(1, r.index, how)
+
+
+## Rod `r`'s line through its outrigger's clip, or out of it: in it while it sits in its holder with its bait out wide
+## astern on the outrigger's side and nothing on; a strike pops it out (the clip's snap, everyone hears it).
+func _outrigger(r: Rod, boat: Node3D, tangled_in: bool, delta: float) -> void:
+	var c: Vector3 = clips.get(r.index, Vector3.INF)
+	var wide := c != Vector3.INF and r.spot.z > stern.z * 0.5 and signf(r.spot.x) == signf(c.x) \
+			and absf(r.spot.x) > 2.0
+	var clipped := wide and r.holder == 0 and not r.hooked and not r.bait_in and not tangled_in and r.auto_in == 0 \
+			and not flying(r.index) and r.bait_p != Vector3.INF
+	if c != Vector3.INF:
+		r.clip = boat.global_transform * c
+	if r.clip_on and not clipped and r.hooked:
+		Sfx.play_point(self, r.clip, "collar.pop", 0.9)
+	r.clip_on = clipped
+	# (up the outrigger slowly as the bait settles back; off it and down fast when it pops)
+	r.clip_k = move_toward(r.clip_k, 1.0 if clipped else 0.0, delta * (0.8 if clipped else 3.0))
 
 
 ## A rod in someone's hands: the butt at their belt (in the fighting chair, in its gimbal), the rod out in front and up, following where they look; heaved
