@@ -126,6 +126,7 @@ func _ready() -> void:
 	await get_tree().create_timer(0.2).timeout
 	_check(verdict.text.begins_with("They won by 23 lb"), "on A: %s" % verdict.text.replace("\n", " / "))
 	_check(sea.crew.me.boat == a_boat and sea.boat == a_boat, "crossed back to A")
+	await _card(sea, vs, a_boat, b_boat, a_hold, b_hold)
 	# back to one boat
 	vs.host_set_on(false)
 	await get_tree().create_timer(0.2).timeout
@@ -368,6 +369,108 @@ func _board(sea: Sea, a_boat: Node3D, b_boat: Node3D) -> void:
 		else:
 			_check(int(me.get("mode")) == 1, "a %.0f m gap: too far, into the sea" % gap)
 	me.force_input = false
+
+
+## The results card (vs/card.gd): up on its own a moment after the weigh-in, the boats side by side, the numbers
+## tallying up, the stamp on the day's winner, the menu waiting under it. A friend aboard B (a stand-in, peer 77):
+## NEXT DAY waits for both; once both have, a fade to black and the next day from the countdown, both boats back at
+## their berths. Day 2 to B again: the match, the match's card; REMATCH from both, a fresh match, new weather. Day 3,
+## no fish either side: a tie; the friend leaves, the card says so, and there's no going on without them.
+func _card(sea: Sea, vs: Vs, a_boat: Node3D, b_boat: Node3D, a_hold: Node, b_hold: Node) -> void:
+	vs.teams[77] = 1
+	var card := vs.card
+	await _until(func() -> bool: return card.up(), 6.0)
+	_check(card.up() and not bool(card.data["decided"]) and int(card.data["winner"]) == 1,
+			"the card comes up on its own after the weigh-in: day 1 to B")
+	var boats: Array = card.data.get("boats", [{}, {}])
+	_check(int(boats[0]["fish"]) == 1 and roundi(boats[0]["kg"]) == 100 and roundi(boats[0]["big"]) == 100
+			and int(boats[1]["fish"]) == 2 and roundi(boats[1]["kg"]) == 110 and roundi(boats[1]["big"]) == 60,
+			"side by side: A 1 fish 100 kg (biggest 100), B 2 fish 110 kg (biggest 60)")
+	_check(int(boats[0]["money"]) == int(a_hold.get("sale")["total"]) and int(boats[1]["money"]) == int(b_hold.get("sale")["total"])
+			and int(boats[0]["money"]) != int(boats[1]["money"]), "and what each made, fuel and charter off ($%d, $%d)" % [int(boats[0]["money"]), int(boats[1]["money"])])
+	_check(float(boats[0]["late"]) == 0.0 and float(boats[1]["late"]) == 0.0, "nobody late, no cut")
+	var menu: Node = sea.get_children().filter(func(n: Node) -> bool: return n.get_script() == load("res://ui/menu.gd"))[0]
+	await get_tree().process_frame
+	_check(not (menu.get("_board") as Control).visible and not (menu.get("_pause") as Control).visible
+			and not (vs.get("_verdict") as Label).visible, "the menu and the weigh-in's verdict wait under it")
+	# the numbers count up (B's pounds weighed, the last row), no jump
+	var biggest := 0.0
+	var prev := card.shown(6, 1)
+	var early := prev
+	while not card.stamped():
+		await get_tree().process_frame
+		biggest = maxf(biggest, card.shown(6, 1) - prev)
+		prev = card.shown(6, 1)
+	_check(early < 1.0 and roundi(prev) == 243 and biggest < 60.0,
+			"B's 243 lb tallies up from nothing (at most %.0f lb a frame), then the stamp" % biggest)
+	await _until(func() -> bool: return card.t > card.T_BUTTONS, 2.0)
+	# NEXT DAY: you, then the friend
+	vs.press_ready()
+	await get_tree().create_timer(1.0).timeout
+	_check(card.up() and card.states == [1, 0] and card.dark() == 0.0 and card._status() == "WAITING FOR THEM...",
+			"NEXT DAY pressed: A ready, B still deciding, nothing yet (%s)" % [card.states])
+	vs._host_ready(77)
+	var dark_step := 0.0
+	var last := card.dark()
+	var black := 0.0
+	while card.up():
+		await get_tree().process_frame
+		dark_step = maxf(dark_step, card.dark() - last)
+		last = card.dark()
+		black = maxf(black, last)
+	_check(black > 0.99 and dark_step < 0.2, "both pressed: a fade to black, no cut (at most %.2f a frame)" % dark_step)
+	await get_tree().process_frame
+	_check(vs.result.is_empty() and vs.wins == [0, 1], "the next day: the match goes on (%s)" % [vs.wins])
+	_check((a_boat.get("helm").get("at") as Vector2).distance_to(vs._berth(0)) < 0.5
+			and (b_boat.get("helm").get("at") as Vector2).distance_to(vs._berth(1)) < 0.5, "both boats at their berths")
+	_check(vs.count_end > 0.0 and sea.crew.me.boat == a_boat, "the countdown again, you aboard your own")
+	await _until(func() -> bool: return card.dark() < 0.01, 3.0)
+	_check(card.dark() < 0.01, "and it fades back up")
+	# day 2, to B again: the match
+	sea.fish_hold.call("head_out", "sportfisher")
+	await get_tree().create_timer(0.3).timeout
+	a_hold.call("host_add", 50.0, 60.0)
+	b_hold.call("host_add", 80.0, 60.0)
+	await get_tree().create_timer(0.2).timeout
+	vs.host_bring_home()
+	await _until(func() -> bool: return card.up(), 30.0)
+	boats = card.data.get("boats", [{}, {}])
+	_check(bool(card.data["decided"]) and int(card.data["winner"]) == 1 and vs.wins == [0, 2],
+			"day 2 to B: the match, 2-0, and its card")
+	_check(int(boats[0]["fish"]) == 2 and roundi(boats[0]["kg"]) == 150 and int(boats[1]["fish"]) == 3
+			and roundi(boats[1]["kg"]) == 190 and roundi(boats[1]["big"]) == 80 and roundi(boats[1]["lb"]) == 419,
+			"over the match: A 2 fish 150 kg, B 3 fish 190 kg (biggest 80), 419 lb")
+	await _until(func() -> bool: return card.t > card.T_BUTTONS, 6.0)
+	_check(card._primary() == "REMATCH", "REMATCH, now it's won")
+	var seed := int(sea.weather.seed)
+	vs.press_ready()
+	vs._host_ready(77)
+	await _until(func() -> bool: return not card.up(), 4.0)
+	await get_tree().process_frame
+	_check(not card.up() and vs.wins == [0, 0] and vs.count_end > 0.0, "REMATCH from both: a fresh match, the countdown")
+	_check(int(sea.weather.seed) != seed, "new weather for it (%d, was %d)" % [int(sea.weather.seed), seed])
+	# day 3: no fish either side, a tie; then the friend leaves
+	sea.fish_hold.call("head_out", "sportfisher")
+	await get_tree().create_timer(0.3).timeout
+	vs.host_bring_home()
+	await _until(func() -> bool: return card.up(), 30.0)
+	_check(int(card.data.get("winner", 9)) == -1 and vs.wins == [0, 0] and int(card.data["day"]) == 1,
+			"no fish either side: a tie, no day to either")
+	await _until(func() -> bool: return card.t > card.T_BUTTONS, 6.0)
+	Net.peer_left.emit(77)
+	await get_tree().process_frame
+	_check(card.gone and int(card.states[1]) == 3 and card._status().begins_with("THEY'VE LEFT"),
+			"the friend leaves: the card says so")
+	vs.press_ready()
+	await get_tree().create_timer(1.0).timeout
+	_check(card.up() and card.dark() == 0.0 and not card._can_press(), "and there's no going on, only the title")
+
+
+func _until(ok: Callable, most: float) -> void:
+	var t := 0.0
+	while not bool(ok.call()) and t < most:
+		await get_tree().process_frame
+		t += 1.0 / 30.0
 
 
 func _done() -> void:

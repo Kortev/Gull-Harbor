@@ -366,8 +366,14 @@ rules.
   up on them, A on its west side, B on its east), and the weigh-in: A's fish read off one at a time with the
   scale's chain and clank, her total stamped, then B's, then who won and by how much ("You won by 66 lb"). Both
   catches are sold as usual (boat A's money is the skipper's bank; boat B's is a bank of her own for the match).
-- **Best of three:** each day won is a pip; first to two wins the match ("The match: yours, 2-1"), and the next
-  trip starts a new one.
+- **Best of three:** each day won is a pip; first to two wins the match ("The match: yours, 2-1").
+- **The results card** (`vs/card.gd`): a moment after each weigh-in it comes up on every screen at once (the host's
+  word), the mouse freed: both boats side by side, days won, fish, total kg, biggest, the money, the late cut and the
+  pounds weighed, tallying up row by row, then a stamp lands on the winner (DAY WON, WINNER for the match, TIE when
+  dead even). NEXT DAY (REMATCH once the match is won) needs everyone; under each boat, whether her crew have
+  pressed. Then a fade to black, both boats back at their berths, fresh weather from the host, and the countdown.
+  BACK TO THE TITLE leaves. If the other crew leave (or the host goes), the card says so and only the title's left.
+  A boat towed in late sells for half as well as weighing half.
 - Limits: one chum slick on the sea at a time (whichever boat scooped last); the host runs both boats, so the host's
   machine works a little harder.
 - **Teach it:** the buttons say it all; nothing else on screen.
