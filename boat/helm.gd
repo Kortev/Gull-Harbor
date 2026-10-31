@@ -32,9 +32,6 @@ var back := BACK
 var coast := COAST
 
 var boat: Node3D          # boat/boat.gd
-## Rivals: a line wrapped round her props (vs/contact.gd, crossing the other boat's lines) kills her engines till this
-## (the sea clock): she coasts, whatever the throttle says, while it's cleared.
-var fouled_until := -1.0
 ## The captain's peer id (0: nobody at the wheel).
 var captain := 0
 ## Her heading (radians round the up axis; she starts at 0), the wheel (-1 hard to starboard .. 1 hard to port)
@@ -161,33 +158,6 @@ func held() -> bool:
 	return vs != null and bool(vs.get("on")) and hold != null and bool(hold.get("docked"))
 
 
-## Whether a line's round her props now.
-func fouled() -> bool:
-	var ocean: Node = boat.get("ocean") if boat else null
-	return ocean != null and float(ocean.get("wave_time")) < fouled_until
-
-
-## Host: a line round her props for `seconds` (everyone hears it, and her engines die on whoever's machine drives her).
-func host_foul(seconds: float) -> void:
-	var ocean: Node = boat.get("ocean")
-	var until := float(ocean.get("wave_time")) + seconds
-	if Net.in_session():
-		_foul.rpc(until)
-	else:
-		_foul(until)
-
-
-@rpc("authority", "call_local", "reliable")
-func _foul(until: float) -> void:
-	fouled_until = maxf(fouled_until, until)
-	Sfx.play_point(boat, boat.global_position + Vector3(0, 0.5, float(boat.get("length")) * 0.5), "kit.thud", 1.0, 0.5)
-	# her crew told why the engines died
-	var crew: Node = boat.get("sea").get("crew") if boat.get("sea") != null else null
-	var me: Node = crew.get("me") if crew != null else null
-	if me != null and me.get("boat") == boat:
-		(crew.get("hud") as Node).call("notify", "LINE IN THE PROPS! ENGINES DEAD TILL IT'S CLEAR")
-
-
 @rpc("authority", "call_remote", "reliable")
 func _sync(who: int, at_heading: float, where: Vector2, going: float) -> void:
 	_set_captain(who, at_heading)
@@ -254,7 +224,7 @@ func _process(delta: float) -> void:
 		var want_gas := Input.get_axis("move_back", "move_forward") if live else 0.0
 		steer = move_toward(steer, want_steer, delta * 2.5)
 		throttle = move_toward(throttle, want_gas, delta * 1.5)
-		if fouled() or held():
+		if held():
 			throttle = 0.0
 		if not held():
 			heading = wrapf(heading + steer * turn * delta, -PI, PI)

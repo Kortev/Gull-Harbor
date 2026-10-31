@@ -1,6 +1,6 @@
 extends Node
-## Where the two boats in VS (vs/vs.gd) meet: they're solid to each other, the one's wake rocks the other, and running
-## across the other's lines cuts them.
+## Where the two boats in VS (vs/vs.gd) meet: they're solid to each other and the one's wake rocks the other. (Running
+## across the other's lines doesn't cut them: it did, and it made a stalemate where nobody got a fish.)
 ##
 ## Bumping: each hull's a capsule on the water (her length and beam, along her heading, where the helm has her).
 ## Whoever moves a boat (her captain, or the host with nobody at her wheel: boat/helm.gd) keeps her out of the other
@@ -15,11 +15,6 @@ extends Node
 ## biggest wake ploughing along at 10 to 14 knots (WAKE_SPEED), not up on the plane flat out, so slowing to bury the
 ## other boat costs you time. Taken beam on, close, it's a hard roll, the sea slopping in over her transom, everyone
 ## standing staggering and their view jolted; her captain turning her bow into it takes it as a pitch, softer.
-##
-## Lines (the host): a boat's hull across the other's line, rod tip to bait (or to her fish), cuts it there (rods.gd's
-## host_cut): the bait's gone, or the fish is, and what's left lies out to be wound in. It isn't free: the line wraps
-## her props and her engines die while it's cleared (boat/helm.gd's host_foul), FOUL_FISH s for a line with a fish on
-## it, FOUL_BAIT for a bait. Cutting a rival off their fish is a play, not a sure thing: it leaves you dead in the water.
 
 const Helm := preload("res://boat/helm.gd")
 const Sfx := preload("res://audio/sfx.gd")
@@ -45,8 +40,6 @@ const TRAIL_SPEED := 1.5
 const WAKE_LIFE := 30.0
 const KELVIN := 0.354
 const ARM := 2.5
-const FOUL_FISH := 10.0
-const FOUL_BAIT := 3.0
 ## Her wake's biggest between these speeds (m/s); up on the plane flat out it's this much of that.
 const WAKE_SPEED := Vector2(5.5, 7.0)
 const PLANED := 0.45
@@ -187,13 +180,6 @@ func _process(delta: float) -> void:
 		var me: Node = vs.get("sea").get("crew").get("me")
 		if me != null:
 			me.set("shake", _jolt)
-	if Net.is_host() and _both_out():
-		_lines(boats)
-
-
-func _both_out() -> bool:
-	return (vs.get("sides") as Array).all(func(s: Node) -> bool:
-		return not bool((s.get("fish_hold") as Node).get("docked")))
 
 
 ## Every peer: the two coming together, heard and felt.
@@ -316,22 +302,3 @@ func _bomb(boats: Array, i: int, hit: float) -> void:
 		if not bool(me.get("steering")):
 			me.call("gesture", "stumble")
 
-
-## Host, both out: either boat's hull across the other's lines cuts them.
-func _lines(boats: Array) -> void:
-	var sides: Array = vs.get("sides")
-	for y in 2:
-		var rods: Node = (sides[y] as Node).get("rods")
-		var hx := hull(boats[1 - y])
-		for r: Node in rods.get("rods"):
-			var hooked := bool(r.get("hooked"))
-			if bool(r.get("bait_in")) or bool(r.get("alongside")) or (not hooked and not bool(r.get("baited"))) \
-					or bool(rods.call("flying", int(r.get("index")))):
-				continue
-			var tip: Vector3 = r.call("tip_position")
-			var end: Vector3 = rods.call("fish_point", r, boats[y]) if hooked else r.get("line_end")
-			var c := Geometry2D.get_closest_points_between_segments(Vector2(tip.x, tip.z), Vector2(end.x, end.z),
-					hx[0], hx[1])
-			if (c[0] as Vector2).distance_to(c[1]) < float(hx[2]) + 0.3:
-				rods.call("host_cut", int(r.get("index")), Vector3(c[0].x, end.y, c[0].y))
-				((boats[1 - y] as Node).get("helm") as Node).call("host_foul", FOUL_FISH if hooked else FOUL_BAIT)

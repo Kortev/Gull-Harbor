@@ -1,8 +1,9 @@
 extends Area3D
 ## The boarding ladder hooked over a boat's transom (boat/kinds.gd's `ladder`: beside the engines, clear of the tuna
 ## door): two stainless rails from under the water up over the cap, flat steps between, standing off the transom on
-## little feet. In the sea (crew/player.gd), swim to it and hold E: you climb it, rung by rung, and over the cap onto
-## her deck. Any boat's: in VS you can come up the other crew's.
+## little feet. In the sea (crew/player.gd), swim up to it and E: you take hold, and W climbs it rung by rung (S back
+## down, E lets go), over the cap onto her deck. From her deck, E at the top of it takes you over the cap and down it.
+## Any boat's: in VS you can come up the other crew's (and go down your own).
 ##
 ## Built in her frame by boat/boat.gd, a child of the boat so it rides her. `path()` is the climb, boat-local.
 
@@ -10,6 +11,7 @@ const RAIL := 0.17            # the rails either side of the middle (m)
 const STEP := 0.4             # between the steps
 const FOOT := -0.75           # the rails' bottom, under her waterline
 const SWIMMING := 1           # (crew/player.gd's SWIM)
+const ON_DECK := 0            # (and its DECK)
 
 var boat: Node3D              # boat/boat.gd
 ## Where it hangs, boat-local: x across, y the transom's cap, z the transom's outside face.
@@ -79,15 +81,19 @@ func _box(size: Vector3, at: Vector3, mat: Material) -> void:
 
 
 func interact(player: Node) -> void:
-	if int(player.get("mode")) == SWIMMING:
+	var m := int(player.get("mode"))
+	if m == SWIMMING or (m == ON_DECK and player.get("boat") == boat):
 		player.call("climb", boat)
 
 
-## Only to someone in the sea.
+## To someone in the sea, or aboard her at the top of it.
 func interact_prompt() -> String:
 	for p: Node in get_tree().get_nodes_in_group("players"):
 		if p.is_multiplayer_authority():
-			return "Climb aboard" if int(p.get("mode")) == SWIMMING else ""
+			var m := int(p.get("mode"))
+			if m == SWIMMING:
+				return "Climb aboard"
+			return "Climb down" if m == ON_DECK and p.get("boat") == boat else ""
 	return ""
 
 

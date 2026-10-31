@@ -9,9 +9,9 @@ const CHAPTERS := [
 "
 		+ "Q: put the rod or the harpoon back. Esc: the menu.
 "
-		+ "F: shove whoever's in front of you. Space into the rail: over it (onto a boat alongside, or into the sea).
+		+ "F: shove whoever's in front of you. Space at the rail: over it (onto a boat a jump away, or into the sea).
 "
-		+ "In the sea: WASD swim. Hold E on a boarding ladder to climb out."],
+		+ "In the sea: WASD swim, Shift sprint, Ctrl dive. E by a boarding ladder: W climbs, S goes down, E lets go."],
 	["2. The loan", "Your boat belongs to First Coastal Savings & Loan.\n\n"
 		+ "Every 3 days (3 trips) the bank wants a payment: the quota. $5,000, then half as much again each time. "
 		+ "Every fish sold counts, and the money's yours to spend too. The bar top left is the quota.\n\n"

@@ -1,7 +1,8 @@
 extends RefCounted
 ## The crew's breath, made here as the air horn's blast is (vs/horn.gd): no words, just the noises a body makes. A
 ## gasp (coming up out of the sea: a sharp, rising suck of air through an open mouth, a catch in the throat at the
-## end), and a grunt (winding up to shove someone: a short voiced "hnh" through the nose, the chest tightening).
+## end), a grunt (winding up to shove someone: a short voiced "hnh" through the nose, the chest tightening), and a
+## blow (swimming hard: a quick puff out through pursed lips between strokes, water spat off them).
 ## Each is breathy noise through a mouth-shaped band (two formants that move as the mouth does) over a low buzz
 ## from the throat, each made once and shared.
 
@@ -9,6 +10,7 @@ const RATE := 22050
 
 static var _gasp: AudioStreamWAV
 static var _grunt: AudioStreamWAV
+static var _blow: AudioStreamWAV
 
 
 ## Coming up for air: 0.45 s, mostly breath, the pitch of the suck rising as the mouth opens.
@@ -23,6 +25,13 @@ static func grunt() -> AudioStreamWAV:
 	if _grunt == null:
 		_grunt = _make(0.28, 0.8, Vector2(500.0, 430.0), Vector2(1100.0, 950.0), 135.0, 118.0, 0.02, 0.09)
 	return _grunt
+
+
+## Swimming hard: 0.22 s, all breath, high and falling as the lips close.
+static func blow() -> AudioStreamWAV:
+	if _blow == null:
+		_blow = _make(0.22, 0.08, Vector2(1100.0, 800.0), Vector2(2600.0, 1900.0), 180.0, 150.0, 0.012, 0.12)
+	return _blow
 
 
 ## `seconds` long; `voiced` 0 (all breath) .. 1 (all throat); the two formants (Hz) from x to y over it; the

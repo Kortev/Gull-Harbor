@@ -15,7 +15,7 @@ extends Node
 ## moving the boats anywhere.
 ## The trip: when one boat heads out the other goes too, in the same kind of boat. The
 ## schools turn up round one boat, then the other, then between them (spawn_anchor). Out there they're solid to each
-## other, rock in each other's wakes and cut each other's lines (vs/contact.gd). Top left, small: both boats' pounds
+## other and rock in each other's wakes (vs/contact.gd), and you can jump across to board her. Top left, small: both boats' pounds
 ## aboard, and a blinking dot and the squelch on the radio when the other crew hooks up. An air horn at each console
 ## (vs/horn.gd) to rattle the other crew. At dusk the race home: HOME s to bring her in alongside her own berth
 ## (slow, TIE s, and she's tied up and her catch sold there, no cut); once both are in, or time's up, what each had
