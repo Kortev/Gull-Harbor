@@ -1,121 +1,65 @@
 extends RefCounted
 ## What every one of the crew carries (crew/hands.gd): a knife, a gaff, a light jig rod, a chum scoop, a bait. One's
-## in your hands at a time (the hotbar, keys 1-5 or the wheel); each is built here from a few boxes and cylinders,
-## the PS1 way, held with its working end along -z (ahead of your hand).
-
-const ROD := preload("res://rods/rod.glb")
+## in your hands at a time (the hotbar, keys 1-5 or the wheel). The models are art/gear.py's (crew/gear/*.glb), low
+## and chunky with tiny crunchy textures like everything else; each one's origin is where your right hand grips it,
+## its working end along -z (ahead of your hand), its top up. Some have marks hands.gd poses by: "grip_l" (where the
+## left hand goes on the two-handed ones), "tip" (the jig rod's, where the line leaves), "hook" (the gaff's point),
+## "rig" (the jig hanging off the tip, swinging), "tail" (the mackerel's, flicking), "Chum" (a scoopful).
 
 const ITEMS: Array[String] = ["knife", "gaff", "jig", "scoop", "bait"]
+const MODELS := {
+	"knife": preload("res://crew/gear/knife.glb"),
+	"gaff": preload("res://crew/gear/gaff.glb"),
+	"jig": preload("res://crew/gear/jig.glb"),
+	"scoop": preload("res://crew/gear/scoop.glb"),
+	"bait": preload("res://crew/gear/bait.glb"),
+}
+const GLOVES := preload("res://crew/gear/glove.glb")
 
 
 static func make(item: String) -> Node3D:
 	var root := Node3D.new()
 	root.name = item.capitalize()
-	match item:
-		"knife":
-			# a deckhand's bleeding knife: a white grippy handle, a short stiff blade tapering to its point
-			_box(root, Vector3(0.026, 0.03, 0.11), Vector3(0, 0, 0.0), _mat(Color(0.9, 0.9, 0.86), 0.8))
-			_box(root, Vector3(0.03, 0.036, 0.012), Vector3(0, 0.002, -0.058), _mat(Color(0.15, 0.15, 0.16), 0.6))
-			var steel := _mat(Color(0.8, 0.82, 0.84), 0.25, 0.8)
-			_box(root, Vector3(0.004, 0.026, 0.07), Vector3(0, 0.004, -0.098), steel)
-			_box(root, Vector3(0.004, 0.017, 0.035), Vector3(0, 0.0085, -0.15), steel)
-			_box(root, Vector3(0.004, 0.008, 0.018), Vector3(0, 0.013, -0.176), steel)
-		"gaff":
-			# a stout aluminium pole, a big stainless hook on the end, a rubber grip
-			_cyl(root, 0.018, 1.3, Vector3(0, 0, -0.45), _mat(Color(0.72, 0.74, 0.76), 0.35, 0.7))
-			_cyl(root, 0.024, 0.3, Vector3(0, 0, 0.05), _mat(Color(0.1, 0.1, 0.1), 0.9))
-			var steel := _mat(Color(0.85, 0.86, 0.88), 0.2, 0.9)
-			_box(root, Vector3(0.012, 0.012, 0.12), Vector3(0, 0, -1.15), steel)
-			_box(root, Vector3(0.012, 0.13, 0.012), Vector3(0, -0.06, -1.21), steel)
-			_box(root, Vector3(0.012, 0.012, 0.07), Vector3(0, -0.12, -1.17), steel)
-		"jig":
-			var rod := ROD.instantiate() as Node3D
-			rod.name = "Rod"
-			rod.scale = Vector3.ONE * 0.62
-			rod.rotation = Vector3(0, PI, 0)        # (rod.glb's blank runs along +z)
-			rod.position = Vector3(0, 0, 0.2)
-			root.add_child(rod)
-		"scoop":
-			var white := _mat(Color(0.86, 0.85, 0.8), 0.8)
-			_box(root, Vector3(0.025, 0.025, 0.42), Vector3(0, 0, -0.1), white)
-			var cup := _cyl(root, 0.075, 0.08, Vector3(0, -0.02, -0.36), white)
-			cup.rotation = Vector3.ZERO
-			var chum := _cyl(root, 0.068, 0.01, Vector3(0, 0.02, -0.36), _mat(Color(0.38, 0.14, 0.1), 0.4))
-			chum.rotation = Vector3.ZERO
-			chum.name = "Chum"
+	var scene := MODELS.get(item) as PackedScene
+	if scene:
+		var model := scene.instantiate() as Node3D
+		model.name = "Model"
+		if item == "bait":
+			model.position = Vector3(0.0, 0.0, -0.1)       # (a live bait's held by the wrist of its tail)
+		root.add_child(model)
+		var chum := model.find_child("Chum", true, false) as Node3D
+		if chum:
 			chum.visible = false
-		"bait":
-			var fish := _mackerel()
-			fish.position = Vector3(0, 0.02, -0.08)
-			root.add_child(fish)
 	for mi in root.find_children("*", "MeshInstance3D", true, false):
 		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return root
 
 
-static func _mat(c: Color, rough := 0.6, metal := 0.0) -> StandardMaterial3D:
-	var m := StandardMaterial3D.new()
-	m.albedo_color = c
-	m.roughness = rough
-	m.metallic = metal
-	return m
+## Your own gloved hand in first person, `side` "r" or "l": an orange rubber deck glove in a fist round a handle along
+## -z through its origin, and the hoodie's "Sleeve" from its wrist (along -z; crew/hands.gd aims it at your elbow).
+static func glove(side: String) -> Node3D:
+	var all := GLOVES.instantiate() as Node3D
+	var out := Node3D.new()
+	out.name = "Glove" + side.to_upper()
+	for part: String in ["glove_" + side, "sleeve"]:
+		var mi := all.find_child(part, true, false) as MeshInstance3D
+		if mi == null:
+			continue
+		mi.owner = null
+		mi.get_parent().remove_child(mi)
+		mi.transform = Transform3D.IDENTITY
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		if part == "sleeve":
+			mi.name = "Sleeve"
+			mi.position = Vector3(0.013 if side == "r" else -0.013, -0.006, 0.112)
+		out.add_child(mi)
+	all.free()
+	return out
 
 
-static func _box(to: Node3D, size: Vector3, at: Vector3, m: Material) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
-	var b := BoxMesh.new()
-	b.size = size
-	mi.mesh = b
-	mi.material_override = m
-	mi.position = at
-	to.add_child(mi)
-	return mi
-
-
-## A cylinder along z (its length), centred at `at`.
-static func _cyl(to: Node3D, r: float, length: float, at: Vector3, m: Material) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
-	var c := CylinderMesh.new()
-	c.top_radius = r
-	c.bottom_radius = r
-	c.height = length
-	c.radial_segments = 6
-	c.rings = 1
-	mi.mesh = c
-	mi.material_override = m
-	mi.position = at
-	mi.rotation = Vector3(PI * 0.5, 0, 0)
-	to.add_child(mi)
-	return mi
-
-
-## A mackerel, low and chunky: green-blue back with dark bars, silver belly, forked tail; 30 cm, nose along -z.
+## A mackerel, 30 cm, nose along -z (boat/jig.gd swings one aboard on the jig line).
 static func _mackerel() -> Node3D:
-	var root := Node3D.new()
-	root.name = "Mackerel"
-	var sm := SphereMesh.new()
-	sm.radius = 0.5
-	sm.height = 1.0
-	sm.radial_segments = 6
-	sm.rings = 3
-	var body := MeshInstance3D.new()
-	body.mesh = sm
-	body.material_override = _mat(Color(0.82, 0.84, 0.86), 0.3, 0.6)
-	body.scale = Vector3(0.045, 0.06, 0.26)
-	root.add_child(body)
-	var top := MeshInstance3D.new()
-	top.name = "Back"
-	top.mesh = sm
-	top.material_override = _mat(Color(0.18, 0.42, 0.4), 0.35, 0.4)
-	top.scale = Vector3(0.04, 0.035, 0.24)
-	top.position = Vector3(0.0, 0.016, 0.0)
-	root.add_child(top)
-	var tail := MeshInstance3D.new()
-	var pm := PrismMesh.new()
-	pm.size = Vector3(0.09, 0.06, 0.01)
-	tail.mesh = pm
-	tail.material_override = top.material_override
-	tail.rotation = Vector3(0.0, PI * 0.5, PI)
-	tail.position = Vector3(0.0, 0.0, 0.15)
-	root.add_child(tail)
-	return root
+	var fish := make("bait")
+	fish.name = "Mackerel"
+	(fish.get_node("Model") as Node3D).position = Vector3.ZERO
+	return fish
