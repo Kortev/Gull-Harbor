@@ -52,8 +52,9 @@ var helm: Helm
 var rock := Vector2.ZERO
 var floods: Array[Light3D] = []
 var chair: Node3D
-## The fighting chair you can sit in (boat/chair.gd), if she has one.
+## The fighting chair you can sit in (boat/chair.gd), if she has one, and all her seats (the chair among them).
 var seat: Chair
+var seats: Array[Chair] = []
 var wheel: Node3D
 ## The boarding ladder over her transom (boat/ladder.gd): up it out of the sea.
 var ladder: Ladder
@@ -157,14 +158,24 @@ func _build() -> void:
 			mi.transform = t
 			visual.add_child(mi)
 	chair = visual.get_node_or_null("chair") as Node3D
+	seats.clear()
 	if chair:
 		seat = Chair.new()
 		seat.name = "FightingChair"
 		add_child(seat)
 		seat.setup(self, chair)
 		_built.append(seat)
+		seats.append(seat)
 	else:
 		seat = null
+	# her other seats: the benches, the skipper's seat, the cooler seat, the leaning post (boat/kinds.gd's "seats")
+	for i in (spec.get("seats", []) as Array).size():
+		var s := Chair.new()
+		s.name = "Seat%d" % i
+		add_child(s)
+		s.setup_seat(self, spec["seats"][i])
+		_built.append(s)
+		seats.append(s)
 	wheel = visual.get_node_or_null("wheel") as Node3D
 	if wheel:
 		_wheel_base = wheel.basis

@@ -41,8 +41,11 @@ const LOOK := 0.0024
 const REACH := 2.5
 ## How much of the boat's pitch and roll your eyes take out (0: the camera is bolted to the deck).
 const STEADY := 0.45
-## How far you sit down in the fighting chair (m: your hips and eyes drop this much).
+## How far you sit down in the fighting chair (m: your hips and eyes drop this much; a seat says its own).
 const SEAT_DROP := 0.37
+## Into a seat and back up off it (m/s), and how quickly you turn to face its way (1/s).
+const SIT_SPEED := 2.6
+const SIT_TURN := 5.0
 
 signal prompt_changed(text: String)
 
@@ -78,8 +81,14 @@ var fight_mouse := Vector2.ZERO
 var cam_goal := Vector2(NAN, NAN)
 ## At the wheel (boat/helm.gd): your feet stay put and the keys steer her instead.
 var steering := false
-## In the fighting chair (boat/chair.gd says).
+## In a seat (boat/chair.gd says: the fighting chair, a bench, the leaning post...), and which. On the way into it
+## and back up off it you're carried there a step at a time (SIT_SPEED: nothing jumps); `_rise_to` is where you're
+## getting up to (INF: not). `chair_k`: how far the rod's butt is down in the fighting chair's gimbal (0..1).
 var seated := false
+var sat_in: Node3D
+var _sit_t := 0.0
+var _rise_to := Vector3.INF
+var chair_k := 0.0
 ## Up the tuna tower (boat/tower.gd), or on the way up or down it: you look round but don't walk. The climb's legs
 ## (the tower's path), how far along it you are (s) and which way you're going (1 up, -1 down).
 var aloft := false
@@ -576,13 +585,20 @@ func _pose_body(delta: float) -> void:
 			p["shin_r"] = Vector3(-1.3, 0.0, 0.0)
 			drop = 0.0
 			crouch = 0.0
-	# in the fighting chair: sat down, thighs out level, shins hanging to the footrest
-	if seated:
+	# in a seat: sat down, thighs out level, shins hanging to the footrest; on a leaning post, leant back on it, a
+	# little down, legs out in front
+	if seated and _seat_lean():
+		p["leg_l"] += Vector3(0.25, 0.0, 0.0)
+		p["leg_r"] += Vector3(0.25, 0.0, 0.0)
+		p["torso"] += Vector3(-0.12, 0.0, 0.0)
+		drop = _seat_drop()
+		crouch = 0.0
+	elif seated:
 		p["leg_l"] = Vector3(1.45, 0.0, -0.08)
 		p["leg_r"] = Vector3(1.45, 0.0, 0.08)
 		p["shin_l"] = Vector3(-1.35, 0.0, 0.0)
 		p["shin_r"] = Vector3(-1.35, 0.0, 0.0)
-		drop = SEAT_DROP
+		drop = _seat_drop()
 		crouch = 0.0
 	# crouching: down at the hips, thighs forward and shins back so the feet stay put
 	if crouch > 0.0:
@@ -682,6 +698,7 @@ func place(local: Vector3, yaw: float, on: Node3D = null) -> void:
 		_set_mode(DECK)
 	aloft = false
 	_tower_legs = []
+	_rise_to = Vector3.INF
 	body.position = local
 	body.velocity = Vector3.ZERO
 	_prev_local = local
@@ -741,8 +758,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif aloft and (event.is_action_pressed("interact") or event.is_action_pressed("drop")):
 		climb_down_tower()
 		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("interact") and seated and _looked_at() == null:
-		(boat.get("seat") as Node).call("request", false)
+	elif event.is_action_pressed("interact") and seated and _gets_you_up(_looked_at()):
+		if is_instance_valid(sat_in):
+			sat_in.call("request", false)
 	elif event.is_action_pressed("interact"):
 		var target := _target()
 		if target:
@@ -822,15 +840,26 @@ func _walk(delta: float) -> void:
 	if steering:
 		body.velocity = Vector3.ZERO
 		return
+	if seated and not is_instance_valid(sat_in):
+		seated = false            # (she's been rebuilt under you: the seat's gone)
 	if seated:
-		# held in the fighting chair; a jump gets you up
-		var chair: Node = boat.get("seat")
+		# into the seat a step at a time, then held there; a jump gets you up
 		body.velocity = Vector3.ZERO
-		if chair:
-			body.position = chair.call("seat")
-			var live := force_input or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
-			if live and Input.is_action_just_pressed("jump"):
-				chair.call("request", false)
+		var to: Vector3 = sat_in.call("seat")
+		body.position = body.position.move_toward(to, SIT_SPEED * delta)
+		_sit_t += delta
+		if sat_in.get("chair") == null and _sit_t < 1.2:
+			_yaw = lerp_angle(_yaw, float(sat_in.get("face")), 1.0 - exp(-SIT_TURN * delta))   # (turning to sit)
+		var live := force_input or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+		if live and Input.is_action_just_pressed("jump"):
+			sat_in.call("request", false)
+		return
+	if _rise_to != Vector3.INF:
+		# up off the seat and a step out, then you're walking
+		body.velocity = Vector3.ZERO
+		body.position = body.position.move_toward(_rise_to, SIT_SPEED * delta)
+		if body.position.distance_to(_rise_to) < 0.01:
+			_rise_to = Vector3.INF
 		return
 	var live := force_input or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back") if live else Vector2.ZERO
@@ -871,6 +900,36 @@ func _walk(delta: float) -> void:
 	if body.position.y < float(boat.get("deck")) - 0.8:
 		# (off her somewhere the rail doesn't stop you)
 		_into_sea(boat.global_basis * body.velocity + _boat_velocity(boat))
+
+
+## Into seat `s` (boat/chair.gd, the host's word, on every peer): you're carried to it and down into it.
+func sit_in(s: Node3D) -> void:
+	seated = true
+	sat_in = s
+	_sit_t = 0.0
+	_rise_to = Vector3.INF
+
+
+## Up out of your seat (the host's word, on every peer), to `to` (boat-local, on her deck) a step at a time.
+func stand_up(to: Vector3) -> void:
+	seated = false
+	sat_in = null
+	if is_multiplayer_authority() and mode == DECK:
+		_rise_to = to
+
+
+## In a seat, E on `t` gets you up (nothing there, the wheel, a seat), rather than using it (a rod, say).
+func _gets_you_up(t: Node) -> bool:
+	return t == null or t == boat.get("helm") or t.has_method("stand")
+
+
+## How far down you sit in your seat (m), and whether it's a leaning post.
+func _seat_drop() -> float:
+	return float(sat_in.get("drop")) if is_instance_valid(sat_in) else SEAT_DROP
+
+
+func _seat_lean() -> bool:
+	return is_instance_valid(sat_in) and bool(sat_in.get("lean"))
 
 
 ## E on the tuna tower's ladder (boat/tower.gd): up you go, the whole way, from where you stand.
@@ -1105,8 +1164,8 @@ func _let_go() -> void:
 	if steering:
 		steering = false
 		(boat.get("helm") as Node).call("request", false)
-	if seated:
-		(boat.get("seat") as Node).call("request", false)
+	if seated and is_instance_valid(sat_in):
+		sat_in.call("request", false)
 	_knock = 0.0
 
 
@@ -1552,7 +1611,10 @@ func _process(delta: float) -> void:
 	_water_fx(delta)
 	cam.fov = Settings.fov - 9.0 * kick         # (the settings page's field of view, live as it's dragged)
 	# Your eyes: lower in the fighting chair; level out part of the deck's tilt, keep your own look.
-	head.position.y = move_toward(head.position.y, 1.62 - (SEAT_DROP if seated else 0.0), delta * 2.0)
+	head.position.y = move_toward(head.position.y, 1.62 - (_seat_drop() if seated else 0.0), delta * 2.0)
+	# the rod's butt down in the fighting chair's gimbal, or out of it (rods.gd's _in_hands), a bit at a time
+	var in_chair := seated and is_instance_valid(sat_in) and sat_in.get("chair") != null
+	chair_k = move_toward(chair_k, 1.0 if in_chair else 0.0, delta * 3.0)
 	var tilted := global_transform.basis.orthonormalized()
 	var level := Basis(Vector3.UP, tilted.get_euler(EULER_ORDER_YXZ).y)
 	var eyes := tilted.slerp(level, STEADY)

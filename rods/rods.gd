@@ -1566,7 +1566,7 @@ func _end_mine(r: Rod, how: String) -> void:
 	_report_end.rpc_id(1, r.index, how)
 
 
-## A rod in someone's hands: the butt at their belt, the rod out in front and up, following where they look; heaved
+## A rod in someone's hands: the butt at their belt (in the fighting chair, in its gimbal), the rod out in front and up, following where they look; heaved
 ## up toward the sky in a pump (`lift`), swung back over the shoulder winding up a cast (`wind`) and whipped down
 ## through it (`whip`).
 func _in_hands(p: Node3D, r: Rod) -> Transform3D:
@@ -1585,4 +1585,9 @@ func _in_hands(p: Node3D, r: Rod) -> Transform3D:
 		b = p.global_basis * Basis(Vector3.FORWARD, -r.wind * 0.5) \
 				* Basis(Vector3.RIGHT, 0.55 + pitch * 0.6 + r.lift * 0.6 + r.wind * 0.9 - swing) * Basis(Vector3.UP, PI)
 		at = p.global_transform * Vector3(0.2 + r.wind * 0.25, 0.95 + r.wind * 0.1, -0.3 + r.wind * 0.2)
+	# in the fighting chair (boat/chair.gd), its butt down in the chair's gimbal between your knees (crew/player.gd's
+	# chair_k eases it in and out: nothing jumps). Just where it sits: the fight's the same.
+	var k := float(p.get("chair_k"))
+	if k > 0.0:
+		at = at.lerp(p.global_transform * Vector3(0.0, 0.55, -0.4), smoothstep(0.0, 1.0, k))
 	return Transform3D(b.orthonormalized(), at)
