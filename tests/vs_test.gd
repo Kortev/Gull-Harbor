@@ -260,10 +260,11 @@ func _meet(sea: Sea, vs: Vs, b: Node, a_boat: Node3D, b_boat: Node3D) -> void:
 	b_rods.call("host_clear")
 
 
-## Boarding her (crew/player.gd): A lying alongside B, you (B's crew) jump her rail and you're over both onto A's deck,
-## riding her as she moves; her wheel isn't yours to take. In the sea, up her ladder: any boat's. Back to B the same
-## way, over the rails. Then A lying a couple of metres off: a step off B's rail, looking at A, Space, and you leap the
-## gap onto her deck, nothing jumping; too far off, it's into the sea.
+## Boarding her (crew/player.gd): A lying alongside B, you (B's crew) up on B's rail and a leap, and you're over both
+## onto A's deck, riding her as she moves; her wheel isn't yours to take. In the sea, up her ladder: any boat's. Back
+## to B the same way, over the rails. Then A lying a couple of metres off: up on B's rail, looking at A, Space, and
+## you leap the gap onto her deck, in her deck space from the moment you land, nothing jumping; too far off, it's
+## into the sea.
 func _board(sea: Sea, a_boat: Node3D, b_boat: Node3D) -> void:
 	var ha: Node = a_boat.get("helm")
 	var hb: Node = b_boat.get("helm")
@@ -282,10 +283,8 @@ func _board(sea: Sea, a_boat: Node3D, b_boat: Node3D) -> void:
 	me.place(Vector3(1.9, deck + 0.02, 3.5), -PI * 0.5)
 	Input.action_press("move_forward")
 	await get_tree().create_timer(0.4).timeout
-	Input.action_press("jump")
-	await get_tree().physics_frame
-	await get_tree().physics_frame
-	Input.action_release("jump")
+	Input.action_release("move_forward")
+	await _up_and_off(me)
 	var t := 0.0
 	var step := 0.0
 	var prev := me.global_position
@@ -299,7 +298,7 @@ func _board(sea: Sea, a_boat: Node3D, b_boat: Node3D) -> void:
 	Input.action_release("move_forward")
 	_check(me.boat == a_boat and int(me.get("mode")) == 0 and me.get("home") == b_boat,
 			"over B's rail onto A's deck, still B's crew (%.1f s)" % t)
-	_check(step < 0.25, "a hop, not a jump in where you are (at most %.2f m a frame)" % step)
+	_check(step < 0.3, "a leap, not a jump in where you are (at most %.2f m a frame)" % step)
 	await get_tree().create_timer(0.5).timeout
 	_check(me.body.is_on_floor(), "standing on A's deck")
 	var on_a: Vector3 = a_boat.global_transform.affine_inverse() * me.global_position
@@ -329,10 +328,8 @@ func _board(sea: Sea, a_boat: Node3D, b_boat: Node3D) -> void:
 	me.place(Vector3(-1.9, deck + 0.02, 3.5), PI * 0.5)
 	Input.action_press("move_forward")
 	await get_tree().create_timer(0.4).timeout
-	Input.action_press("jump")
-	await get_tree().physics_frame
-	await get_tree().physics_frame
-	Input.action_release("jump")
+	Input.action_release("move_forward")
+	await _up_and_off(me)
 	t = 0.0
 	while (me.boat != b_boat or int(me.get("mode")) != 0) and t < 3.0:
 		await get_tree().process_frame
@@ -346,29 +343,61 @@ func _board(sea: Sea, a_boat: Node3D, b_boat: Node3D) -> void:
 		await get_tree().create_timer(0.3).timeout
 		me.place(Vector3(1.6, deck + 0.02, 3.5), -PI * 0.5, b_boat)
 		await get_tree().create_timer(0.3).timeout
+		var w := {"t": 0.0, "step": 0.0, "prev": me.global_position, "handed": INF}
 		Input.action_press("jump")
-		await get_tree().physics_frame
-		await get_tree().physics_frame
+		await _watch_leap(me, a_boat, w)
 		Input.action_release("jump")
-		t = 0.0
-		step = 0.0
-		prev = me.global_position
-		while int(me.get("mode")) != 0 and int(me.get("mode")) != 1 or t < 0.1:
-			await get_tree().process_frame
-			step = maxf(step, me.global_position.distance_to(prev))
-			prev = me.global_position
-			t += 1.0 / 30.0
-			if t > 4.0:
+		while int(me.get("_cap")) != 2 and float(w["t"]) < 1.5:
+			await _watch_leap(me, a_boat, w)
+		Input.action_press("jump")
+		await _watch_leap(me, a_boat, w)
+		Input.action_release("jump")
+		while int(me.get("mode")) != 0 and int(me.get("mode")) != 1 or float(w["t"]) < 0.8:
+			await _watch_leap(me, a_boat, w)
+			if float(w["t"]) > 5.0:
 				break
+		t = w["t"]
+		step = w["step"]
+		var handed: float = w["handed"]
 		if gap < 3.0:
 			_check(me.boat == a_boat and int(me.get("mode")) == 0, "a %.0f m gap: the leap onto A's deck (%.1f s)"
 					% [gap, t])
 			_check(step < 0.3, "across it, nothing jumping (at most %.2f m a frame)" % step)
+			_check(handed < 0.3, "into her deck space as you land, no jump there (%.2f m)" % handed)
 			await get_tree().create_timer(0.5).timeout
 			_check(me.body.is_on_floor(), "standing on A's deck")
 		else:
 			_check(int(me.get("mode")) == 1, "a %.0f m gap: too far, into the sea" % gap)
 	me.force_input = false
+
+
+## A frame of a leap: how long (t), the biggest step (m) and the step the frame you came into `to`'s space (handed).
+func _watch_leap(me: Node3D, to: Node3D, w: Dictionary) -> void:
+	var was_frame: Node3D = me.get("frame")
+	await get_tree().process_frame
+	var d := me.global_position.distance_to(w["prev"])
+	w["step"] = maxf(float(w["step"]), d)
+	if me.get("frame") != was_frame and me.get("frame") == to:
+		w["handed"] = d
+	w["prev"] = me.global_position
+	w["t"] = float(w["t"]) + 1.0 / 30.0
+
+
+## Space at the rail (up on its cap), then Space again looking out (a leap off it).
+func _up_and_off(me: Node) -> void:
+	Input.action_press("jump")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	Input.action_release("jump")
+	var t := 0.0
+	while int(me.get("_cap")) != 2 and t < 1.5:
+		await get_tree().process_frame
+		t += 1.0 / 30.0
+	_check(int(me.get("_cap")) == 2, "Space at her rail: up on it")
+	Input.action_press("jump")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	Input.action_release("jump")
 
 
 ## The results card (vs/card.gd): up on its own a moment after the weigh-in, the boats side by side, the numbers

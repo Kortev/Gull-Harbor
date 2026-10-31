@@ -5,6 +5,9 @@ extends Node
 ## and down, then it's gone and the rod's clear; with them for it, it stays and the HUD gives the next miss's odds.
 ## The first fish you're shown how to land (its hook clock held) never goes on a miss, and says so. Hit or miss the
 ## harpoon comes home to its rack on its line, and nothing (harpoon, fish) ever jumps from one place to another.
+## From up on her rail, looking down at a fish alongside: the throw goes where the crosshair is. Put it on the water
+## off to one side and the aim's dots stay pale and it misses; put it on the fish's back and they turn red, right
+## mouse steadies you (your view closes in), and let go: it sticks.
 ## Run: godot --headless --fixed-fps 30 --path . res://tests/harpoon_test.tscn
 
 const Sea := preload("res://sea/sea.gd")
@@ -132,8 +135,82 @@ func _ready() -> void:
 	_check(landing.fish.has(i) and float(landing.fish[i]["leave_t"]) < 0.0, "the lesson's fish stays on a miss")
 	_check(sea.crew.hud._note.text.contains("a miss can lose it"), "and it tells you a miss can lose the next: %s"
 			% sea.crew.hud._note.text)
+	landing.host_clear()
+	await _settle(Landing.RETURN + 0.5)
+	await _from_the_rail()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(hold.save_path))
 	_done()
+
+
+## Up on her rail on the fish's side, looking down at it: crosshair off it, a pale aim and a miss; on its back, a red
+## aim, steadied, and it sticks.
+func _from_the_rail() -> void:
+	var me := sea.crew.me
+	var landing := sea.landing
+	landing.escape_odds = [0.0]
+	var i := await _alongside(0, 140.0)
+	var side := float(landing.fish[i]["side"])
+	var deck := float(sea.boat.deck)
+	var z := float((sea.boat.spec["fish_water"] as Vector3).z)
+	me.call("place", Vector3((float(sea.boat.beam) * 0.5 - 0.6) * side, deck + 0.02, z), -PI * 0.5 * side)
+	await _frames(10)
+	Input.action_press("jump")
+	await _frames(2)
+	Input.action_release("jump")
+	await _frames(20)
+	_check(int(me.get("_cap")) == 2, "up on her rail, the fish's side")
+	landing._request_harpoon(true)
+	await _frames(2)
+	_check(landing.harpoon_holder == 1, "the harpoon's yours up there")
+	# the crosshair on the water a couple of metres along from it: pale, and a miss
+	var at := landing.fish_point(i)
+	var along := sea.boat.global_basis.z * 2.5
+	await _look_at(at + along + Vector3.DOWN * 0.3)
+	_press(true)
+	await _frames(12)
+	_check((landing.get("_arc") as Node3D).visible and not landing.aim_hits, "crosshair off it: the aim's dots pale")
+	_press(false)
+	await _settle(2.0)
+	_check(int(landing.fish[i]["misses"]) == 1 and not bool(landing.fish[i]["stuck"]),
+			"and it goes where you looked: a miss (%d)" % int(landing.fish[i]["misses"]))
+	await _settle(Landing.RETURN + 0.5)
+	landing._request_harpoon(true)
+	await _frames(2)
+	# the crosshair on its back, right mouse to steady, wound and let go
+	var fov := me.cam.fov
+	Input.action_press("use_secondary")
+	await _settle(Landing.BRACE + 0.2)
+	_check(landing.steady > 0.99 and me.cam.fov < fov - 5.0, "right mouse: steadied, your view closes in (%.0f to %.0f)"
+			% [fov, me.cam.fov])
+	await _look_at(landing.fish_point(i))
+	_press(true)
+	var red := false
+	for k in 24:
+		await _look_at(landing.fish_point(i), 1)
+		red = red or landing.aim_hits
+	_check(red, "crosshair on its back: the aim's dots red")
+	_press(false)
+	var t := 0.0
+	while not bool(landing.fish[i]["stuck"]) and t < 2.0:
+		await _frames(1)
+		t += 1.0 / 30.0
+	_check(bool(landing.fish[i]["stuck"]), "let go: it goes where you looked, and sticks it (%.2f s)" % t)
+	Input.action_release("use_secondary")
+	await _settle(0.5)
+	_check(landing.steady < 0.01 and absf(me.cam.fov - fov) < 1.0, "let go of right mouse: your view back")
+
+
+## Turns you till the middle of your view is on `at` (a few frames of it: you're on a moving boat).
+func _look_at(at: Vector3, frames := 6) -> void:
+	var me := sea.crew.me
+	for k in frames:
+		await _frames(1)
+		var cam := me.get("cam") as Camera3D
+		var d := -cam.global_basis.z
+		var to := (at - cam.global_position).normalized()
+		var yaw_off := Vector2(d.x, d.z).angle_to(Vector2(to.x, to.z))
+		me.set("_yaw", float(me.get("_yaw")) - yaw_off)
+		me.set("_pitch", clampf(float(me.get("_pitch")) + asin(to.y) - asin(d.y), -1.45, 1.45))
 
 
 ## Rod `r`'s fish (kg) fought out and up alongside, held quiet on its leader; its index.
@@ -176,8 +253,8 @@ func _aim_onto(i: int) -> bool:
 		for k in 30:
 			me.set("_pitch", -1.0 + k * 0.05)
 			await _frames(1)
-			var h := landing.get("_harpoon") as Node3D
-			if landing.aimed_at(h.global_position, -h.global_basis.z, 1.0) == i:
+			var aim: Array = landing.throw_aim()
+			if landing.aimed_at(aim[0], aim[1], 1.0) == i:
 				return true
 	return false
 

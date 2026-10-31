@@ -39,6 +39,8 @@ extends RefCounted
 ##                 (boat/tower.gd; only the sportfisher has one)
 ##   ladder        the boarding ladder hooked over her transom (boat/ladder.gd): x across, y the top of the transom
 ##                 (its cap, where you climb over), z the transom's outside face; clear of her engines and tuna door
+##   bulwark       m her collider's wall stands over her rail's cap (art/*.py: so nobody walks off her); the crew
+##                 stand on the cap under it (crew/player.gd)
 
 const DEFAULT := "sportfisher"
 
@@ -67,7 +69,7 @@ const KINDS := {
 		"chum": Vector3(0.75, 0.46, 3.85), "jig": 2,
 		"price": 0, "fuel": 60,
 		"radar_bar": Vector3(0.0, 2.68, -0.3),
-		"ladder": Vector3(-1.0, 1.15, 4.25),
+		"ladder": Vector3(-1.0, 1.15, 4.25), "bulwark": 0.6,
 		"seats": [{"at": Vector3(0.0, 0.99, -1.2), "face": 0.0, "name": "the cooler seat"},
 				{"at": Vector3(0.0, 0.95, 1.45), "face": 0.0, "name": "the leaning post", "lean": true}],
 		"rail": [Vector3(1.37, 1.15, 3.83), Vector3(1.43, 1.15, 2.13), Vector3(1.45, 1.15, 0.43),
@@ -99,7 +101,7 @@ const KINDS := {
 		"cabin_light": Vector3(0.0, 2.45, -1.3), "crown": Vector3(0.0, 7.6, -1.3),
 		"chum": Vector3(-0.9, 0.56, 6.55), "jig": 4,
 		"price": 20000, "fuel": 400,
-		"ladder": Vector3(-1.35, 1.45, 7.0),
+		"ladder": Vector3(-1.35, 1.45, 7.0), "bulwark": 0.5,
 		"seats": [{"at": Vector3(0.9, 1.23, -1.47), "face": PI, "name": "the skipper's seat"},
 				{"at": Vector3(-1.62, 1.1, -1.45), "face": -PI * 0.5, "name": "the bench"},
 				{"at": Vector3(-1.62, 1.1, -0.55), "face": -PI * 0.5, "name": "the bench"}],

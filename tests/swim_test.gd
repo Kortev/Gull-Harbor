@@ -1,8 +1,8 @@
 extends Node
 ## Water for people (crew/player.gd, boat/ladder.gd), headless, in the skiff:
-## - over the side: Space at her rail (a step off it, looking at it) and you're over it and in, a splash; afloat at
-##   the waves' own height (the height the boats float on), your eyes at the water, not sinking, a beat behind the
-##   swell; strokes (a slap of water each); a sprint's quicker than a swim; Ctrl dives you under (the murk) and you
+## - over the side: Space at her rail (a step off it, looking at it) and you're up on it, Space again and you're
+##   off it and in, a splash; afloat at the waves' own height (the height the boats float on), your eyes at the
+##   water, not sinking, a beat behind the swell; strokes (a slap of water each); a sprint's quicker than a swim; Ctrl dives you under (the murk) and you
 ##   come up gasping; swim to her boarding ladder and E by its foot (no crosshair on it) and you've hold of it: W up
 ##   a step at a time (neither and you hang there), S back down and into the water at the foot, E again, up W over
 ##   her transom onto her deck, never a jump in where you are (in her frame); from her deck, E at its top takes you
@@ -48,7 +48,13 @@ func _swim() -> void:
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	Input.action_release("jump")
-	_check(me.mode == Player.HOP, "Space at the rail: over it (mode %d)" % me.mode)
+	await _until(func() -> bool: return int(me.get("_cap")) == Player.CAP_ON, 1.5)
+	_check(int(me.get("_cap")) == Player.CAP_ON, "Space at the rail: up on it")
+	Input.action_press("jump")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	Input.action_release("jump")
+	_check(me.mode == Player.AIR, "Space again, looking out: off it (mode %d)" % me.mode)
 	await _until(func() -> bool: return me.mode == Player.SWIM, 2.0)
 	_check(me.mode == Player.SWIM and me.frame == null, "and into the sea")
 	await _until(func() -> bool: return me.splashes > 0, 3.0)
@@ -219,7 +225,7 @@ func _shove() -> void:
 	await _wait(0.2)
 	_check(float(me.get("_knock")) <= 0.0, "nothing yet, in the windup")
 	await _until(func() -> bool: return me.mode != Player.DECK, 2.0)
-	_check(me.mode == Player.HOP or me.mode == Player.SWIM, "shoved near the rail: over it you go (mode %d)" % me.mode)
+	_check(me.mode == Player.AIR or me.mode == Player.SWIM, "shoved near the rail: over it you go (mode %d)" % me.mode)
 	await _until(func() -> bool: return me.mode == Player.SWIM, 2.0)
 	mate._host_shove()
 	_check(mate.shoves == 1, "and not again straight away")
