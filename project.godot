@@ -23,6 +23,7 @@ driver/enable_input=true
 
 Net="*res://core/net.gd"
 Settings="*res://core/settings.gd"
+Music="*res://audio/music.gd"
 
 [display]
 

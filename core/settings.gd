@@ -5,7 +5,7 @@ extends Node
 ##
 ## The sound goes through four buses under Master, made here if the project has none: Effects (everything in the
 ## game: any player left on Master as it enters the tree is moved onto it), Voice (the crew talking, voice chat to
-## come), Music (for later). Radio (ui/radio.gd) sends into Effects.
+## come), Music (audio/music.gd). Radio (ui/radio.gd) sends into Effects.
 ##
 ## The keys: REBINDABLE's actions, each a list of InputEvents in the InputMap; a rebind changes the first one (a second,
 ## like swim_down's C, stays). The project's own bindings are remembered at startup for RESET TO DEFAULTS, and two
