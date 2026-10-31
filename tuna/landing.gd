@@ -1372,6 +1372,7 @@ func _make_arc() -> MultiMeshInstance3D:
 	mmi.multimesh = mm
 	var m := _unshaded(Color.WHITE)
 	m.vertex_color_use_as_albedo = true
+	m.vertex_color_is_srgb = true      # (AIM_HIT a real red, not washed out to salmon)
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	m.fixed_size = true
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
