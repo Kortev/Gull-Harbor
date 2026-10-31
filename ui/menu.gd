@@ -8,7 +8,8 @@ extends CanvasLayer
 ## CAST OFF (the skipper's: a crewmate sees WAITING FOR THE SKIPPER). In Rivals (vs/vs.gd) there's no board: the
 ## countdown lets both boats go, and Esc gives the pause card.
 ##
-## Out there (Esc), a small pause card: back to the deck, the owner's manual, the crew (the join code to send, a Steam
+## Out there (Esc), a small pause card: back to the deck, the owner's manual, the settings (ui/settings_page.gd: the
+## board has them too), the crew (the join code to send, a Steam
 ## invite), leave the crew, back to the title, quit the game. No heading in from a menu, in any game: you drive her home and tie her up alongside
 ## the fish pier (sea/sea.gd's race home at dusk).
 ##
@@ -17,6 +18,7 @@ extends CanvasLayer
 const FishHold := preload("res://boat/fish_hold.gd")
 const Kinds := preload("res://boat/kinds.gd")
 const Manual := preload("res://ui/manual.gd")
+const SettingsPage := preload("res://ui/settings_page.gd")
 
 ## The type sizes: the pixel font's 6 px line at 2, 3 and 4 times.
 const SMALL := 12
@@ -41,6 +43,9 @@ var _code: Label
 ## The boat's owner's manual (ui/manual.gd), open instead of the menu.
 var _manual: Manual
 var _reading := false
+## The settings page, open instead of the menu.
+var _settings: SettingsPage
+var _tuning := false
 
 
 func _ready() -> void:
@@ -60,6 +65,7 @@ func _ready() -> void:
 	col.add_child(_status)
 	col.add_child(_button("BACK TO THE DECK", _resume, true))
 	col.add_child(_button("THE OWNER'S MANUAL", func() -> void: _reading = true))
+	col.add_child(_button("SETTINGS", open_settings))
 	_crew_box = VBoxContainer.new()
 	_crew_box.add_theme_constant_override("separation", 6)
 	col.add_child(_crew_box)
@@ -84,8 +90,13 @@ func _ready() -> void:
 	shut.visible = false
 	shut.name = "CloseManual"
 	add_child(shut)
+	_settings = SettingsPage.new()
+	_settings.closed.connect(func() -> void: _tuning = false)
+	add_child(_settings)
 	_panel = _board
 	Net.dropped.connect(func(reason: String) -> void: _status.text = reason.to_upper())
+	if _shot_page() >= 0:
+		open_settings.call_deferred(_shot_page())
 
 
 ## A dark card centred on the screen, at least `size` (height 0: as tall as it needs), an amber edge down its left.
@@ -153,6 +164,12 @@ func _section(parent: Control, title: String) -> VBoxContainer:
 	return col
 
 
+## The settings page, in place of the board or the pause card till its BACK.
+func open_settings(page := 0) -> void:
+	_tuning = true
+	_settings.open(page)
+
+
 func _resume() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -174,13 +191,16 @@ func _process(_delta: float) -> void:
 	var open := Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not _headless_shot() \
 			and (title == null or not bool(title.call("busy")))
 	_reading = _reading and open
+	if _tuning and not open:
+		_tuning = false
+		_settings.close()
 	var hold := _fish_hold()
 	var docked: bool = hold != null and bool(hold.get("docked"))
 	var vs := get_parent().get("vs") as Node
 	var vs_on := vs != null and bool(vs.get("on"))
 	_panel = _board if docked and not vs_on else _pause
-	_board.visible = open and not _reading and _panel == _board
-	_pause.visible = open and not _reading and _panel == _pause
+	_board.visible = open and not _reading and not _tuning and _panel == _board
+	_pause.visible = open and not _reading and not _tuning and _panel == _pause
 	_manual.visible = _reading
 	(get_node("CloseManual") as Control).visible = _reading
 	if not open:
@@ -351,6 +371,7 @@ func _fill_board(hold: Node, docked: bool) -> void:
 	links.add_theme_constant_override("separation", 10)
 	_dock.add_child(links)
 	links.add_child(_button("THE OWNER'S MANUAL", func() -> void: _reading = true))
+	links.add_child(_button("SETTINGS", open_settings))
 	links.add_child(_button("BACK TO THE TITLE", _to_title))
 	links.add_child(_button("QUIT THE GAME", func() -> void: get_tree().quit()))
 
@@ -369,12 +390,21 @@ static func _money(n: int) -> String:
 	return FishHold._money(n)
 
 
-## Screenshots and tests never show the menu, unless asked (--menu: a screenshot of it).
+## Screenshots and tests never show the menu, unless asked (--menu: a screenshot of it; --settings[=look|sound|
+## screen|keys]: of the settings page).
 func _headless_shot() -> bool:
 	var args := OS.get_cmdline_user_args()
-	if args.has("--menu"):
+	if args.has("--menu") or _shot_page() >= 0:
 		return false
 	for a in args:
 		if a.begins_with("--shot") or a.begins_with("--cam") or a.begins_with("--net-report"):
 			return true
 	return false
+
+
+## --settings[=page] (screenshots): which page, 0 LOOK .. 3 KEYS; -1 not asked.
+static func _shot_page() -> int:
+	for a in OS.get_cmdline_user_args():
+		if a == "--settings" or a.begins_with("--settings="):
+			return maxi(SettingsPage.TABS.find(a.trim_prefix("--settings").trim_prefix("=").to_upper()), 0)
+	return -1

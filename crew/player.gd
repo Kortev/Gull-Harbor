@@ -283,7 +283,7 @@ func _ready() -> void:
 	add_child(head)
 	cam = Camera3D.new()
 	cam.name = "Camera3D"
-	cam.fov = 75.0
+	cam.fov = Settings.fov
 	cam.near = 0.05
 	cam.far = 6000.0
 	head.add_child(cam)
@@ -689,8 +689,14 @@ func _input(event: InputEvent) -> void:
 		if leased():
 			fight_mouse += m.relative * look_scale
 			return
-		_yaw -= m.relative.x * LOOK * look_scale
-		_pitch = clampf(_pitch - m.relative.y * LOOK * look_scale, -1.45, 1.45)
+		look(m.relative)
+
+
+## Turns your head by a mouse move (px), with the player's own feel (core/settings.gd's sensitivity and invert Y).
+func look(relative: Vector2) -> void:
+	var k := LOOK * look_scale * Settings.sensitivity
+	_yaw -= relative.x * k
+	_pitch = clampf(_pitch - relative.y * k * (-1.0 if Settings.invert_y else 1.0), -1.45, 1.45)
 
 
 ## The rod has your mouse (rods.gd stamped it this frame or the last: input comes before its _process).
@@ -1457,6 +1463,7 @@ func _process(delta: float) -> void:
 	global_transform = _xf(frame) * Transform3D(Basis(Vector3.UP, _yaw), local)
 	_pose_body(delta)
 	_water_fx(delta)
+	cam.fov = Settings.fov          # (the settings page's field of view, live as it's dragged)
 	# Your eyes: lower in the fighting chair; level out part of the deck's tilt, keep your own look.
 	head.position.y = move_toward(head.position.y, 1.62 - (SEAT_DROP if seated else 0.0), delta * 2.0)
 	var tilted := global_transform.basis.orthonormalized()

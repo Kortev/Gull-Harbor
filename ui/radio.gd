@@ -39,7 +39,7 @@ static func _make_bus() -> void:
 	AudioServer.add_bus()
 	var i := AudioServer.bus_count - 1
 	AudioServer.set_bus_name(i, BUS)
-	AudioServer.set_bus_send(i, "Master")
+	AudioServer.set_bus_send(i, "Effects" if AudioServer.get_bus_index("Effects") >= 0 else "Master")   # (core/settings.gd)
 	var hp := AudioEffectHighPassFilter.new()
 	hp.cutoff_hz = 320.0
 	AudioServer.add_bus_effect(i, hp)

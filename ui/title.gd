@@ -6,6 +6,7 @@ extends CanvasLayer
 ##            a Steam friend sees your boat, or the Esc menu has the join code to send)
 ##   RIVALS   two boats, a crew each; most pounds aboard by dusk wins the day, best of three (vs/vs.gd)
 ##   JOIN A FRIEND   aboard a friend's boat, whichever game they're playing
+##   SETTINGS the look, the sound, the screen and the keys (ui/settings_page.gd, over the title)
 ##   QUIT
 ## Rivals asks HOST or JOIN. Hosting opens the crew list (who's aboard which boat, the join code to send, a
 ## Steam invite) and the host's START; joining is your Steam friends with a boat out, or typing in their code. START
@@ -17,6 +18,7 @@ extends CanvasLayer
 
 const PixFont := preload("res://ui/pixfont.gd")
 const Kinds := preload("res://boat/kinds.gd")
+const SettingsPage := preload("res://ui/settings_page.gd")
 
 const AMBER := Color(1.0, 0.78, 0.34)
 const CREAM := Color(1.0, 0.95, 0.82)
@@ -51,6 +53,8 @@ var _keys: Array[Transform3D] = []
 var _caption: Control
 var _from: Transform3D
 var _friends_in := 0.0
+## The settings page, over the title while it's open.
+var settings: SettingsPage
 
 
 func _ready() -> void:
@@ -67,6 +71,11 @@ func _ready() -> void:
 	_caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_caption.draw.connect(_draw_caption)
 	add_child(_caption)
+	settings = SettingsPage.new()
+	settings.closed.connect(func() -> void:
+		_view.visible = true
+		_view.grab_focus())
+	add_child(settings)
 	_cam = Camera3D.new()
 	_cam.fov = 60.0
 	_cam.far = 6000.0
@@ -105,6 +114,7 @@ func _go(page: String) -> void:
 				["JOIN A FRIEND", "GET ABOARD A FRIEND'S BOAT.", func() -> void:
 					_mode = ""
 					_go("join")],
+				["SETTINGS", "THE MOUSE, THE SOUND, THE SCREEN AND THE KEYS.", open_settings],
 				["QUIT", "", func() -> void: get_tree().quit()]]
 		"host_join":
 			_items = [["HOST", "START A BOAT AND SEND YOUR FRIEND THE CODE.", _host],
@@ -149,6 +159,12 @@ func _go(page: String) -> void:
 				(sea.get("crew") as Node).call("start_solo")
 				_go("main")])
 	_view.queue_redraw()
+
+
+## The settings page over the title (the title waits under it, and has the keys back when it closes).
+func open_settings() -> void:
+	_view.visible = false
+	settings.open()
 
 
 func _choose(mode: String) -> void:
