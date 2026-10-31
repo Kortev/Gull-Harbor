@@ -406,6 +406,13 @@ func _process(_delta: float) -> void:
 	_move_sun()
 	# in a storm the lightning goes for her highest point, the tower or the T-top (sea_fx's crown, in its space: the world's)
 	sea_fx.crown = boat.global_transform * (boat.spec.get("crown", Vector3(0.0, 7.6, -1.3)) as Vector3)
+	if _args.has("card") and _frames == 10 and vs.card != null:
+		# (screenshots: the Rivals results card, --card a day's, --card=match the match's)
+		var m := str(_args["card"]) == "match"
+		vs.card.open({"decided": m, "winner": 0, "day": 2 if m else 1, "wins": [2, 0] if m else [1, 0],
+				"crewed": [true, true], "day_lb": [198.0, 132.0], "boats": [
+				{"fish": 3, "kg": 182.4, "big": 96.1, "money": 4120, "late": 0.0, "lb": 402.0},
+				{"fish": 2, "kg": 131.0, "big": 88.7, "money": 2650, "late": 62.0, "lb": 227.0}]}, 0)
 	if _args.has("watch") and not schools.schools.is_empty():
 		# (screenshots: from 28 m off the nearest school, on the boat's side of it, looking at it)
 		var c: Vector2 = schools.schools[0].center(ocean.wave_time)
