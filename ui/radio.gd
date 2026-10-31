@@ -5,9 +5,11 @@ extends Node
 ##
 ## Voices: a recording at res://audio/voice/<who>/<line>.ogg (or .wav) plays through the bus when that line is said
 ## (docs/VOICE_LINES.md lists them, what to say and how). Record it dry, close to the mic: the bus does the radio.
-## No recording yet: just the squelch, the hiss for as long as the words are up, and the tail.
+## No recording yet: the squelch, then a voice you can't quite make out (audio/radio_voice.gd: made up as it plays,
+## about as long as the words take, the way a voice over a boat's VHF sounds) over the hiss, and the tail.
 
 const Sfx := preload("res://audio/sfx.gd")
+const RadioVoice := preload("res://audio/radio_voice.gd")
 const BUS := "Radio"
 ## The same radio sound for the crews' own voices over the VHF (crew/talk.gd), under the Voice slider, not Effects.
 const VOICE_BUS := "VoiceRadio"
@@ -16,6 +18,8 @@ const RATE := 22050
 
 var _hiss: Node               # the static bed through the bus, up while a call's open
 var _voice: AudioStreamPlayer
+## The voice for a line with no recording (audio/radio_voice.gd).
+var garble: RadioVoice
 var _open := false
 var _burst: AudioStreamWAV
 var _tail: AudioStreamWAV
@@ -29,6 +33,11 @@ func _ready() -> void:
 	_voice.bus = BUS
 	_voice.volume_db = 2.0
 	add_child(_voice)
+	garble = RadioVoice.new()
+	garble.name = "Garble"
+	garble.bus = BUS
+	garble.volume_db = -2.0
+	add_child(garble)
 	_hiss = Sfx.loop(self, "collar.static")
 	if _hiss:
 		_hiss.set("bus", BUS)
@@ -65,13 +74,16 @@ static func _make_bus(bus := BUS, to := "Effects") -> void:
 	AudioServer.add_bus_effect(i, squash)
 
 
-## A call: the squelch opens, `who`'s recording of `line` plays if there is one, the hiss runs `seconds` (or as long as
-## the recording), then the tail. Returns how long it runs (s).
-func call_in(who: String, line: String, seconds: float) -> float:
+## A call: the squelch opens, `who`'s recording of `line` plays if there is one (else, given how many `words` it is,
+## a voice saying about that many: RadioVoice), the hiss runs `seconds` (or as long as the voice), then the tail.
+## Returns how long it runs (s).
+func call_in(who: String, line: String, seconds: float, words := 0) -> float:
 	var clip := _clip(who, line)
 	var length := seconds
 	if clip != null:
 		length = maxf(clip.get_length() + 0.3, 1.0)
+	elif words > 0:
+		length = maxf(seconds, garble.say(words, 0.18) + 0.25)
 	_play(_burst, 0.0, -4.0)
 	_open = true
 	Sfx.fade(_hiss, 0.22, 0.12)
