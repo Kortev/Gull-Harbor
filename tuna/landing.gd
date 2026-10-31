@@ -7,10 +7,12 @@ extends Node
 ## giant). Then it's on deck (boat/fish_hold.gd). Leave it alongside too long without sticking it and the hook pulls.
 ## Where all of that is comes from the boat's kind (boat/kinds.gd).
 ##
-## The throw is a skill. The harpoon flies from your hands where it's pointing, as hard as you wound it, and falls as
-## it goes (a dotted arc shows where it'll come down while you wind); it sticks only if its point passes through the
-## fish's back, and the fish keeps swimming its slow circle while it's in the air, so you lead it. Hold it wound too
-## long and your arm shakes. A miss splashes in beside it and spooks it: each miss is a chance it tears the hook out
+## The throw is a skill. Winding up you bring the harpoon up to your eye and sight along it: it flies where your
+## crosshair is (from your hand toward what the middle of your view is on: the fish's back, else the water), as hard
+## as you wound it, and falls as it goes; a dotted arc shows where it'll come down while you wind, a mark where, red
+## when it'd strike the fish. It sticks only if its point passes through the fish's back, and the fish keeps swimming
+## its slow circle while it's in the air, so you lead it. Hold it wound too long and your arm shakes; right mouse
+## steadies you (your view closes in, your look slows, the shake comes later and smaller). A miss splashes in beside it and spooks it: each miss is a chance it tears the hook out
 ## and goes (ESCAPE: more each time), and the HUD says the odds. Hit or miss, the harpoon comes back to its rack on
 ## its line, hand over hand; stuck, the dart stays in the fish, its orange float on the water beside it.
 ##
@@ -44,6 +46,16 @@ const HIT := 0.2
 const SWAY_AFTER := 1.2
 const SWAY := 0.06
 const REACH := 12.0
+## Right mouse with the harpoon: s to steady yourself; steadied, the shake comes this much later (s) and this much of
+## it.
+const BRACE := 0.25
+const BRACED_LATER := 1.5
+const BRACED_SWAY := 0.3
+## The aim's colours: its dots, and them and the mark when it'd strike the fish.
+const AIM := Color(1.0, 0.92, 0.7)
+const AIM_HIT := Color(1.0, 0.3, 0.16)
+## The dots in the mark where it comes down (a square, three a side).
+const MARK := 12
 ## The harpoon: its point, m ahead of where you hold it; after a throw it lies a moment, then comes back to the rack
 ## on its line in RETURN s.
 const TIP := 1.92
@@ -85,8 +97,11 @@ var sea: Node                 # sea/sea.gd
 var fish := {}
 ## Who's got the harpoon (peer id; 0: in its rack).
 var harpoon_holder := 0
-## Your wind-up, 0..1 (ui/hotbar.gd shows it), while you hold left mouse with the harpoon.
+## Your wind-up, 0..1 (ui/hotbar.gd shows it), while you hold left mouse with the harpoon; steadied (right mouse),
+## 0..1; and whether your aim's on the fish (the arc says so).
 var draw := 0.0
+var steady := 0.0
+var aim_hits := false
 ## The chance a miss loses it, by misses so far (ESCAPE; the tests set their own), and the host's dice.
 var escape_odds: Array = ESCAPE.duplicate()
 var rng := RandomNumberGenerator.new()
@@ -204,6 +219,13 @@ func _process(delta: float) -> void:
 		_drawing = false
 	draw = move_toward(draw, 1.0, delta / DRAW) if _drawing else 0.0
 	_full_t = _full_t + delta if _drawing and draw >= 1.0 else 0.0
+	# right mouse, the harpoon in your hands: steadying yourself (your eyes close in: crew/player.gd)
+	var bracing := harpoon_holder == Net.my_id() and _flight.is_empty() and _live() 			and Input.is_action_pressed("use_secondary")
+	if bracing or steady > 0.0:
+		steady = move_toward(steady, 1.0 if bracing else 0.0, delta / BRACE)
+		var me := crew.get("me") as Node
+		if me != null:
+			me.set("steady", steady)
 	_place_harpoon(delta, boat, ocean, crew)
 	var rods := sea.get("rods") as Node
 	for i: int in fish:
@@ -281,20 +303,81 @@ func _place_harpoon(delta: float, boat: Node3D, ocean: Node, crew: Node) -> void
 	_draw_arc(ocean, mine and _drawing)
 
 
-## The harpoon in someone's hands: at the shoulder, pointing where they look (a touch up). Yours draws back and up as
-## you wind it, and shakes if you hold it there too long.
+## The harpoon in someone's hands: at the shoulder, pointing where they look (a touch up). Yours comes up to your eye
+## as you wind it (or steady it), drawn back, pointing where it'll go (throw_aim), and shakes if you hold it there
+## too long.
 func _in_hands(p: Node3D) -> Transform3D:
 	var cam := p.get("cam") as Node3D
 	if cam == null:
 		return p.global_transform
-	var d := draw if p == (sea.get("crew") as Node).get("me") else 0.0
-	var b := cam.global_basis * Basis(Vector3.RIGHT, 0.05 + 0.08 * d)
-	var wobble := clampf((_full_t - SWAY_AFTER) / 1.5, 0.0, 1.0) * SWAY if d >= 1.0 else 0.0
-	if wobble > 0.0:
-		var t := Time.get_ticks_msec() * 0.001
-		b = b * Basis.from_euler(Vector3(sin(t * 7.0) + 0.5 * sin(t * 17.0), cos(t * 5.0) + 0.5 * sin(t * 13.0), 0.0) 				* wobble)
-	var ease := smoothstep(0.0, 1.0, d)
-	return Transform3D(b, cam.global_transform * Vector3(0.22 + 0.04 * ease, -0.3 + 0.08 * ease, 0.1 + 0.25 * ease))
+	var mine: bool = p == (sea.get("crew") as Node).get("me")
+	var d := draw if mine else 0.0
+	var ease := smoothstep(0.0, 1.0, clampf(maxf(d * 1.6, steady if mine else 0.0), 0.0, 1.0))
+	var at := cam.global_transform * Vector3(0.22, -0.3, 0.1).lerp(Vector3(0.14, -0.15, 0.3), ease)
+	var b := cam.global_basis * Basis(Vector3.RIGHT, 0.05)
+	if ease > 0.0:
+		var aim := _sight(cam as Camera3D) - at
+		b = b.slerp(_look(aim) if aim.length() > 0.01 else b, ease).orthonormalized()
+	return Transform3D(b * Basis.from_euler(_wobble() if mine else Vector3.ZERO), at)
+
+
+## Your arm shaking, held wound too long (later and less steadied): a turn of the harpoon (euler, radians).
+func _wobble() -> Vector3:
+	var k := clampf((_full_t - SWAY_AFTER - BRACED_LATER * steady) / 1.5, 0.0, 1.0) * SWAY 			* lerpf(1.0, BRACED_SWAY, steady)
+	if k <= 0.0 or draw < 1.0:
+		return Vector3.ZERO
+	var t := Time.get_ticks_msec() * 0.001
+	return Vector3(sin(t * 7.0) + 0.5 * sin(t * 17.0), cos(t * 5.0) + 0.5 * sin(t * 13.0), 0.0) * k
+
+
+## What the middle of your view is on (world): the back of a fish alongside it passes over, else the water it goes
+## into, else as far as a throw counts.
+func _sight(cam: Camera3D) -> Vector3:
+	var eye := cam.global_position
+	var view := -cam.global_basis.z
+	var best := INF
+	var on := Vector3.INF
+	for i: int in fish:
+		var f: Dictionary = fish[i]
+		if bool(f["stuck"]) or down(i) or float(f["leave_t"]) >= 0.0:
+			continue
+		var node := f["node"] as Tuna
+		var snout := node.global_transform * Vector3(0.0, 0.0, -0.42 * node.length)
+		var root := node.global_transform * Vector3(0.0, 0.0, 0.32 * node.length)
+		var near := Geometry3D.get_closest_points_between_segments(eye, eye + view * REACH, snout, root)
+		if near[0].distance_to(near[1]) < node.length * HIT and eye.distance_to(near[0]) < best:
+			best = eye.distance_to(near[0])
+			on = near[1]
+	if on != Vector3.INF:
+		return on
+	var ocean := sea.get("ocean") as Node
+	var s := 0.0
+	while s < REACH:
+		s += 0.2
+		var q := eye + view * s
+		if q.y < float(ocean.call("height_at", q)):
+			return q
+	return eye + view * REACH
+
+
+## A throw from the harpoon in your hands now: [from (world: where you hold it), dir (world)]: toward what your
+## crosshair's on (_sight), turned by any shake.
+func throw_aim() -> Array:
+	var me := (sea.get("crew") as Node).get("me") as Node3D
+	var cam: Camera3D = me.get("cam") if me != null else null
+	var from := _harpoon.global_position
+	if cam == null:
+		return [from, -_harpoon.global_basis.z]
+	var dir := (_sight(cam) - from).normalized()
+	var w := _wobble()
+	if w != Vector3.ZERO:
+		dir = (cam.global_basis * Basis.from_euler(w) * cam.global_basis.inverse() * dir).normalized()
+	return [from, dir]
+
+
+func _live() -> bool:
+	var me := (sea.get("crew") as Node).get("me") as Node
+	return Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or (me != null and bool(me.get("force_input")))
 
 
 ## A throw in the air: falling as it flies, its point along its way. On the thrower's machine it's judged as it goes:
@@ -373,25 +456,44 @@ func _hit_along(a: Vector3, b: Vector3) -> Dictionary:
 ## The fish alongside a throw from `from` along `dir` (all you've got) would stick (-1: none), flown out as it would
 ## go against where the fish are now.
 func aimed_at(from: Vector3, dir: Vector3, power := 1.0) -> int:
-	var v := dir.normalized() * lerpf(THROW_SPEED.x, THROW_SPEED.y, power)
-	var p := from
-	var dt := 1.0 / 60.0
-	var t := 0.0
+	return int(_predict(from, dir.normalized() * lerpf(THROW_SPEED.x, THROW_SPEED.y, power), false)["hit"])
+
+
+## A throw held at `from` (world) let go at `v`, flown out as _fly flies it against where the fish are now: where its
+## point goes while it's over the water (dots), where it goes in (down; INF: it doesn't), and the fish it'd stick and
+## where (hit -1: none). `tip`: its point's TIP ahead of `from` (else `from` is its point).
+func _predict(from: Vector3, v: Vector3, tip := true) -> Dictionary:
+	var out := {"dots": PackedVector3Array(), "down": Vector3.INF, "hit": -1, "at": Vector3.INF}
 	var ocean := sea.get("ocean") as Node
+	var dt := 1.0 / 60.0
+	var p := from
+	var was := from
+	var t := 0.0
+	var wet := false
+	var dots := PackedVector3Array()
 	while t < 2.0 and p.distance_to(from) < REACH:
-		var q := p + v * dt
 		v.y -= GRAVITY * dt
-		var under := float(ocean.call("height_at", q)) - q.y
-		if under > 0.0:
-			v *= exp(-4.0 * dt)
-		if under > SINK:
-			return -1
-		var hit := _hit_along(p, q)
-		if not hit.is_empty():
-			return int(hit["i"])
-		p = q
+		p += v * dt
 		t += dt
-	return -1
+		var at := p + v.normalized() * (TIP if tip else 0.0)
+		var hit := _hit_along(was, at)
+		if not hit.is_empty():
+			out["hit"] = int(hit["i"])
+			out["at"] = hit["at"]
+			break
+		var under := float(ocean.call("height_at", at)) - at.y
+		if under > 0.0:
+			if not wet:
+				wet = true
+				out["down"] = at
+			v *= exp(-4.0 * dt)
+		else:
+			dots.append(at)
+		if under > SINK:
+			break
+		was = at
+	out["dots"] = dots
+	return out
 
 
 ## The line from the rack to the harpoon's butt while it's out of the rack (sagging a little, a straight pull on a
@@ -411,38 +513,46 @@ func _draw_line(boat: Node3D, local: Transform3D) -> void:
 	_line_mesh.surface_end()
 
 
-## Your aim while you wind up: dots along where the point would go if you let go now, and a ring where it comes
-## down on the water.
+## Your aim while you wind up: chunky dots along where the point would go if you let go now, and a square mark where it
+## comes down on the water; dots and mark red when it'd strike the fish (the mark then on the water over its back).
 func _draw_arc(ocean: Node, show: bool) -> void:
 	_arc.visible = show
 	if not show:
+		aim_hits = false
 		return
 	var mm := _arc.multimesh
-	var dir := -_harpoon.global_basis.z
-	var v := dir * lerpf(THROW_SPEED.x, THROW_SPEED.y, maxf(draw, 0.15))
-	var p := _harpoon.global_position + dir * TIP
-	var dt := 0.035
+	var aim := throw_aim()
+	var dir: Vector3 = aim[1]
+	var go := _predict(aim[0], dir * lerpf(THROW_SPEED.x, THROW_SPEED.y, maxf(draw, 0.15)))
+	aim_hits = int(go["hit"]) >= 0
+	var c := AIM_HIT if aim_hits else AIM
+	var path: PackedVector3Array = go["dots"]
+	var dots := mm.instance_count - MARK
+	var gone := Transform3D(Basis.IDENTITY.scaled(Vector3.ZERO), Vector3.ZERO)
+	# (a dot every few steps: a dotted line, smaller and fainter the farther it goes)
 	var n := 0
-	var down_at := Vector3.INF
-	var dots := mm.instance_count - 10
-	while n < dots:
-		var q := p + v * dt
-		v.y -= GRAVITY * dt
-		if q.y < float(ocean.call("height_at", q)):
-			down_at = q
-			break
-		p = q
-		mm.set_instance_transform(n, Transform3D(Basis.IDENTITY.scaled(Vector3.ONE * (1.0 - 0.4 * n / dots)), p))
+	var k := 2
+	while n < dots and k < path.size():
+		var f := float(n) / float(dots)
+		mm.set_instance_transform(n, Transform3D(Basis.IDENTITY.scaled(Vector3.ONE * (1.0 - 0.35 * f)), path[k]))
+		mm.set_instance_color(n, Color(c, 0.95 - 0.4 * f))
 		n += 1
-	for k in range(n, dots):
-		mm.set_instance_transform(k, Transform3D(Basis.IDENTITY.scaled(Vector3.ZERO), p))
-	for k in 10:
-		var ring := Vector3.INF if down_at == Vector3.INF else down_at + Vector3(cos(k * TAU / 10.0), 0.0, 			sin(k * TAU / 10.0)) * 0.5
-		if ring == Vector3.INF:
-			mm.set_instance_transform(dots + k, Transform3D(Basis.IDENTITY.scaled(Vector3.ZERO), p))
-		else:
-			ring.y = float(ocean.call("height_at", ring)) + 0.03
-			mm.set_instance_transform(dots + k, Transform3D(Basis.IDENTITY, ring))
+		k += 3
+	for i in range(n, dots):
+		mm.set_instance_transform(i, gone)
+	var mark: Vector3 = go["at"] if aim_hits else go["down"]
+	for i in MARK:
+		if mark == Vector3.INF:
+			mm.set_instance_transform(dots + i, gone)
+			continue
+		# a square of dots round where it goes in, flat on the water (a bigger one round a strike)
+		var s := float(i % 3) / 3.0 - 0.5
+		var corner: Vector3 = [Vector3(s, 0.0, -0.5), Vector3(0.5, 0.0, s), Vector3(-s, 0.0, 0.5),
+				Vector3(-0.5, 0.0, -s)][i / 3]
+		var at := mark + corner * (0.84 if aim_hits else 0.64)
+		at.y = float(ocean.call("height_at", at)) + 0.04
+		mm.set_instance_transform(dots + i, Transform3D(Basis.IDENTITY.scaled(Vector3.ONE * 1.25), at))
+		mm.set_instance_color(dots + i, Color(c, 1.0))
 
 
 # ------------------------------------------------------------------ how a fish alongside swims
@@ -553,7 +663,7 @@ func hint() -> String:
 	if harpoon_holder == Net.my_id():
 		if waiting and unwired and not wired:
 			return "Wire it first   Q put back"
-		return "Hold click, let go: throw. A miss can lose it" if waiting else "Q put back"
+		return "Hold click, let go: throw. Right mouse steadies. A miss can lose it" if waiting else "Q put back"
 	if waiting and (sea.get("rods") as Node).call("held_by", Net.my_id()) != null:
 		# (with a mate aboard, keep it: you're holding it up for their harpoon)
 		return "Hold it there" if _crew_aboard() > 1 else "Q: rod back, then the harpoon"
@@ -667,8 +777,7 @@ func _stuck_on(side: float) -> int:
 func _unhandled_input(event: InputEvent) -> void:
 	if harpoon_holder != Net.my_id() or not _flight.is_empty():
 		return
-	var me := (sea.get("crew") as Node).get("me") as Node
-	if not (Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or (me != null and bool(me.get("force_input")))):
+	if not _live():
 		return
 	if event.is_action_pressed("use_primary"):
 		_drawing = true
@@ -688,9 +797,10 @@ func throw(power := 1.0) -> void:
 	if me == null or harpoon_holder != Net.my_id() or not _flight.is_empty():
 		return
 	var boat := sea.get("boat") as Node3D
-	var dir := -_harpoon.global_basis.z
+	var aim := throw_aim()
+	var dir: Vector3 = aim[1]
 	var inv := boat.global_transform.affine_inverse()
-	var p := inv * _harpoon.global_position
+	var p := inv * (aim[0] as Vector3)
 	var v := inv.basis * (dir * lerpf(THROW_SPEED.x, THROW_SPEED.y, clampf(power, 0.15, 1.0)))
 	me.call("gesture", "throw")
 	_start_flight(p, v, true)
@@ -1241,21 +1351,25 @@ func _make_harpoon() -> Node3D:
 	return root
 
 
-## Your aim: little square dots along the arc and a ring on the water, flat bright pixels.
+## Your aim: chunky square dots along the arc and a square of them on the water, flat bright pixels the same size on
+## screen however far off (fixed size), each its own colour.
 func _make_arc() -> MultiMeshInstance3D:
 	var mmi := MultiMeshInstance3D.new()
 	mmi.name = "HarpoonAim"
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
 	var q := QuadMesh.new()
-	q.size = Vector2(0.09, 0.09)
+	q.size = Vector2(0.016, 0.016)
 	mm.mesh = q
-	mm.instance_count = 34
+	mm.instance_count = 28 + MARK
 	mmi.multimesh = mm
-	var m := _unshaded(Color(1.0, 0.92, 0.7, 0.85))
+	var m := _unshaded(Color.WHITE)
+	m.vertex_color_use_as_albedo = true
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	m.fixed_size = true
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.no_depth_test = false
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	mmi.material_override = m
 	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mmi.visible = false
