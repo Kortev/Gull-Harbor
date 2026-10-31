@@ -5,7 +5,8 @@ extends CanvasLayer
 ## one screen, nothing to scroll. Along the top the harbour, the day and the bank. Left, the quota (a bar, what's
 ## left to make and by when) and the last trip's slip (each fish, the costs, the trip). Right, the boats side by side
 ## (a line each, take her, buy her or charter her) and the chandlery's gear, a row each. Along the bottom one big
-## CAST OFF (the skipper's: a crewmate sees WAITING FOR THE SKIPPER). In Rivals (vs/vs.gd) there's no board: the
+## CAST OFF (the skipper's: a crewmate sees WAITING FOR THE SKIPPER), and the skipper's NEW CAREER under it (pressed
+## twice: the first asks) to wipe the saved career and start over in the skiff. In Rivals (vs/vs.gd) there's no board: the
 ## countdown lets both boats go, and Esc gives the pause card.
 ##
 ## Out there (Esc), a small pause card: back to the deck, the owner's manual, the settings (ui/settings_page.gd: the
@@ -46,6 +47,8 @@ var _reading := false
 ## The settings page, open instead of the menu.
 var _settings: SettingsPage
 var _tuning := false
+## NEW CAREER pressed once: the board asks again before the career's wiped.
+var _wipe := false
 
 
 func _ready() -> void:
@@ -194,6 +197,7 @@ func _process(_delta: float) -> void:
 			and (title == null or not bool(title.call("busy"))) \
 			and (vs == null or not bool((vs.get("card") as Node).call("up")))
 	_reading = _reading and open
+	_wipe = _wipe and open
 	if _tuning and not open:
 		_tuning = false
 		_settings.close()
@@ -213,7 +217,7 @@ func _process(_delta: float) -> void:
 	(_crew_box.get_child(2) as Control).visible = Net.mode == "steam"
 	var now := [docked, Net.is_host(), (hold.get("sale") as Dictionary).duplicate(true), hold.get("bank"),
 			hold.get("kind"), (hold.get("owned") as Array).duplicate(), (hold.get("gear") as Array).duplicate(),
-			hold.get("quota"), hold.get("earned"), hold.get("day"), Net.in_session_or_hosting()] if hold else []
+			hold.get("quota"), hold.get("earned"), hold.get("day"), Net.in_session_or_hosting(), _wipe] if hold else []
 	if now != _dock_of:
 		_dock_of = now
 		_fill_board(hold, docked)
@@ -374,6 +378,16 @@ func _fill_board(hold: Node, docked: bool) -> void:
 	_dock.add_child(links)
 	links.add_child(_button("THE OWNER'S MANUAL", func() -> void: _reading = true))
 	links.add_child(_button("SETTINGS", open_settings))
+	if skipper:
+		# (twice to wipe it: the first press asks)
+		var wipe := _button("SURE? WIPE IT ALL" if _wipe else "NEW CAREER", func() -> void:
+			if _wipe:
+				hold.call("new_career")
+			_wipe = not _wipe)
+		if _wipe:
+			wipe.add_theme_color_override("font_color", BAD)
+			wipe.add_theme_color_override("font_hover_color", BAD)
+		links.add_child(wipe)
 	links.add_child(_button("BACK TO THE TITLE", _to_title))
 	links.add_child(_button("QUIT THE GAME", func() -> void: get_tree().quit()))
 

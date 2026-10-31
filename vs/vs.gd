@@ -680,6 +680,7 @@ func _all_docked() -> bool:
 
 ## Boat B and all her things, and boat A's things pointed at their side.
 func _build() -> void:
+	(sea.get("fish_hold") as Node).call("set_career", false)      # (an even start for both: the career set aside)
 	var a := _side(0)
 	for k: String in PARTS:
 		a.set(k, sea.get(k))
@@ -693,7 +694,9 @@ func _build() -> void:
 	b.add_child(boat)
 	b.rods = _part(b, Rods.new(), "Rods")
 	b.landing = _part(b, Landing.new(), "Landing")
-	b.fish_hold = _part(b, FishHold.new(), "FishHold")
+	var hold := FishHold.new()
+	hold.career = false
+	b.fish_hold = _part(b, hold, "FishHold")
 	b.chum = _part(b, Chum.new(), "Chum")
 	b.jig = _part(b, Jig.new(), "Jig")
 	boat.use_kind(str((sea.get("fish_hold") as Node).get("kind")))
@@ -761,6 +764,8 @@ func _tear_down() -> void:
 		horn.queue_free()
 	sides = []
 	_ui.visible = false
+	(sea.get("fish_hold") as Node).call("set_career", true)       # (the career back, and her boat)
+	(sea.get("boat") as Node).call("use_kind", str((sea.get("fish_hold") as Node).get("kind")))
 
 
 ## The sea's boat (and rods, ...) are the boat you're on: your camera, your HUD, the screens on your dash.
