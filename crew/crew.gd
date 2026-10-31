@@ -6,12 +6,15 @@ extends Node
 
 const Player := preload("res://crew/player.gd")
 const Hud := preload("res://ui/hud.gd")
+const Talk := preload("res://crew/talk.gd")
 
 ## The local crew member changed (spawned, or gone when joining another boat).
 signal me_changed(player: Player)
 
 var sea: Node            # sea/sea.gd
 var hud: Hud
+## Voice: out loud and over the VHF (crew/talk.gd).
+var talk: Talk
 var me: Player
 var slots := {}          # peer id -> spawn slot
 var _clock_in := 0.0
@@ -22,6 +25,10 @@ var _best_rtt := INF
 func _ready() -> void:
 	hud = Hud.new()
 	add_child(hud)
+	talk = Talk.new()
+	talk.name = "Talk"
+	talk.crew = self
+	add_child(talk)
 	(sea.get("boat") as Node).connect("rebuilt", _on_rebuilt)
 	Net.peer_joined.connect(_on_peer_joined)
 	Net.peer_left.connect(_remove)
