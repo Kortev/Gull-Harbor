@@ -66,6 +66,8 @@ var _net_item := ""
 var force_input := false
 ## A fish pulling on the rod in your hands, 0..1 (rods.gd): your view trembles with it and gets tugged toward it.
 var shake := 0.0
+## A strike on your boat (rods/fight_fx.gd), 0..1: your view punches in and dips toward it, then eases back.
+var kick := 0.0
 ## Slower looking (a little mouse going a long way; 1 as things are).
 var look_scale := 1.0
 ## With a fish on, the mouse is the rod (rods.gd's _aim): it stamps this frame number each frame you fight, and while
@@ -1463,7 +1465,7 @@ func _process(delta: float) -> void:
 	global_transform = _xf(frame) * Transform3D(Basis(Vector3.UP, _yaw), local)
 	_pose_body(delta)
 	_water_fx(delta)
-	cam.fov = Settings.fov          # (the settings page's field of view, live as it's dragged)
+	cam.fov = Settings.fov - 9.0 * kick         # (the settings page's field of view, live as it's dragged)
 	# Your eyes: lower in the fighting chair; level out part of the deck's tilt, keep your own look.
 	head.position.y = move_toward(head.position.y, 1.62 - (SEAT_DROP if seated else 0.0), delta * 2.0)
 	var tilted := global_transform.basis.orthonormalized()
@@ -1498,6 +1500,10 @@ func _process(delta: float) -> void:
 			var t := Time.get_ticks_msec() * 0.001
 			var tremble := Vector3(sin(t * 31.0) + sin(t * 13.0 + 2.0), sin(t * 23.0 + 1.0), 0.0) * 0.006 * shake
 			head.global_basis = head.global_basis * Basis.from_euler(tremble + Vector3(-0.035 * shake, 0.0, 0.0))
+		if kick > 0.002:
+			var jolt := Time.get_ticks_msec() * 0.001
+			head.global_basis = head.global_basis * Basis.from_euler(Vector3(-0.06 * kick,
+					0.012 * kick * sin(jolt * 41.0), 0.02 * kick * sin(jolt * 29.0 + 1.0)))
 		_update_prompt()
 
 

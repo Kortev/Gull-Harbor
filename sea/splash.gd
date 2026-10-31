@@ -13,6 +13,14 @@ var _drops: Array[GPUParticles3D] = []
 var ocean: Node               # (sea/ocean.gd: the ring of foam it leaves on the water)
 var _sounds: Array[AudioStreamPlayer3D] = []
 var _next := 0
+## Time's rate for the white water, 0..1 (a strike's hit-stop: rods/fight_fx.gd), sound untouched.
+var slow := 1.0:
+	set(v):
+		if is_equal_approx(v, slow):
+			return
+		slow = v
+		for p in _bursts + _drops:
+			p.speed_scale = v
 
 
 func _ready() -> void:

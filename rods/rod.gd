@@ -100,6 +100,15 @@ var _lure_back: StandardMaterial3D
 var fish_node: Node3D
 var seen_move := ""
 var splash_in := 0.0
+## The strike slamming the blank over (rods/fight_fx.gd: 1 at the hit, springing back to 0, a touch past), and how
+## fast line's going off the reel (m/s, smoothed; - coming in).
+var slam := 0.0
+var paying := 0.0
+## The clicker, the creak and the line's hiss (rods/reel_noise.gd), and how fast the line's slicing sideways through
+## the water where it goes in (m/s, smoothed).
+var noise: AudioStreamPlayer3D
+var cutting := 0.0
+var _last_cut := Vector3.INF
 var _scream: AudioStreamPlayer3D
 var _kick := 0.0
 var _whir: AudioStreamPlayer3D
@@ -196,6 +205,8 @@ func _ready() -> void:
 	# the reel under load: the same works, slow and heavy, going nowhere
 	_grind = _looped(preload("res://audio/fish/reel_whir.wav"), -2.0)
 	_grind.pitch_scale = 0.5
+	noise = preload("res://rods/reel_noise.gd").new()
+	add_child(noise)
 	# what you press E on: the butt and the foregrip
 	_grab = Area3D.new()
 	_grab.add_to_group("interactable")
@@ -235,12 +246,13 @@ func _process(delta: float) -> void:
 	# bend toward the line: the pull's direction seen from the rod, scaled by how hard it pulls
 	var pull := line_end - global_position
 	var local := global_transform.basis.inverse() * pull.normalized()
-	var want := Vector2(local.x, local.y) * (0.05 + 0.55 * strain) * LENGTH * 0.45
+	var want := Vector2(local.x, local.y) * (0.05 + 0.55 * strain + 0.5 * slam) * LENGTH * 0.45
 	# near the limit the tip quivers: the line's about to go
 	if strain > 0.85:
 		var t := Time.get_ticks_msec() * 0.001
 		want += Vector2(sin(t * 23.0), sin(t * 17.0 + 1.3)) * (0.02 * (strain - 0.85) / 0.15 + 0.005)
-	_bend = _bend.lerp(want, minf(1.0, delta * 12.0))
+	# (a strike throws it over hard: it gets there in a few frames, not a quarter second)
+	_bend = _bend.lerp(want, minf(1.0, delta * (12.0 + 40.0 * absf(slam))))
 	# (a rod in your hands mustn't catch your own look; a crewmate's with a fish on, you can take over)
 	_grab.collision_layer = 1 if holder == 0 or (hooked and holder != Net.my_id()) else 0
 	_blank.set_instance_shader_parameter("bend", _bend)
@@ -251,7 +263,19 @@ func _process(delta: float) -> void:
 	var raw := (line_out - _last_out) / maxf(delta, 1e-4)
 	_last_out = line_out
 	_paying = lerpf(_paying, raw, minf(delta * 6.0, 1.0))
-	var paying := _paying
+	paying = _paying
+	# the line slicing through the water where it goes in: how fast that point's swinging round, her own way taken off
+	var rel := line_end - tip_position()
+	if hooked and _last_cut != Vector3.INF:
+		cutting = lerpf(cutting, (rel - _last_cut).length() / maxf(delta, 1e-4), minf(delta * 4.0, 1.0))
+	else:
+		cutting = 0.0
+	_last_cut = rel if hooked else Vector3.INF
+	# the clicker ticks for every few cm off the spool (a run's a blur of them); the hiss is the line in the water
+	noise.clicks = (maxf(paying, 0.0) * 14.0 + 140.0 * maxf(slam, 0.0)) if hooked else 0.0
+	noise.strain = strain + 0.3 * maxf(slam, 0.0) if hooked else 0.0
+	var hiss_k := clampf((maxf(paying, 0.0) + cutting) / 9.0, 0.0, 1.0) * clampf(strain * 1.4, 0.3, 1.0)
+	noise.hiss = hiss_k if hooked else 0.0
 	if hooked and paying > 0.6:
 		if not _scream.playing:
 			_scream.play()

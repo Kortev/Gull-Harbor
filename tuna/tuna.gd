@@ -22,6 +22,8 @@ var length := 2.0
 var velocity := Vector3.ZERO
 ## How hard it's working, 0..1 on top of its speed (a fish on the line beats hard even while held).
 var effort := 0.0
+## Rolled over on its side on top of its bank (rad): a beaten fish showing its flank (rods/fight_fx.gd).
+var roll := 0.0
 ## Placed by hand (tuna/landing.gd, boat/catch.gd: alongside, or on deck): it stays where it's put, facing how it's
 ## put, and only its tail moves.
 var posed := false
@@ -131,7 +133,7 @@ func _process(delta: float) -> void:
 	_idle += delta * (0.6 + 0.3 * effort)
 	var weave := 0.0 if posed else 0.22 * clampf(1.0 - _speed / 1.2, 0.0, 1.0) * sin(_idle)
 	var bank := clampf(_yaw_rate * 0.35, -0.55, 0.55)
-	mesh.rotation = Vector3(0.0, weave - amp * 0.6 * sin(_phase), bank)
+	mesh.rotation = Vector3(0.0, weave - amp * 0.6 * sin(_phase), bank + roll)
 	mesh.position = Vector3(0.0, 0.0, -0.012 * length * absf(sin(_phase)) * (0.3 + effort))
 	mesh.set_instance_shader_parameter("swim_phase", _phase)
 	mesh.set_instance_shader_parameter("swim_amp", amp)
