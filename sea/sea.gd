@@ -394,6 +394,8 @@ func _tie_up(delta: float) -> void:
 func _process(_delta: float) -> void:
 	_frames += 1
 	_tie_up(_delta)
+	var goal := _dark_goal()
+	_dark_eased = goal if _dark_eased < 0.0 or _args.has("noon") or _args.has("night") else 			move_toward(_dark_eased, goal, _delta / LIGHT_EASE)
 	_race_home()
 	_follow_weather()
 	# the day going by: the light redone as it changes, the sun moved
@@ -612,7 +614,18 @@ func _apply_look() -> void:
 
 
 ## How dark it is, 0 (full day) .. 1 (night): the day out there, or night pinned.
+## How dark it is now (0 day .. 1 night), eased toward the day's light (_dark_goal) over a few seconds: tying up
+## alongside resets the day to first light, and the sky comes round to it, never in a blink.
 func _dark() -> float:
+	return _dark_eased if _dark_eased >= 0.0 else _dark_goal()
+
+
+var _dark_eased := -1.0
+## How long the light takes to come round (s, all the way).
+const LIGHT_EASE := 6.0
+
+
+func _dark_goal() -> float:
 	if night:
 		return 1.0
 	if _args.has("noon"):
