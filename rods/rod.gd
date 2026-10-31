@@ -170,8 +170,15 @@ func _ready() -> void:
 	_lure.top_level = true
 	for mi in _lure.find_children("*", "MeshInstance3D", true, false):
 		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_lure_back = ((_lure.get_node("Back") as MeshInstance3D).material_override as StandardMaterial3D).duplicate()
-	(_lure.get_node("Back") as MeshInstance3D).material_override = _lure_back
+	# (its colour fades as it tires: a tint over the whole bait, whatever the model's made of)
+	_lure_back = StandardMaterial3D.new()
+	_lure_back.albedo_color = Color(0.18, 0.42, 0.4)
+	_lure_back.blend_mode = BaseMaterial3D.BLEND_MODE_MUL
+	_lure_back.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	for mi in _lure.find_children("*", "MeshInstance3D", true, false):
+		var body := mi as MeshInstance3D
+		if body.material_overlay == null:
+			body.material_overlay = _lure_back
 	add_child(_lure)
 	_scream = AudioStreamPlayer3D.new()
 	var wav := (preload("res://audio/fish/drag_scream.wav") as AudioStreamWAV).duplicate() as AudioStreamWAV
@@ -324,7 +331,7 @@ func _draw_line() -> void:
 		elif to.length() > 0.01:
 			_lure.global_transform = Transform3D(Basis.looking_at(to.normalized(), Vector3.UP) * wiggle,
 					b + Vector3(0.0, -0.06, 0.0))
-		_lure_back.albedo_color = Color(0.18, 0.42, 0.4).lerp(Color(0.6, 0.62, 0.6), (1.0 - fresh) * 0.8)
+		_lure_back.albedo_color = Color(1, 1, 1).lerp(Color(0.75, 0.78, 0.78), (1.0 - fresh) * 0.8)
 
 
 func interact_prompt(player: Node) -> String:
