@@ -21,6 +21,7 @@ const Kinds := preload("res://boat/kinds.gd")
 const Ladder := preload("res://boat/ladder.gd")
 const Tower := preload("res://boat/tower.gd")
 const GreenWater := preload("res://boat/green_water.gd")
+const Cooler := preload("res://boat/cooler.gd")
 
 ## Under way: her bow up (rad) flat out ahead, and how far her stern digs in (rad, m down) backing down flat out.
 const SQUAT := 0.07
@@ -243,6 +244,13 @@ func _build() -> void:
 		ladder.spot = spec["ladder"]
 		add_child(ladder)
 		_built.append(ladder)
+	if spec.has("cooler"):
+		var c := Cooler.new()
+		c.name = "Cooler"
+		c.boat = self
+		c.setup(spec["cooler"])
+		add_child(c)
+		_built.append(c)
 	tower = null
 	if spec.has("tower"):
 		tower = Tower.new()
