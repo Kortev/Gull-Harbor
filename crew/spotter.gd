@@ -1,7 +1,7 @@
 extends CanvasLayer
 ## Spotting flocks by eye (no binoculars: the user's call). Put a flock under your crosshair and the HUD says what you
-## can make of it from where you are: from far off only that there are birds, which way and how far; closer than READ
-## m, what they're doing (tuna/schools.gd's spot_text: diving on bluefin busting the water, gulls over little bait,
+## can make of it from where you are: from far off only that there are birds, which way and how far; closer than
+## read_range (further from up the tower), what they're doing (tuna/schools.gd's spot_text: diving on bluefin busting the water, gulls over little bait,
 ## sitting on the water while the tuna are down). Not with a fish on in your hands. (No calling them out: the user's
 ## call. But a flock you pick out goes on the chart plotter as a mark where it was then, for everyone aboard:
 ## boat/plotter.gd. The radar paints birds in the air on its own: tuna/radar.gd.)
@@ -11,7 +11,11 @@ extends CanvasLayer
 
 const AIM := 0.06             # how close to the middle of your view a flock has to be (rad)
 const REACH := 4500.0         # the furthest a flock can be picked out (m)
-const READ := 700.0           # closer than this you can tell what the birds are on (m)
+## Closer than this you can tell what the birds are on (m), from the deck (your eye about EYE m over the sea); the
+## higher your eye the further, like the horizon (READ * sqrt(height / EYE)): up the sportfisher's tuna tower
+## (boat/tower.gd), about 1.3 km.
+const READ := 700.0
+const EYE := 2.2
 const RUNNING := 6.0          # at the wheel faster than this (m/s, about 12 knots), no spotting
 
 var sea: Node                 # sea/sea.gd
@@ -54,21 +58,26 @@ func _process(_delta: float) -> void:
 	_read.visible = _looking != null
 	if _looking == null:
 		return
+	_read.text = describe(cam, _looking)
+
+
+## What you make of flock `s` from where your eye is (`cam`): what it's on if it's near enough to tell (further from
+## higher up), else just birds (or the whale or the dolphins with them); and which way and how far.
+func describe(cam: Camera3D, s: Node) -> String:
 	var schools := sea.get("schools") as Node
-	var at: Vector2 = _looking.call("center", schools.call("now"))
+	var at: Vector2 = s.call("center", schools.call("now"))
 	var here := Vector2(cam.global_position.x, cam.global_position.z)
 	var w := str(schools.call("where", at))
 	var text: String
-	if at.distance_to(here) < READ:
-		text = str(schools.call("spot_text", _looking))
+	if at.distance_to(here) < read_range(cam):
+		text = str(schools.call("spot_text", s))
 	else:
 		# a whale's blow or a pod's splashes catch your eye before the birds do
-		var lead: Node3D = _looking.get("lead")
+		var lead: Node3D = s.get("lead")
 		text = Leads.far_text(lead, at.distance_to(here)) if lead != null else ""
 		if text == "":
 			text = "Birds"
-	text += "   " + w.trim_prefix("about ")
-	_read.text = text
+	return text + "   " + w.trim_prefix("about ")
 
 
 ## The flock nearest the middle of your view, if one's close enough to it and not too far off to pick out.
@@ -88,6 +97,11 @@ func _aimed_at(cam: Camera3D) -> Node:
 			best_a = a
 			best = s
 	return best
+
+
+## How far off you can tell what a flock's on, from where your eye is.
+static func read_range(cam: Camera3D) -> float:
+	return READ * sqrt(maxf(cam.global_position.y, 1.0) / EYE)
 
 
 ## Whether `who` can pick birds out: not at the wheel with her running.

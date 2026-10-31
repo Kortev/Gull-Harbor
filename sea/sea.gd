@@ -7,6 +7,7 @@ extends Node3D
 ## Screenshots: <godot> --path . -- --shot=<png> [--weather=calm|sunny|fog|rain|heavy|storm (pinned)] [--night|--noon|
 ## --day=<0 dawn .. 1 dusk, 1.2 dark>]
 ##   [--frames=<n>] [--cam=x,y,z,lookx,looky,lookz] [--look=<degrees round from aft>] [--wheel] [--strike=<rod>]
+##   [--boat=skiff|sportfisher] [--tower (up her tuna tower)]
 ## Without --cam you're one of the crew, standing in the cockpit: WASD, mouse, Shift, Space, E; Esc for the menu.
 ## Co-op: --host, or --join=<address> (or from the Esc menu).
 
@@ -230,6 +231,9 @@ func _ready() -> void:
 		boat.helm.request(true)
 	if _args.has("hold"):      # (screenshots: start with rod <n> in your hands)
 		rods.request_grab(int(_args["hold"]))
+	if _args.has("tower") and boat.tower != null and crew.me != null:     # (screenshots: up the tower)
+		crew.me.call("climb_tower", boat.tower)
+		crew.me.set("_tower_t", 99.0)
 	# (--port=: another port than Net.PORT, for running the tests beside another game that has it)
 	var port := int(_args.get("port", Net.PORT))
 	if _args.has("host"):

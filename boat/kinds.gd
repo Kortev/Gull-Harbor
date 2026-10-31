@@ -28,6 +28,8 @@ extends RefCounted
 ##   chum          where the chum bucket stands (boat/chum.gd); jig: the holder the mackerel jig sits in (boat/jig.gd)
 ##   price         what she costs to buy at the dock; fuel: what a trip in her costs (taken from the sale)
 ##   radar_bar     where her radar's spinning bar sits, if her model hasn't one (boat.gd builds it)
+##   tower, tower_foot where you stand up her tuna tower (your feet), and the foot of the ladder up to it on deck
+##                 (boat/tower.gd; only the sportfisher has one)
 ##   ladder        the boarding ladder hooked over her transom (boat/ladder.gd): x across, y the top of the transom
 ##                 (its cap, where you climb over), z the transom's outside face; clear of her engines and tuna door
 
@@ -86,6 +88,7 @@ const KINDS := {
 		"chum": Vector3(-0.3, 1.3, 6.6), "jig": 4,
 		"price": 20000, "fuel": 400,
 		"ladder": Vector3(-1.35, 1.45, 7.0),
+		"tower": Vector3(0.0, 5.46, -0.75), "tower_foot": Vector3(-1.2, 0.55, 2.1),
 	},
 }
 

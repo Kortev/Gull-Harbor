@@ -80,6 +80,14 @@ var cam_goal := Vector2(NAN, NAN)
 var steering := false
 ## In the fighting chair (boat/chair.gd says).
 var seated := false
+## Up the tuna tower (boat/tower.gd), or on the way up or down it: you look round but don't walk. The climb's legs
+## (the tower's path), how far along it you are (s) and which way you're going (1 up, -1 down).
+var aloft := false
+var _tower: Node3D
+var _tower_legs: Array = []
+var _tower_t := 0.0
+var _tower_way := 1
+var _tower_from := Vector3.ZERO
 ## Hauling something heavy across the deck (a fish on the gaff: boat/fish_hold.gd), 1 .. slower.
 var burden := 1.0
 var _yaw := 0.0
@@ -103,6 +111,7 @@ const ACT_GLASSES := 1
 const ACT_JIG := 2
 const ACT_HAUL := 4
 const ACT_CRANK := 8
+const ACT_TOWER := 16      # (on the tower's ladder or leg, climbing: the others see you climb)
 var act := 0
 var _net_act := 0
 var _gesture := ""
@@ -521,8 +530,9 @@ func _pose_body(delta: float) -> void:
 				p["leg_l"] = Vector3(0.35 * out, 0.0, 0.0)
 				p["leg_r"] = Vector3(-0.3 * out, 0.0, 0.0)
 				crouch = maxf(crouch, 0.12 * back)
-	# off the deck: treading water, up a ladder, over a rail
-	match mode:
+	# off the deck: treading water, up a ladder (or the tower), over a rail
+	var pose_mode := CLIMB if mode == DECK and doing & ACT_TOWER else mode
+	match pose_mode:
 		SWIM:
 			# treading water: arms sculling out to the sides, legs kicking, leaning into a stroke (in time with it)
 			var ph := _stroke * TAU
@@ -670,6 +680,8 @@ func place(local: Vector3, yaw: float, on: Node3D = null) -> void:
 		_set_frame(on)
 	if mode != DECK:
 		_set_mode(DECK)
+	aloft = false
+	_tower_legs = []
 	body.position = local
 	body.velocity = Vector3.ZERO
 	_prev_local = local
@@ -726,6 +738,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			_let_go_ladder()
 	elif event.is_action_pressed("interact") and steering:
 		(boat.get("helm") as Node).call("request", false)
+	elif aloft and (event.is_action_pressed("interact") or event.is_action_pressed("drop")):
+		climb_down_tower()
+		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("interact") and seated and _looked_at() == null:
 		(boat.get("seat") as Node).call("request", false)
 	elif event.is_action_pressed("interact"):
@@ -778,6 +793,8 @@ func _doing() -> int:
 	if rods != null and rods.call("held_by", str(name).to_int()) != null and live \
 			and Input.is_action_pressed("use_primary"):
 		out |= ACT_CRANK
+	if aloft and not _tower_legs.is_empty() and _tower_t > 0.0 and _tower_t < _tower_length():
+		out |= ACT_TOWER
 	return out
 
 
@@ -799,6 +816,9 @@ func _state(at: Vector3, yaw: float, pitch: float, doing := 0, item := "", m := 
 
 
 func _walk(delta: float) -> void:
+	if aloft:
+		_on_tower(delta)
+		return
 	if steering:
 		body.velocity = Vector3.ZERO
 		return
@@ -851,6 +871,71 @@ func _walk(delta: float) -> void:
 	if body.position.y < float(boat.get("deck")) - 0.8:
 		# (off her somewhere the rail doesn't stop you)
 		_into_sea(boat.global_basis * body.velocity + _boat_velocity(boat))
+
+
+## E on the tuna tower's ladder (boat/tower.gd): up you go, the whole way, from where you stand.
+func climb_tower(tower: Node3D) -> void:
+	if mode != DECK or steering or seated or aloft or tower == null:
+		return
+	_tower = tower
+	_tower_from = body.position
+	_tower_legs = tower.call("path", body.position)
+	_tower_t = 0.0
+	_tower_way = 1
+	aloft = true
+	body.velocity = Vector3.ZERO
+
+
+## E or Q up the tower (or on the way up): back down it the way you came, to the foot of the ladder.
+func climb_down_tower() -> void:
+	if not aloft or _tower_legs.is_empty():
+		return
+	_tower_way = -1
+	# (down to the foot of the ladder, not back across the deck to wherever you started)
+	_tower_t = maxf(_tower_t, float(_tower_legs[0][1]))
+
+
+## The whole tower climb (s).
+func _tower_length() -> float:
+	var total := 0.0
+	for leg: Array in _tower_legs:
+		total += float(leg[1])
+	return total
+
+
+## Up (or down) the tower: carried along its path a step at a time; at the top you stay put, looking round; at the
+## foot of the ladder you're back on deck, walking.
+func _on_tower(delta: float) -> void:
+	body.velocity = Vector3.ZERO
+	if _tower == null or not is_instance_valid(_tower) or boat.get("tower") != _tower or _tower_legs.is_empty():
+		# (she's been rebuilt under you: back on her deck)
+		aloft = false
+		_tower_legs = []
+		body.position.y = float(boat.get("deck")) + 0.05
+		return
+	var total := _tower_length()
+	_tower_t = clampf(_tower_t + delta * _tower_way, 0.0, total)
+	body.position = _tower_at(_tower_t)
+	var foot := float(_tower_legs[0][1])
+	if _tower_way < 0 and _tower_t <= foot:
+		aloft = false
+		_tower_legs = []
+
+
+## Where `t` s along the tower climb puts you (boat-local): up the ladder and the leg a rung at a time.
+func _tower_at(t: float) -> Vector3:
+	var from := _tower_from
+	for i in _tower_legs.size():
+		var leg: Array = _tower_legs[i]
+		var dur := float(leg[1])
+		if t <= dur or i == _tower_legs.size() - 1:
+			var u := clampf(t / dur, 0.0, 1.0)
+			var rungs := 6
+			var k := u - 0.6 * sin(TAU * rungs * u) / (TAU * rungs) if i == 1 or i == 3 else smoothstep(0.0, 1.0, u)
+			return from.lerp(leg[0], k)
+		t -= dur
+		from = leg[0]
+	return from
 
 
 ## Your way over the rail (boat-local, flat), if her side's within RAIL_REACH of you the way you're going (standing
@@ -1117,7 +1202,7 @@ func climb(on: Node3D) -> void:
 		_climb_legs = ladder.call("path", _local)
 		_climb_t = 0.0
 		_climb_way = 1
-	elif mode == DECK and on == boat and not steering and not seated:
+	elif mode == DECK and on == boat and not steering and not seated and not aloft:
 		_let_go()
 		var foot: Vector3 = (ladder.call("path", Vector3.ZERO) as Array)[0][0]
 		_climb_from = foot
@@ -1282,7 +1367,7 @@ func _follow_me() -> void:
 ## F: wind up to shove whoever's in front of you (the host's to say).
 func shove() -> void:
 	var now := Time.get_ticks_msec() * 0.001
-	if mode != DECK or steering or seated or _knock > 0.0 or now - _shove_at < SHOVE_AGAIN:
+	if mode != DECK or steering or seated or aloft or _knock > 0.0 or now - _shove_at < SHOVE_AGAIN:
 		return
 	_shove_at = now
 	if Net.is_host():
@@ -1379,7 +1464,7 @@ func _pushed(v: Vector3) -> void:
 	_gesture = "stumble"
 	_gesture_t = 0.0
 	Sfx.play_point(self, global_position + Vector3.UP, "kit.bodyfall", 0.8)
-	if not is_multiplayer_authority() or mode != DECK or seated:
+	if not is_multiplayer_authority() or mode != DECK or seated or aloft:
 		return
 	if steering:
 		steering = false
@@ -1626,7 +1711,7 @@ func _ladder_near() -> Node3D:
 				near = d
 				best = ladder
 		return best
-	if mode == DECK and boat != null and not steering and not seated:
+	if mode == DECK and boat != null and not steering and not seated and not aloft:
 		var ladder: Node3D = boat.get("ladder")
 		if ladder == null:
 			return null
