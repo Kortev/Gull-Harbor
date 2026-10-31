@@ -1888,6 +1888,12 @@ func _ladder_near() -> Node3D:
 	return null
 
 
+func _harpoon_in_hand() -> bool:
+	var sea: Node = boat.get("sea") if boat else null
+	var landing: Node = sea.get("landing") if sea else null
+	return landing != null and int(landing.get("harpoon_holder")) == str(name).to_int()
+
+
 func _update_prompt() -> void:
 	var t := _target()
 	var text := ""
@@ -1895,9 +1901,10 @@ func _update_prompt() -> void:
 		text = "W|Up the ladder, S down, E lets go"
 	elif t:
 		text = str(t.call("interact_prompt")) if t.has_method("interact_prompt") else "Use"
-	elif mode == DECK and _cap == CAP_ON:
-		text = "SPACE|Leap off, S steps down"
-	elif mode == DECK and _cap == CAP_OFF and not steering and not seated and body.is_on_floor() 			and _rail_ahead(Vector3.ZERO) != Vector3.ZERO:
+	elif mode == DECK and _cap == CAP_ON and not _harpoon_in_hand():
+		text = "SPACE|Leap off, S steps down"       # (not over your aim with the harpoon)
+	elif mode == DECK and _cap == CAP_OFF and not steering and not seated and body.is_on_floor() \
+			and _rail_ahead(Vector3.ZERO) != Vector3.ZERO:
 		text = "SPACE|Up on the rail"
 	if text != _prompt:
 		_prompt = text

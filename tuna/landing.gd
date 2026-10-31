@@ -220,7 +220,8 @@ func _process(delta: float) -> void:
 	draw = move_toward(draw, 1.0, delta / DRAW) if _drawing else 0.0
 	_full_t = _full_t + delta if _drawing and draw >= 1.0 else 0.0
 	# right mouse, the harpoon in your hands: steadying yourself (your eyes close in: crew/player.gd)
-	var bracing := harpoon_holder == Net.my_id() and _flight.is_empty() and _live() 			and Input.is_action_pressed("use_secondary")
+	var bracing := harpoon_holder == Net.my_id() and _flight.is_empty() and _live() \
+			and Input.is_action_pressed("use_secondary")
 	if bracing or steady > 0.0:
 		steady = move_toward(steady, 1.0 if bracing else 0.0, delta / BRACE)
 		var me := crew.get("me") as Node
@@ -270,7 +271,8 @@ func _process(delta: float) -> void:
 		var door: Node3D = null
 		if not f.is_empty():
 			door = _doors[0 if float(f["side"]) > 0.0 else 1]
-		if f.is_empty() or me == null or door == null or not Input.is_action_pressed("interact") 				or me.global_position.distance_to(door.global_position) > HAUL_REACH:
+		if f.is_empty() or me == null or door == null or not Input.is_action_pressed("interact") \
+				or me.global_position.distance_to(door.global_position) > HAUL_REACH:
 			_stop_pull()
 	if Net.is_host():
 		_host_tick(delta)
@@ -280,7 +282,8 @@ func _process(delta: float) -> void:
 ## rack; and its line back to the rack whenever it's out of it, and your aim while you wind up.
 func _place_harpoon(delta: float, boat: Node3D, ocean: Node, crew: Node) -> void:
 	var p: Node3D = crew.call("get_player", harpoon_holder) if harpoon_holder != 0 else null
-	var goal := boat.global_transform.affine_inverse() * (_in_hands(p) if p != null 			else boat.global_transform * Transform3D(Basis.IDENTITY, rack_at()))
+	var goal := boat.global_transform.affine_inverse() * (_in_hands(p) if p != null \
+			else boat.global_transform * Transform3D(Basis.IDENTITY, rack_at()))
 	var local: Transform3D
 	if not _flight.is_empty():
 		local = _fly(delta, boat, ocean)
@@ -313,7 +316,7 @@ func _in_hands(p: Node3D) -> Transform3D:
 	var mine: bool = p == (sea.get("crew") as Node).get("me")
 	var d := draw if mine else 0.0
 	var ease := smoothstep(0.0, 1.0, clampf(maxf(d * 1.6, steady if mine else 0.0), 0.0, 1.0))
-	var at := cam.global_transform * Vector3(0.22, -0.3, 0.1).lerp(Vector3(0.14, -0.15, 0.3), ease)
+	var at := cam.global_transform * Vector3(0.22, -0.3, 0.1).lerp(Vector3(0.3, -0.26, 0.3), ease)
 	var b := cam.global_basis * Basis(Vector3.RIGHT, 0.05)
 	if ease > 0.0:
 		var aim := _sight(cam as Camera3D) - at
@@ -323,7 +326,8 @@ func _in_hands(p: Node3D) -> Transform3D:
 
 ## Your arm shaking, held wound too long (later and less steadied): a turn of the harpoon (euler, radians).
 func _wobble() -> Vector3:
-	var k := clampf((_full_t - SWAY_AFTER - BRACED_LATER * steady) / 1.5, 0.0, 1.0) * SWAY 			* lerpf(1.0, BRACED_SWAY, steady)
+	var k := clampf((_full_t - SWAY_AFTER - BRACED_LATER * steady) / 1.5, 0.0, 1.0) * SWAY \
+			* lerpf(1.0, BRACED_SWAY, steady)
 	if k <= 0.0 or draw < 1.0:
 		return Vector3.ZERO
 	var t := Time.get_ticks_msec() * 0.001
@@ -531,13 +535,13 @@ func _draw_arc(ocean: Node, show: bool) -> void:
 	var gone := Transform3D(Basis.IDENTITY.scaled(Vector3.ZERO), Vector3.ZERO)
 	# (a dot every few steps: a dotted line, smaller and fainter the farther it goes)
 	var n := 0
-	var k := 2
+	var k := 0
 	while n < dots and k < path.size():
 		var f := float(n) / float(dots)
 		mm.set_instance_transform(n, Transform3D(Basis.IDENTITY.scaled(Vector3.ONE * (1.0 - 0.35 * f)), path[k]))
 		mm.set_instance_color(n, Color(c, 0.95 - 0.4 * f))
 		n += 1
-		k += 3
+		k += 2
 	for i in range(n, dots):
 		mm.set_instance_transform(i, gone)
 	var mark: Vector3 = go["at"] if aim_hits else go["down"]
@@ -564,7 +568,8 @@ func _ride_float(f: Dictionary, boat: Node3D, ocean: Node, delta: float) -> void
 	if ball == null or not is_instance_valid(ball):
 		return
 	var side := float(f["side"])
-	var out := (Vector3(0.35 * side, 0.0, 1.0) if bool(spec.get("fish_across", true)) 			else Vector3(side, 0.0, 0.3)).normalized()
+	var out := (Vector3(0.35 * side, 0.0, 1.0) if bool(spec.get("fish_across", true)) \
+			else Vector3(side, 0.0, 0.3)).normalized()
 	var fish_at := (f["node"] as Node3D).global_position
 	var want := fish_at + boat.global_basis * out * 1.1
 	want.y = float(ocean.call("height_at", want)) + 0.05
@@ -606,7 +611,8 @@ func _fish_transform(f: Dictionary, boat: Node3D, ocean: Node) -> Transform3D:
 	var flat := Vector3(w.x * side, 0.0, w.z) + oval + out * (SHEER_OUT.x * s + 1.2 * spook)
 	var water := boat.global_transform * flat
 	var rise := 0.5 + 0.5 * sin(lap + 1.2)
-	water.y = float(ocean.call("height_at", water)) - 0.12 - 0.22 * (1.0 - rise) * size - SHEER_OUT.y * s 			- 0.5 * spook
+	water.y = float(ocean.call("height_at", water)) - 0.12 - 0.22 * (1.0 - rise) * size - SHEER_OUT.y * s \
+			- 0.5 * spook
 	var head := (boat.global_basis * way).normalized()
 	if spook > 0.0:
 		head = head.lerp(boat.global_basis * out, spook * 0.8).normalized()
@@ -1360,7 +1366,7 @@ func _make_arc() -> MultiMeshInstance3D:
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.use_colors = true
 	var q := QuadMesh.new()
-	q.size = Vector2(0.016, 0.016)
+	q.size = Vector2(0.028, 0.028)
 	mm.mesh = q
 	mm.instance_count = 28 + MARK
 	mmi.multimesh = mm

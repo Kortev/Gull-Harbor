@@ -75,7 +75,8 @@ func _leaps(me: Node3D, a_boat: Node3D, b_boat: Node3D, ha: Node, hb: Node, at: 
 			Input.action_press("jump")
 			await _watch_leap(me, to, w)
 			Input.action_release("jump")
-			while (me.mode != Player.DECK or int(me.get("_cap")) != Player.CAP_OFF) and me.mode != Player.SWIM 					and float(w["t"]) < 5.0:
+			while (me.mode != Player.DECK or int(me.get("_cap")) != Player.CAP_OFF) and me.mode != Player.SWIM \
+					and float(w["t"]) < 5.0:
 				await _watch_leap(me, to, w)
 			var where := "%s %s" % ["A" if me.boat == a_boat else "B", ["deck", "sea", "ladder", "air"][me.mode]]
 			if gap < 3.0:
