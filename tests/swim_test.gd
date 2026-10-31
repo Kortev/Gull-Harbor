@@ -1,9 +1,12 @@
 extends Node
 ## Water for people (crew/player.gd, boat/ladder.gd), headless, in the skiff:
-## - over the side: Space into her rail and you're over it and in, a splash; afloat at the waves' own height (the
-##   height the boats float on), your eyes out of the water, not sinking, a beat behind the swell; swim to her
-##   boarding ladder, hold E and climb it a step at a time (let go and you hang there), over her transom onto her
-##   deck, never a jump in where you are (in her frame);
+## - over the side: Space at her rail (a step off it, looking at it) and you're over it and in, a splash; afloat at
+##   the waves' own height (the height the boats float on), your eyes at the water, not sinking, a beat behind the
+##   swell; strokes (a slap of water each); a sprint's quicker than a swim; Ctrl dives you under (the murk) and you
+##   come up gasping; swim to her boarding ladder and E by its foot (no crosshair on it) and you've hold of it: W up
+##   a step at a time (neither and you hang there), S back down and into the water at the foot, E again, up W over
+##   her transom onto her deck, never a jump in where you are (in her frame); from her deck, E at its top takes you
+##   down it;
 ## - the shove (a stand-in crewmate, the host deciding): the windup first, then the push; near the rail it puts you
 ##   over, a braced fighter goes half as far and over the rail leaves the rod in its holder with the fish still on,
 ##   and the cooldown holds.
@@ -38,17 +41,15 @@ func _swim() -> void:
 	var me := sea.crew.me
 	me.force_input = true
 	var deck := float(boat.deck)
-	# at her starboard side amidships, facing it: walk into the rail and jump
-	me.place(Vector3(0.85, deck + 0.02, 2.0), -PI / 2.0)
-	Input.action_press("move_forward")
+	# at her starboard side amidships, a step off it, looking at it: jump
+	me.place(Vector3(0.5, deck + 0.02, 2.0), -PI / 2.0)
 	await _wait(0.4)
 	Input.action_press("jump")
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	Input.action_release("jump")
-	_check(me.mode == Player.HOP, "Space into the rail: over it (mode %d)" % me.mode)
+	_check(me.mode == Player.HOP, "Space at the rail: over it (mode %d)" % me.mode)
 	await _until(func() -> bool: return me.mode == Player.SWIM, 2.0)
-	Input.action_release("move_forward")
 	_check(me.mode == Player.SWIM and me.frame == null, "and into the sea")
 	await _until(func() -> bool: return me.splashes > 0, 3.0)
 	_check(me.splashes == 1, "a splash going in")
@@ -82,6 +83,32 @@ func _swim() -> void:
 	_check(absf(cam.y - float(sea.ocean.height_at(cam))) < 0.6, "the camera at the water (%.2f over it)"
 			% (cam.y - float(sea.ocean.height_at(cam))))
 	print("(swum in %.1f s)" % ((Time.get_ticks_msec() - t0) * 0.001))
+	# strokes: a swim, then a sprint, each over 3 s
+	var swum := []
+	for sprint: bool in [false, true]:
+		var from := me.global_position
+		var s0 := me.strokes
+		if sprint:
+			Input.action_press("sprint")
+		Input.action_press("move_forward")
+		await _wait(3.0)
+		Input.action_release("move_forward")
+		Input.action_release("sprint")
+		swum.append(Vector2(me.global_position.x - from.x, me.global_position.z - from.z).length())
+		_check(me.strokes - s0 >= 2, "strokes, a slap of water each (%d)" % (me.strokes - s0))
+		await _wait(1.5)
+	_check(swum[0] > 2.5 and swum[1] > swum[0] * 1.3, "a swim (%.1f m in 3 s), a sprint quicker (%.1f m)" % swum)
+	# under: Ctrl held, down into the murk; let go, up with a gasp
+	await _wait(2.0)
+	var g0 := me.gasps
+	Input.action_press("swim_down")
+	await _wait(1.5)
+	var cam_under := me.cam.global_position.y - float(sea.ocean.height_at(me.cam.global_position))
+	_check(cam_under < -0.3 and me.get("_murk").visible, "diving: under, in the murk (%.2f m)" % cam_under)
+	Input.action_release("swim_down")
+	await _until(func() -> bool: return me.gasps > g0, 4.0)
+	_check(me.gasps > g0, "up again, with a gasp")
+	await _wait(1.0)
 	# swim round to her ladder
 	var ladder := boat.ladder
 	var near := false
@@ -99,10 +126,24 @@ func _swim() -> void:
 	Input.action_release("move_forward")
 	_check(near, "swum round to her ladder")
 	_check(str(ladder.interact_prompt()) == "Climb aboard", "the ladder says: %s" % ladder.interact_prompt())
-	# hold E on it: up it, a step at a time, over the transom onto her deck
+	# E by its foot, looking away from it: hold of it
+	me.set("_yaw", float(me.get("_yaw")) + PI * 0.6)
+	_check(me.call("_target") == ladder, "E by the ladder's foot finds it, crosshair or not")
 	ladder.interact(me)
 	_check(me.mode == Player.CLIMB and me.frame == boat, "hold of the ladder")
-	Input.action_press("interact")
+	# a bit up, then S back down and into the water at its foot
+	Input.action_press("move_forward")
+	await _wait(1.2)
+	Input.action_release("move_forward")
+	Input.action_press("move_back")
+	await _until(func() -> bool: return me.mode == Player.SWIM, 4.0)
+	Input.action_release("move_back")
+	_check(me.mode == Player.SWIM, "S down it and back into the water at the foot")
+	await _wait(0.6)
+	ladder.interact(me)
+	_check(me.mode == Player.CLIMB, "E: hold of it again")
+	# W: up it, a step at a time, over the transom onto her deck
+	Input.action_press("move_forward")
 	var step := 0.0
 	var prev := boat.global_transform.affine_inverse() * me.global_position
 	var climbing := 0.0
@@ -117,24 +158,46 @@ func _swim() -> void:
 			hang_moved = maxf(hang_moved, here.distance_to(prev))
 		prev = here
 		if hung < 0.0 and climbing > 0.7:
-			# let go of E: you hang on the ladder
-			Input.action_release("interact")
+			# let go of W: you hang on the ladder
+			Input.action_release("move_forward")
 			hung = 0.0
 		elif hung >= 0.0 and hung < 0.5:
 			hung += 1.0 / 30.0
 			if hung >= 0.5:
-				Input.action_press("interact")
+				Input.action_press("move_forward")
 				hung = 1.0
-	Input.action_release("interact")
+	Input.action_release("move_forward")
 	var aboard := boat.global_transform.affine_inverse() * me.global_position
 	_check(me.mode == Player.DECK and me.boat == boat and me.frame == boat, "up the ladder and aboard her")
 	_check(absf(aboard.y - deck) < 0.15 and aboard.z < float(boat.spec["ladder"].z), "on her deck, inside her transom "
 			+ "(%.2f, %.2f, %.2f)" % [aboard.x, aboard.y, aboard.z])
 	_check(climbing > 1.4 and climbing < 4.0, "a climb, not a jump (%.1f s held and let go)" % climbing)
 	_check(step < 0.13, "nothing jumps on the way (at most %.3f m a frame, in her frame)" % step)
-	_check(hang_moved < 0.01, "let go of E, you hang there (%.3f m)" % hang_moved)
+	_check(hang_moved < 0.01, "let go of W, you hang there (%.3f m)" % hang_moved)
 	await _wait(0.5)
 	_check(me.body.is_on_floor(), "standing on her deck")
+	# from her deck, at its top, facing aft: E takes you over and down it; E again on it lets go, into the sea
+	var stood: Vector3 = me.local_position()
+	me.set("_yaw", 0.0)
+	await get_tree().process_frame
+	_check(me.call("_target") == null, "facing forward, no ladder")
+	me.set("_yaw", PI)
+	await get_tree().process_frame
+	_check(me.call("_target") == ladder and str(ladder.interact_prompt()) == "Climb down",
+			"facing aft at the top: \"%s\"" % ladder.interact_prompt())
+	ladder.interact(me)
+	var jump := (boat.global_transform.affine_inverse() * me.global_position).distance_to(stood)
+	_check(me.mode == Player.CLIMB and jump < 0.05, "hold of it from her deck, nothing moving (%.3f m)" % jump)
+	Input.action_press("move_back")
+	await _wait(1.6)
+	Input.action_release("move_back")
+	var down := boat.global_transform.affine_inverse() * me.global_position
+	_check(me.mode == Player.CLIMB and down.y < deck - 0.2, "S: down it, over her transom (%.2f m)" % down.y)
+	me.call("_let_go_ladder")
+	await _until(func() -> bool: return me.splashes > 1, 3.0)
+	_check(me.mode == Player.SWIM and me.splashes == 2, "E lets go: into the sea, a splash")
+	me.place(stood, PI, boat)
+	await _wait(0.5)
 
 
 func _shove() -> void:

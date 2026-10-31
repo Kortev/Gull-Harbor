@@ -3,7 +3,7 @@ extends Node
 ## The host turns VS on once the friend's aboard, so the friend lands on boat B; both head out, and the friend takes
 ## B's wheel and lies still at a spot. The host runs A into her beam (each moves their own boat: the friend's machine
 ## keeps B out of A and takes the shove), hooks a fish on A (the friend's radio squawks), and runs A across B's stern
-## through her lines (the host cuts them, the friend sees it), then blows her horn alongside (the friend's view
+## through her lines (nothing's cut: the friend's baits are still out), then blows her horn alongside (the friend's view
 ## rattles). A fish is landed on each boat (60 kg on A, 90 on B), and
 ## the skipper heads in: both alongside the fish pier, the weigh-in read off, the result (B by 66 lb).
 ## Run (two shells, the host first):
@@ -162,15 +162,16 @@ func _as_friend() -> void:
 		if squawked:
 			break
 	_check(squawked, "their hook-up came over my radio")
-	# A across my stern: my lines cut
+	# A across my stern: my lines left be
 	var b_rods: Node = vs.sides[1].get("rods")
 	var cut := false
-	for i in 30 * 25:
+	var out := 0
+	for i in 30 * 14:
 		await get_tree().process_frame
-		cut = (b_rods.get("rods") as Array).filter(func(r: Node) -> bool: return not bool(r.get("baited"))).size() >= 1
-		if cut:
-			break
-	_check(cut, "A ran across my stern and cut my lines")
+		var rods := b_rods.get("rods") as Array
+		out = maxi(out, rods.filter(func(r: Node) -> bool: return not bool(r.get("bait_in"))).size())
+		cut = cut or rods.any(func(r: Node) -> bool: return not bool(r.get("bait_in")) and not bool(r.get("baited")))
+	_check(out >= 1 and not cut, "A ran across my stern and my lines are still out (%d)" % out)
 	# A's horn, close: my view rattled
 	var rattled := false
 	for i in 30 * 30:
