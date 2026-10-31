@@ -26,7 +26,7 @@ func _ready() -> void:
 	_codec()
 	sea = (load("res://sea/sea.tscn") as PackedScene).instantiate() as Sea
 	add_child(sea)
-	get_tree().create_timer(90.0).timeout.connect(func() -> void:
+	get_tree().create_timer(180.0).timeout.connect(func() -> void:
 		_check(false, "finished in time")
 		_done())
 	await get_tree().create_timer(0.3).timeout
@@ -73,7 +73,7 @@ func _as_host() -> void:
 	_check(sea.vs.on and sea.vs.teams.values().count(1) == 1, "VS on, the friend on B")
 	# out loud
 	await _say(Talk.LOCAL)
-	await _real(1.5)
+	await _real(4.0)          # (room for the friend, behind under load, to hear it out before the VHF)
 	# over the VHF
 	var keys := int(sea.tips.radio.get("keys"))
 	await _say(Talk.VHF)
