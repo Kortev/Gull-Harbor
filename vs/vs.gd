@@ -9,8 +9,8 @@ extends Node
 ## co-op. The sea's own `boat`, `rods`, ... are whichever boat you're on (your camera, your HUD, your screens).
 ##
 ## The start: both boats wait at their berths either side of the fish pier, mirrored (neither's nearer the harbour
-## mouth), the crews free to walk about. Once the title's down (and after a trip, once the weigh-in's been read off and
-## a breather), a countdown runs at the top of everyone's screen with a tick a second, and on GO the horns blow and
+## mouth), the crews free to walk about. Once the title's down (and after a trip, once everyone's pressed on from the
+## results card), a countdown runs at the top of everyone's screen with a tick a second, and on GO the horns blow and
 ## both are let go at once: each crew takes her out through the harbour mouth themselves. No skipper's button, no
 ## moving the boats anywhere.
 ## The trip: when one boat heads out the other goes too, in the same kind of boat. The
@@ -20,7 +20,10 @@ extends Node
 ## (vs/horn.gd) to rattle the other crew. At dusk the race home: HOME s to bring her in alongside her own berth
 ## (slow, TIE s, and she's tied up and her catch sold there, no cut); once both are in, or time's up, what each had
 ## aboard (on deck and iced) is weighed, a fish at a time, A's then B's, and the winner said. A boat not home in time
-## is towed in (the one cut left) and her catch weighs half. Best of three days: the first to two wins the match.
+## is towed in (the one cut left) and her catch weighs half (and sells for half). Best of three days: the first to two
+## wins the match. After each weigh-in the results card (vs/card.gd) comes up on every screen at once: the day's (or,
+## once it's won, the match's) numbers side by side and the winner stamped; everyone presses NEXT DAY (REMATCH), the
+## screen fades to black, both boats are back at their berths, fresh weather from the host, and the countdown again.
 ##
 ## Dev and tests: --vs turns it on at the start (with --team=b, the host takes boat B).
 
@@ -37,6 +40,7 @@ const Horn := preload("res://vs/horn.gd")
 const Hud := preload("res://ui/hud.gd")
 const Sfx := preload("res://audio/sfx.gd")
 const PixFont := preload("res://ui/pixfont.gd")
+const Card := preload("res://vs/card.gd")
 ## Each boat's things, the sea's and a side's (the sea's point at the boat you're on).
 const PARTS := ["boat", "rods", "landing", "fish_hold", "chum", "jig"]
 ## The boats set out from the harbour (sea/landmarks.gd): side by side inside the breakwaters, IN m off the beach,
@@ -51,13 +55,12 @@ const READ := 0.8
 const BETWEEN := 1.2
 ## Days won to win the match.
 const MATCH := 2
-## The countdown to casting off (s), and the breather before it after a weigh-in (longer once a match is won).
+## The countdown to casting off (s); after a weigh-in, how long before the results card comes up (s).
 const COUNT := 10.0
+const CARD_IN := 2.5
 ## The race home at dusk: how long they've got (s), how long alongside her berth, slow, ties her up (s).
 const HOME := 360.0
 const TIE := 2.0
-const BREATHER := 12.0
-const MATCH_BREATHER := 30.0
 
 var sea: Node                 # sea/sea.gd
 var on := false
@@ -87,8 +90,17 @@ var count_end := -1.0
 var home_by := -1.0
 var home := [false, false]
 var _alongside_for := [0.0, 0.0]
-## The weigh-in finished at (the sea clock): the breather runs from it.
-var _weighed_at := -1.0
+## s since the weigh-in was read off (-1: it hasn't been): the card comes up CARD_IN after it.
+var _weighed_for := -1.0
+## The results card (vs/card.gd).
+var card: Card
+## Host: who's pressed NEXT DAY / REMATCH (peer id -> true), the card waiting to go up, the days weighed this match and
+## each boat's numbers over them, s since the fade to the next began (-1: it hasn't).
+var pressed := {}
+var _pending := {}
+var _days := 0
+var _match: Array = []
+var _fading_for := -1.0
 var _go_shown := -10.0
 var _ticked := -1
 var _count: Control
@@ -104,6 +116,10 @@ var _their_on := 0.0          # s since they hooked up (the dot blinks)
 
 func _ready() -> void:
 	_build_ui()
+	card = Card.new()
+	card.name = "Card"
+	card.vs = self
+	add_child(card)
 	contact = Contact.new()
 	contact.name = "Contact"
 	contact.vs = self
@@ -116,12 +132,25 @@ func _ready() -> void:
 			n[t] += 1
 		teams[id] = 0 if n[0] <= n[1] else 1
 		_switch.rpc_id(id, true, teams, result, wins)
-		_teams.rpc(teams))
-	Net.peer_left.connect(func(id: int) -> void: teams.erase(id))
+		_teams.rpc(teams)
+		if card.up():
+			_card_open.rpc_id(id, card.data)
+			_send_states())
+	Net.peer_left.connect(func(id: int) -> void:
+		teams.erase(id)
+		pressed.erase(id)
+		if on and card.up():
+			_send_states())
 	# (joining someone's boat: their skipper's word on VS from here; leaving or dropped: your own one boat)
 	Net.joined.connect(func() -> void: _switch(false, {}, [], [0, 0]))
 	Net.left.connect(func(_was_host: bool) -> void: _switch(false, {}, [], [0, 0]))
-	Net.dropped.connect(func(_reason: String) -> void: _switch(false, {}, [], [0, 0]))
+	Net.dropped.connect(func(_reason: String) -> void:
+		# (the host's gone: the card stays up, saying so, with only the title left)
+		var keep := card.up()
+		if keep:
+			card.gone = true
+			card.states[1 - card.mine] = 3
+		_switch(false, {}, [], [0, 0], keep))
 
 
 # ------------------------------------------------------------------ the host
@@ -193,7 +222,7 @@ func _process(delta: float) -> void:
 		if docked[0] != docked[1]:
 			_host_set_out(holds, 0 if docked[1] else 1)
 		elif docked[0] and docked[1]:
-			_host_count(holds)
+			_host_count(holds, delta)
 		return
 	for i in 2:
 		if not docked[i]:
@@ -230,6 +259,7 @@ func _process(delta: float) -> void:
 	# the trip's over: both in (or time's up, and the late one's towed in), and the weigh-in
 	_out = false
 	var fish := [[], []]
+	var day := [{}, {}]
 	for i in 2:
 		# (a boat home in time sold hers at her berth: they're on her slip)
 		var kgs: Array = ((holds[i].get("sale") as Dictionary).get("lines", []) as Array).map(
@@ -240,18 +270,46 @@ func _process(delta: float) -> void:
 		if late:
 			_last[i] = _pounds(holds[i]) * 0.5 if not docked[i] else float(_last[i]) * 0.5
 			if not docked[i]:
-				holds[i].call("head_in")
+				holds[i].call("head_in", true)
+		var sum := 0.0
+		for k: float in kgs:
+			sum += k
+		day[i] = {"fish": kgs.size(), "kg": sum, "big": kgs.max() if not kgs.is_empty() else 0.0,
+				"money": int((holds[i].get("sale") as Dictionary).get("total", 0)),
+				"late": sum * LB_PER_KG * 0.5 if late else 0.0, "lb": float(_last[i])}
 	_moor(home)
 	if Net.in_session():
 		_homeward.rpc(-1.0, home)
 	else:
 		_homeward(-1.0, home)
-	if roundi(_last[0]) != roundi(_last[1]):
-		wins[0 if _last[0] > _last[1] else 1] += 1
+	var winner := -1 if roundi(_last[0]) == roundi(_last[1]) else (0 if _last[0] > _last[1] else 1)
+	if winner >= 0:
+		wins[winner] += 1
+	_card_after(day, winner)
 	if Net.in_session():
 		_result.rpc(_last, fish, wins)
 	else:
 		_result(_last, fish, wins)
+
+
+## Host, a day weighed: the card that goes up after it (the day's numbers, or the match's once it's won).
+func _card_after(day: Array, winner: int) -> void:
+	if _match.size() != 2:
+		_match = [{}, {}]
+	_days += 1
+	for i in 2:
+		var m: Dictionary = _match[i]
+		var d: Dictionary = day[i]
+		for k: String in ["fish", "kg", "money", "late", "lb"]:
+			m[k] = m.get(k, 0) + d[k]
+		m["big"] = maxf(float(m.get("big", 0.0)), float(d["big"]))
+	var decided := int(wins.max()) >= MATCH
+	var crewed := [false, false]
+	for t: int in teams.values():
+		crewed[t] = true
+	_pending = {"decided": decided, "winner": (0 if int(wins[0]) >= MATCH else 1) if decided else winner,
+			"day": _days, "wins": wins.duplicate(), "crewed": crewed, "day_lb": _last.duplicate(),
+			"boats": _match.duplicate(true) if decided else day}
 
 
 ## Boat i's berth (world x, z): A's on the fish pier's west side, B's on its east, set out along the pier as far as
@@ -316,21 +374,32 @@ func _moor(keep := [false, false]) -> void:
 			helm.rpc("_sync", int(helm.get("captain")), 0.0, at, 0.0)
 
 
-## Host, both at the dock: once the title's down and the last weigh-in's been read off (and a breather), the countdown;
-## at its end, both let go together.
-func _host_count(holds: Array) -> void:
+## Host, both at the dock: once the title's down and everyone's pressed on from the last weigh-in's card, the
+## countdown; at its end, both let go together.
+func _host_count(holds: Array, delta: float) -> void:
 	var now := _now()
 	if count_end < 0.0:
 		var title: Node = sea.get("title")
 		if (title != null and bool(title.call("busy"))) or weighing:
 			return
 		if result.size() == 2:
-			if _weighed_at < 0.0:
-				_weighed_at = now
-			var wait := MATCH_BREATHER if int(wins.max()) >= MATCH else BREATHER
-			if now - _weighed_at < wait:
+			# the card, a moment after the weigh-in; once everyone's pressed on, a fade to black, and the next
+			_weighed_for = maxf(_weighed_for, 0.0) + delta
+			if not card.up():
+				if _weighed_for >= CARD_IN and not _pending.is_empty():
+					_say(&"_card_open", [_pending])
+					_send_states()
 				return
-		_weighed_at = -1.0
+			if _fading_for < 0.0:
+				if _all_ready():
+					_fading_for = 0.0
+					_say(&"_fading", [])
+				return
+			_fading_for += delta
+			if _fading_for >= Card.FADE + 0.3:
+				_next()
+			return
+		_weighed_for = -1.0
 		if Net.in_session():
 			_counting.rpc(now + COUNT)
 		else:
@@ -344,6 +413,119 @@ func _host_count(holds: Array) -> void:
 func _counting(end: float) -> void:
 	count_end = end
 	_ticked = -1
+
+
+## Everyone's: an RPC to every peer and here (or just here, alone).
+func _say(method: StringName, args: Array) -> void:
+	if Net.in_session():
+		callv(&"rpc", [method] + args)
+	else:
+		callv(method, args)
+
+
+## Pressed NEXT DAY / REMATCH on the card (pressed again: taken back).
+func press_ready() -> void:
+	if Net.is_host():
+		_host_ready(Net.my_id())
+	else:
+		_ask_ready.rpc_id(1)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _ask_ready() -> void:
+	_host_ready(multiplayer.get_remote_sender_id())
+
+
+func _host_ready(who: int) -> void:
+	if not on or not card.up() or _fading_for >= 0.0 or not teams.has(who):
+		return
+	if bool(pressed.get(who, false)):
+		pressed.erase(who)
+	else:
+		pressed[who] = true
+	_send_states()
+
+
+## Host: each boat's crew on the card (0 deciding, 1 all pressed, 2 nobody ever aboard her, 3 they've left), to all.
+func _send_states() -> void:
+	var states := [0, 0]
+	var crewed: Array = card.data.get("crewed", [true, true])
+	for i in 2:
+		var ids := teams.keys().filter(func(id: int) -> bool: return int(teams[id]) == i)
+		if ids.is_empty():
+			states[i] = 3 if bool(crewed[i]) else 2
+		else:
+			states[i] = 1 if ids.all(func(id: int) -> bool: return bool(pressed.get(id, false))) else 0
+	_say(&"_readied", [states, pressed.keys()])
+
+
+func _all_ready() -> bool:
+	return card.states.all(func(s: int) -> bool: return s == 1 or s == 2)
+
+
+@rpc("authority", "call_local", "reliable")
+func _card_open(d: Dictionary) -> void:
+	_verdict.visible = false
+	card.open(d, my_team)
+
+
+@rpc("authority", "call_local", "reliable")
+func _readied(states: Array, ids: Array) -> void:
+	card.states = states
+	card.ready_ids = ids
+	card.gone = states.has(3)
+
+
+@rpc("authority", "call_local", "reliable")
+func _fading() -> void:
+	card.fade_out()
+
+
+## Host, under the black: the next day (or a fresh match, the last one won): both boats back at their berths, everyone
+## home aboard their own, new weather for the day, and the countdown follows.
+func _next() -> void:
+	if int(wins.max()) >= MATCH:
+		wins = [0, 0]
+		_days = 0
+		_match = [{}, {}]
+	pressed = {}
+	_pending = {}
+	_weighed_for = -1.0
+	_fading_for = -1.0
+	var weather: Object = sea.get("weather")
+	if str(weather.get("pinned")).is_empty():
+		var s := randi() % 1000000
+		sea.call("_weather_seed", s, "")
+		if Net.in_session():
+			sea.rpc("_weather_seed", s, "")
+	_moor()
+	_say(&"_fresh", [wins])
+
+
+@rpc("authority", "call_local", "reliable")
+func _fresh(won: Array) -> void:
+	result = []
+	catches = []
+	wins = won
+	weighing = false
+	_clear_board()
+	_verdict.visible = false
+	card.close()
+	card.fade_in()
+	var crew := sea.get("crew") as Node
+	for id: int in crew.get("slots").keys():
+		crew.call("reseat", id, true)
+	var title: Node = sea.get("title")
+	if title == null or not bool(title.call("busy")):
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+## Back to the title from the card (ui/menu.gd's own way: off the crew, the game from the top).
+func to_title() -> void:
+	for n: Node in sea.get_children():
+		if n.has_method("_to_title"):
+			n.call("_to_title")
+			return
 
 
 func _now() -> float:
@@ -399,7 +581,7 @@ func spawn_anchor() -> Vector2:
 # ------------------------------------------------------------------ everyone
 
 @rpc("authority", "call_local", "reliable")
-func _switch(want: bool, t: Dictionary, weighed: Array, won: Array) -> void:
+func _switch(want: bool, t: Dictionary, weighed: Array, won: Array, keep_card := false) -> void:
 	if not want and not on:
 		return
 	result = weighed
@@ -407,6 +589,8 @@ func _switch(want: bool, t: Dictionary, weighed: Array, won: Array) -> void:
 	catches = []
 	weighing = false
 	_clear_board()
+	if not keep_card:
+		card.close()
 	if want and not on:
 		_build()
 	elif not want and on:
@@ -527,7 +711,12 @@ func _build() -> void:
 	on = true
 	_out = false
 	count_end = -1.0
-	_weighed_at = -1.0
+	_weighed_for = -1.0
+	_fading_for = -1.0
+	_pending = {}
+	_days = 0
+	_match = [{}, {}]
+	pressed = {}
 	_ui.visible = true
 	if Net.is_host():
 		_moor()
@@ -643,8 +832,8 @@ func _show(delta: float) -> void:
 	_hooked = hooked
 	_their_on += delta
 	_race.queue_redraw()
-	_board.visible = docked
-	_verdict.visible = docked and result.size() == 2 and not weighing
+	_board.visible = docked and not card.up()
+	_verdict.visible = docked and result.size() == 2 and not weighing and not card.up()
 	if not _verdict.visible:
 		return
 	var us := roundi(float(result[my_team]))

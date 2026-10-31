@@ -188,15 +188,17 @@ func _leave_crew() -> void:
 
 func _process(_delta: float) -> void:
 	var title := get_parent().get("title") as Node
+	var vs := get_parent().get("vs") as Node
+	# (Rivals' results card, vs/card.gd, has the mouse while it's up: the menu waits)
 	var open := Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not _headless_shot() \
-			and (title == null or not bool(title.call("busy")))
+			and (title == null or not bool(title.call("busy"))) \
+			and (vs == null or not bool((vs.get("card") as Node).call("up")))
 	_reading = _reading and open
 	if _tuning and not open:
 		_tuning = false
 		_settings.close()
 	var hold := _fish_hold()
 	var docked: bool = hold != null and bool(hold.get("docked"))
-	var vs := get_parent().get("vs") as Node
 	var vs_on := vs != null and bool(vs.get("on"))
 	_panel = _board if docked and not vs_on else _pause
 	_board.visible = open and not _reading and not _tuning and _panel == _board

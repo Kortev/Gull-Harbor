@@ -42,7 +42,11 @@ func _ready() -> void:
 	_check(not vs.came_home(1) and not bool(holds[1].get("docked")), "B still out")
 	# time's up
 	vs._homeward(vs._now() + 0.1, vs.home)
-	await get_tree().create_timer(0.5).timeout
+	# (the sea clock's the wall clock: wait on it, not on frames, which can run faster)
+	var waited := 0.0
+	while vs.result.size() != 2 and waited < 5.0:
+		await get_tree().process_frame
+		waited += 1.0 / 30.0
 	_check(vs.result.size() == 2, "time's up: the weigh-in")
 	if vs.result.size() == 2:
 		_check(roundi(vs.result[0]) == 220 and roundi(vs.result[1]) == 110,

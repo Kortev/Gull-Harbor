@@ -5,7 +5,10 @@ extends Node
 ## keeps B out of A and takes the shove), hooks a fish on A (the friend's radio squawks), and runs A across B's stern
 ## through her lines (nothing's cut: the friend's baits are still out), then blows her horn alongside (the friend's view
 ## rattles). A fish is landed on each boat (60 kg on A, 90 on B), and
-## the skipper heads in: both alongside the fish pier, the weigh-in read off, the result (B by 66 lb).
+## the skipper heads in: both alongside the fish pier, the weigh-in read off, the result (B by 66 lb). Then the results
+## card (vs/card.gd), up on both screens at once with the same numbers: the friend presses NEXT DAY first (the host
+## sees B ready), then the host; a fade, both boats back at their berths, the countdown. Day 2 to B again (40 kg to
+## 70): the match's card, REMATCH from both, a fresh match with the same new weather on both machines.
 ## Run (two shells, the host first):
 ##   godot --headless --fixed-fps 30 --path . res://tests/vs_net_test.tscn -- --role=host
 ##   godot --headless --fixed-fps 30 --path . res://tests/vs_net_test.tscn -- --role=join
@@ -26,7 +29,7 @@ func _ready() -> void:
 	_host = OS.get_cmdline_user_args().has("--role=host")
 	sea = (load("res://sea/sea.tscn") as PackedScene).instantiate() as Sea
 	add_child(sea)
-	get_tree().create_timer(150.0).timeout.connect(func() -> void:
+	get_tree().create_timer(240.0).timeout.connect(func() -> void:
 		_check(false, "finished in time")
 		_done())
 	await get_tree().create_timer(0.3).timeout
@@ -108,7 +111,47 @@ func _as_host() -> void:
 	await get_tree().create_timer(0.3).timeout
 	_check((sea.vs.get("_verdict") as Label).text.begins_with("They won by 66 lb"), "the skipper (A) reads: %s"
 			% (sea.vs.get("_verdict") as Label).text.replace("\n", " / "))
+	await _host_card()
 	await get_tree().create_timer(3.0).timeout       # (the friend reads theirs before the host goes)
+
+
+## The card, the next day, the match and a rematch: the host's side.
+func _host_card() -> void:
+	var vs := sea.vs
+	var card := vs.card
+	await _until(func() -> bool: return card.up(), 6.0)
+	var boats: Array = card.data.get("boats", [{}, {}])
+	_check(card.up() and not bool(card.data["decided"]) and int(card.data["winner"]) == 1 and int(boats[0]["fish"]) == 1
+			and roundi(boats[0]["kg"]) == 60 and roundi(boats[1]["kg"]) == 90, "the card: day 1 to B, 60 kg to 90")
+	await _until(func() -> bool: return int(card.states[1]) == 1, 20.0)
+	_check(card.states == [0, 1] and card.up(), "the friend's pressed NEXT DAY: B ready, A deciding, still up")
+	vs.press_ready()
+	await _until(func() -> bool: return not card.up(), 5.0)
+	await get_tree().create_timer(0.3).timeout
+	var a_boat := vs.sides[0].get("boat") as Node3D
+	var b_boat := vs.sides[1].get("boat") as Node3D
+	_check(not card.up() and vs.wins == [0, 1] and vs.count_end > 0.0, "both pressed: the next day, the countdown")
+	_check((a_boat.get("helm").get("at") as Vector2).distance_to(vs._berth(0)) < 1.0
+			and (b_boat.get("helm").get("at") as Vector2).distance_to(vs._berth(1)) < 1.0, "both boats at their berths")
+	await get_tree().create_timer(2.0).timeout
+	sea.fish_hold.call("head_out", "skiff")
+	await get_tree().create_timer(2.0).timeout
+	(vs.sides[0].get("fish_hold") as Node).call("host_add", 40.0, 60.0)
+	(vs.sides[1].get("fish_hold") as Node).call("host_add", 70.0, 60.0)
+	await get_tree().create_timer(2.0).timeout
+	vs.host_bring_home()
+	await _until(func() -> bool: return card.up(), 40.0)
+	boats = card.data.get("boats", [{}, {}])
+	_check(bool(card.data["decided"]) and int(card.data["winner"]) == 1 and vs.wins == [0, 2] and int(boats[1]["fish"]) == 2
+			and roundi(boats[1]["kg"]) == 160, "day 2 to B: the match's card (B 2 fish, 160 kg over it)")
+	await _until(func() -> bool: return int(card.states[1]) == 1, 20.0)
+	var seed := int(sea.weather.seed)
+	vs.press_ready()
+	await _until(func() -> bool: return not card.up(), 5.0)
+	await get_tree().create_timer(0.3).timeout
+	_check(not card.up() and vs.wins == [0, 0] and vs.count_end > 0.0 and int(sea.weather.seed) != seed,
+			"REMATCH from both: a fresh match, new weather (%d)" % int(sea.weather.seed))
+	print("HOST SEED %d" % int(sea.weather.seed))
 
 
 func _as_friend() -> void:
@@ -196,6 +239,40 @@ func _as_friend() -> void:
 	var pier_x := float(sea.harbour.PIER_X)
 	_check((b_boat.get("helm").get("at") as Vector2).x > pier_x and (a_boat.get("helm").get("at") as Vector2).x < pier_x,
 			"both in alongside the fish pier")
+	# the card, the same as the host's; NEXT DAY first
+	var card := vs.card
+	await _until(func() -> bool: return card.up(), 6.0)
+	var boats: Array = card.data.get("boats", [{}, {}])
+	_check(card.up() and int(card.data["winner"]) == 1 and roundi(boats[0]["kg"]) == 60 and roundi(boats[1]["kg"]) == 90,
+			"the card on my screen too: day 1 to us, 60 kg to 90")
+	await _until(func() -> bool: return card.t > card.T_BUTTONS, 6.0)
+	vs.press_ready()
+	await _until(func() -> bool: return card.ready_ids.has(Net.my_id()), 3.0)
+	_check(card.states == [0, 1] and card._status() == "WAITING FOR THEM...", "pressed: waiting for them")
+	var black := 0.0
+	while card.up():
+		black = maxf(black, card.dark())
+		await get_tree().process_frame
+	await get_tree().create_timer(0.3).timeout
+	_check(black > 0.9 and vs.wins == [0, 1] and vs.count_end > 0.0, "they pressed: a fade, the next day's countdown")
+	_check((b_boat.get("helm").get("at") as Vector2).distance_to(vs._berth(1)) < 1.0, "B back at her berth")
+	# day 2: the match's card, REMATCH
+	await _until(func() -> bool: return card.up() and bool(card.data.get("decided", false)), 60.0)
+	_check(card.up() and int(card.data["winner"]) == 1 and vs.wins == [0, 2], "the match is ours, 2-0")
+	await _until(func() -> bool: return card.t > card.T_BUTTONS, 6.0)
+	_check(card._primary() == "REMATCH", "REMATCH")
+	vs.press_ready()
+	await _until(func() -> bool: return not card.up(), 20.0)
+	await get_tree().create_timer(0.5).timeout
+	_check(not card.up() and vs.wins == [0, 0] and vs.count_end > 0.0, "a fresh match, the countdown")
+	print("FRIEND SEED %d" % int(sea.weather.seed))
+
+
+func _until(ok: Callable, most: float) -> void:
+	var t := 0.0
+	while not bool(ok.call()) and t < most:
+		await get_tree().process_frame
+		t += 1.0 / 30.0
 
 
 func _done() -> void:
