@@ -1099,10 +1099,11 @@ func _process(delta: float) -> void:
 	hud.call("plot", fish)
 
 
-## What the fight needs of you while you're off the rod, most urgent first (or ""). At the wheel: the props, the line
-## under her or on her hull, him gone off to the side (which key swings her stern to him: A brings it to starboard, D
-## to port); and the rod waiting in its holder once he's astern again. Anyone: a line tangled in his, him heading
-## for a line still out, the other lines to reel in, your mate's arms going.
+## What the fight needs of you while you're off the rod, most urgent first (or ""). At the wheel: the props, a
+## beaten fish circling under her (hands off: there's no chasing him round), the line under her or on her hull, him
+## gone off to the side (which key swings her stern to him: A brings it to starboard, D to port); and the rod waiting
+## in its holder once he's astern again. Anyone: a line tangled in his, him heading for a line still out, the other
+## lines to reel in, your mate's arms going.
 func crew_says(at_wheel: bool, throttle: float) -> String:
 	var on: Rod = null
 	for r in rods:
@@ -1118,6 +1119,8 @@ func crew_says(at_wheel: bool, throttle: float) -> String:
 	if at_wheel:
 		if far > Fight.UNDER - 0.2 and on.depth < 25.0 and absf(throttle) > 0.05:
 			return "OUT OF GEAR! HE'S UNDER THE PROPS!"
+		if on.move == "spiral":
+			return "HE'S BEATEN, CIRCLING UNDER HER: OUT OF GEAR, HANDS OFF"
 		if far > Fight.UNDER - 0.2:
 			return "HE'S GONE UNDER THE BOAT! SWING HER: %s" % key
 		if far > Fight.SIDE_FROM:
