@@ -74,6 +74,10 @@ var _trend := 0.0
 var bot_aim := Vector3(NAN, 0.0, 0.0)
 var _look_off := 0.0
 var _spill_t := 0.0
+## Where the rod has your look (her frame), creeping after the line (NAN: not yet: it starts from where you're
+## looking when you take the rod).
+var _cam_yaw := NAN
+var _cam_pitch := NAN
 var _tangle_in := 0.0
 ## Your own arms (tuna/fight.gd): handed to the fight when you take a rod with a fish on, taken back from it as it
 ## goes, and coming back while you're off the rod. Each machine keeps its own player's.
@@ -448,6 +452,8 @@ func _set_holder(i: int, who: int) -> void:
 	r.aim_pitch = 0.6
 	r.aim_side = 0.0
 	_look_off = 0.0
+	_cam_yaw = NAN
+	_cam_pitch = NAN
 	# (changing hands: the fight carries on from where it is, on the new holder's machine or the host's)
 	r.free_t = _now()
 
@@ -1283,6 +1289,12 @@ func _fight_mine(r: Rod, delta: float, throttle: float, send: bool) -> void:
 				r.move, r.wear, r.stretch, r.turn_sign, r.drag, r.hold, r.reeling, r.arms)
 
 
+## Your look following the line (_aim): its fastest turn (rad/s), and the range it fades out over (m).
+const CAM_TURN := 0.35
+const CAM_NEAR := 10.0
+const CAM_FAR := 20.0
+
+
 ## A fight moved on `delta` s, in slices no longer than FIGHT_STEP: a stutter (a slow frame, a hitch) is the same fight
 ## as a smooth run of frames, never one big jolt on the line.
 const FIGHT_STEP := 1.0 / 60.0
@@ -1297,8 +1309,11 @@ func _step_fight(fight: Fight, delta: float, crank: float, pitch: float, side: f
 
 
 ## The rod in your hands, from the mouse: its elevation (heavier going up with a fish on, dragged down by it) and how
-## far it's laid over off the line (past the stop, the rest turns your look). The camera's aimed at where the line
-## goes in, following the rod part of the way. Returns the side in the fight's sense (+ toward increasing bearing).
+## far it's laid over off the line (past the stop, the rest turns your look; laying it over never turns you). Your
+## look creeps after where the line goes in, at no more than CAM_TURN rad/s, and only while he's well off: it fades to
+## nothing as he comes in (CAM_NEAR .. CAM_FAR m) or goes round under her, so a fish circling close never drags you
+## round. Your own mouse always wins: what it turns past the rod's stop is yours, and stays yours close in.
+## Returns the side in the fight's sense (+ toward increasing bearing).
 func _aim(r: Rod, me: Node, fight: Fight, delta: float, heave: bool) -> float:
 	var t := r.strain
 	if not is_nan(bot_aim.x):
@@ -1318,8 +1333,6 @@ func _aim(r: Rod, me: Node, fight: Fight, delta: float, heave: bool) -> float:
 		r.aim_side = clampf(s, -0.9, 0.9)
 		_look_off = clampf(_look_off + spill, -1.4, 1.4)
 		_spill_t = 0.0 if absf(spill) > 0.0 else _spill_t + delta
-		if _spill_t > 1.0:
-			_look_off = move_toward(_look_off, 0.0, 0.8 * delta)
 		if fight.slipping:
 			r.aim_side = move_toward(r.aim_side, 0.0, 0.08 * t * delta)     # (a run pulls the rod round to it)
 	# where the line goes, from where you stand
@@ -1339,9 +1352,22 @@ func _aim(r: Rod, me: Node, fight: Fight, delta: float, heave: bool) -> float:
 			out.y = boat.global_position.y
 			var to := out - head
 			var entry_pitch := clampf(atan2(to.y, Vector2(to.x, to.z).length()), -0.5, 0.05)
-			var yaw := line_yaw + 0.4 * r.aim_side + _look_off
 			var pitch := clampf(entry_pitch + 0.35 * (r.aim_pitch - 0.75), entry_pitch - 0.12, entry_pitch + 0.28)
-			me.set("cam_goal", Vector2(yaw, pitch))
+			# how much it follows: all of it well off, nothing close in or with him going round under her
+			var round_her := smoothstep(Fight.UNDER - 0.7, Fight.UNDER, absf(wrapf(r.bearing, -PI, PI)))
+			var follow := smoothstep(CAM_NEAR, CAM_FAR, hd) * (1.0 - round_her)
+			if is_nan(_cam_yaw):
+				_cam_yaw = float(p.get("_yaw"))
+				_cam_pitch = float(p.get("_pitch"))
+				_look_off = 0.0
+			var step := CAM_TURN * follow * delta
+			_cam_yaw += clampf(wrapf(line_yaw - _cam_yaw, -PI, PI), -step, step)
+			_cam_pitch += clampf(pitch - _cam_pitch, -step, step)
+			# (your own look, left there a moment, is folded in, so it's never pulled back from under you)
+			if _spill_t > 1.0 and _look_off != 0.0:
+				_cam_yaw += _look_off
+				_look_off = 0.0
+			me.set("cam_goal", Vector2(_cam_yaw + _look_off, _cam_pitch))
 			me.set("rod_lease_frame", Engine.get_process_frames())
 	r.set_meta("line_yaw", line_yaw)
 	if not is_nan(bot_aim.x):
