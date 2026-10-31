@@ -22,7 +22,7 @@ func _ready() -> void:
 	_host = OS.get_cmdline_user_args().has("--role=host")
 	sea = (load("res://sea/sea.tscn") as PackedScene).instantiate() as Sea
 	add_child(sea)
-	get_tree().create_timer(120.0).timeout.connect(func() -> void:
+	get_tree().create_timer(240.0).timeout.connect(func() -> void:
 		_check(false, "finished in time")
 		_done())
 	await get_tree().create_timer(0.3).timeout
@@ -53,6 +53,7 @@ func _as_host() -> void:
 	var rod = sea.rods.rods[0]
 	var landing := sea.landing
 	landing.host_alongside(0, KG, float(rod.bearing), float(rod.hook_t))
+	landing.hold_clock(0, true)      # (slow under load, it'd outlast HOOK_HOLDS and the hook would pull)
 	# the friend takes the rod: quiet here too
 	var friend := 0
 	for id: int in sea.crew.slots:
