@@ -1,7 +1,7 @@
 extends CanvasLayer
 ## First-time tips, on the radio: the first time each thing comes up (heading out, the first flock in the glasses,
 ## nearing birds too fast, the first bite, the first fight, the first fish alongside, on deck ...), Dale from the bank
-## comes on the VHF (ui/radio.gd: the squelch, the hiss, his voice if it's been recorded) and says what to do in a
+## comes on the VHF (ui/radio.gd: the squelch, the hiss, his voice: recorded, or made up as it plays) and says what to do in a
 ## line, once. Which you've seen is kept on this machine (SAVE), so each player gets them once, whoever's boat
 ## they're on; the field guide in the Esc menu (ui/menu.gd) has the lot, and can show them all again (reset()).
 ## docs/FEATURES.md is where these come from.
@@ -187,7 +187,7 @@ func _process(delta: float) -> void:
 		var line := id
 		if id == "alongside" and bool(((sea.get("boat") as Node).get("spec") as Dictionary).get("wire", false)):
 			line = "alongside_wire"
-		_left = maxf(_left, radio.call_in("dale", line, _left))
+		_left = maxf(_left, radio.call_in("dale", line, _left, _body.text.split(" ", false).size()))
 	_left -= delta
 	var want := 1.0 if _left > 0.0 and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED else 0.0
 	_card.modulate.a = move_toward(_card.modulate.a, want, delta * 3.0)

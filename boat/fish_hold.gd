@@ -108,6 +108,8 @@ var _bled_at := {}
 ## The fish box's lid, open or shut (the host's word), as drawn (0 shut .. 1 open); and the fish being dragged on the
 ## gaff: yours (its id, -1 none) and everyone's, as their peers last said ({id: [at (boat-local), yaw]}).
 var box_open := false
+## The live well's lid, held open (E on it: boat/live_well.gd draws it; the host's word, like the box's).
+var well_open := false
 var _lid_k := 0.0
 var _lid: Node3D
 var _inside: Node3D
@@ -331,6 +333,20 @@ func _ask_lid(open: bool) -> void:
 	_host_changed()
 
 
+## The live well's lid held open or shut (boat/live_well.gd: E on it).
+func request_well_lid(open: bool) -> void:
+	if Net.is_host():
+		_ask_well_lid(open)
+	else:
+		_ask_well_lid.rpc_id(1, open)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _ask_well_lid(open: bool) -> void:
+	well_open = open
+	_host_changed()
+
+
 ## Whether a spot on deck (boat-local) is over the fish box, near enough to drop a fish in.
 func over_box(at: Vector3) -> bool:
 	var spec: Dictionary = (sea.get("boat") as Node).get("spec")
@@ -525,7 +541,7 @@ func _host_changed() -> void:
 
 
 func _state() -> Dictionary:
-	return {"fish": fish, "bank": bank, "best": best, "sale": sale, "next": _next_id, "docked": docked, "box": box_open,
+	return {"fish": fish, "bank": bank, "best": best, "sale": sale, "next": _next_id, "docked": docked, "box": box_open, "well_open": well_open,
 			"trip_t0": trip_t0, "kind": kind, "owned": owned, "gear": gear, "well": well, "chum": chum,
 			"quota_n": quota_n, "quota": quota, "earned": earned, "day": day, "run_fish": run_fish,
 			"run_biggest": run_biggest, "best_run": best_run}
@@ -546,6 +562,7 @@ func _sync(state: Dictionary) -> void:
 	if docked and not was and sea.has_method("arrive") and sea.get_parent() == get_tree().root:
 		sea.call("arrive")
 	box_open = bool(state.get("box", box_open))
+	well_open = bool(state.get("well_open", well_open))
 	trip_t0 = float(state.get("trip_t0", trip_t0))
 	kind = str(state.get("kind", kind))
 	owned = state.get("owned", owned)

@@ -1,7 +1,9 @@
 extends Node
 ## The spread: grabbing a rod, not grabbing a second one, putting it back. And clearing the lines: with a fish on,
 ## E on an empty rod reels its line in (no bites on it), a tangle in a running fish's line is cleared the same way,
-## and with nothing on, E picks it up to cast it. Run: godot --headless --path . res://tests/rods_test.tscn
+## and with nothing on, E picks it up to cast it. The sportfisher's wide lines run up through her outriggers' clips
+## (rising to them, not in a frame); a strike pops one out and it falls straight to the rod in a moment.
+## Run: godot --headless --path . res://tests/rods_test.tscn
 
 const Sea := preload("res://sea/sea.gd")
 
@@ -105,6 +107,29 @@ func _ready() -> void:
 	_check(not rods.fighting(), "the fish gone")
 	rods.request_grab(2)
 	_check(rods.rods[2].holder == 1, "with nothing on, E picks it up (to cast it: tests/cast_test.tscn)")
+	# the outriggers: a wide bait (rod 3, cast back out to its place) runs out through its clip, high and wide (not
+	# rod 2's, reeled in, nor a corner rod's); a strike pops it
+	rods.request_return(2)
+	rods._host_line(3, false)          # (cast back out to its place in the spread)
+	var r3: Node3D = rods.rods[3]
+	while rods.flying(3):
+		await get_tree().process_frame
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var k0 := float(r3.get("clip_k"))
+	await get_tree().create_timer(1.6).timeout
+	var c3: Vector3 = sea.boat.global_transform.affine_inverse() * (r3.get("clip") as Vector3)
+	_check(bool(r3.get("clip_on")) and not bool(rods.rods[2].get("clip_on")) and not bool(rods.rods[0].get("clip_on"))
+			and c3.y > 6.0 and absf(c3.x) > 5.0, "the wide lines run through the outrigger clips (%s)" % c3)
+	_check(k0 < 0.5 and float(r3.get("clip_k")) > 0.99, "up to the clip as the bait settles (%.2f, then %.2f)"
+			% [k0, r3.get("clip_k")])
+	rods.strike(3, 150.0)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var falling := float(r3.get("clip_k"))
+	await get_tree().create_timer(0.5).timeout
+	_check(bool(r3.get("hooked")) and not bool(r3.get("clip_on")) and falling > 0.5 and float(r3.get("clip_k")) < 0.01,
+			"a strike pops the line out of the clip, and it falls to the rod (%.2f, then %.2f)" % [falling, r3.get("clip_k")])
 	for f in fails:
 		print("FAIL ", f)
 	print("RODS TEST ", "PASSED" if fails.is_empty() else "FAILED")

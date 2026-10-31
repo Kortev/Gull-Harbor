@@ -20,7 +20,7 @@ feature in player terms, and what the player must be taught), `docs/TODO.md` (th
 
 `fight_test`, `strike_test`, `rods_test`, `landing_test`, `wait_test` (chum, baits, jig, the quota), `sail_test`
 (the moving boat), `helm_test`, `deck_test`, `hull_test`, `look_test`, `weather_test`, `code_test`,
-`steam_test` (+ `tools/steam_test.sh`), and `tools/net_test.sh` (two instances over ENet). Each prints PASSED or
+`tower_test`, `chair_test` (the seats and the cooler too), `radio_test`, `lids_test`, `steam_test` (+ `tools/steam_test.sh`), and `tools/net_test.sh` (two instances over ENet). Each prints PASSED or
 FAILED lines. Tests use their own save (`user://bluefin_test.cfg`), never the player's.
 
 ## The user (how to work with them)
@@ -103,13 +103,13 @@ Everything big enough to look usable must be usable, or go. Today:
 
 | Thing | Usable now? | Do |
 |---|---|---|
-| The fighting chair (sportfisher) | **yes** (boat/chair.gd, tests/chair_test.tscn) | Done: E sits you in it, E or a jump gets you up; it swivels where you look. No fighting advantage (the user's call): it's for sitting in. |
-| The tuna tower (sportfisher) | no | Climb it: see further (the binoculars from up there spot flocks the deck can't). |
-| The leaning post / skipper's seat / bench | no | Sit or lean (E), just to chill. |
-| The cooler (sportfisher), the live well, the fish box | the box takes fish (as a whole: E on the fish) | Cooler: grab a drink (funny; maybe a little arm rest). Live well: see the mackerel in it. Fish box: the lid opens as fish go in. |
-| The radio on the dash | Dale talks on it (as a HUD card) | Make the voice come from it; maybe music (a toy). |
-| Rod holders that never fish (sportfisher's 2-5, skiff's 2-3) | the jig uses one | Spare rods, or take the empty holders out of the model. |
-| Outriggers (sportfisher) | no | Run the corner baits from them, or take them off. |
+| The fighting chair (sportfisher) | **yes** (boat/chair.gd, tests/chair_test.tscn) | Done: E sits you in it, E or a jump gets you up; it swivels where you look; with a fish on the rod's butt goes in its gimbal. No fighting advantage (the user's call): it's for sitting in. |
+| The tuna tower (sportfisher) | **yes** (boat/tower.gd, tests/tower_test.tscn) | Done: E on the ladder at the hardtop's aft edge and you climb it, all the way; from up there you can tell what a flock's on about 1.3 km off (700 m from the deck: crew/spotter.gd's read_range). |
+| The leaning post / skipper's seat / bench | **yes** (boat/chair.gd's seats) | Done: E to sit, or lean on the leaning post; carried in and out, no jump. |
+| The cooler (sportfisher), the live well, the fish box | **yes** | Cooler: E for a drink (boat/cooler.gd). Live well: its lid opens (E, and as a mackerel goes in or out) on the mackerel swimming in it (boat/live_well.gd, tests/lids_test.tscn). Fish box: its lid (boat/fish_hold.gd). |
+| The radio on the dash | **yes**: Dale on the VHF | Done: no recording yet, so a voice you can't quite make out, made up as it plays (audio/radio_voice.gd), through the Radio bus; the card has the words. Recordings play instead once there are some. |
+| Rod holders that never fish (sportfisher's 2-5, skiff's 2-3) | the jig uses one | Kept: small, and real boats have spare holders. |
+| Outriggers (sportfisher) | **yes** | Done: the wide lines run up through their release clips while the bait's out wide; a strike pops it (rods.gd's _outrigger). |
 | Floodlights, buoys, rope coils, cleats | lights come on at dark | Fine as set dressing. |
 
 ## The game, in one breath

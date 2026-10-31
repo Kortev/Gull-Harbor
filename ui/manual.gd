@@ -65,7 +65,8 @@ const CHAPTERS := [
 		+ "The fish box (the pips top left) holds 2 (skiff) or 12 (sportfisher). Head in from the menu to sell."],
 	["10. Boats and gear", "The skiff: 2 rods, quick, handy alone or with two. Box for 2.\n"
 		+ "The sportfisher ($20,000, or $2,500 a day chartered): 4 rods, box for 12, slow to turn, and the tuna "
-		+ "door means wiring. She wants a crew. Her fighting chair: E to sit, E or jump to get up.\n\n"
+		+ "door means wiring. She wants a crew. Her fighting chair and seats: E to sit, E or jump to get up. Her tuna "
+		+ "tower: E on its ladder to climb; from up there you can tell what birds are on much further off.\n\n"
 		+ "Gear lasts the run: a two-speed reel (winds a quarter faster), heavier line (rubs the hull longer)."],
 ]
 

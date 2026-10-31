@@ -19,6 +19,10 @@ const Chair := preload("res://boat/chair.gd")
 const Wake := preload("res://boat/wake.gd")
 const Kinds := preload("res://boat/kinds.gd")
 const Ladder := preload("res://boat/ladder.gd")
+const Tower := preload("res://boat/tower.gd")
+const GreenWater := preload("res://boat/green_water.gd")
+const Cooler := preload("res://boat/cooler.gd")
+const LiveWell := preload("res://boat/live_well.gd")
 
 ## Under way: her bow up (rad) flat out ahead, and how far her stern digs in (rad, m down) backing down flat out.
 const SQUAT := 0.07
@@ -50,11 +54,18 @@ var helm: Helm
 var rock := Vector2.ZERO
 var floods: Array[Light3D] = []
 var chair: Node3D
-## The fighting chair you can sit in (boat/chair.gd), if she has one.
+## The fighting chair you can sit in (boat/chair.gd), if she has one, and all her seats (the chair among them).
 var seat: Chair
+var seats: Array[Chair] = []
 var wheel: Node3D
 ## The boarding ladder over her transom (boat/ladder.gd): up it out of the sea.
 var ladder: Ladder
+## Her tuna tower's ladder, if she has one (boat/tower.gd): up it to spot flocks from higher.
+var tower: Tower
+## Big seas coming aboard over her rail (boat/green_water.gd).
+var green: GreenWater
+## Her live well, its lid that opens and the mackerel in it (boat/live_well.gd).
+var live_well: LiveWell
 var _radar: Node3D
 ## The still world the crew walk in (see above): add crew bodies under deck_root.
 var deck_space: SubViewport
@@ -95,6 +106,10 @@ func _ready() -> void:
 	wake.boat = self
 	add_child(wake)
 	_build()
+	green = GreenWater.new()
+	green.name = "GreenWater"
+	green.boat = self
+	add_child(green)
 
 
 ## The skipper picks her (the dock, ui/menu.gd): the host tells everyone, and every peer rebuilds her.
@@ -138,7 +153,7 @@ func _build() -> void:
 	visual.name = "Visual"
 	add_child(visual)
 	_built.append(visual)
-	for n: String in ["boat", "chair", "wheel", "radar"]:
+	for n: String in ["boat", "chair", "wheel", "radar", "well_lid"]:
 		var mi := src.find_child(n, true, false) as Node3D
 		if mi:
 			var t := _src_transform(mi, src)
@@ -147,14 +162,24 @@ func _build() -> void:
 			mi.transform = t
 			visual.add_child(mi)
 	chair = visual.get_node_or_null("chair") as Node3D
+	seats.clear()
 	if chair:
 		seat = Chair.new()
 		seat.name = "FightingChair"
 		add_child(seat)
 		seat.setup(self, chair)
 		_built.append(seat)
+		seats.append(seat)
 	else:
 		seat = null
+	# her other seats: the benches, the skipper's seat, the cooler seat, the leaning post (boat/kinds.gd's "seats")
+	for i in (spec.get("seats", []) as Array).size():
+		var s := Chair.new()
+		s.name = "Seat%d" % i
+		add_child(s)
+		s.setup_seat(self, spec["seats"][i])
+		_built.append(s)
+		seats.append(s)
 	wheel = visual.get_node_or_null("wheel") as Node3D
 	if wheel:
 		_wheel_base = wheel.basis
@@ -222,6 +247,30 @@ func _build() -> void:
 		ladder.spot = spec["ladder"]
 		add_child(ladder)
 		_built.append(ladder)
+	live_well = null
+	var well_lid := visual.get_node_or_null("well_lid") as Node3D
+	if well_lid:
+		live_well = LiveWell.new()
+		live_well.name = "LiveWell"
+		live_well.boat = self
+		add_child(live_well)
+		live_well.setup(well_lid)
+		_built.append(live_well)
+	if spec.has("cooler"):
+		var c := Cooler.new()
+		c.name = "Cooler"
+		c.boat = self
+		c.setup(spec["cooler"])
+		add_child(c)
+		_built.append(c)
+	tower = null
+	if spec.has("tower"):
+		tower = Tower.new()
+		tower.name = "Tower"
+		tower.boat = self
+		tower.setup(spec)
+		add_child(tower)
+		_built.append(tower)
 	# a dim red night light at the helm, so it isn't a black hole
 	var cabin := OmniLight3D.new()
 	cabin.name = "CabinLight"
