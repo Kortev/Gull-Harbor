@@ -19,6 +19,7 @@ const FightHud := preload("res://ui/fight_hud.gd")
 const FightTutor := preload("res://ui/fight_tutor.gd")
 const Tuna := preload("res://tuna/tuna.gd")
 const Splash := preload("res://sea/splash.gd")
+const FightFx := preload("res://rods/fight_fx.gd")
 ## A rod nobody's holding sits in its holder with the drag set: the host plays the fish against the drag (it takes
 ## line on its runs and tires doing it; between them nobody wins any back) and tells everyone how it's going.
 const WHY := {"broke": "Line parted.", "broke_rail": "Line parted on the rail.", "pulled": "Hook pulled.",
@@ -85,6 +86,8 @@ var _tangle_in := 0.0
 ## goes, and coming back while you're off the rod. Each machine keeps its own player's.
 var arms := 1.0
 var _splash: Splash
+## The strike, the line and the fish showing himself, drawn (rods/fight_fx.gd: presentation only).
+var fx: FightFx
 ## Your rod with no fish on: how long you've held left mouse winding its line in, and whether you've let go since
 ## (a cast starts on a fresh press, not the end of winding in).
 var _fresh_press := false
@@ -99,6 +102,10 @@ func _ready() -> void:
 	_splash = Splash.new()
 	_splash.name = "Splash"
 	add_child(_splash)
+	fx = FightFx.new()
+	fx.name = "FightFx"
+	fx.spread = self
+	add_child(fx)
 	_whoosh = AudioStreamPlayer3D.new()
 	_whoosh.stream = preload("res://audio/fish/whoosh.wav")
 	_whoosh.unit_size = 5.0
@@ -734,6 +741,7 @@ func _strike(i: int, kg: float, t: float, bearing: float, seed_value: int) -> vo
 	r.fight = null
 	r.wear = 0.0
 	r.set_meta("seed", seed_value)
+	fx.struck(r)
 
 
 @rpc("authority", "call_local", "reliable")
@@ -1203,6 +1211,7 @@ func _show_fish(r: Rod, boat: Node3D, ocean: Node, delta: float) -> void:
 		if jt >= 0.5 and jt < 1.2:
 			air = (jt - 0.5) / 0.7
 			at.y = top + (1.0 + r.fish_kg / 80.0) * sin(PI * air)
+	at = fx.broach(r, at, top, delta)       # (late, close and tiring: up under the top, showing himself)
 	if not is_instance_valid(r.fish_node):
 		var f := Tuna.new(r.fish_kg)
 		f.name = "Hooked%d" % r.index
@@ -1217,6 +1226,7 @@ func _show_fish(r: Rod, boat: Node3D, ocean: Node, delta: float) -> void:
 	if delta > 0.0:
 		fish.velocity = (at - fish.global_position) / delta
 	fish.effort = clampf(r.strain + (0.6 if r.move in ["run", "shake"] else 0.0), 0.0, 1.0)
+	fx.dress(r, fish, top, delta)
 	# the surface: a boil as it takes off, slaps in a head shake, swirls as it circles near the top
 	r.splash_in -= delta
 	if r.move != r.seen_move:
