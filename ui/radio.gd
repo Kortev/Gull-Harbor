@@ -83,10 +83,32 @@ func _close() -> void:
 	if not _open:
 		return
 	_open = false
-	Sfx.fade(_hiss, 0.0, 0.15)
+	Sfx.fade(_hiss, 0.12 if _keyed > 0 else 0.0, 0.15)
 	_play(_tail, 0.0, -6.0)
 	# the roger beep, just after
 	get_tree().create_timer(0.2).timeout.connect(func() -> void: _play(_beep(), 0.0, -14.0))
+
+
+## One of the crew (or the rival) keying up on the VHF to talk (crew/talk.gd), or letting go: the squelch breaks and
+## the hiss comes up under them; letting go, the tail and the roger beep. `keys` counts the breaks.
+var keys := 0
+var _keyed := 0
+
+
+func squelch(open: bool) -> void:
+	if open:
+		keys += 1
+		_keyed += 1
+		_play(_burst, 0.0, -6.0)
+		Sfx.fade(_hiss, 0.12, 0.1)
+		return
+	if _keyed <= 0:
+		return
+	_keyed -= 1
+	if _keyed == 0 and not _open:
+		Sfx.fade(_hiss, 0.0, 0.15)
+	_play(_tail, 0.0, -8.0)
+	get_tree().create_timer(0.2).timeout.connect(func() -> void: _play(_beep(), 0.0, -16.0))
 
 
 ## Whether there's a recording for `line`.
