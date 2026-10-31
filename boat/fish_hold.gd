@@ -392,8 +392,13 @@ func head_in(late := false) -> void:
 
 
 ## Host, after a sale: the quota's last day done, it's made (a bigger one, three more days) or the bank takes the boat
-## (the run's story on the slip, and a new run). Otherwise just the next day.
+## (the run's story on the slip, and a new run). Otherwise just the next day. Not in Rivals: no quota there, the
+## match is days won (vs/vs.gd), and nobody's boat is taken off them halfway through it.
 func _settle() -> void:
+	var real: Node = sea.get("sea") if sea.get("sea") != null else sea
+	var vs: Node = real.get("vs")
+	if vs != null and bool(vs.get("on")):
+		return
 	if day < DAYS:
 		day += 1
 		return
