@@ -32,6 +32,9 @@ func _ready() -> void:
 	await get_tree().process_frame
 	var rod = sea.rods.rods[0]
 	landing.host_alongside(0, 150.0, float(rod.bearing), float(rod.hook_t))
+	# (the hook's clock stood still, as the tutor does: it runs on frames, and the waits below on the sea's clock, real
+	# time; a run fast enough gets through HOOK_HOLDS of frames before they're done and the hook pulls)
+	landing.hold_clock(0, true)
 	await get_tree().process_frame
 	_check(landing.fish.has(0) and rod.holder == 0, "up alongside, the rod in its holder")
 	_check(str(rod.call("interact_prompt", me)) == "Hold it", "the rod says: %s" % rod.call("interact_prompt", me))

@@ -120,8 +120,13 @@ func _lit_near(radar: Radar) -> Array:
 	return out
 
 
+## n turns of the sweep, on the radar's own clock (the sea's: the wall clock, which a fast headless run with
+## --fixed-fps gets ahead of if it waits on the game's).
 func _sweeps(radar: Radar, n: int) -> void:
-	await get_tree().create_timer(TAU / Radar.SWEEP * n + 0.1).timeout
+	var schools: Node = radar.get("schools")
+	var until := float(schools.call("now")) + TAU / Radar.SWEEP * n + 0.1
+	while float(schools.call("now")) < until:
+		await get_tree().process_frame
 
 
 func _done() -> void:

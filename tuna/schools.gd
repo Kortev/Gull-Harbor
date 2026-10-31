@@ -108,6 +108,8 @@ func _ready() -> void:
 
 ## How many pixels across a far-off bird is drawn, at least (so a flock reads on the horizon).
 const BIRD_PX := 3.0
+## How far off (m) the sea under a bird on the wing may be (ocean.gd's height_at slack): it flies metres over it.
+const BIRD_SLACK := 0.35
 const BIRD_SHADER := """
 shader_type spatial;
 render_mode unshaded, cull_disabled, fog_disabled;
@@ -621,7 +623,11 @@ class School extends Node3D:
 			var dist := cam.global_position.distance_to(c)
 			var px := 2.0 * tan(deg_to_rad(cam.fov) * 0.5) * dist / maxf(get_viewport().get_visible_rect().size.y, 1.0)
 			speck = maxf(1.0, BIRD_PX * px / 0.5)
-		for i in _birds.size():
+		# none of them on the screen (behind you, off to the side): left where they are, the sea under each being most of
+		# the cost; their places come from the clock, so they're right again the moment they come into view
+		var shown := cam == null or _in_view(cam, c + Vector3(0.0, 10.0, 0.0),
+				22.0 * (1.0 + going * 6.0) + 30.0 + going * going * 60.0)
+		for i in (_birds.size() if shown else 0):
 			var bs := _bird_seed[i]
 			var b := _birds[i]
 			if sitting:
@@ -643,7 +649,12 @@ class School extends Node3D:
 				dive = smoothstep(0.0, 0.5, cyc) * (1.0 - smoothstep(0.5, 1.4, cyc)) if cyc < 1.4 else 0.0
 			var spread := bs.x * (1.0 + going * 6.0)
 			var p := c + Vector3(cos(a) * spread, 0.0, sin(a) * spread)
-			p.y = float(o.call("height_at", p)) + lerpf(h, -0.2, dive)
+			# (on the wing over the sea's rough shape, the small chop left out: a fraction of the cost; diving, onto
+			# the water itself)
+			var sea_y := float(o.call("height_at", p, 0.0, BIRD_SLACK))
+			if dive > 0.0:
+				sea_y = lerpf(sea_y, float(o.call("height_at", p)), smoothstep(0.0, 0.5, dive))
+			p.y = sea_y + lerpf(h, -0.2, dive)
 			b.position = p
 			var fwd := Vector3(-sin(a), 0.0, cos(a)) * signf(bs.z)
 			# gliding mostly (wings held out, a little up), flapping in bursts and climbing out of a dive; folded in it
@@ -682,6 +693,13 @@ class School extends Node3D:
 			if j.position.y < float(o.call("height_at", j.position)) - 0.5 and _jump_v[i].y < 0.0:
 				j.visible = false
 				_bust(j.position, false)
+
+	## Whether any of a ball of radius r round `at` is in front of the camera.
+	static func _in_view(cam: Camera3D, at: Vector3, r: float) -> bool:
+		for pl: Plane in cam.get_frustum():
+			if pl.distance_to(at) > r:
+				return false
+		return true
 
 	func _bust(p: Vector3, leap: bool) -> void:
 		var k := _next_splash % _splashes.size()
