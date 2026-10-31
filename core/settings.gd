@@ -26,7 +26,8 @@ const REBINDABLE := [["move_forward", "FORWARD"], ["move_back", "BACK"], ["move_
 		["move_right", "RIGHT"], ["jump", "JUMP / HOP THE RAIL"], ["sprint", "SPRINT"], ["swim_down", "DIVE"],
 		["interact", "USE / GRAB"], ["use_primary", "CAST, REEL, SWING"], ["use_secondary", "HEAVE, AIM"],
 		["drop", "DROP IT"], ["shove", "SHOVE"], ["slot_1", "HANDS 1"], ["slot_2", "HANDS 2"], ["slot_3", "HANDS 3"],
-		["slot_4", "HANDS 4"], ["slot_5", "HANDS 5"], ["slot_next", "NEXT IN HAND"], ["slot_prev", "LAST IN HAND"]]
+		["slot_4", "HANDS 4"], ["slot_5", "HANDS 5"], ["slot_next", "NEXT IN HAND"], ["slot_prev", "LAST IN HAND"],
+		["talk", "TALK OUT LOUD"], ["radio", "TALK ON THE VHF"]]
 const WINDOWS := ["windowed", "borderless", "fullscreen"]
 const SIZES: Array[Vector2i] = [Vector2i(1152, 648), Vector2i(1280, 720), Vector2i(1600, 900), Vector2i(1920, 1080),
 		Vector2i(2560, 1440)]

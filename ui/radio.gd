@@ -9,6 +9,8 @@ extends Node
 
 const Sfx := preload("res://audio/sfx.gd")
 const BUS := "Radio"
+## The same radio sound for the crews' own voices over the VHF (crew/talk.gd), under the Voice slider, not Effects.
+const VOICE_BUS := "VoiceRadio"
 const VOICES := "res://audio/voice/"
 const RATE := 22050
 
@@ -32,14 +34,15 @@ func _ready() -> void:
 		_hiss.set("bus", BUS)
 
 
-## The Radio bus, once a run: a VHF handset's band (about 300 Hz to 3 kHz), crunch, and a hard squash.
-static func _make_bus() -> void:
-	if AudioServer.get_bus_index(BUS) >= 0:
+## The Radio bus (and its twin for voices), once a run: a VHF handset's band (about 300 Hz to 3 kHz), crunch, and a
+## hard squash.
+static func _make_bus(bus := BUS, to := "Effects") -> void:
+	if AudioServer.get_bus_index(bus) >= 0:
 		return
 	AudioServer.add_bus()
 	var i := AudioServer.bus_count - 1
-	AudioServer.set_bus_name(i, BUS)
-	AudioServer.set_bus_send(i, "Effects" if AudioServer.get_bus_index("Effects") >= 0 else "Master")   # (core/settings.gd)
+	AudioServer.set_bus_name(i, bus)
+	AudioServer.set_bus_send(i, to if AudioServer.get_bus_index(to) >= 0 else "Master")   # (core/settings.gd)
 	var hp := AudioEffectHighPassFilter.new()
 	hp.cutoff_hz = 320.0
 	AudioServer.add_bus_effect(i, hp)

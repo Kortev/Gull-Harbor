@@ -151,6 +151,7 @@ class Speaker:
 
 func _ready() -> void:
 	Radio._make_bus()
+	Radio._make_bus(Radio.VOICE_BUS, "Voice")
 	_mic_ok = DisplayServer.get_name() != "headless" and not AudioServer.get_input_device_list().is_empty()
 	_board = Control.new()
 	_board.name = "Talking"
@@ -413,7 +414,7 @@ func _route(s: Speaker) -> void:
 		s.near.unhook()
 	elif not s.near.hung(head):
 		s.near.unhook()
-		var o := _speaker_3d(4.5, 70.0, 0.0, "Master")
+		var o := _speaker_3d(4.5, 70.0, 0.0, "Voice")
 		head.add_child(o)
 		s.near.outs = [o]
 		s.near.at = head
@@ -422,13 +423,13 @@ func _route(s: Speaker) -> void:
 		s.vhf.unhook()
 		var ear := AudioStreamPlayer.new()
 		ear.stream = _generator()
-		ear.bus = Radio.BUS
+		ear.bus = Radio.VOICE_BUS
 		ear.volume_db = -13.0
 		add_child(ear)
 		s.vhf.outs = [ear]
 		s.vhf.at = dash
 		if dash != null:
-			var o := _speaker_3d(2.5, 35.0, 3.0, Radio.BUS)
+			var o := _speaker_3d(2.5, 35.0, 3.0, Radio.VOICE_BUS)
 			o.position = Vector3(0.0, 0.3, 0.0)
 			dash.add_child(o)
 			s.vhf.outs = [o, ear]

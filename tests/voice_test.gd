@@ -157,7 +157,7 @@ func _as_friend() -> void:
 			break
 	_check(s.vhf.pushed > int(SAY * 0.6 * Talk.RATE), "heard him over the radio, rivals and all (%d samples)" % s.vhf.pushed)
 	_check(s.vhf.outs.size() == 2 and s.vhf.outs[0] is AudioStreamPlayer3D and s.vhf.outs[0].get_parent() == b_boat.get("wheel")
-			and s.vhf.outs[1] is AudioStreamPlayer and str(s.vhf.outs[1].get("bus")) == "Radio",
+			and s.vhf.outs[1] is AudioStreamPlayer and str(s.vhf.outs[1].get("bus")) == "VoiceRadio",
 			"from B's dash and in my ear, through the Radio bus")
 	_check(int(sea.tips.radio.get("keys")) == keys + 1, "the squelch broke for him")
 	_check(vhf and rows, "the HUD showed him on the radio")
