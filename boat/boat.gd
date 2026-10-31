@@ -20,6 +20,7 @@ const Wake := preload("res://boat/wake.gd")
 const Kinds := preload("res://boat/kinds.gd")
 const Ladder := preload("res://boat/ladder.gd")
 const Tower := preload("res://boat/tower.gd")
+const GreenWater := preload("res://boat/green_water.gd")
 
 ## Under way: her bow up (rad) flat out ahead, and how far her stern digs in (rad, m down) backing down flat out.
 const SQUAT := 0.07
@@ -58,6 +59,8 @@ var wheel: Node3D
 var ladder: Ladder
 ## Her tuna tower's ladder, if she has one (boat/tower.gd): up it to spot flocks from higher.
 var tower: Tower
+## Big seas coming aboard over her rail (boat/green_water.gd).
+var green: GreenWater
 var _radar: Node3D
 ## The still world the crew walk in (see above): add crew bodies under deck_root.
 var deck_space: SubViewport
@@ -98,6 +101,10 @@ func _ready() -> void:
 	wake.boat = self
 	add_child(wake)
 	_build()
+	green = GreenWater.new()
+	green.name = "GreenWater"
+	green.boat = self
+	add_child(green)
 
 
 ## The skipper picks her (the dock, ui/menu.gd): the host tells everyone, and every peer rebuilds her.

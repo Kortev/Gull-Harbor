@@ -28,6 +28,8 @@ extends RefCounted
 ##   chum          where the chum bucket stands (boat/chum.gd); jig: the holder the mackerel jig sits in (boat/jig.gd)
 ##   price         what she costs to buy at the dock; fuel: what a trip in her costs (taken from the sale)
 ##   radar_bar     where her radar's spinning bar sits, if her model hasn't one (boat.gd builds it)
+##   rail          points along her starboard rail (port mirrors them) and across her transom, where a big sea can
+##                 come aboard (boat/green_water.gd)
 ##   tower, tower_foot where you stand up her tuna tower (your feet), and the foot of the ladder up to it on deck
 ##                 (boat/tower.gd; only the sportfisher has one)
 ##   ladder        the boarding ladder hooked over her transom (boat/ladder.gd): x across, y the top of the transom
@@ -61,6 +63,9 @@ const KINDS := {
 		"price": 0, "fuel": 60,
 		"radar_bar": Vector3(0.0, 2.68, -0.3),
 		"ladder": Vector3(-1.0, 1.15, 4.25),
+		"rail": [Vector3(1.37, 1.15, 3.83), Vector3(1.43, 1.15, 2.13), Vector3(1.45, 1.15, 0.43),
+				Vector3(1.41, 1.26, -1.28), Vector3(1.06, 1.54, -2.98), Vector3(0.0, 1.15, 4.25),
+				Vector3(0.8, 1.15, 4.25)],
 	},
 	"sportfisher": {
 		"name": "the sportfisher",
@@ -88,6 +93,9 @@ const KINDS := {
 		"chum": Vector3(-0.3, 1.3, 6.6), "jig": 4,
 		"price": 20000, "fuel": 400,
 		"ladder": Vector3(-1.35, 1.45, 7.0),
+		"rail": [Vector3(2.22, 1.45, 6.3), Vector3(2.35, 1.45, 4.2), Vector3(2.4, 1.45, 1.4),
+				Vector3(2.39, 1.49, -1.4), Vector3(2.02, 1.97, -4.2), Vector3(0.0, 1.45, 7.0),
+				Vector3(1.1, 1.45, 7.0)],
 		"tower": Vector3(0.0, 5.46, -0.75), "tower_foot": Vector3(-1.2, 0.55, 2.1),
 	},
 }
