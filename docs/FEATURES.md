@@ -225,14 +225,24 @@ bar, the rod tip's knock. Gap: nothing says the kit is on 1-5 but the hotbar its
     goes into its **death spiral** under the boat.
   - A lost fish says how in a few words: "Line parted.", "Hook pulled.", "Thrown on the jump.", "Spooled.",
     "Chafed through on the hull.", "Cut on the props."
-- Fought well (the headless test anglers, tests/fight_bot.gd): a schoolie about **40 s**, a 150 kg fish about
-  **1.5 min**, a 300 kg giant about **4 min** with a captain, **6 alone**. Pumping beats plain reeling; laying the rod
-  over beats not; cranking through the runs breaks them off; doing nothing never lands one.
-- **No tiredness:** your arms never tire (removed 2026-10-29). Hand the rod to a crewmate (they E on it) and the
-  fight carries on.
+- Fought well (the headless test anglers, tests/fight_bot.gd, with a bot captain a second late): a schoolie about
+  **1.5 min**, a 150 kg fish about **3 min**, a 300 kg giant about **5 min** with a captain swapping on the rod, about
+  **8 alone**; a first-timer's giant with a crew about **10 min**. tests/fight_sim.tscn prints how often each kind of
+  player loses one, and why.
+- **The angle (2026-10-30):** he swims where he likes round her (his runs and circles swing him wide) and she
+  doesn't follow by herself. Dead astern you lift him; off to the side you win less line and tire him less, abeam
+  next to nothing, under her none ("HE'S OFF TO STARBOARD: CAPTAIN, SWING HER"). The fight HUD has her from above
+  beside the bar (green arc astern, red forward of her beam, him a square) and ANGLE GOOD / POOR / NONE.
+- **He charges the boat:** turns and comes at her, under her: the line goes light (reel hard: "HE'S CHARGING THE
+  BOAT! REEL, REEL!"), then he's under her and it's the captain's.
+- **Arms (2026-10-30, back):** the ARMS bar drains while you reel (faster on a big fish and with him leaning on it)
+  and while you heave the rod up; hands off with the line easy it comes back. Holding a running fish is no rest.
+  Spent, you reel slow and he barely tires, and a fish nobody's working gets his breath back. With a crew, **swap**:
+  a crewmate E on your rod takes it with fresh arms, you take the wheel. Alone, **rest it in the holder** (Q): he
+  takes line on the drag and gets his breath back meanwhile. A giant spends a fresh pair before he's beaten.
 - **The captain** (E on the wheel; A/D steer, W/S throttle): the tuna swings round the boat.
-  - **Keep the stern on it.** Let it swing round toward her bow so the line runs over her house or bow and **the
-    line rubs** and wears through ("Swing her stern to it", or the angler takes it to that **corner**). Over the
+  - **Keep the stern on it.** Off the stern the angler can't win line (the angle); forward of her beam the line
+    lies along her side, and over her house or bow, and **the line rubs** and wears through ("Swing her stern to it", or the angler takes it to that **corner**). Over the
     open cockpit, or off your own corner going away from her, it never rubs. It's the real line against her real
     hull (ray-cast against her shape): it rubs only where it truly lies over her console, house or bow, so fight
     from the stern, not up by the console. The line's drawn straight from the rod tip toward the fish, going in
@@ -242,12 +252,14 @@ bar, the rod tip's knock. Gap: nothing says the kit is on 1-5 but the hotbar its
     or S while it's under her and the props cut the line after **1.5 s** ("OUT OF GEAR!").
   - The captain gets a plotter of where each fish is (red where its line's on the hull), and at the wheel always
     her knots over a throttle bar (green ahead, amber astern, from the middle).
-- **Other lines:** while a fish is on, its runs can cross the other baits and **tangle** them. E on each other rod
-  reels it in ("Reel in"). A tangle ("Port line tangled") left alone saws the line through.
+- **Other lines:** while a fish is on, everyone's told **REEL THE OTHER LINES IN!**; E on each other rod reels it in
+  ("Reel in"). Heading for one still out, the warning turns red and names it ("HE'S HEADING FOR THE PORT LINE!");
+  across it for 3 s it **tangles**, every time, and saws his line through in 20 s unless someone winds that line in
+  (starting to wind frees it). Alone: rod in the holder, then E on the other.
 - **How you lose one:** the line parted (too much strain), pulled the hook (slack in a headshake), spooled (it took
   all 500 m: don't crank against a run; back down on it), chafed through on the hull, cut by the props, sawed
   through in a tangle. Each loss says why, in a few words ("Line parted: too much strain").
-- A big fish alone takes about 10-13 minutes fought right; with a captain a few minutes.
+- A big fish alone takes about 8 minutes fought right; with a captain and swaps about 5.
 
 **Teach it:** the word and its colour, the ring, the meter, the captain's word and plotter, loss reasons, Dale's
 fight tip. Gap: "anyone can grab it / hand it off" is only in the manual.

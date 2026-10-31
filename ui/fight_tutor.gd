@@ -1,10 +1,14 @@
 extends Control
-## The first fish you ever hook, taught in three steps, each as it first matters (rods.gd makes it beside the fight
-## HUD and ticks it every frame): the fish takes (reel, keep the needle in the green), it runs (let go), and it comes
-## up alongside (land it). For the first two the fish holds still (tuna/fight.gd's `paused`: he doesn't move and
+## The first fish you ever hook, taught a step at a time, each as it first matters (rods.gd makes it beside the fight
+## HUD and ticks it every frame): the fish takes (reel, keep the needle in the green), it runs (let go), it goes off
+## to the side (the captain swings her stern to him; alone, the rod goes in its holder while you steer), your arms
+## tire (swap on the rod; alone, rest it in the holder), and it comes up alongside (land it). For the fight's lessons
+## the fish holds still (tuna/fight.gd's `paused`: he doesn't move and
 ## nothing can be lost, but the needle still answers your hand, so you see what reeling does) and a card in the middle
 ## says what's happening and the one thing to do, the button drawn, the bar glowing. It waits till you've done it,
-## then says why in a line and waits again for you to read it: SPACE or a click and the fight runs on. The landing
+## then says why in a line and waits again for you to read it: SPACE or a click and the fight runs on. (The side
+## and the arms are things to do once he's moving again, so those cards only want reading.) Alone or with a crew,
+## each says what's yours to do (`steps_solo`). The landing
 ## goes step by step as you do each (rod back, wire, harpoon, haul); the fish's hook clock stands still meanwhile
 ## (tuna/landing.gd's hold_clock), but the sea doesn't, so there's no NEXT between those steps, only after the last.
 ##
@@ -25,16 +29,27 @@ const PALE := Color(0.95, 0.93, 0.86)
 const DIM := Color(0.62, 0.66, 0.68)
 const INK := Color(0.02, 0.03, 0.05, 0.86)
 const U := 3.0                        # px a pixel of the drawn mouse and keys
-## The fight's lessons, in the order they're looked for (the second only after the first).
-const ORDER := ["reel", "run"]
-## Each: what's happening (head), the steps (what to do, and the picture: which button), why, once it's done, and what
-## the fish puts on the needle meanwhile (-1: what he's really doing).
+## The fight's lessons, in the order they're looked for (any after the first only once it's been taught).
+const ORDER := ["reel", "run", "wide", "arms"]
+## Each: what's happening (head), the steps (what to do, and the picture: which button; alone, `steps_solo` if it
+## has them), why, once it's done, what the fish puts on the needle meanwhile (-1: what he's really doing), and
+## whether it only wants reading (`read`).
 const LESSONS := {
 	"reel": {"head": "FISH ON!", "steps": [["HOLD LEFT MOUSE TO REEL. KEEP THE NEEDLE IN THE GREEN.", "left"]],
 			"why": "IN THE GREEN YOU WIN LINE AND TIRE HIM.\nTOO SLACK OR TOO TIGHT FOR LONG AND HE'S GONE.",
 			"pull": 0.15},
 	"run": {"head": "HE'S RUNNING!", "steps": [["LET GO.", "none"]],
 			"why": "LET HIM TAKE LINE, OR IT GOES IN THE RED AND SNAPS.\nREEL AGAIN WHEN HE STOPS.", "pull": -1.0},
+	"wide": {"head": "HE'S GONE OFF TO THE SIDE!",
+			"steps": [["CAPTAIN: A OR D, SWING HER STERN TO HIM. YOU KEEP REELING.", "none"]],
+			"steps_solo": [["Q: ROD IN THE HOLDER. E AT THE WHEEL, A OR D: STERN TO HIM.", "key:Q"]],
+			"why": "OFF THE STERN YOU CAN'T WIN LINE (WATCH THE LITTLE BOAT).\nPAST HER BEAM THE LINE RUBS THE HULL AND PARTS.",
+			"pull": -1.0, "read": true},
+	"arms": {"head": "YOUR ARMS ARE TIRING!",
+			"steps": [["SWAP: YOUR MATE PRESSES E ON YOUR ROD, YOU TAKE THE WHEEL.", "key:E"]],
+			"steps_solo": [["Q: REST THE ROD IN A HOLDER. E ON IT AGAIN WHEN YOU'RE FRESH.", "key:Q"]],
+			"why": "SPENT ARMS REEL SLOW AND HE GETS HIS BREATH BACK.\nHANDS OFF THE ROD, THEY COME BACK.",
+			"pull": -1.0, "read": true},
 }
 
 var rods: Node                # rods/rods.gd
@@ -137,7 +152,24 @@ func tick(delta: float, mine: Node) -> void:
 
 ## Whether lesson `id`'s moment has come, from what the fight's doing.
 func _wants(id: String, f: Fight) -> bool:
-	return id == "reel" or (id == "run" and f.slipping)
+	match id:
+		"reel":
+			return true
+		"run":
+			return f.slipping
+		"wide":
+			return f.angle_k() < 0.5 and not f.slipping and f.move != "jump"
+		"arms":
+			return f.arms < Fight.TIRED and not f.slipping and f.move != "jump"
+	return false
+
+
+## The lesson's steps: alone, its `steps_solo` if it has them.
+func _steps(id: String) -> Array:
+	var l: Dictionary = LESSONS[id]
+	var landing := sea.get("landing") as Node
+	var solo := landing == null or int(landing.call("_crew_aboard")) <= 1
+	return l["steps_solo"] if solo and l.has("steps_solo") else l["steps"]
 
 
 func _start(id: String, f: Fight) -> void:
@@ -162,7 +194,10 @@ func _run(delta: float) -> void:
 	var crank := live and Input.is_action_pressed("use_primary")
 	var ok := false
 	var need := 0.6
-	if _id == "reel":
+	if bool(LESSONS[_id].get("read", false)):
+		ok = true
+		need = 1.2
+	elif _id == "reel":
 		ok = crank and _fight.strain >= Fight.GREEN_LO
 	elif _id == "run":
 		ok = not crank
@@ -174,7 +209,7 @@ func _run(delta: float) -> void:
 	_good = 0.7
 	_step += 1
 	Sfx.play("ui.check", 0.7)
-	if _step >= (LESSONS[_id]["steps"] as Array).size():
+	if _step >= _steps(_id).size():
 		_phase = "why"
 		_phase_t = 0.0
 
@@ -319,9 +354,9 @@ func _draw() -> void:
 		var l: Dictionary = LESSONS[_id]
 		head = l["head"]
 		tag = "HE HOLDS STILL TILL YOU DO IT: TAKE YOUR TIME"
-		steps = (l["steps"] as Array).size()
+		steps = _steps(_id).size()
 		if _step < steps:
-			doing = l["steps"][_step]
+			doing = _steps(_id)[_step]
 		why = l["why"]
 	# the card's lines, and how wide the widest is
 	var lines := [[tag, 12, DIM], [head, 24, AMBER]]

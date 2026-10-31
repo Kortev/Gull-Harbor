@@ -56,11 +56,36 @@ func _ready() -> void:
 			"the line's drawn into the water on its way to the fish")
 	r0.set("bearing", 0.0)
 	r0.set("depth", 8.0)
-	rods._tangle(1, 0)
-	_check(rods.is_tangled(0) and str(rods.rods[1].call("interact_prompt", null)).begins_with("Clear the tangle"),
-			"tangled: rod 1's line across its run (%s)" % rods.rods[1].call("interact_prompt", null))
+	# the other lines: everyone's told to reel them in; his run toward one warns first, across it for FOUL_IN s
+	# tangles it, every time
+	_hold_fish(rods, 1.2)
+	await get_tree().process_frame
+	_check(int(rods.lines_out()[0]) == 3 and str(rods.crew_says(false, 0.0)).begins_with("REEL THE OTHER LINES IN"),
+			"a fish on, three lines still out: %s" % rods.crew_says(false, 0.0))
+	rods._host_line(3, true)          # (the port line in: rod 1's the one he goes for)
+	var bait1: Vector3 = rods.rods[1].spot - rods.stern
+	var at1 := atan2(bait1.x, bait1.z)
+	var held := 0.0
+	var warned := ""
+	while held < 1.0:
+		_hold_fish(rods, at1 - 0.35)
+		await get_tree().process_frame
+		held += get_process_delta_time()
+	warned = rods.crew_says(false, 0.0)
+	_check(is_equal_approx(rods.rods[1].foul, 0.5) and warned.contains("HEADING FOR THE")
+			and not rods.is_tangled(0), "he's heading for rod 1's line: everyone's warned first (%s)" % warned)
+	held = 0.0
+	while held < rods.FOUL_IN + 0.6 and not rods.is_tangled(0):
+		_hold_fish(rods, at1)
+		await get_tree().process_frame
+		held += get_process_delta_time()
+	_check(rods.is_tangled(0) and held > rods.FOUL_IN - 0.3
+			and str(rods.rods[1].call("interact_prompt", null)).begins_with("Clear the tangle"),
+			"across it for %.1f s: tangled (%s)" % [held, rods.rods[1].call("interact_prompt", null)])
+	_hold_fish(rods, 0.0)
 	rods.request_grab(1)
 	await get_tree().process_frame
+	_check(not rods.is_tangled(0), "E on it: winding it in frees his line at once")
 	var was_out: float = rods.line_out(rods.rods[1])
 	await get_tree().create_timer(1.0).timeout
 	_check(not rods.rods[1].bait_in and rods.rods[1].out < was_out - 2.0,
@@ -84,6 +109,18 @@ func _ready() -> void:
 		print("FAIL ", f)
 	print("RODS TEST ", "PASSED" if fails.is_empty() else "FAILED")
 	get_tree().quit(1 if not fails.is_empty() else 0)
+
+
+## Rod 0's fish held at bearing `b` (it's in its holder: the host's fight, and the rod's synced state).
+func _hold_fish(rods: Node, b: float) -> void:
+	var r0: Node = rods.rods[0]
+	r0.set("bearing", b)
+	r0.set("line_out", 70.0)
+	var f: RefCounted = r0.get("fight")
+	if f != null:
+		f.set("bearing", b)
+		f.set("line_out", 70.0)
+		f.set("grace", 999.0)
 
 
 func _check(ok: bool, what: String) -> void:

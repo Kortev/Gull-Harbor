@@ -150,6 +150,8 @@ func _ready() -> void:
 		var helm: Node = sea.boat.helm
 		helm.set("heading", float(helm.get("heading")) + clampf(b * 1.5, -1.0, 1.0) * 0.3 * get_process_delta_time())
 		moves[rod.move] = true
+		if float(sea.rods.arms) < 0.15:
+			sea.rods.arms = 1.0          # (a crewmate takes the rod: fresh arms)
 		# a test angler reading the rod, the reel and the line (tests/fight_bot.gd) in place of the mouse
 		if rod.fight != null:
 			var act := FightBot.act(rod.fight.cues(), get_process_delta_time(), "good", mem)

@@ -53,6 +53,12 @@ var free_t := 0.0
 var wear := 0.0
 ## Which way round the fish is swinging, kept when the rod changes hands too.
 var turn_sign := 0.0
+## The arms of whoever's on it (tuna/fight.gd's `arms`, 1 fresh .. 0 gone), from their word: their crew see them go.
+var arms := 1.0
+## Its line, still out, in the way of another rod's fish (rods.gd's threat, every peer works it out): 0 clear, 0.5
+## he's heading for it, 1 he's across it; and how long he's been across it (s: the host's, FOUL_IN and it's tangled).
+var foul := 0.0
+var foul_t := 0.0
 ## Who held it last (a fight that ended as it changed hands still counts: rods.gd's _report_end).
 var last_holder := 0
 ## Its fish is beaten and up alongside (tuna/landing.gd): no more fighting, just the line to it till it's stuck.
