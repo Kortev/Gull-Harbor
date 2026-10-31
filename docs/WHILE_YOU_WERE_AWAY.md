@@ -1,5 +1,28 @@
 # While you were away (newest first)
 
+## What `main` had that this line didn't, brought over (run and tested in Godot 4.7.2)
+The other line (`main`) went on after the two split: a boat-object audit (the Chekhov's gun rule). Each piece is
+here now, fitted to this line's way of doing things:
+- **The tuna tower** (sportfisher): E on the ladder at the hardtop's aft edge and you climb it, the whole way, a
+  rung at a time (main put you up there in a frame); from up top you can tell what a flock's on about 1.3 km off,
+  700 m from the deck (no binoculars on this line: the spotter's reach grows with your eye's height). E or Q back
+  down.
+- **Seats**: the benches and the skipper's seat on the sportfisher, the skiff's cooler seat, and the leaning post
+  you lean on. You're carried into the seat and back up off it (no jumps). The fighting chair stays just for
+  sitting (your call), but now the rod's butt eases down into its gimbal when you fight from it.
+- **The cooler**: E for a drink. Something different in it each time.
+- **The live well's lid** opens (E, and on its own as a mackerel goes in or out) on the mackerel swimming in it;
+  the lid's its own piece in both models now. The chum bucket moved off the lid onto the deck beside it. The fish
+  box keeps this line's lid.
+- **Outriggers**: the sportfisher's wide lines run up through their release clips while the live bait's out wide;
+  a strike pops it with a snap, and the line falls to the rod.
+- **Green water**: in a big sea, crests that top the rail burst aboard with a crash and stream foam aft.
+- **Dale's voice**: with no recording yet, a VHF voice you can't quite make out (made up as it plays, about as long
+  as his words), through the radio's bus. Recordings still win when there are some.
+- Tests: `tower_test`, `lids_test`, `radio_test` (new), and the seats, the cooler and the gimbal in `chair_test`,
+  the outriggers in `rods_test`, the skiff start to finish in `landing_test` and `helm_test`, green water in
+  `hull_test`. Main's arm-saving chair and its binoculars aren't here (you dropped tired arms and the binoculars).
+
 ## A new crew, repainted boats, a fighting chair you can sit in (all run and tested in Godot 4.7.2)
 - **Every test passes when run in Godot** (fight, strike, rods, landing, wait, sail, helm, deck, hull, look,
   weather, code, steam, net and the hand-off), and a bot plays a whole solo trip to the sale
