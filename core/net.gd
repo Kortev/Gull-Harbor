@@ -40,10 +40,23 @@ var farewell := ""
 ## Host: crew who said they were going as they went (Leave, the title), not dropped (peer id -> true).
 var quit := {}
 var _joining := {}
+## Leaving a host's boat: our old line, kept a moment so the goodbye gets there before it's cut (s left).
+var _going: ENetMultiplayerPeer
+var _going_for := 0.0
 ## Steam (core/steam_link.gd): `steam.available` says whether it's there.
 var steam: Node
 ## How this session runs: "", "steam" or "code".
 var mode := ""
+
+
+func _process(delta: float) -> void:
+	if _going == null:
+		return
+	_going.poll()
+	_going_for -= delta
+	if _going_for <= 0.0 or _going.get_connection_status() == MultiplayerPeer.CONNECTION_DISCONNECTED:
+		_going.close()
+		_going = null
 
 
 func _ready() -> void:
@@ -145,10 +158,15 @@ func leave() -> void:
 		last_join = {}          # (we left: nothing to get back to)
 	if in_session() and not multiplayer.is_server():
 		# (the host's told we're going on purpose, not dropped: no spot kept for us)
+		# (the goodbye first, then the line's let go once it's through: cut at once, the host hears the cut before
+		# the goodbye, and keeps a spot for us as if we'd dropped)
 		_bye.rpc_id(1)
 		var p := multiplayer.multiplayer_peer as ENetMultiplayerPeer
-		if p != null and p.host != null:
-			p.host.flush()
+		if p != null and p.get_peer(1) != null:
+			p.get_peer(1).peer_disconnect_later()
+			_going = p
+			_going_for = 1.0
+			multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	_close()
 	left.emit(was_host)
 

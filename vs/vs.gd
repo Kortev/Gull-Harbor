@@ -968,7 +968,11 @@ func _draw_count() -> void:
 		var clock := "%d:%02d" % [left / 60, left % 60]
 		text = ("HOME. WAITING FOR THEM  " if bool(home[my_team]) else "DUSK: BRING HER HOME  ") + clock
 		col = Color(0.6, 1.0, 0.6) if bool(home[my_team]) else (Color(1.0, 0.78, 0.34) if left > 60 else Color(1.0, 0.45, 0.3))
-		var sub := "THEY'RE IN." if bool(home[1 - my_team]) else "ALONGSIDE YOUR BERTH AT THE FISH PIER, SLOW. LATE: HALF WEIGHT."
+		var sub := "ALONGSIDE YOUR BERTH AT THE FISH PIER, SLOW. LATE: HALF WEIGHT."
+		if bool(home[my_team]):
+			sub = "THEY'RE STILL OUT THERE. IN LATE, THEIR CATCH WEIGHS HALF."
+		elif bool(home[1 - my_team]):
+			sub = "THEY'RE IN! ALONGSIDE YOUR BERTH AT THE FISH PIER, SLOW."
 		var sa := Vector2((_count.size.x - PixFont.width(sub, 2)) * 0.5, 82)
 		PixFont.draw(_count, sa + Vector2(2, 2), sub, Color(0, 0, 0, 0.8), 2)
 		PixFont.draw(_count, sa, sub, Color(0.9, 0.93, 0.96), 2)
