@@ -12,6 +12,7 @@ extends CanvasLayer
 const PixFont := preload("res://ui/pixfont.gd")
 const FishHold := preload("res://boat/fish_hold.gd")
 const Sfx := preload("res://audio/sfx.gd")
+const Pad := preload("res://core/pad.gd")
 
 const AMBER := Color(1.0, 0.78, 0.34)
 const CREAM := Color(1.0, 0.95, 0.82)
@@ -199,7 +200,7 @@ func _press(i: int) -> void:
 func _input(e: InputEvent) -> void:
 	if not up() or _fading:
 		return
-	var k := e as InputEventKey
+	var k := e as InputEventKey if e is InputEventKey else Pad.as_key(e)       # (the pad: the d-pad or stick, A)
 	if k == null or not k.pressed or k.echo:
 		return
 	if t < T_STAMP:

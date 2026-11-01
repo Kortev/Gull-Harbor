@@ -14,11 +14,13 @@ extends CanvasLayer
 ## over the harbour mouth and sweeping back in low past the boats at the pier, a line or two in big pixel letters (what
 ## the day is), then gliding down into your eyes on the dock, no cut. Any key or click skips on to the glide.
 ##
-## Mouse or keys (up, down, Enter, Esc back). Only in the game itself: tests and screenshots never see it.
+## Mouse, keys (up, down, Enter, Esc back) or a pad (the d-pad or left stick, A, B: the hints say so while it's in
+## hand). Only in the game itself: tests and screenshots never see it.
 
 const PixFont := preload("res://ui/pixfont.gd")
 const Kinds := preload("res://boat/kinds.gd")
 const SettingsPage := preload("res://ui/settings_page.gd")
+const Pad := preload("res://core/pad.gd")
 
 const AMBER := Color(1.0, 0.78, 0.34)
 const CREAM := Color(1.0, 0.95, 0.82)
@@ -71,6 +73,7 @@ func _ready() -> void:
 	_caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_caption.draw.connect(_draw_caption)
 	add_child(_caption)
+	Settings.device_changed.connect(_on_device)
 	settings = SettingsPage.new()
 	settings.closed.connect(func() -> void:
 		_view.visible = true
@@ -277,6 +280,12 @@ func _middle() -> Vector3:
 	return c
 
 
+## The pad picked up or put down: the hints along the bottom in its words.
+func _on_device() -> void:
+	_view.queue_redraw()
+	_caption.queue_redraw()
+
+
 ## The intro's skipped (a key, a click): on to the glide from wherever the camera's got to, no jump.
 func _skip() -> void:
 	if _intro >= 0.0:
@@ -288,7 +297,8 @@ func _skip() -> void:
 
 func _input(e: InputEvent) -> void:
 	if _intro >= 0.0 and ((e is InputEventKey and (e as InputEventKey).pressed)
-			or (e is InputEventMouseButton and (e as InputEventMouseButton).pressed)):
+			or (e is InputEventMouseButton and (e as InputEventMouseButton).pressed)
+			or (e is InputEventJoypadButton and (e as InputEventJoypadButton).pressed)):
 		_skip()
 		get_viewport().set_input_as_handled()
 
@@ -366,7 +376,7 @@ func _draw_caption() -> void:
 	var at := Vector2((_caption.size.x - PixFont.width(text, sc)) * 0.5, _caption.size.y * 0.72)
 	PixFont.draw(_caption, at + Vector2(4, 4), text, Color(SHADOW, SHADOW.a * a), sc)
 	PixFont.draw(_caption, at, text, Color(CREAM, a), sc)
-	var skip := "ANY KEY TO SKIP"
+	var skip := "ANY BUTTON TO SKIP" if Settings.pad else "ANY KEY TO SKIP"
 	PixFont.draw(_caption, Vector2(_caption.size.x - PixFont.width(skip, 2) - 24, _caption.size.y - 30), skip,
 			Color(DIM, 0.6), 2)
 
@@ -374,6 +384,8 @@ func _draw_caption() -> void:
 func _on_input(e: InputEvent) -> void:
 	if not up:
 		return
+	if Pad.as_key(e) != null:
+		e = Pad.as_key(e)        # (the pad: the d-pad or the left stick up and down, A picks, B goes back)
 	if e is InputEventMouseMotion:
 		for i in _rects.size():
 			if _rects[i].has_point((e as InputEventMouseMotion).position) and i != _pick:
@@ -472,7 +484,8 @@ func _draw_view() -> void:
 		y += 24
 	if not _note.is_empty():
 		_text(Vector2(at.x + 22, y + 10), _note, Color(1.0, 0.7, 0.5), SMALL)
-	_text(Vector2(at.x + 4, size.y - 30), "MOUSE OR ARROW KEYS, ENTER TO PICK, ESC TO GO BACK", Color(DIM, 0.6), SMALL)
+	_text(Vector2(at.x + 4, size.y - 30), "STICK OR D-PAD, [A] TO PICK, [B] TO GO BACK" if Settings.pad
+			else "MOUSE OR ARROW KEYS, ENTER TO PICK, ESC TO GO BACK", Color(DIM, 0.6), SMALL)
 
 
 ## Who's aboard (and in rivals, which boat), and the code to send: under the lobby's heading. Returns where it ends.

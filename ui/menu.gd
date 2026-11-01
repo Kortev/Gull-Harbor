@@ -15,6 +15,10 @@ extends CanvasLayer
 ## the fish pier (sea/sea.gd's race home at dusk).
 ##
 ## The one pixel font (ui/pixfont.gd) at whole sizes, few words, dark cards over the harbour behind.
+##
+## A pad: the d-pad or left stick goes from button to button (Godot's own focus, each button's amber frame showing
+## which: the first one's picked up as the pad is), A presses; out there B or START is back to the deck, and B shuts
+## the manual.
 
 const FishHold := preload("res://boat/fish_hold.gd")
 const Kinds := preload("res://boat/kinds.gd")
@@ -49,6 +53,8 @@ var _settings: SettingsPage
 var _tuning := false
 ## NEW CAREER pressed once: the board asks again before the career's wiped.
 var _wipe := false
+## Up last frame (the board, the pause card, the manual or the settings).
+var _open := false
 
 
 func _ready() -> void:
@@ -132,6 +138,8 @@ func _button(text: String, on: Callable, primary := false) -> Button:
 	var b := Button.new()
 	b.text = text
 	b.pressed.connect(on)
+	if primary:
+		b.set_meta("primary", true)
 	b.add_theme_font_size_override("font_size", BIG if primary else SMALL)
 	b.custom_minimum_size = Vector2(0, 52 if primary else 30)
 	var base := Color(0.1, 0.13, 0.16) if not primary else Color(0.85, 0.55, 0.16)
@@ -209,8 +217,11 @@ func _process(_delta: float) -> void:
 	_pause.visible = open and not _reading and not _tuning and _panel == _pause
 	_manual.visible = _reading
 	(get_node("CloseManual") as Control).visible = _reading
+	_open = open
 	if not open:
 		return
+	if Settings.pad and not _tuning:
+		_pad_focus()
 	_crew_box.visible = Net.in_session_or_hosting() and multiplayer.is_server()
 	_code.text = "JOIN CODE: " + Net.code if Net.mode == "code" and not Net.code.is_empty() else ""
 	(_crew_box.get_child(1) as Control).visible = Net.mode == "code" and not Net.code.is_empty()
@@ -221,6 +232,48 @@ func _process(_delta: float) -> void:
 	if now != _dock_of:
 		_dock_of = now
 		_fill_board(hold, docked)
+
+
+## With the pad in hand, a button to be on: the first in the card up, if none of its own has the focus.
+func _pad_focus() -> void:
+	var card: Control = _manual if _reading else _panel
+	var has: Control = get_viewport().gui_get_focus_owner()
+	var shut := get_node("CloseManual") as Control
+	if has != null and has.is_visible_in_tree() and (card.is_ancestor_of(has) or (_reading and has == shut)):
+		return
+	var first: Control = shut if _reading else _first_button(card, true)
+	if first == null:
+		first = _first_button(card)
+	if first != null:
+		first.grab_focus()
+
+
+## The first button that can be pressed under `n` (`primary`: only the big amber one, CAST OFF or BACK TO THE DECK).
+func _first_button(n: Node, primary := false) -> Button:
+	for c in n.get_children():
+		var ok := c is Button and (c as Button).is_visible_in_tree() and not (c as Button).disabled
+		if ok and (not primary or c.has_meta("primary")):
+			return c
+		var b := _first_button(c, primary)
+		if b != null:
+			return b
+	return null
+
+
+## The pad's B (or START) out there: the pause card's gone, back to the deck; on the manual, it's shut.
+func _unhandled_input(e: InputEvent) -> void:
+	if not _open or _tuning or not (e is InputEventJoypadButton and (e as InputEventJoypadButton).pressed):
+		return
+	var b := (e as InputEventJoypadButton).button_index
+	if b != JOY_BUTTON_B and b != JOY_BUTTON_START:
+		return
+	if _reading:
+		_reading = false
+	elif _panel == _pause:
+		_resume()
+	else:
+		return
+	get_viewport().set_input_as_handled()
 
 
 func _fish_hold() -> Node:
@@ -418,7 +471,7 @@ func _headless_shot() -> bool:
 	return false
 
 
-## --settings[=page] (screenshots): which page, 0 LOOK .. 3 KEYS; -1 not asked.
+## --settings[=page] (screenshots): which page, 0 LOOK .. 4 PAD; -1 not asked.
 static func _shot_page() -> int:
 	for a in OS.get_cmdline_user_args():
 		if a == "--settings" or a.begins_with("--settings="):

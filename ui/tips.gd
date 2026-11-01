@@ -182,7 +182,7 @@ func _process(delta: float) -> void:
 	if _left <= 0.0 and not _queue.is_empty():
 		var id: String = _queue.pop_front()
 		_title.text = CALLER
-		_body.text = _alongside_text() if id == "alongside" else str(TIPS[id])
+		_body.text = Settings.say(_alongside_text() if id == "alongside" else str(TIPS[id]))
 		_left = maxf(5.0, _body.text.split(" ").size() / 3.0)
 		var line := id
 		if id == "alongside" and bool(((sea.get("boat") as Node).get("spec") as Dictionary).get("wire", false)):

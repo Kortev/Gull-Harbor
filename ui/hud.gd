@@ -4,9 +4,12 @@ extends CanvasLayer
 ## inner one for your arms once they start to go, a thin red outer one for the line wearing on the hull), a word or
 ## two on what to do, and under that the metres to boatside (green winning, red losing) and the fish's fight left.
 ## Top left the trip: the quota as a bar (what's aboard ghosted on), the day, the fish box as pips. At the wheel her
-## knots and a throttle bar; with a fish on, the plotter. Notices, a few words, top middle, and fade.
+## knots and a throttle bar; with a fish on, the plotter. Notices, a few words, top middle, and fade. Every key named
+## is the pad's while it's the pad in your hands (core/settings.gd's say(): E is [X]), changing over as you swap.
 
 ## The one type scale: small (numbers, the tally), body (prompts, notices, readouts), big (the fight's word).
+const Pad := preload("res://core/pad.gd")
+
 const SMALL := 14
 const BODY := 17
 const BIG := 21
@@ -31,6 +34,9 @@ var _fresh := 1.0
 var _wear := 0.0
 var _note: Label
 var _note_t := 0.0
+## The prompt and the notice as they were given (said again in the pad's keys, or not, as you swap).
+var _prompt_raw := ""
+var _note_raw := ""
 ## The trip, top left (boat/fish_hold.gd): {} hides it.
 var _tally: Control
 var _trip := {}
@@ -235,7 +241,8 @@ func _draw_tally() -> void:
 
 ## A few words at the top for a few seconds ("Fish on!").
 func notify(text: String) -> void:
-	_note.text = text
+	_note_raw = text
+	_note.text = Settings.say(text)
 	_note.modulate.a = 1.0
 	_note_t = 4.0
 
@@ -250,7 +257,7 @@ func _process(delta: float) -> void:
 ## it back (m/s, - while it takes line), `fresh`: the fish, 1 fresh .. 0 beat. `wear`: the line's wear on the hull,
 ## 0..1.
 func fight(tell: String, strain: float, arms := 1.0, line := -1.0, gain := 0.0, fresh := 1.0, wear := 0.0) -> void:
-	_tell.text = tell
+	_tell.text = Settings.say(tell)
 	_tell.add_theme_color_override("font_color", _tell_colour(tell))
 	if line != _line or absf(gain - _gain) > 0.05 or absf(fresh - _fresh) > 0.01:
 		_line = line
@@ -320,11 +327,20 @@ func _draw_ring() -> void:
 func follow(player: Node) -> void:
 	player.connect("prompt_changed", _on_prompt)
 	_on_prompt("")
+	if not Settings.device_changed.is_connected(_on_device):
+		Settings.device_changed.connect(_on_device)
+
+
+## The pad picked up or put down: the prompt and the notice said again in its keys.
+func _on_device() -> void:
+	_on_prompt(_prompt_raw)
+	_note.text = Settings.say(_note_raw)
 
 
 ## The prompt: "words" (the key's E), or "KEY|words" for another key or the mouse.
 func _on_prompt(text: String) -> void:
+	_prompt_raw = text
 	var parts := text.split("|", true, 1)
-	_key.text = parts[0] if parts.size() == 2 else "E"
-	_what.text = parts[1] if parts.size() == 2 else text
+	_key.text = Pad.cap(parts[0] if parts.size() == 2 else "E", Settings.pad)
+	_what.text = Settings.say(parts[1] if parts.size() == 2 else text)
 	_prompt.visible = not text.is_empty()

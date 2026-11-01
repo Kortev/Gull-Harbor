@@ -331,6 +331,7 @@ func _draw_do(at: Vector2, a: float) -> void:
 	var urgent := col != GREEN
 	var pulse := 0.75 + 0.25 * sin(_t * 8.0)
 	var font := get_theme_default_font()
+	words = Settings.say(words)
 	var tw := font.get_string_size(words, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x
 	var iw := 18.0 * U
 	var left := roundf(at.x - (tw + iw) * 0.5)
@@ -339,10 +340,16 @@ func _draw_do(at: Vector2, a: float) -> void:
 	_text(font, Vector2(left + iw, at.y + 9.0), words, 18, Color(col, (pulse if urgent else 0.95) * a))
 
 
-## The little mouse in whole pixels: the left button lit, or both crossed out (hands off).
+## The little mouse in whole pixels: the left button lit, or both crossed out (hands off). With the pad in your hands
+## the left button's its trigger: a key cap, RT lit.
 func _mouse(o: Vector2, kind: String, col: Color, a: float, pulse: float) -> void:
 	var line := Color(PALE, 0.7 * a)
 	var lit := Color(col, pulse * a)
+	if kind == "left" and Settings.pad:
+		_px(o, Vector2(-1, 2), Vector2(14, 12), Color(INK, a))
+		_box(o + Vector2(-1, 2) * U, Vector2(14, 12), line)
+		draw_string(get_theme_default_font(), o + Vector2(1.5, 11) * U, "RT", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, lit)
+		return
 	_box(o, Vector2(10, 16), line)
 	_px(o, Vector2(5, 1), Vector2(0.5, 5), line)
 	_px(o, Vector2(1, 6), Vector2(8, 0.5), line)
@@ -374,7 +381,7 @@ func _frame(r: Rect2, col: Color) -> void:
 
 
 func _text(font: Font, at: Vector2, text: String, px: int, col: Color) -> void:
-	draw_string(font, at.round(), text, HORIZONTAL_ALIGNMENT_LEFT, -1, px, col)
+	draw_string(font, at.round(), Settings.say(text), HORIZONTAL_ALIGNMENT_LEFT, -1, px, col)
 
 
 func _draw_banner() -> void:
@@ -392,6 +399,7 @@ func _draw_banner() -> void:
 ## Words on a dark plate, centred on `at` (the pixel font reads cleanest on a solid ground, not outlined).
 func _plate(at: Vector2, text: String, col: Color, a: float) -> void:
 	var font := get_theme_default_font()
+	text = Settings.say(text)
 	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x
 	var x := roundf(at.x - w * 0.5)
 	draw_rect(Rect2(Vector2(x - 12.0, at.y - 22.0), Vector2(w + 24.0, 34.0)), Color(INK, INK.a * a))

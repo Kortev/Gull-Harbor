@@ -1,12 +1,14 @@
 extends Control
-## The settings page: one dark card over whatever's behind (the title's harbour, or the sea from the pause card), four
-## pages along its top, LOOK, SOUND, SCREEN and KEYS. Everything on it is core/settings.gd's, applied the moment it
-## changes (a slider as it's dragged, the field of view and the loudness with it); the file's written on BACK.
+## The settings page: one dark card over whatever's behind (the title's harbour, or the sea from the pause card), five
+## pages along its top, LOOK, SOUND, SCREEN, KEYS and PAD (the right stick's look, its invert Y, rumble). Everything
+## on it is core/settings.gd's, applied the moment it changes (a slider as it's dragged, the field of view and the
+## loudness with it); the file's written on BACK.
 ##
 ## Drawn whole in the pixel font (ui/pixfont.gd) and square blocks: a slider is a row of cells filling amber, a switch
 ## two blocks, a choice < ONE > arrows. Mouse: hover picks, click or drag changes. Keys: up and down pick, left and
 ## right change, Enter flips or presses, Tab the next page, Esc back. On KEYS, click an action (or Enter) and press the
 ## key or mouse button for it (Esc keeps what it had); one that clashes with another shows red, and says with what.
+## A pad works it as the keys do (core/pad.gd's as_key(): the d-pad or left stick, A, B back, the bumpers the pages).
 
 signal closed
 
@@ -19,7 +21,8 @@ const DIM := Color(0.66, 0.71, 0.76)
 const BAD := Color(1.0, 0.5, 0.42)
 const SHADOW := Color(0.02, 0.03, 0.05, 0.85)
 const CELL := Color(0.12, 0.15, 0.18)
-const TABS := ["LOOK", "SOUND", "SCREEN", "KEYS"]
+const TABS := ["LOOK", "SOUND", "SCREEN", "KEYS", "PAD"]
+const Pad := preload("res://core/pad.gd")
 ## A slider's cells, and each one's size (px).
 const CELLS := 20
 const CELL_W := 14
@@ -42,9 +45,10 @@ func _ready() -> void:
 	visible = false
 	gui_input.connect(_on_input)
 	Settings.changed.connect(queue_redraw)
+	Settings.device_changed.connect(queue_redraw)
 
 
-## Up, on page `at` (0 LOOK .. 3 KEYS).
+## Up, on page `at` (0 LOOK .. 4 PAD).
 func open(at := 0) -> void:
 	visible = true
 	_waiting = ""
@@ -110,6 +114,15 @@ func _build() -> void:
 			for a: Array in Settings.REBINDABLE:
 				_rows.append({"kind": "key", "label": a[1], "action": a[0]})
 			_rows.append({"kind": "button", "label": "RESET TO DEFAULTS", "press": Settings.reset_keys})
+		"PAD":
+			_rows.append(_slider("LOOK SENSITIVITY", 0.1, 3.0, 0.05, func() -> float: return Settings.pad_sensitivity,
+					Settings.set_pad_sensitivity, func(v: float) -> String: return "%.2f" % v))
+			_rows.append({"kind": "toggle", "label": "INVERT LOOK Y", "get": func() -> bool: return Settings.pad_invert_y,
+					"set": Settings.set_pad_invert_y})
+			_rows.append({"kind": "toggle", "label": "RUMBLE", "get": func() -> bool: return Settings.rumble,
+					"set": func(on: bool) -> void:
+						Settings.set_rumble(on)
+						Settings.buzz(0.3, 0.5, 0.25)})        # (switched on: a taste of it)
 	_rows.append({"kind": "button", "label": "BACK", "press": close})
 
 
@@ -174,6 +187,14 @@ func _press(i: int) -> void:
 func _input(e: InputEvent) -> void:
 	if not visible or _waiting.is_empty():
 		return
+	if e is InputEventJoypadButton or e is InputEventJoypadMotion:
+		# (a page of the keyboard's keys: the pad's own aren't bound here, and its B keeps what was there)
+		get_viewport().set_input_as_handled()
+		var k := Pad.as_key(e)
+		if k != null and k.keycode == KEY_ESCAPE:
+			_waiting = ""
+			queue_redraw()
+		return
 	var pressed := (e is InputEventKey and (e as InputEventKey).pressed and not (e as InputEventKey).echo) \
 			or (e is InputEventMouseButton and (e as InputEventMouseButton).pressed)
 	if not pressed:
@@ -186,6 +207,11 @@ func _input(e: InputEvent) -> void:
 
 
 func _on_input(e: InputEvent) -> void:
+	if e is InputEventJoypadButton or e is InputEventJoypadMotion:
+		e = Pad.as_key(e)
+		accept_event()
+		if e == null:
+			return
 	if e is InputEventMouseMotion:
 		var at := (e as InputEventMouseMotion).position
 		if _drag >= 0:
@@ -309,6 +335,9 @@ func _draw() -> void:
 		bx += r.size.x + 30
 	var hint := "CLICK ONE, THEN PRESS ITS KEY OR BUTTON. ESC KEEPS IT" if TABS[tab] == "KEYS" \
 			else "DRAG, CLICK OR LEFT / RIGHT TO CHANGE.  TAB: NEXT PAGE.  ESC: BACK"
+	if Settings.pad:
+		hint = "THE KEYBOARD'S KEYS: [A] ON ONE, THEN PRESS ITS KEY. [B] KEEPS IT" if TABS[tab] == "KEYS" \
+				else "STICK OR D-PAD: PICK AND CHANGE.  [LB] [RB]: PAGES.  [A]: PRESS.  [B]: BACK"
 	_text(Vector2(x, card.end.y - 34), hint, Color(DIM, 0.7), 2)
 
 

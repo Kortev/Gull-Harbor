@@ -21,6 +21,7 @@ extends Control
 
 const Fight := preload("res://tuna/fight.gd")
 const Sfx := preload("res://audio/sfx.gd")
+const Pad := preload("res://core/pad.gd")
 const SAVE := "user://bluefin_tutor.cfg"
 const GREEN := Color(0.45, 0.95, 0.55)
 const AMBER := Color(1.0, 0.75, 0.3)
@@ -217,7 +218,7 @@ func _run(delta: float) -> void:
 func _input(event: InputEvent) -> void:
 	if _phase != "why" or _phase_t < 0.6 or not is_visible_in_tree():
 		return
-	var key := event as InputEventKey
+	var key := event as InputEventKey if event is InputEventKey else Pad.as_key(event)      # (the pad's A: Enter)
 	var mb := event as InputEventMouseButton
 	var next := (key != null and key.pressed and not key.echo
 			and key.keycode in [KEY_SPACE, KEY_ENTER, KEY_KP_ENTER]) \
@@ -400,21 +401,24 @@ func _draw() -> void:
 		y += 36.0
 		var ready := _phase_t >= 0.6
 		var blink := 1.0 if fmod(_t, 1.0) < 0.6 else 0.45
-		var next := "SPACE OR CLICK: GO ON"
+		var next := Settings.say("SPACE OR CLICK: GO ON")
 		var nw := font.get_string_size(next, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
 		_line(font, at.x + w - 24.0 - nw, y, next, 12, Color(AMBER, (blink if ready else 0.25) * a))
 
 
 func _line(font: Font, x: float, y: float, text: String, px: int, col: Color) -> void:
-	draw_string(font, Vector2(roundf(x), roundf(y)), text, HORIZONTAL_ALIGNMENT_LEFT, -1, px, col)
+	draw_string(font, Vector2(roundf(x), roundf(y)), Settings.say(text), HORIZONTAL_ALIGNMENT_LEFT, -1, px, col)
 
 
 ## The button to use, drawn in whole pixels: a mouse with the button that matters lit (and which way to move it), or
-## a key.
+## a key. With the pad in your hands, its button on a key cap (the left mouse its RT, the right its LT).
 func _draw_icon(at: Vector2, kind: String, a: float, pulse: float) -> void:
 	var o := at.floor()
 	var line := Color(PALE, 0.8 * a)
 	var lit := Color(GREEN, pulse * a)
+	if Settings.pad and kind != "none":
+		kind = "key:" + {"left": "RT", "left_down": "RT", "right": "LT", "wheel_down": "LB"}.get(kind,
+				Pad.cap(kind.substr(4), true) if kind.begins_with("key:") else kind)
 	if kind.begins_with("key:"):
 		_px(o, Vector2(0, 2), Vector2(11, 11), Color(INK, a))
 		_box(o + Vector2(0, 2) * U, Vector2(11, 11), line)
