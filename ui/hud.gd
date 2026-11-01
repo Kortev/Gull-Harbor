@@ -258,7 +258,8 @@ func notify(text: String) -> void:
 
 ## The notes' top edge (px): moved down under a banner that has the top (Rivals' countdown and race home, vs/vs.gd).
 func note_at(y: float) -> void:
-	_note.position.y = y
+	if _note.position.y != y:      # (only when it moves: set every frame, it's laid out again every frame)
+		_note.position.y = y
 
 
 func _process(delta: float) -> void:
