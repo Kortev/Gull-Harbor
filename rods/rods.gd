@@ -4,13 +4,15 @@ extends Node3D
 ## hold back (request_return); the answer comes to every peer (_set_holder). A rod in someone's hands rides on
 ## them, its butt in their belt and the blank up ahead of them.
 ##
-## The baits go out by hand. She heads out with every line in and a bait on each hook. Pick a rod up (E), hold left
-## mouse to wind up and let go to cast: the bait flies out where you're looking, as far as you wound it, and lands
-## with a splash; then drop the rod back in its holder (Q) and it trolls from there, swinging in behind her as she
-## goes. With its line out, holding left mouse winds it back in. A fish takes the bait off the hook: hold a bait (the
-## hotbar) and E on a rod to put a fresh one on, and cast it again. Tuna take only a live mackerel: every bait is one,
-## out of the well (boat/fish_hold.gd: every boat has one, a few aboard each trip); the well empty, there's no bait
-## till someone jigs more (boat/jig.gd, the jig rod on the hotbar).
+## The baits go out by hand, every one. She heads out with every line in and a bare hook on each: the mackerel are in
+## the live well (boat/fish_hold.gd). E on the well's open lid nets one out (it kicks in your fist: a live one; a dead
+## one from the bait box when there's no live one left), E on a rod with its line in and you hook it on (rods/rig.gd:
+## the hook brought up to it, a quick press as the point comes to its nose; botch it and it swims poorly, or it's
+## dead). Then out it goes: E on it in its holder lets it back, the spool open and the clicker going as she tows it out
+## (E again flips the lever up: it's fished there), or pick the rod up (E), hold left mouse to wind up and let go to
+## cast it where you're looking. With its line out, a rod in your hands winds it in while you hold left mouse, the
+## crank going round and the bait skipping back over the water to the tip; nothing winds itself. Tuna take a live
+## mackerel best, a poor swimmer less, a dead one least (bite_odds); the well empty, jig more (boat/jig.gd).
 
 const Rod := preload("res://rods/rod.gd")
 const Fight := preload("res://tuna/fight.gd")
@@ -50,7 +52,13 @@ const WIND := 1.1
 const CAST := Vector2(10.0, 55.0)
 const ARC := 0.12
 const FLY := 34.0
-const REEL_SPEED := 4.5
+const REEL_SPEED := 3.2
+## Letting a bait back from a rod in its holder: the spool open, line going as the bait pulls it (her way, and a live
+## one swimming off at LET_SWIM m/s), out to LET_MAX at most.
+const LET_SWIM := 0.7
+const LET_MAX := 90.0
+## Taking a rod from its holder or putting it back: it goes from one to the other over GRAB s, never jumps.
+const GRAB := 0.35
 ## Faster than this (m/s: tuna/schools.gd's BITE_SPEED) the baits skip along the top.
 const BITE_SPEED_SKIP := 6.0
 
@@ -96,6 +104,9 @@ var fx: FightFx
 ## Your rod with no fish on: how long you've held left mouse winding its line in, and whether you've let go since
 ## (a cast starts on a fresh press, not the end of winding in).
 var _fresh_press := false
+var _letting_mine := false
+## Hooking a mackerel on (rods/rig.gd).
+var rig: Node3D
 var _shook := false
 var _fight_hud: FightHud
 ## The first fish you ever hook, taught a step at a time (ui/fight_tutor.gd): made with the fight HUD.
@@ -111,6 +122,10 @@ func _ready() -> void:
 	fx.name = "FightFx"
 	fx.spread = self
 	add_child(fx)
+	rig = preload("res://rods/rig.gd").new()
+	rig.name = "Rig"
+	rig.set("spread", self)
+	add_child(rig)
 	_whoosh = AudioStreamPlayer3D.new()
 	_whoosh.stream = preload("res://audio/fish/whoosh.wav")
 	_whoosh.unit_size = 5.0
@@ -222,11 +237,7 @@ func _ask_grab(i: int) -> void:
 	# it up for the harpoon: tuna/landing.gd)
 	if rods[i].holder != 0 and (not rods[i].hooked or rods[i].alongside):
 		return
-	# an empty rod while a fish is on: E clears its line (reels it in)
-	if not rods[i].hooked and rods[i].holder == 0 and fighting():
-		if not rods[i].bait_in and rods[i].auto_in == 0:
-			host_wind_in(i, false, false)
-		return
+	# (an empty rod while a fish is on: picked up, its line wound in by hand, and back in its holder)
 	var helm: Node = (sea.get("boat") as Node).get("helm")
 	if int(helm.get("captain")) == who:
 		return        # (the captain's hands are on the wheel)
@@ -241,34 +252,165 @@ func _ask_return(i: int) -> void:
 		_host_set(i, 0)
 
 
-## A fresh bait on rod i (E on it with a bait in your hands): its line comes in if it's out, and on goes a live
-## mackerel from the well. Then it wants casting. The well empty, nothing goes on, and you're told to jig.
-func request_bait(i: int) -> void:
+## The mackerel in your fist hooked onto rod i (rods/rig.gd, once you've put the hook through it): `kind` "live" or
+## "dead", and how well it's on (`q`: 1 bridled clean .. 0.5 swimming poorly). Its line has to be in; any old bait on
+## it goes over the side.
+func request_bait(i: int, kind := "live", q := 1.0) -> void:
 	if Net.is_host():
-		_ask_bait(i)
+		_ask_bait(i, kind, q)
 	else:
-		_ask_bait.rpc_id(1, i)
+		_ask_bait.rpc_id(1, i, kind, q)
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func _ask_bait(i: int) -> void:
-	if i < 0 or i >= rods.size() or rods[i].hooked or rods[i].holder != 0 or fighting():
+func _ask_bait(i: int, kind := "live", q := 1.0) -> void:
+	if i < 0 or i >= rods.size() or rods[i].hooked or rods[i].holder != 0 or not rods[i].bait_in:
 		return
 	var hold: Node = sea.get("fish_hold")
 	if hold != null and bool(hold.get("docked")):
 		return
-	if rods[i].auto_in != 0:
+	if Net.in_session():
+		_baited.rpc(i, _now(), kind == "live", clampf(q, 0.3, 1.0))
+	else:
+		_baited(i, _now(), kind == "live", clampf(q, 0.3, 1.0))
+
+
+## A mackerel out of the live well into your fist (E on its open lid): a live one while there are any, else a dead one
+## from the bait box beside it. The host hands it over (_given).
+func request_take_bait() -> void:
+	if Net.is_host():
+		_ask_take()
+	else:
+		_ask_take.rpc_id(1)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _ask_take() -> void:
+	var who := _sender()
+	var hold: Node = sea.get("fish_hold")
+	if hold == null:
 		return
-	if hold == null or not bool(hold.call("host_take_live")):
-		_tell(_sender(), "The live well's empty. Jig some mackerel: the jig rod (3), stopped")
+	var kind := ""
+	if bool(hold.call("host_take_live")):
+		kind = "live"
+	elif bool(hold.call("host_take_dead")):
+		kind = "dead"
+	if kind.is_empty():
+		_tell(who, "Nothing in the well. Jig some mackerel: the jig rod (3), stopped")
 		return
-	if not rods[i].bait_in:
-		host_wind_in(i, true, true)      # (its line comes in first, the whole way)
+	if who == Net.my_id():
+		_given(kind)
+	else:
+		_given.rpc_id(who, kind)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _given(kind: String) -> void:
+	var me := (sea.get("crew") as Node).get("me") as Node
+	if me != null:
+		(me.get("hands") as Node).call("carry", kind)
+
+
+## The mackerel in your fist back in the well (or, dead, the bait box).
+func request_put_back(kind: String) -> void:
+	if Net.is_host():
+		_ask_put_back(kind)
+	else:
+		_ask_put_back.rpc_id(1, kind)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _ask_put_back(kind: String) -> void:
+	var hold: Node = sea.get("fish_hold")
+	if hold == null:
+		return
+	if kind == "live" and bool(hold.call("host_add_live")):
+		return
+	hold.call("host_add_dead")
+
+
+## Your rod's bait let back (right mouse held, a bait on it, nothing on): your thumb off the spool, the bait dropped
+## over and towed out behind her (a live one swimming off), the line paying off with the clicker going; let go (`on`
+## false) and you've thumbed it: it's fished there. Put the rod in its holder and it trolls from there.
+func request_let(i: int, on: bool) -> void:
+	if Net.is_host():
+		_ask_let(i, on)
+	else:
+		_ask_let.rpc_id(1, i, on)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _ask_let(i: int, on: bool) -> void:
+	if i < 0 or i >= rods.size():
+		return
+	var r := rods[i]
+	if r.holder != _sender() or r.hooked:
+		return
+	if not on:
+		if r.letting:
+			_host_lock(i)
+		return
+	if r.letting or not r.baited or flying(i) or r.tangled >= 0:
 		return
 	if Net.in_session():
-		_baited.rpc(i, _now(), true)
+		_let.rpc(i)
 	else:
-		_baited(i, _now(), true)
+		_let(i)
+
+
+@rpc("authority", "call_local", "reliable")
+func _let(i: int) -> void:
+	if i < 0 or i >= rods.size():
+		return
+	var r := rods[i]
+	r.letting = true
+	r.tangled = -1
+	if r.bait_in or r.bait_p == Vector3.INF:
+		# (from where it hangs off the tip, over the side and down onto the water)
+		r.bait_in = false
+		r.out = 0.6
+		r.bait_p = r.tip_position() + Vector3(0.0, -0.3, 0.0)
+		r.bait_v = Vector3.ZERO
+		r.set_meta("fall_v", 0.0)
+		r.set_meta("dropping", true)
+	else:
+		r.out = line_out(r)          # (out already: more line off from where it is)
+	var dir := (baits[i] - stern) * Vector3(1, 0, 1)
+	if dir.length() < 1.0:
+		dir = Vector3(0, 0, 1)
+	r.spot = stern + dir.normalized() * LET_MAX
+	r.land = r.spot
+	r.cast_t = -INF
+	Sfx.play_point(self, r.global_position, "kit.switch", 0.6, 1.7)     # (the lever down: free spool)
+
+
+func _host_lock(i: int) -> void:
+	var r := rods[i]
+	if Net.in_session():
+		_lock.rpc(i, r.bait_p)
+	else:
+		_lock(i, r.bait_p)
+
+
+## Rod i's spool locked up (the lever up to strike): its bait's fished where it got to (`at`, world).
+@rpc("authority", "call_local", "reliable")
+func _lock(i: int, at: Vector3) -> void:
+	if i < 0 or i >= rods.size():
+		return
+	var r := rods[i]
+	if not r.letting:
+		return
+	r.letting = false
+	var boat := sea.get("boat") as Node3D
+	var p := at if at != Vector3.INF else boat.global_transform * r.spot
+	var local := boat.global_transform.affine_inverse() * p
+	local.y = 0.0
+	r.spot = local
+	r.land = local
+	r.out = -1.0
+	if r.bait_p == Vector3.INF:
+		r.bait_p = p
+	Sfx.play_point(self, r.global_position, "kit.switch", 0.6, 1.3)
 
 
 ## Host: a word on screen for one of the crew (`who`: a peer id).
@@ -285,18 +427,18 @@ func _told(text: String) -> void:
 
 
 @rpc("authority", "call_local", "reliable")
-func _baited(i: int, t: float, live: bool) -> void:
+func _baited(i: int, t: float, live: bool, q := 1.0) -> void:
 	if i < 0 or i >= rods.size():
 		return
 	var r := rods[i]
-	if not r.bait_in:
-		Sfx.play_point(self, r.global_position, "dock.reel", 0.9, 1.2)
 	r.bait_in = true
+	r.letting = false
 	r.out = -1.0
 	r.tangled = -1
 	r.baited = true
 	r.baited_t = t
 	r.live = live
+	r.bait_q = q
 	Sfx.play_point(self, r.tip_position(), "dock.slap", 0.4, 1.7)
 
 
@@ -313,7 +455,7 @@ func _ask_cast(i: int, land: Vector3) -> void:
 	if i < 0 or i >= rods.size():
 		return
 	var r := rods[i]
-	if r.holder != _sender() or r.hooked or not r.bait_in:
+	if r.holder != _sender() or r.hooked or not r.bait_in or not r.baited:
 		return
 	host_cast(i, land)
 
@@ -335,6 +477,7 @@ func _cast(i: int, land: Vector3, t: float) -> void:
 	var r := rods[i]
 	r.cast_from = r.tip_position()
 	r.bait_in = false
+	r.letting = false
 	r.tangled = -1
 	r.land = land
 	r.cast_t = t
@@ -378,9 +521,15 @@ func _handle_mine(r: Rod, delta: float, send: bool) -> void:
 	var held := live and Input.is_action_pressed("use_primary")
 	if not held:
 		_fresh_press = true
+	# right mouse, a bait on and nothing on: your thumb off the spool, letting it back (request_let); let go, thumbed
+	var right := live and Input.is_action_pressed("use_secondary") and r.baited and not flying(r.index) \
+			and not held and r.tangled < 0
+	if right != _letting_mine:
+		_letting_mine = right
+		request_let(r.index, right)
 	if not r.bait_in:
 		r.wind = 0.0
-		var winding := held and not flying(r.index)
+		var winding := held and not flying(r.index) and not r.letting
 		var pull := Input.get_action_strength("use_primary")      # (a trigger: as hard as it's pulled)
 		r.reeling = REEL_SPEED * pull if winding else 0.0
 		if winding:
@@ -389,6 +538,9 @@ func _handle_mine(r: Rod, delta: float, send: bool) -> void:
 				_reel_state.rpc(r.index, r.out)
 		return
 	r.reeling = 0.0
+	if not r.baited:
+		r.wind = 0.0          # (a bare hook: nothing to cast; a mackerel on it first, rods/rig.gd)
+		return
 	if held and _fresh_press:
 		r.wind = minf(r.wind + delta / WIND, 1.0)
 	elif r.wind > 0.0:
@@ -403,7 +555,7 @@ func wind_in(r: Rod, delta: float, pull := 1.0) -> void:
 	if r.out < 0.0:
 		r.out = line_out(r)
 	r.out = maxf(r.out - REEL_SPEED * pull * delta, 0.0)
-	if r.out <= 1.2:
+	if r.out <= 0.35:
 		_fresh_press = false
 		request_reel_in(r.index)
 
@@ -419,15 +571,18 @@ func line_out(r: Rod) -> float:
 @rpc("any_peer", "call_remote", "unreliable_ordered")
 func _reel_state(i: int, out: float) -> void:
 	if i >= 0 and i < rods.size() and rods[i].holder == multiplayer.get_remote_sender_id():
-		rods[i].out = out
-		rods[i].reeling = REEL_SPEED
+		# (eased toward, never jumped to: _process winds it on between words)
+		rods[i].set_meta("out_goal", out)
+		if rods[i].out < 0.0:
+			rods[i].out = out
+		rods[i].set_meta("reel_t", _now())
 
 
 ## Lets your cast go, wound up `power` (0..1): where you're looking, out over the water (tests call it too).
 func cast_mine(power: float) -> void:
 	var me := (sea.get("crew") as Node).get("me") as Node3D
 	var r := held_by(Net.my_id())
-	if me == null or r == null or not r.bait_in or r.hooked:
+	if me == null or r == null or not r.bait_in or r.hooked or not r.baited:
 		return
 	var cam := me.get("cam") as Camera3D
 	var look := -cam.global_basis.z
@@ -478,12 +633,26 @@ func _set_holder(i: int, who: int) -> void:
 	var r := rods[i]
 	if r.holder != 0:
 		r.last_holder = r.holder
+	if r.holder != who:
+		# (from its holder into the hands, or back: it goes there, it doesn't jump; _process)
+		var boat := sea.get("boat") as Node3D
+		r.pose_from = boat.global_transform.affine_inverse() * r.global_transform if boat else r.global_transform
+		r.pose_k = 0.0
+	if r.letting:
+		r.letting = false        # (changing hands: thumbed, the line where it got to)
+		if r.bait_p != Vector3.INF:
+			r.spot = (sea.get("boat") as Node3D).global_transform.affine_inverse() * r.bait_p
+			r.spot.y = 0.0
 	r.holder = who
+	if who != 0 and not r.bait_in and not r.hooked and r.out < 0.0 and not flying(i):
+		r.out = line_out(r)          # (in your hands, its line's what's out: it goes no further unless you let it)
 	r.fight = null
 	r.lift = 0.0
 	r.aim_pitch = 0.6
 	r.aim_side = 0.0
 	_look_off = 0.0
+	if who == Net.my_id() or r.last_holder == Net.my_id():
+		_letting_mine = false
 	_cam_yaw = NAN
 	_cam_pitch = NAN
 	# (changing hands: the fight carries on from where it is, on the new holder's machine or the host's)
@@ -518,13 +687,16 @@ func _line(i: int) -> void:
 	if not r.bait_in:
 		Sfx.play_point(self, r.global_position, "dock.reel", 0.9, 1.2)
 	r.bait_in = true
+	r.letting = false
 	r.out = -1.0
 	r.auto_in = 0
 	r.tangled = -1
 
 
-## Rod r's line lying out `left` m to `end` (world): the crew wind it in (or it's in already, if there's none).
+## Rod r's line lying out `left` m to `end` (world), for someone to wind in by hand (or it's in already, if there's
+## none): nothing winds itself.
 func _wind_back(r: Rod, left: float, end: Vector3) -> void:
+	r.letting = false
 	if left <= 2.0 or end == Vector3.ZERO:
 		r.bait_in = true
 		r.out = -1.0
@@ -533,7 +705,11 @@ func _wind_back(r: Rod, left: float, end: Vector3) -> void:
 	r.out = left
 	r.bait_p = end
 	r.bait_v = Vector3.ZERO
-	r.auto_in = 1
+	r.auto_in = 0
+	var boat := sea.get("boat") as Node3D
+	if boat:
+		r.spot = boat.global_transform.affine_inverse() * end
+		r.spot.y = 0.0
 
 
 ## Host: rod i's line wound in by the crew (E on it), then `then_bait`: a fresh one on it (live or not). Every peer
@@ -577,25 +753,45 @@ func _auto_wind(delta: float) -> void:
 				_host_line(r.index, true)
 
 
-## How good rod i's bait still is, 1 (just on) .. 0 (washed out).
+## How good rod i's bait still is, 1 (just on) .. 0 (washed out: a live one tired out, a dead one gone soft).
 func freshness(i: int) -> float:
 	if i < 0 or i >= rods.size():
 		return 0.0
 	var r := rods[i]
-	return clampf(1.0 - (_now() - r.baited_t) / LIVE_LIFE, 0.0, 1.0)
+	return clampf(1.0 - (_now() - r.baited_t) / (LIVE_LIFE if r.live else BAIT_LIFE), 0.0, 1.0)
 
 
-## How readily rod i's bait gets eaten (tuna/schools.gd), against a fresh live mackerel's 1: nothing but a live one
-## (none in, flying, a bare hook, no lures) is ever taken.
+## How readily rod i's bait gets eaten (tuna/schools.gd), against a fresh live mackerel well bridled's 1: a live one
+## hooked badly swims poorly (half), a dead one trailing is a poor bait (DEAD_ODDS); none in, flying, letting back or a
+## bare hook, never.
+const DEAD_ODDS := 0.3
+
+
 func bite_odds(i: int) -> float:
-	if i < 0 or i >= rods.size() or rods[i].bait_in or not rods[i].baited or not rods[i].live or flying(i):
+	if i < 0 or i >= rods.size() or rods[i].bait_in or not rods[i].baited or flying(i) or rods[i].letting:
 		return 0.0
-	return 0.25 + 0.75 * freshness(i)
+	var r := rods[i]
+	if not r.live:
+		return DEAD_ODDS * (0.4 + 0.6 * freshness(i))
+	return (0.25 + 0.75 * freshness(i)) * (1.0 if r.bait_q >= 0.9 else 0.5)
 
 
-## For the HUD while nothing else wants doing (the baits show it themselves: nothing).
+## For the HUD while nothing else wants doing: hooking a mackerel on (rods/rig.gd), and with your rod in your hands,
+## nothing on it, what it does now.
 func hint() -> String:
-	return ""
+	var rig_says := str(rig.call("hint")) if rig else ""
+	if not rig_says.is_empty():
+		return rig_says
+	var r := held_by(Net.my_id())
+	if r == null or r.hooked:
+		return ""
+	if r.letting:
+		return "LET GO OF RIGHT MOUSE: THUMB IT, IT'S FISHED THERE"
+	if not r.bait_in:
+		return "HOLD LEFT MOUSE: WIND IT IN.   Q: IN THE HOLDER"
+	if not r.baited:
+		return "BARE HOOK. Q: IN THE HOLDER, THEN A MACKEREL FROM THE LIVE WELL"
+	return "HOLD LEFT MOUSE: CAST.   HOLD RIGHT: LET IT BACK OVER THE STERN"
 
 
 @rpc("authority", "call_local", "reliable")
@@ -614,8 +810,8 @@ func _name_of(i: int) -> String:
 ## Whether another rod's line is tangled in rod i's fish (not once someone's winding it in: that frees it).
 func is_tangled(i: int) -> bool:
 	for r in rods:
-		if r.tangled == i and r.auto_in == 0:
-			return true
+		if r.tangled == i and r.auto_in == 0 and r.holder == 0:
+			return true          # (once someone's got it in their hands winding, it's coming free)
 	return false
 
 
@@ -908,17 +1104,28 @@ func host_clear() -> void:
 			_host_line(r.index, true)
 
 
-## Host, heading out: every line in, a live mackerel on every hook (the crew baited up at the dock, on top of the
-## well's), for the crew to cast.
+## Host, heading out: every line in and a bare hook on each; a mackerel for every hook in the well on top of its own
+## (boat/fish_hold.gd), for the crew to bait up and send out.
 func host_baits_out() -> void:
 	for r in rods:
 		if r.hooked:
 			continue
 		_host_line(r.index, true)
 		if Net.in_session():
-			_baited.rpc(r.index, _now(), true)
+			_unbaited.rpc(r.index)
 		else:
-			_baited(r.index, _now(), true)
+			_unbaited(r.index)
+	var hold: Node = sea.get("fish_hold")
+	if hold != null:
+		hold.call("host_stock", rods.size())
+
+
+@rpc("authority", "call_local", "reliable")
+func _unbaited(i: int) -> void:
+	if i >= 0 and i < rods.size():
+		rods[i].baited = false
+		rods[i].live = false
+		rods[i].letting = false
 
 
 ## Host: rod i's fish is gone (lost alongside, or stuck and on the harpoon now), with why.
@@ -986,6 +1193,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("drop"):
 		var mine := held_by(Net.my_id())
 		if mine:
+			if _letting_mine:
+				_letting_mine = false
+				request_let(mine.index, false)
 			request_return(mine.index)
 	# (the drag lever's gone from the fight: one rule, keep the needle in the green; tuna/fight.gd)
 
@@ -1037,18 +1247,33 @@ func _process(delta: float) -> void:
 				_handle_mine(r, delta, send)
 			elif r.holder == 0:
 				r.wind = 0.0
-			if flying(r.index):
-				r.reeling = FLY * 0.3       # (line peeling off the reel)
+			elif not r.bait_in and _now() - float(r.get_meta("reel_t", -INF)) < 0.3:
+				# a crewmate winding theirs in: wound on here at their rate, eased to their word (never jumped)
+				r.reeling = REEL_SPEED
+				if r.out >= 0.0:
+					var goal := float(r.get_meta("out_goal", r.out))
+					r.out = move_toward(r.out, goal, delta * REEL_SPEED * (1.0 + 2.0 * clampf(absf(goal - r.out), 0.0, 1.0)))
+			if r.letting:
+				_letting(r, delta)
 		r.whip = move_toward(r.whip, 0.0, delta * 3.0)
 		var p: Node3D = crew.call("get_player", r.holder) if r.holder != 0 else null
+		var want: Transform3D
 		if p == null:
 			# in its holder: the holder's tube, the butt down in it
 			var ht: Transform3D = boat.call("holder_transform", holders[r.index])
-			r.global_transform = ht.translated_local(Vector3(0, 0, -0.42))
+			want = ht.translated_local(Vector3(0, 0, -0.42))
 		else:
-			r.global_transform = _in_hands(p, r)
+			want = _in_hands(p, r)
+		# (taken out of its holder or put back: carried there, GRAB s of it, from where it was on her)
+		if r.pose_k < 1.0:
+			r.pose_k = minf(r.pose_k + delta / GRAB, 1.0)
+			var from: Transform3D = boat.global_transform * r.pose_from
+			var k := smoothstep(0.0, 1.0, r.pose_k)
+			want = Transform3D(from.basis.orthonormalized().slerp(want.basis.orthonormalized(), k),
+					from.origin.lerp(want.origin, k) + Vector3.UP * 0.12 * sin(k * PI))
+		r.global_transform = want
 		var end := boat.global_transform * r.spot
-		var tangled_in := r.tangled >= 0 and r.tangled < rods.size() and r.auto_in == 0
+		var tangled_in := r.tangled >= 0 and r.tangled < rods.size() and r.auto_in == 0 and r.holder == 0
 		var alongside: Vector3 = landing.call("fish_point", r.index) if r.alongside else Vector3.ZERO
 		if r.alongside and alongside != Vector3.ZERO:
 			end = alongside      # (straight to the fish lying astern)
@@ -1080,8 +1305,15 @@ func _process(delta: float) -> void:
 				r.set_meta("splash", false)
 				_splash.burst(r.bait_p, 0.45)
 			end = _tow(r, end, float(helm.get("speed")), ocean, delta)
+		# (line off the reel to the end of it, as drawn: the spool turns with it, rod.gd)
+		if r.hooked:
+			r.line_len = r.line_out
+		elif r.bait_in:
+			r.line_len = 0.0
+		else:
+			r.line_len = r.tip_position().distance_to(end)
 		if r.hooked or r.bait_in or tangled_in:
-			r.bait_p = Vector3.INF       # (out again, it starts from where it lands)
+			r.bait_p = end if tangled_in else Vector3.INF       # (out again, it starts from where it lands; or the tangle)
 			# (a fish on: the line droops when it's come at you or she's backed onto it, bar-tight when it pulls)
 			r.slack = clampf(-r.stretch / 4.0, 0.0, 1.0) if r.hooked and not r.alongside else 0.0
 		elif flying(r.index):
@@ -1191,6 +1423,19 @@ func crew_says(at_wheel: bool, throttle: float) -> String:
 	return ""
 
 
+## Rod r's bait being let back, a frame on: the spool gives line as the bait pulls it (the line's as long as it's got
+## from the tip), the clicker ticking; at LET_MAX it's all she gives, and the host locks it up there.
+func _letting(r: Rod, delta: float) -> void:
+	if r.bait_p == Vector3.INF:
+		return
+	var tip := r.tip_position()
+	var got := Vector2(r.bait_p.x - tip.x, r.bait_p.z - tip.z).length()
+	# (it pulls line off a little ahead of where it is: never tight on it, so it keeps going back)
+	r.out = clampf(maxf(r.out, got + 0.4), 0.0, LET_MAX)
+	if r.out >= LET_MAX - 0.01 and Net.is_host():
+		_host_lock(r.index)
+
+
 ## The fish on rod r, seen: mostly it's down there out of sight, but it boils the water where the line goes in when it
 ## takes off on a run (the strike itself an explosion of white water), slaps it in its head shakes, and in the death
 ## spiral it's up near the top, circling, its back and tail breaking the surface ("colour!"). Every peer draws it
@@ -1280,6 +1525,11 @@ func _tow(r: Rod, spot: Vector3, speed: float, ocean: Node, delta: float) -> Vec
 	r.bait_v *= exp(-1.1 * delta)
 	var was := p
 	p += r.bait_v * delta
+	if r.letting and r.live:
+		# a live one let back swims off from her on its own, taking line, even with her stopped
+		var away := Vector3(spot.x - p.x, 0.0, spot.z - p.z)
+		if away.length() > 0.5:
+			p += away.normalized() * LET_SWIM * (0.4 + 0.6 * freshness(r.index)) * delta
 	# on its line: no further from the tip than the line out; pulled along it when she tows it
 	var off := Vector3(p.x - tip.x, 0.0, p.z - tip.z)
 	if off.length() > reach:
@@ -1289,9 +1539,23 @@ func _tow(r: Rod, spot: Vector3, speed: float, ocean: Node, delta: float) -> Vec
 	if delta > 0.0:
 		r.bait_v = Vector3(p.x - was.x, 0.0, p.z - was.z) / delta
 	r.slack = clampf(1.0 - minf(off.length(), reach) / reach, 0.0, 1.0)
-	p.y = float(ocean.call("height_at", p))
+	var top := float(ocean.call("height_at", p))
+	if bool(r.get_meta("dropping", false)) and was.y > top + 0.02:
+		# (dropped from the tip: it falls onto the water, it isn't put there)
+		var fv := float(r.get_meta("fall_v", 0.0)) + 9.8 * delta
+		r.set_meta("fall_v", fv)
+		p.y = maxf(was.y - fv * delta, top)
+		if p.y <= top:
+			r.set_meta("dropping", false)
+			_splash.burst(Vector3(p.x, top, p.z), 0.3)
+	else:
+		r.set_meta("fall_v", 0.0)
+		p.y = top
 	if absf(speed) > BITE_SPEED_SKIP or (winding and r.reeling > 0.0):
 		p.y += absf(sin(_now() * 7.0 + r.index * 1.9)) * 0.3     # (skipping)
+	if winding and r.out < 2.5 and not r.letting:
+		# the last of it: up out of the water to hang off the tip (where it is when it's in)
+		p = p.lerp(tip + Vector3(0.0, -0.3, 0.0), smoothstep(2.5, 0.35, r.out))
 	r.bait_p = p
 	return p
 

@@ -1,7 +1,8 @@
 extends Node
-## The spread: grabbing a rod, not grabbing a second one, putting it back. And clearing the lines: with a fish on,
-## E on an empty rod reels its line in (no bites on it), a tangle in a running fish's line is cleared the same way,
-## and with nothing on, E picks it up to cast it. The sportfisher's wide lines run up through her outriggers' clips
+## The spread: grabbing a rod (carried up out of its holder), not grabbing a second one, putting it back. And clearing
+## the lines: with a fish on, E on an empty rod picks it up and left mouse winds it in by hand (nothing winds itself;
+## no bites on it), a tangle in a running fish's line comes free once it's in someone's hands, and with nothing on, E
+## picks it up to cast it. The sportfisher's wide lines run up through her outriggers' clips
 ## (rising to them, not in a frame); a strike pops one out and it falls straight to the rod in a moment.
 ## Run: godot --headless --path . res://tests/rods_test.tscn
 
@@ -21,7 +22,7 @@ func _ready() -> void:
 	_check(rods.rods[2].holder == 1, "E on rod 2: it's yours")
 	rods.request_grab(0)
 	_check(rods.rods[0].holder == 0, "a second rod while holding one: no")
-	await get_tree().process_frame
+	await get_tree().create_timer(rods.GRAB + 0.15).timeout       # (carried up out of its holder)
 	var me: Node3D = sea.crew.me
 	var butt: Vector3 = rods.rods[2].global_position
 	_check(butt.distance_to(me.global_position) < 1.5, "the rod is in your hands (%.2f m from you)" % butt.distance_to(me.global_position))
@@ -87,20 +88,35 @@ func _ready() -> void:
 	_hold_fish(rods, 0.0)
 	rods.request_grab(1)
 	await get_tree().process_frame
-	_check(not rods.is_tangled(0), "E on it: winding it in frees his line at once")
-	var was_out: float = rods.line_out(rods.rods[1])
+	_check(rods.rods[1].holder == 1 and not rods.is_tangled(0), "E on it: picked up to wind, his line's coming free")
+	var was_out: float = rods.rods[1].out
+	await get_tree().create_timer(1.0).timeout
+	_check(not rods.rods[1].bait_in and was_out > 2.0 and absf(rods.rods[1].out - was_out) < 0.01,
+			"nobody winding: its line stays out (%.0f m)" % rods.rods[1].out)
+	me.force_input = true
+	Input.action_press("use_primary")
 	await get_tree().create_timer(1.0).timeout
 	_check(not rods.rods[1].bait_in and rods.rods[1].out < was_out - 2.0,
-			"E on rod 1: the crew wind it in, the bait coming back over the water (%.0f m, was %.0f)"
+			"left mouse: you wind it in, the bait coming back over the water (%.0f m, was %.0f)"
 			% [rods.rods[1].out, was_out])
-	rods.request_grab(2)
-	for k in 30:
-		if rods.rods[1].bait_in and rods.rods[2].bait_in:
+	for k in 60:
+		if rods.rods[1].bait_in:
 			break
 		await get_tree().create_timer(0.5).timeout
+	Input.action_release("use_primary")
+	rods.request_return(1)
+	rods.request_grab(2)
+	Input.action_press("use_primary")
+	for k in 60:
+		if rods.rods[2].bait_in:
+			break
+		await get_tree().create_timer(0.5).timeout
+	Input.action_release("use_primary")
+	rods.request_return(2)
+	me.force_input = false
 	_check(rods.rods[1].tangled < 0 and rods.rods[1].bait_in and rods.rods[1].holder == 0,
-			"rod 1: cleared, all the way in")
-	_check(rods.rods[2].bait_in and rods.rods[2].holder == 0, "E on another empty rod while it fights: wound in")
+			"rod 1: cleared, all the way in, back in its holder")
+	_check(rods.rods[2].bait_in and rods.rods[2].holder == 0, "another empty rod while it fights: wound in by hand")
 	rods.strike(2, 150.0)
 	_check(not rods.rods[2].hooked, "nothing bites a reeled-in line")
 	rods._host_off(0, "(the test lets it go)")

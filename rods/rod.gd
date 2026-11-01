@@ -1,13 +1,21 @@
 extends Node3D
 ## One stand-up tuna rod (art/rod.py -> rod.glb): in its stern holder with its bait out astern, or in someone's
 ## hands. rods.gd (the spread) decides where it is; this draws it: the blank bent toward the line's pull, the line
-## from the tip out to where it meets the water, the crank turning while line comes in.
+## from the tip out to where it meets the water, the spool turning with every metre on or off it (striped, so you see
+## it go: a cast, a bait let back, a run), the crank turning only while it's wound, PER_TURN of line a turn (never in
+## free spool), and in your own view your gloves on it: the left on the foregrip, the right on the crank's knob,
+## going round with it.
 ##
 ## E on it: grab it (the host says yes or no). Q while holding it: put it back.
 
 const MODEL := preload("res://rods/rod.glb")
 const BEND := preload("res://rods/rod_bend.gdshader")
 const LENGTH := 1.76
+## Line one turn of the crank brings in (m: a big two-speed lever drag, in high), and the spool's own radius full (m).
+const PER_TURN := 0.9
+const SPOOL_R := 0.05
+## Where your elbows are, from your eyes (m: crew/hands.gd's), for your sleeves.
+const ELBOWS := {"r": Vector3(0.42, -0.72, 0.06), "l": Vector3(-0.42, -0.72, 0.02)}
 
 const Kit := preload("res://crew/kit.gd")
 
@@ -72,6 +80,23 @@ var tangled := -1
 var baited := true
 var baited_t := 0.0
 var live := false
+## How well the bait's on (rods/rig.gd: 1 bridled clean, 0.5 hooked badly and swimming poorly), and whether it's
+## being let back from its holder (the spool open, line going as it's towed out: rods.gd's _letting).
+var bait_q := 1.0
+var letting := false
+## Taking it out of its holder or putting it back (rods.gd): where it was (her frame) and how far it's got (0..1).
+var pose_from := Transform3D.IDENTITY
+var pose_k := 1.0
+## Line off the reel to the end of it as drawn (m, rods.gd every frame): the spool turns with it. The crank's turn
+## (rad, from the line wound) and the spool's (rad).
+var line_len := 0.0
+var crank := 0.0
+var spool_turn := 0.0
+var _last_len := -1.0
+var _len_v := 0.0
+var _handle_base := Basis.IDENTITY
+var _glove_r: Node3D
+var _glove_l: Node3D
 ## Where its bait is fished (boat-local, rods.gd's spread: where the last cast put it), and the cast: where it landed
 ## (boat-local), when it went (sea clock; -INF: not flying) and the tip it went from (world).
 var spot := Vector3.ZERO
@@ -149,6 +174,7 @@ func _ready() -> void:
 				mi.set_surface_override_material(i, _bend_material(mi.mesh.surface_get_material(i)))
 		elif n == "handle":
 			_handle = mi
+			_handle_base = t.basis
 	var tip := src.find_child("tip", true, false) as Node3D
 	if tip:
 		_tip_local = tip.transform.origin
@@ -167,8 +193,20 @@ func _ready() -> void:
 	_spool.rotation = Vector3(0, 0, PI * 0.5)
 	_spool_mat = StandardMaterial3D.new()
 	_spool_mat.roughness = 0.8
+	# (the line laid on in turns: a few darker stripes round it, so you can see the spool go round)
+	var img := Image.create_empty(8, 1, false, Image.FORMAT_RGB8)
+	for x in 8:
+		img.set_pixel(x, 0, Color(1, 1, 1) if x % 4 != 0 else Color(0.62, 0.62, 0.58))
+	_spool_mat.albedo_texture = ImageTexture.create_from_image(img)
+	_spool_mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	_spool.material_override = _spool_mat
 	add_child(_spool)
+	# your gloves on it (only in your own view: the others see crew/player.gd's arms)
+	_glove_r = Kit.glove("r")
+	_glove_l = Kit.glove("l")
+	for g: Node3D in [_glove_r, _glove_l]:
+		g.visible = false
+		add_child(g)
 	_line_mesh = ImmediateMesh.new()
 	_line = MeshInstance3D.new()
 	_line.mesh = _line_mesh
@@ -261,8 +299,22 @@ func _process(delta: float) -> void:
 	# (a rod in your hands mustn't catch your own look; a crewmate's with a fish on, you can take over)
 	_grab.collision_layer = 1 if holder == 0 or (hooked and holder != Net.my_id()) else 0
 	_blank.set_instance_shader_parameter("bend", _bend)
+	# the spool goes round with every bit of line on or off it; the crank only while it's wound (PER_TURN a turn), and
+	# slow and heavy grinding against the drag
+	if _last_len < 0.0:
+		_last_len = line_len
+	var dl := clampf(line_len - _last_len, -3.0, 3.0)
+	_last_len = line_len
+	_len_v = lerpf(_len_v, dl / maxf(delta, 1e-4), minf(delta * 8.0, 1.0))
+	var left_k := clampf(1.0 - (line_out if hooked else 0.0) / 500.0, 0.0, 1.0)
+	spool_turn += dl / (SPOOL_R * (0.4 + 0.6 * left_k))
+	if reeling > 0.05:
+		crank += reeling / PER_TURN * TAU * delta
+	elif grinding and hooked:
+		crank += 0.45 * TAU * delta
 	if _handle:
-		_handle.rotate_object_local(Vector3.RIGHT, -reeling * delta * 12.0)
+		_handle.basis = Basis(Vector3.RIGHT, -crank) * _handle_base
+	_hands(delta)
 	# the drag screams while the fish takes line: louder and higher the faster it goes
 	# (smoothed: a crewmate's fish comes in ten updates a second, and the drag mustn't stutter with them)
 	var raw := (line_out - _last_out) / maxf(delta, 1e-4)
@@ -277,7 +329,8 @@ func _process(delta: float) -> void:
 		cutting = 0.0
 	_last_cut = rel if hooked else Vector3.INF
 	# the clicker ticks for every few cm off the spool (a run's a blur of them); the hiss is the line in the water
-	noise.clicks = (maxf(paying, 0.0) * 14.0 + 140.0 * maxf(slam, 0.0)) if hooked else 0.0
+	noise.clicks = (maxf(paying, 0.0) * 14.0 + 140.0 * maxf(slam, 0.0)) if hooked \
+			else (maxf(_len_v, 0.0) * 14.0 if letting else 0.0)     # (a bait let back: the clicker on)
 	noise.strain = strain + 0.3 * maxf(slam, 0.0) if hooked else 0.0
 	var hiss_k := clampf((maxf(paying, 0.0) + cutting) / 9.0, 0.0, 1.0) * clampf(strain * 1.4, 0.3, 1.0)
 	noise.hiss = hiss_k if hooked else 0.0
@@ -305,13 +358,42 @@ func _process(delta: float) -> void:
 		_sing.stop()
 	if _sing.playing:
 		_sing.pitch_scale = 0.55 + 2.5 * (strain - 0.92)
-	var left := clampf(1.0 - (line_out if hooked else 0.0) / 500.0, 0.0, 1.0)
-	var r := 0.05 * (0.4 + 0.6 * left)
-	_spool.scale = Vector3(r / 0.05, 1.0, r / 0.05)
+	var k := 0.4 + 0.6 * left_k
+	_spool.basis = Basis(Vector3.RIGHT, spool_turn) * Basis(Vector3.BACK, PI * 0.5) * Basis.from_scale(Vector3(k, 1.0, k))
 	var gone := line_out if hooked else 0.0
 	_spool_mat.albedo_color = Color(0.85, 0.86, 0.78) if gone <= 400.0 else (Color(0.97, 0.97, 0.95) if gone <= 425.0
 			else Color(0.55, 0.57, 0.6))
 	_draw_line()
+
+
+## Your own gloves on it while it's in your hands: the left round the foregrip, the right on the crank's knob (going
+## round with it), your sleeves back to your elbows.
+func _hands(_delta: float) -> void:
+	var mine := holder != 0 and holder == Net.my_id()
+	_glove_r.visible = mine and _handle != null
+	_glove_l.visible = mine
+	if not mine:
+		return
+	_glove_l.transform = Transform3D(Basis(Vector3.UP, PI), Vector3(0.0, -0.005, 0.52))
+	if _handle:
+		var knob := _handle.transform * Vector3(0.0325, -0.075, 0.0)
+		_glove_r.transform = Transform3D(Basis(Vector3.UP, -PI * 0.5) * Basis(Vector3.FORWARD, 0.4), knob)
+	var crew: Node = spread.get("sea").get("crew") if spread else null
+	var me: Node = crew.get("me") if crew else null
+	var cam: Camera3D = me.get("cam") if me else null
+	if cam == null:
+		return
+	for g: Node3D in [_glove_r, _glove_l]:
+		var sleeve := g.get_node_or_null("Sleeve") as Node3D
+		if sleeve == null:
+			continue
+		var elbow := cam.global_transform * (ELBOWS["l" if g == _glove_l else "r"] as Vector3)
+		var from := sleeve.global_position
+		if from.distance_squared_to(elbow) > 0.0001:
+			var up := cam.global_basis.y
+			if absf((elbow - from).normalized().dot(up)) > 0.98:
+				up = cam.global_basis.z
+			sleeve.look_at(elbow, up)
 
 
 func _looped(src: AudioStreamWAV, db: float) -> AudioStreamPlayer3D:
@@ -354,15 +436,23 @@ func _draw_line() -> void:
 	_lure.visible = out
 	if out:
 		var fresh := float(spread.call("freshness", index)) if spread else 1.0
-		_kick += get_process_delta_time() * (3.0 + 9.0 * fresh)
-		var wiggle := Basis(Vector3.UP, sin(_kick) * (0.12 + 0.25 * fresh))
+		# (a dead one doesn't kick; a live one hooked badly swims lopsided)
+		var swim := (0.12 + 0.25 * fresh) * (1.0 if live else 0.0)
+		_kick += get_process_delta_time() * (3.0 + 9.0 * fresh) * (1.0 if bait_q >= 0.9 else 0.6)
+		var wiggle := Basis(Vector3.UP, sin(_kick) * swim) * Basis(Vector3.FORWARD, 0.0 if bait_q >= 0.9 or not live
+				else 0.9)
 		var to := (a - b) * Vector3(1, 0, 1)
-		if bait_in or flying:
-			_lure.global_transform = Transform3D(Basis(Vector3.RIGHT, PI * 0.5) * wiggle, b + Vector3(0.0, -0.14, 0.0))
-		elif to.length() > 0.01:
-			_lure.global_transform = Transform3D(Basis.looking_at(to.normalized(), Vector3.UP) * wiggle,
-					b + Vector3(0.0, -0.06, 0.0))
-		_lure_back.albedo_color = Color(1, 1, 1).lerp(Color(0.75, 0.78, 0.78), (1.0 - fresh) * 0.8)
+		var hang := Basis(Vector3.RIGHT, PI * 0.5) * wiggle
+		# (coming up to the tip, it turns from swimming to hanging by its lips, a bit at a time)
+		var tip := tip_position() + Vector3(0.0, -0.3, 0.0)
+		var up := 1.0 if bait_in or flying else 1.0 - smoothstep(0.35, 2.5, b.distance_to(tip))
+		if bait_in or flying or to.length() <= 0.01:
+			_lure.global_transform = Transform3D(hang, b + Vector3(0.0, -0.14, 0.0))
+		else:
+			var swimming := Basis.looking_at(to.normalized(), Vector3.UP) * wiggle
+			_lure.global_transform = Transform3D(swimming.slerp(hang, up), b + Vector3(0.0, lerpf(-0.06, -0.14, up), 0.0))
+		var pale := Color(0.75, 0.78, 0.78) if live else Color(0.62, 0.6, 0.58)
+		_lure_back.albedo_color = Color(1, 1, 1).lerp(pale, (1.0 - fresh) * 0.8 if live else 0.85)
 
 
 ## Where the line bends: at the outrigger's clip, or on its way down from it to the straight line (clip_k).
@@ -391,12 +481,14 @@ func interact_prompt(player: Node) -> String:
 		if tangled >= 0:
 			return "Clear the tangle"
 		if bool(spread.call("fighting")):
-			return "" if bait_in else "Reel in"
-		if player != null and str(player.get("hands").get("item")) == "bait":
-			var hold: Node = spread.get("sea").get("fish_hold") if spread else null
-			if hold != null and int(hold.get("well")) <= 0:
-				return "Well's empty: jig some (3)"
-			return "Bait it"
+			return "" if bait_in else "Pick it up: wind it in"
+		var carrying := str(player.get("hands").call("carrying")) if player != null else ""
+		if not carrying.is_empty():
+			if not bait_in:
+				return "Wind it in first: pick it up"
+			return "Hook it on" if not baited else "Swap the bait"
+		if bait_in and not baited:
+			return "Pick it up (a bare hook)"
 		return "Pick it up"
 	if hooked and holder != Net.my_id():
 		return "Take over"

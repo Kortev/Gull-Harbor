@@ -1,8 +1,12 @@
 extends Node3D
 ## What's in your hands (crew/kit.gd: the knife, the gaff, the jig rod, the scoop, a bait), picked on the hotbar with
-## 1-5 or the mouse wheel (the same key again: empty hands). You see it in first person, held out in front in your own
-## gloves (both of them on the gaff and the scoop, your sleeves going back to your elbows); everyone else sees it in
-## your right glove (crew/player.gd sends which it is with your spot).
+## 1-4 or the mouse wheel (the same key again: empty hands). You see it in first person, held out in front in your own
+## gloves (both of them on the gaff and the scoop, your left on the jig reel's crank, your sleeves going back to your
+## elbows); everyone else sees it in your right glove (crew/player.gd sends which it is with your spot).
+##
+## A bait (slot 5) is a real fish: netted out of the live well (E on its open lid: boat/live_well.gd), a live one
+## kicking in your fist or a dead one limp, and it stays in your hand till it's hooked on a rod (rods/rig.gd) or put
+## back in the well; you can't put it in your pocket and pick up a knife.
 ##
 ## Left mouse uses it. On something that takes it (anything with use_item(player, item, pressed) -> bool: a fish on
 ## deck takes the knife and the gaff, the chum bucket the scoop) that thing does the work; otherwise the item does its
@@ -29,6 +33,7 @@ const HOLDS := {
 	"jig": [Vector3(-0.05, 0.05, 0.08), Vector3(0.75, 0.16, -0.12)],
 	"scoop": [Vector3(0.0, -0.02, 0.1), Vector3(-0.12, 0.32, 0.0)],
 	"bait": [Vector3(-0.1, 0.09, -0.12), Vector3(0.12, 1.3, 0.05)],
+	"dead": [Vector3(-0.1, 0.09, -0.12), Vector3(0.12, 1.3, 0.05)],
 }
 const TWO_HANDED: Array[String] = ["gaff", "scoop"]
 const LEFT_ROLL := {"gaff": -1.2, "scoop": -0.9}
@@ -37,7 +42,7 @@ const ELBOWS := {"r": Vector3(0.42, -0.72, 0.06), "l": Vector3(-0.42, -0.72, 0.0
 ## How each item sits in the others' view of you, in your right glove: tipped up from along your forearm (radians),
 ## so the knife and the jig rod point out and up, the gaff and the scoop down toward the deck ahead, the bait hanging
 ## by its tail.
-const IN_GLOVE := {"knife": 0.5, "gaff": -0.35, "jig": 0.95, "scoop": -0.2, "bait": -1.3}
+const IN_GLOVE := {"knife": 0.5, "gaff": -0.35, "jig": 0.95, "scoop": -0.2, "bait": -1.3, "dead": -1.3}
 ## The one-off moves (s): a stab at nothing, the gaff's strike, a dip of the scoop, a throw.
 const MOVES := {"knife": 0.3, "gaff": 0.5, "scoop": 0.55, "throw": 0.5}
 ## The jig hanging off the rod tip on its bit of line (m), swinging.
@@ -47,6 +52,10 @@ var player: Node3D            # crew/player.gd
 ## What you've picked (Kit.ITEMS, "" empty-handed), and whether there's chum in your scoop.
 var item := ""
 var scoop_full := false
+## The mackerel in your fist with `item` "bait": "live" or "dead" ("" none), and whether you're hooking it onto a rod
+## right now (rods/rig.gd has it then: your view of it's put away).
+var bait := ""
+var rigging := false
 ## How far a throw's wound up, 0..1 (the scoop; rods.gd winds a cast the same way on its own).
 var wind := 0.0
 var _winding := false
@@ -92,9 +101,29 @@ func _exit_tree() -> void:
 		_bar.queue_free()
 
 
-## The item you're seen with (yours, or what a crewmate's peer last said).
+## The item you're seen with (yours, or what a crewmate's peer last said): a dead bait's its own thing.
 func shown_item() -> String:
-	return item if player.is_multiplayer_authority() else str(player.get("_net_item"))
+	return net_item() if player.is_multiplayer_authority() else str(player.get("_net_item"))
+
+
+func net_item() -> String:
+	return "dead" if item == "bait" and bait == "dead" else item
+
+
+## The mackerel in your fist ("live", "dead"; "" none).
+func carrying() -> String:
+	return bait if item == "bait" else ""
+
+
+## A mackerel into your fist (`kind`: "live", "dead"), out of the well; "" and it's gone (hooked on, or back in).
+func carry(kind: String) -> void:
+	_release()
+	bait = kind
+	item = "bait" if not kind.is_empty() else ""
+	wind = 0.0
+	_winding = false
+	if not kind.is_empty():
+		Sfx.play_point(self, player.global_position + Vector3.UP, "dock.slap", 0.3, 2.0)
 
 
 ## Your hands are full of something bigger (a rod, the harpoon, the wheel), you're in the sea or up a ladder, or
@@ -114,6 +143,13 @@ func stowed() -> bool:
 
 
 func pick(which: String) -> void:
+	if not carrying().is_empty():
+		# (a fish in your fist: it goes on a hook or back in the well, not in your pocket)
+		_note("A mackerel in your hand: hook it on a rod, or back in the live well")
+		return
+	if which == "bait":
+		_note("Net one out of the live well: E on its lid")
+		return
 	if which == item:
 		which = ""            # (the same again: put it away)
 	if which != item:
@@ -138,10 +174,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	# (with a fish on, the wheel's the drag: rods.gd)
 	if (event.is_action_pressed("slot_next") or event.is_action_pressed("slot_prev")) and not _fighting():
 		var at := Kit.ITEMS.find(item) + 1           # (0: empty-handed)
-		at = wrapi(at + (1 if event.is_action_pressed("slot_next") else -1), 0, Kit.ITEMS.size() + 1)
+		var step := 1 if event.is_action_pressed("slot_next") else -1
+		at = wrapi(at + step, 0, Kit.ITEMS.size() + 1)
+		if at > 0 and Kit.ITEMS[at - 1] == "bait":
+			at = wrapi(at + step, 0, Kit.ITEMS.size() + 1)      # (a bait's netted out of the well, not picked)
 		pick("" if at == 0 else Kit.ITEMS[at - 1])
 		return
-	if stowed() or item.is_empty():
+	if stowed() or item.is_empty() or rigging:
 		return
 	if event.is_action_pressed("use_primary"):
 		press(true)
@@ -222,6 +261,7 @@ func _process(delta: float) -> void:
 		_motion(delta)
 	if _view:
 		_view.transform = _view.transform.interpolate_with(_goal(), minf(1.0, delta * 22.0))
+		_view.visible = not rigging        # (rods/rig.gd holds it up to hook it)
 		_aim_sleeves()
 		var chum := _view.find_child("Chum", true, false) as Node3D
 		if chum:
@@ -310,6 +350,10 @@ func _goal() -> Transform3D:
 		"jig":
 			var jig: Node = _sea().get("jig") if _sea() else null
 			var lift := float(jig.get("lift")) if jig else 0.0
+			# with it over the side, the rod brought in across you, the reel up where you can see your hand on the crank
+			if jig and bool(jig.call("out_for", player)):
+				at += Vector3(-0.1, 0.06, -0.06)
+				rot += Vector3(-0.2, 0.25, 0.25)
 			# snatched up (and the tip drawn back to you), let fall; a knock jerks it down
 			rot.x += 0.6 * lift
 			at += Vector3(0.0, 0.04 * lift, 0.05 * maxf(lift, 0.0))
@@ -383,15 +427,22 @@ func _alive(held: Node3D, delta: float) -> void:
 		var jig: Node = _sea().get("jig") if _sea() else null
 		var out := false
 		if jig:
-			out = bool(jig.call("active")) if player.is_multiplayer_authority() \
-					else (int(player.get("_net_act")) & 2) != 0         # (player.gd's ACT_JIG)
+			out = bool(jig.call("out_for", player))         # (off the tip: boat/jig.gd draws it from there)
 		rig.visible = not out
 		if not out:
 			_hang(rig, delta)
 	var tail := held.find_child("tail", true, false) as Node3D
-	if tail:
+	if tail and _shown != "dead":
 		var kick := 0.25 + 0.75 * maxf(0.0, sin(t * 1.3))
 		tail.rotation = Vector3(0.0, sin(t * 17.0) * 0.55 * kick, 0.0)
+	# the jig reel's crank, turned by the line wound in (boat/jig.gd), your left glove on its knob going round with it
+	var crank := held.find_child("crank", true, false) as Node3D
+	if crank:
+		var jig2: Node = _sea().get("jig") if _sea() else null
+		crank.rotation = Vector3(-float(jig2.call("crank_of", player)) if jig2 else 0.0, 0.0, 0.0)
+		var lg := held.find_child("GloveL", true, false) as Node3D
+		if lg:
+			lg.global_basis = held.global_basis * Basis(Vector3.UP, PI * 0.5)
 
 
 ## A jig hanging off the tip on RIG of line: its end a pendulum (where it was, carried on, pulled down, kept on the
@@ -437,6 +488,12 @@ func _show(which: String) -> void:
 			var left := Kit.glove("l")
 			left.rotation = Vector3(0.0, 0.0, float(LEFT_ROLL.get(which, 0.0)))
 			grip.add_child(left)
+		# the jig rod: your left hand on the reel's crank knob, which goes round on the crank
+		var knob := _view.find_child("knob", true, false) as Node3D
+		var crank := _view.find_child("crank", true, false) as Node3D
+		if knob and crank:
+			knob.reparent(crank)
+			knob.add_child(Kit.glove("l"))
 		_view.transform = _goal()            # (it comes up from out of sight, not from wherever)
 		for mi in _view.find_children("*", "MeshInstance3D", true, false):
 			(mi as MeshInstance3D).layers = 1 << 18          # (yours alone: the others see the glove)
@@ -460,6 +517,32 @@ func tip() -> Node3D:
 		return null
 	var held: Node3D = _view if _view else _glove
 	return held.find_child("tip", true, false) as Node3D if held else null
+
+
+## Where the jig hanging off the tip has swung to (global; INF: none), and set where it hangs from (boat/jig.gd: it's
+## wound back up to the tip from there, and swings on from there).
+func rig_end() -> Vector3:
+	var held: Node3D = _view if _view else _glove
+	var rig := held.find_child("rig", true, false) as Node3D if held else null
+	var was: Array = _rigs.get(rig, []) if rig else []
+	return was[0] if not was.is_empty() else Vector3.INF
+
+
+func seed_rig(at: Vector3) -> void:
+	for held: Node3D in [_view, _glove]:
+		var rig := held.find_child("rig", true, false) as Node3D if held else null
+		if rig:
+			var end := rig.global_position + (at - rig.global_position).normalized() * RIG
+			_rigs[rig] = [end, end]
+
+
+func _note(text: String) -> void:
+	if not player.is_multiplayer_authority():
+		return
+	var crew := player.get_parent()
+	var hud: Node = crew.get("hud") if crew else null
+	if hud:
+		hud.call("notify", text)
 
 
 func _sea() -> Node:

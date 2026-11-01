@@ -1,7 +1,8 @@
 extends Node
 ## The live well (boat/live_well.gd), on both boats: its lid's the model's own piece; it swings up as a mackerel goes
 ## in (or out for a bait) and shuts again, never jumping; E on it holds it open (the fish hold's word), and you see the
-## mackerel swimming in there (as many as the well has, up to a handful); E again shuts it. The chum bucket stands on
+## mackerel swimming in there (as many as the well has, up to a handful); E again nets one out and the lid goes down
+## after it; E on it with one in your fist, open, puts it back. The chum bucket stands on
 ## deck beside it, not on the lid, and in reach. (The fish box's lid is the fish hold's own: tests/landing_test.)
 ## Run: godot --headless --fixed-fps 30 --path . res://tests/lids_test.tscn
 
@@ -22,6 +23,7 @@ func _ready() -> void:
 		hold.head_in()
 		await get_tree().process_frame
 		hold.head_out(kind)
+		hold.well = mini(hold.well, hold.WELL_MAX - 1)      # (room for one more)
 		await get_tree().create_timer(2.5).timeout      # (the lid from heading out with a fresh well: shut again)
 		var well: LiveWell = sea.boat.get("live_well")
 		_check(well != null and well.lid != null, "%s: her live well has a lid of its own" % kind)
@@ -50,10 +52,19 @@ func _ready() -> void:
 		var free_edge: Vector3 = lid.transform * lid.get_aabb().get_center()
 		_check(free_edge.y > lid.position.y + 0.1, "%s: its free edge is up (%.2f m over its hinge)"
 				% [kind, free_edge.y - lid.position.y])
-		_check(str(act.call("interact_prompt")) == "Shut the live well", "%s: it says: %s" % [kind, act.call("interact_prompt")])
+		_check(str(act.call("interact_prompt")).begins_with("Net a mackerel"), "%s: it says: %s"
+				% [kind, act.call("interact_prompt")])
+		var n := hold.well
 		act.call("interact", sea.crew.me)
-		await get_tree().create_timer(0.8).timeout
-		_check(not hold.well_open and well.open < 0.01, "%s: E again, shut" % kind)
+		await get_tree().create_timer(2.4).timeout
+		_check(str(sea.crew.me.hands.carrying()) == "live" and hold.well == n - 1, "%s: E again, one netted out" % kind)
+		_check(not hold.well_open and well.open < 0.01, "%s: and the lid down after it" % kind)
+		act.call("interact", sea.crew.me)
+		await get_tree().create_timer(0.3).timeout
+		_check(str(act.call("interact_prompt")) == "Put it back", "%s: it says: %s" % [kind, act.call("interact_prompt")])
+		act.call("interact", sea.crew.me)
+		await get_tree().create_timer(2.4).timeout
+		_check(hold.well == n and not hold.well_open and well.open < 0.01, "%s: back in, shut" % kind)
 		# the chum bucket: on deck beside the well, not on its lid
 		var scoop := (sea.chum.get("_bucket") as Node).get_node("Scoop") as Node3D
 		var at := sea.boat.to_local(scoop.global_position)

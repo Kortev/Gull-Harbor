@@ -940,7 +940,7 @@ func _physics_process(delta: float) -> void:
 		if Net.in_session() and _send_in <= 0:
 			_send_in = 2      # 30 a second
 			# (where you're shown: a step squared up on landing goes to them eased, as you see it)
-			_state.rpc(_local + _hop_fix, _yaw, _pitch, act, hands.item, mode, _boat_index(frame), _clock())
+			_state.rpc(_local + _hop_fix, _yaw, _pitch, act, hands.net_item(), mode, _boat_index(frame), _clock())
 	else:
 		_play_net(delta)
 		if mode == DECK:

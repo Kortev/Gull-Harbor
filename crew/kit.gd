@@ -13,6 +13,7 @@ const MODELS := {
 	"jig": preload("res://crew/gear/jig.glb"),
 	"scoop": preload("res://crew/gear/scoop.glb"),
 	"bait": preload("res://crew/gear/bait.glb"),
+	"dead": preload("res://crew/gear/bait.glb"),
 }
 const GLOVES := preload("res://crew/gear/glove.glb")
 
@@ -24,9 +25,17 @@ static func make(item: String) -> Node3D:
 	if scene:
 		var model := scene.instantiate() as Node3D
 		model.name = "Model"
-		if item == "bait":
+		if item == "bait" or item == "dead":
 			model.position = Vector3(0.0, 0.0, -0.1)       # (a live bait's held by the wrist of its tail)
 		root.add_child(model)
+		if item == "dead":
+			# (a dead one: gone dull and grey, its colours faded off it)
+			var dull := StandardMaterial3D.new()
+			dull.albedo_color = Color(0.7, 0.68, 0.66)
+			dull.blend_mode = BaseMaterial3D.BLEND_MODE_MUL
+			dull.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			for mi in model.find_children("*", "MeshInstance3D", true, false):
+				(mi as MeshInstance3D).material_overlay = dull
 		var chum := model.find_child("Chum", true, false) as Node3D
 		if chum:
 			chum.visible = false

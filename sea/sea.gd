@@ -542,6 +542,8 @@ func _process(_delta: float) -> void:
 		# (tests/net_test.sh: once aboard, pick up a rod, wind its line in if it's out, and cast it)
 		var r: Node = rods.rods[int(_args["cast"])]
 		if r.get("holder") == 0:
+			if r.get("bait_in") and not r.get("baited"):
+				rods.request_bait(int(_args["cast"]), "live", 1.0)     # (the hooks go out bare)
 			rods.request_grab(int(_args["cast"]))
 		elif r.get("holder") == Net.my_id():
 			if not r.get("bait_in"):
