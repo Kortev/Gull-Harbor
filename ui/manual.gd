@@ -9,7 +9,7 @@ const CHAPTERS := [
 "
 		+ "Q: put the rod or the harpoon back. Esc: the menu.
 "
-		+ "F: shove whoever's in front of you. Space at the rail: over it (onto a boat a jump away, or into the sea).
+		+ "F: shove whoever's in front of you. Walk into the rail and jump: up on it. Sprint and jump: over it (onto a boat a jump away, or into the sea).
 "
 		+ "In the sea: WASD swim, Shift sprint, Ctrl dive. E by a boarding ladder: W climbs, S goes down, E lets go.\n\n"
 		+ "A pad: left stick walk, right stick look. RT cast and reel (harder pulled, faster), LT heave and aim. "

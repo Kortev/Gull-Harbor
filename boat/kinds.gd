@@ -39,8 +39,8 @@ extends RefCounted
 ##                 (boat/tower.gd; only the sportfisher has one)
 ##   ladder        the boarding ladder hooked over her transom (boat/ladder.gd): x across, y the top of the transom
 ##                 (its cap, where you climb over), z the transom's outside face; clear of her engines and tuna door
-##   bulwark       m her collider's wall stands over her rail's cap (art/*.py: so nobody walks off her); the crew
-##                 stand on the cap under it (crew/player.gd)
+##   bulwark       m her collider's wall stands over her rail's cap (art/*.py); the deck space the crew walk in has
+##                 it brought back down to the cap: her gunwale to climb up on, or go over (boat/boat.gd's _deck_shape)
 
 const DEFAULT := "sportfisher"
 

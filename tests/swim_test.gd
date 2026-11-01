@@ -1,8 +1,7 @@
 extends Node
 ## Water for people (crew/player.gd, boat/ladder.gd), headless, in the skiff:
-## - over the side: Space at her rail (a step off it, looking at it) and you're up on it, Space again and you're
-##   off it and in, a splash; afloat at the waves' own height (the height the boats float on), your eyes at the
-##   water, not sinking, a beat behind the swell; strokes (a slap of water each); a sprint's quicker than a swim; Ctrl dives you under (the murk) and you
+## - over the side: walk at her rail and jump and you're up on it, W and Space and you're off it and in, a
+##   splash; afloat at the waves' own height (the height the boats float on), your eyes at the water, not sinking, a beat behind the swell; strokes (a slap of water each); a sprint's quicker than a swim; Ctrl dives you under (the murk) and you
 ##   come up gasping; swim to her boarding ladder and E by its foot (no crosshair on it) and you've hold of it: W up
 ##   a step at a time (neither and you hang there), S back down and into the water at the foot, E again, up W over
 ##   her transom onto her deck, never a jump in where you are (in her frame); from her deck, E at its top takes you
@@ -41,20 +40,28 @@ func _swim() -> void:
 	var me := sea.crew.me
 	me.force_input = true
 	var deck := float(boat.deck)
-	# at her starboard side amidships, a step off it, looking at it: jump
+	# at her starboard side amidships, a step off it, looking at it: walk at it and jump
 	me.place(Vector3(0.5, deck + 0.02, 2.0), -PI / 2.0)
 	await _wait(0.4)
+	Input.action_press("move_forward")
+	await _until(func() -> bool: return me.local_position().x > float(boat.beam) * 0.5 - 0.7, 1.0)
 	Input.action_press("jump")
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	Input.action_release("jump")
-	await _until(func() -> bool: return int(me.get("_cap")) == Player.CAP_ON, 1.5)
-	_check(int(me.get("_cap")) == Player.CAP_ON, "Space at the rail: up on it")
+	await _wait(0.2)
+	Input.action_release("move_forward")
+	await _until(func() -> bool: return me.on_rail() != Vector3.ZERO, 1.5)
+	_check(me.on_rail() != Vector3.ZERO, "walking at her rail and a jump: up on it")
+	await _wait(0.3)
+	Input.action_press("move_forward")
 	Input.action_press("jump")
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	Input.action_release("jump")
-	_check(me.mode == Player.AIR, "Space again, looking out: off it (mode %d)" % me.mode)
+	await _until(func() -> bool: return me.mode != Player.DECK, 1.0)
+	Input.action_release("move_forward")
+	_check(me.mode == Player.AIR, "W and Space up there: off it (mode %d)" % me.mode)
 	await _until(func() -> bool: return me.mode == Player.SWIM, 2.0)
 	_check(me.mode == Player.SWIM and me.frame == null, "and into the sea")
 	await _until(func() -> bool: return me.splashes > 0, 3.0)

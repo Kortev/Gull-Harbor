@@ -573,16 +573,24 @@ func _f_day(d: int) -> void:
 		await _wait(0.6)
 		await _shot("d1_at_the_rail")
 		for k in 2:
+			# (a walk into her rail and a jump: up on it; then Shift, W and Space: the leap)
+			if k == 1:
+				Input.action_press("sprint")
+			Input.action_press("move_forward")
 			Input.action_press("jump")
 			await get_tree().physics_frame
 			await get_tree().physics_frame
 			Input.action_release("jump")
 			if k == 0:
-				await _wait(0.6)
+				await _wait(0.25)
+				Input.action_release("move_forward")
+				await _wait(0.35)
 				await _shot("d1_up_on_rail")
 		await _wait(0.25)
 		await _shot("d1_leaping")
 		await _until(func() -> bool: return me.get("boat") == a and int(me.get("mode")) == 0, 5.0)
+		Input.action_release("move_forward")
+		Input.action_release("sprint")
 		await _wait(0.5)
 		await _shot("d1_landed_on_A")
 		FileAccess.open(out.path_join("leapt"), FileAccess.WRITE).store_string("1")
@@ -611,13 +619,20 @@ func _f_day(d: int) -> void:
 				-PI * 0.5 * bs, a)
 		await _wait(0.5)
 		for k in 2:
+			if k == 1:
+				Input.action_press("sprint")
+			Input.action_press("move_forward")
 			Input.action_press("jump")
 			await get_tree().physics_frame
 			await get_tree().physics_frame
 			Input.action_release("jump")
 			if k == 0:
-				await _wait(0.6)
+				await _wait(0.25)
+				Input.action_release("move_forward")
+				await _wait(0.35)
 		await _until(func() -> bool: return me.get("boat") == b, 5.0)
+		Input.action_release("move_forward")
+		Input.action_release("sprint")
 		await _wait(0.5)
 		await _shot("d1_back_on_B")
 		FileAccess.open(out.path_join("back_on_b"), FileAccess.WRITE).store_string("1")

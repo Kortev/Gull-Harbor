@@ -205,12 +205,11 @@ func _build() -> void:
 		cs.transform = _src_transform(col_mesh, src)
 		add_child(cs)
 		_built.append(cs)
-		# the same hull in the still deck space the crew walk in
+		# the same hull in the still deck space the crew walk in, but her rail as she's built (_deck_shape)
 		var still := StaticBody3D.new()
 		still.name = "Hull"
 		var dcs := CollisionShape3D.new()
-		dcs.shape = shape
-		dcs.transform = cs.transform
+		dcs.shape = _deck_shape(col_mesh.mesh.get_faces(), cs.transform, visual.get_node_or_null("boat"))
 		still.add_child(dcs)
 		deck_root.add_child(still)
 		_built.append(still)
@@ -339,6 +338,52 @@ func _radar_bar(visual: Node3D, at: Vector3) -> Node3D:
 
 
 ## A node's transform relative to the imported scene root (before it's in the tree).
+## The deck space's hull (boat-local): her collider (`faces`, placed by `xf`) with its bulwark (the wall raised
+## kinds.gd's `bulwark` m over her rail, so nobody walks off her) brought back down to her rail's cap, and her cap
+## and topsides from her model (`model`, its "cap" and "topsides") added: her gunwale's just there to climb up on
+## and stand on, or go over.
+func _deck_shape(faces: PackedVector3Array, xf: Transform3D, model: MeshInstance3D) -> ConcavePolygonShape3D:
+	var out := PackedVector3Array()
+	var tops := {}           # (her liner's top edge, the cap's inner edge: on a 2 cm grid)
+	var mesh := model.mesh if model else null
+	var mx := model.transform if model else Transform3D.IDENTITY
+	if mesh:
+		for s in mesh.get_surface_count():
+			var mat := mesh.surface_get_material(s)
+			var band := mat.resource_name if mat else ""
+			if band != "cap" and band != "topsides" and band != "liner":
+				continue
+			var arr := mesh.surface_get_arrays(s)
+			var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			if band == "liner":
+				for p in v:
+					tops[Vector3i((mx * p / 0.02).round())] = mx * p
+				continue
+			var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+			if idx.is_empty():
+				for p in v:
+					out.append(mx * p)
+			else:
+				for i in idx:
+					out.append(mx * v[i])
+	var bw := float(spec.get("bulwark", 0.0))
+	for p in faces:
+		var q := xf * p
+		var under := q - Vector3(0.0, bw, 0.0)
+		var key := Vector3i((under / 0.02).round())
+		var near := 0.025
+		for k in 27:
+			var at := key + Vector3i(k % 3 - 1, k / 3 % 3 - 1, k / 9 - 1)
+			if tops.has(at) and (tops[at] as Vector3).distance_to(under) < near:
+				near = (tops[at] as Vector3).distance_to(under)
+				q = tops[at]
+		out.append(q)
+	var shape := ConcavePolygonShape3D.new()
+	shape.backface_collision = true
+	shape.set_faces(out)
+	return shape
+
+
 static func _src_transform(n: Node3D, root: Node3D) -> Transform3D:
 	var t := n.transform
 	var p := n.get_parent()

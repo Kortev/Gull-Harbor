@@ -108,20 +108,32 @@ func _as_friend() -> void:
 	_check(float(seen[1]) < 0.4, "smoothly, the whole way (at most %.2f m a frame)" % seen[1])
 
 
-## You up on `from`'s rail on the side toward `to` (way: +1 her starboard), Space again: the leap, till you're down.
+## You up on `from`'s rail on the side toward `to` (way: +1 her starboard: a walk at it and a jump), then Shift, W
+## and Space: the leap, till you're down.
 func _leap(me: Player, from: Node3D, to: Node3D, way: int) -> void:
 	me.force_input = true
 	me.place(Vector3((float(from.get("beam")) * 0.5 - 0.7) * way, float(from.get("deck")) + 0.02, 3.5),
 			-PI * 0.5 * way, from)
 	await get_tree().create_timer(0.5).timeout
-	for k in 2:
-		Input.action_press("jump")
-		await get_tree().physics_frame
-		await get_tree().physics_frame
-		Input.action_release("jump")
-		if k == 0:
-			await _until(func() -> bool: return int(me.get("_cap")) == Player.CAP_ON, 1.5)
-	await _until(func() -> bool: return me.mode == Player.SWIM or (me.mode == Player.DECK and me.boat == to), 4.0)
+	Input.action_press("move_forward")
+	Input.action_press("jump")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	Input.action_release("jump")
+	await get_tree().create_timer(0.25).timeout
+	Input.action_release("move_forward")
+	await _until(func() -> bool: return me.on_rail() != Vector3.ZERO, 1.5)
+	await get_tree().create_timer(0.2).timeout
+	Input.action_press("sprint")
+	Input.action_press("move_forward")
+	Input.action_press("jump")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	Input.action_release("jump")
+	await _until(func() -> bool: return me.mode == Player.SWIM or (me.mode == Player.DECK and me.boat == to
+			and me.body.is_on_floor()), 4.0)
+	Input.action_release("move_forward")
+	Input.action_release("sprint")
 	me.force_input = false
 
 

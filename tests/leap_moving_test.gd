@@ -1,9 +1,11 @@
 extends Node
 ## Boat to boat under way (crew/player.gd), headless, Rivals (vs/vs.gd), two sportfishers running north side by side
-## at different speeds, a calm sea and a heavy one: you up on one's rail and a leap across to the other, both ways,
-## alongside and 2 m off: you go with her deck as it was going (her way, her roll), and land on the other's deck, in
-## her deck space; nothing jumps the whole way, in the world or over her deck (what you see, and your eyes), and a
-## deck going by under you is a stumble, not a jolt. 6 m off, too far: into the sea.
+## at different speeds, a calm sea and a heavy one: you up on one's rail (a walk at it and a jump) and a leap across
+## to the other, both ways, alongside and 2 m off, and a sprint and a jump straight over both rails 1 m off: you go
+## with her deck as it was going (her way, her roll), in the world's frame once you're clear of her, in the other's
+## once you're in over her (into her deck space, still falling), and down on her deck; nothing jumps the whole way,
+## in the world or over her deck (what you see, and your eyes), and a deck going by under you is a stumble, not a
+## jolt. 6 m off, too far: into the sea.
 ## Run: godot --headless --fixed-fps 30 --path . res://tests/leap_moving_test.tscn [-- --trace]
 
 const Sea := preload("res://sea/sea.gd")
@@ -27,7 +29,7 @@ var _hb: Node
 func _ready() -> void:
 	sea = (load("res://sea/sea.tscn") as PackedScene).instantiate() as Sea
 	add_child(sea)
-	get_tree().create_timer(150.0).timeout.connect(func() -> void:
+	get_tree().create_timer(240.0).timeout.connect(func() -> void:
 		_check(false, "finished in time")
 		_done())
 	await get_tree().create_timer(0.3).timeout
@@ -70,11 +72,14 @@ func _run() -> void:
 		print("(%s)" % sea_is)
 		for gap: float in [0.05, 2.0, 6.0]:
 			for way: int in [1, -1]:
-				await _leap(me, a_boat, b_boat, gap, way)
+				await _leap(me, a_boat, b_boat, gap, way, false)
+		for way: int in [1, -1]:
+			await _leap(me, a_boat, b_boat, 1.0, way, true)
 
 
-## From B to A (way +1: A off B's starboard side) or back, `gap` m apart, both under way.
-func _leap(me: Node3D, a_boat: Node3D, b_boat: Node3D, gap: float, way: int) -> void:
+## From B to A (way +1: A off B's starboard side) or back, `gap` m apart, both under way: up on her rail and a leap
+## off it, or (`run`) a sprint at it and a jump, straight over.
+func _leap(me: Node3D, a_boat: Node3D, b_boat: Node3D, gap: float, way: int, run: bool) -> void:
 	var from := b_boat if way > 0 else a_boat
 	var to := a_boat if way > 0 else b_boat
 	# (side by side again where B's got to, A a little ahead: she's the slower, and drops back level as you go)
@@ -85,23 +90,51 @@ func _leap(me: Node3D, a_boat: Node3D, b_boat: Node3D, gap: float, way: int) -> 
 			-PI * 0.5 * way, from)
 	await get_tree().create_timer(0.4).timeout
 	var w := {"t": 0.0, "jerk": 0.0, "deck_jerk": 0.0, "eye_jerk": 0.0, "went": false, "after": 0, "p": [], "l": [],
-			"e": [], "stumbled": false, "rel": 0.0, "given": Vector2.ZERO, "launch": Vector3.ZERO}
-	Input.action_press("jump")
-	await _watch(me, to, w)
-	Input.action_release("jump")
-	while int(me.get("_cap")) != Player.CAP_ON and float(w["t"]) < 1.5:
+			"e": [], "stumbled": false, "rel": 0.0, "given": Vector2.ZERO, "launch": Vector3.ZERO, "world": false,
+			"into": false}
+	if run:
+		# a sprint at her rail and a jump: straight over it in one
+		me.place(Vector3(0.0, float(from.get("deck")) + 0.02, 3.5), -PI * 0.5 * way, from)
+		await get_tree().create_timer(0.3).timeout
+		Input.action_press("sprint")
+		Input.action_press("move_forward")
+		while me.mode == Player.DECK and float(w["t"]) < 2.0:
+			if absf(me.local_position().x) > float(from.get("beam")) * 0.5 - 0.75:
+				Input.action_press("jump")
+			await _watch(me, to, w)
+	else:
+		# up on her rail (a walk into it and a jump), then W and Space (Shift too, for a gap): the leap
+		Input.action_press("move_forward")
+		Input.action_press("jump")
 		await _watch(me, to, w)
-	Input.action_press("jump")
-	await _watch(me, to, w)
-	Input.action_release("jump")
-	while (me.mode != Player.DECK or int(me.get("_cap")) != Player.CAP_OFF) and me.mode != Player.SWIM \
-			and float(w["t"]) < 5.0:
+		Input.action_release("jump")
+		while me.on_rail() == Vector3.ZERO and float(w["t"]) < 1.5:
+			await _watch(me, to, w)
+			if float(w["t"]) > 0.25:
+				Input.action_release("move_forward")
+		Input.action_release("move_forward")
+		for k in 8:
+			await _watch(me, to, w)
+		if gap > 1.0:
+			Input.action_press("sprint")        # (lying alongside, a walk's leap: a sprint takes you to her far rail)
+		Input.action_press("move_forward")
+		Input.action_press("jump")
 		await _watch(me, to, w)
+	Input.action_release("jump")
+	while not (me.mode == Player.DECK and me.frame == to and me.body.is_on_floor()) and me.mode != Player.SWIM \
+			and float(w["t"]) < 6.0:
+		await _watch(me, to, w)
+	Input.action_release("move_forward")
+	Input.action_release("sprint")
 	# (and a moment on, after it)
 	for k in 12:
 		await _watch(me, to, w)
 	var where := "%s %s" % ["A" if me.boat == a_boat else "B", ["deck", "sea", "ladder", "air"][me.mode]]
-	var what := "%.0f m gap, %s" % [gap, "B to A" if way > 0 else "A to B"]
+	var what := "%.0f m gap, %s%s" % [gap, "B to A" if way > 0 else "A to B", ", running" if run else ""]
+	if gap > 0.5:
+		_check(bool(w["world"]), "%s: clear of her, in the world's frame, still in the air" % what)
+	if gap < 3.0:
+		_check(bool(w["into"]), "%s: in over her, in her frame, still in the air" % what)
 	var v_from := Player._deck_velocity(from, Vector3.ZERO)
 	_check(absf((w["launch"] as Vector3).z - v_from.z) < 1.0,
 			"%s: off her going her way (%.1f m/s ahead, her %.1f)" % [what, -(w["launch"] as Vector3).z, -v_from.z])
@@ -131,6 +164,8 @@ func _watch(me: Node3D, to: Node3D, w: Dictionary) -> void:
 		w["launch"] = me.get("_air_v")
 	if not w["went"]:
 		return
+	# (in her frame, in her deck space or not yet, still falling)
+	w["into"] = bool(w["into"]) or (me.frame == to and not (me.mode == Player.DECK and me.body.is_on_floor()))
 	var at: Vector3 = me.global_position
 	var eye: Vector3 = (me.get("cam") as Node3D).global_position
 	var p: Array = w["p"]
@@ -141,6 +176,7 @@ func _watch(me: Node3D, to: Node3D, w: Dictionary) -> void:
 		w["jerk"] = maxf(float(w["jerk"]), _flat(p[-1] - 2.0 * p[-2] + p[-3]))
 		w["eye_jerk"] = maxf(float(w["eye_jerk"]), (e[-1] - 2.0 * e[-2] + e[-3]).length())
 	if me.mode == Player.AIR:
+		w["world"] = bool(w["world"]) or me.frame == null
 		# (the way the deck you left gave you, past your own leap)
 		var given: Vector3 = (me.get("_air_v") as Vector3) - (me.get("_air_push") as Vector3)
 		w["given"] = Vector2(given.x, given.z)
@@ -159,8 +195,8 @@ func _watch(me: Node3D, to: Node3D, w: Dictionary) -> void:
 		var j: float = _flat(p[-1] - 2.0 * p[-2] + p[-3]) if p.size() >= 3 else 0.0
 		var je: float = (e[-1] - 2.0 * e[-2] + e[-3]).length() if e.size() >= 3 else 0.0
 		var f: Node = me.get("frame")
-		print("  t %.2f mode %d cap %d frame %s  in her: %.2f %.2f %.2f  jerk %.3f eyes %.3f" % [float(w["t"]),
-				me.get("mode"), me.get("_cap"), f.get_parent().name if f else "-", l2.x, l2.y, l2.z, j, je])
+		print("  t %.2f mode %d rail %s frame %s  in her: %.2f %.2f %.2f  jerk %.3f eyes %.3f" % [float(w["t"]),
+				me.get("mode"), me.on_rail(), f.get_parent().name if f else "-", l2.x, l2.y, l2.z, j, je])
 
 
 static func _flat(v: Vector3) -> float:
