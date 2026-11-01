@@ -8,7 +8,9 @@ extends CanvasLayer
 ##   REJOIN   (only after a friend's boat dropped you mid-game) straight back aboard her, your same spot
 ##   JOIN A FRIEND   aboard a friend's boat, whichever game they're playing
 ##   SETTINGS the look, the sound, the screen and the keys (ui/settings_page.gd, over the title)
+##   CREDITS  who made it, and what with (CREDITS; the licenses in full are in THIRD_PARTY_NOTICES.txt by the exe)
 ##   QUIT
+## The version (core/version.gd) sits small in the bottom right corner.
 ## Rivals asks HOST or JOIN. Hosting opens the crew list (who's aboard which boat, the join code to send, a
 ## Steam invite) and the host's START; joining is your Steam friends with a boat out, or typing in their code. START
 ## (or SOLO) closes it for everyone aboard: the letters fade and a short intro plays, the camera pulling up and out
@@ -22,6 +24,7 @@ const PixFont := preload("res://ui/pixfont.gd")
 const Kinds := preload("res://boat/kinds.gd")
 const SettingsPage := preload("res://ui/settings_page.gd")
 const Pad := preload("res://core/pad.gd")
+const Version := preload("res://core/version.gd")
 
 const AMBER := Color(1.0, 0.78, 0.34)
 const CREAM := Color(1.0, 0.95, 0.82)
@@ -35,6 +38,19 @@ const SMALL := 2
 ## How long the camera takes gliding down into your eyes (s); the intro's two legs before it (s).
 const GLIDE := 2.4
 const LEG := 3.4
+## The credits page: [heading, its lines]. Everything third-party is listed in full, license and all, in
+## THIRD_PARTY_NOTICES.txt (tools/third_party.gd writes it; tools/release.sh puts it beside the exe).
+const CREDITS := [
+	["MADE BY", ["%s, %s" % [Version.STUDIO, Version.YEAR]]],
+	["BUILT WITH", ["GODOT ENGINE 4.7 - MIT LICENSE - GODOTENGINE.ORG",
+			"JOLT PHYSICS, FREETYPE, ENET AND GODOT'S OTHER PARTS - THEIR OWN LICENSES",
+			"GODOTSTEAM 4.23 - MIT LICENSE - GODOTSTEAM.COM", "STEAMWORKS SDK - VALVE CORPORATION"]],
+	["SOUND", ["KENNEY - KENNEY.NL - CC0", "BIGSOUNDBANK, JOSEPH SARDIN - BIGSOUNDBANK.COM - CC0",
+			"THE MUSIC: MADE FOR THE GAME, FROM SINE WAVES"]],
+	["PICTURES", ["TEXTURES CRUNCHED FROM POLY HAVEN PHOTOS - POLYHAVEN.COM - CC0",
+			"THE BOATS, THE CREW, THE FISH AND THE PIXEL FONT: MADE FOR THE GAME"]],
+	["THANKS", ["EVERYONE WHO CAME OUT ON THE BOAT TO PLAYTEST"]],
+]
 
 var sea: Node                # sea/sea.gd
 ## Up: the title's showing (and the dock menu, ui/menu.gd, waits under it).
@@ -126,7 +142,10 @@ func _go(page: String) -> void:
 					_mode = ""
 					_go("join")],
 				["SETTINGS", "THE MOUSE, THE SOUND, THE SCREEN AND THE KEYS.", open_settings],
+				["CREDITS", "WHO MADE IT, AND WHAT WITH.", func() -> void: _go("credits")],
 				["QUIT", "", func() -> void: get_tree().quit()]]
+		"credits":
+			_items = [["BACK", "", func() -> void: _go("main")]]
 		"host_join":
 			_items = [["HOST", "START A BOAT AND SEND YOUR FRIEND THE CODE.", _host],
 				["JOIN", "GET ABOARD A FRIEND'S BOAT.", func() -> void: _go("join")],
@@ -416,7 +435,7 @@ func _on_input(e: InputEvent) -> void:
 		elif k.keycode == KEY_ESCAPE:
 			if _page == "join":
 				_go("host_join")
-			elif _page == "host_join":
+			elif _page == "host_join" or _page == "credits":
 				_go("main")
 		elif _page == "join":
 			if k.keycode == KEY_V and k.ctrl_pressed:
@@ -467,7 +486,7 @@ func _draw_view() -> void:
 	# the page's own heading, and the crew list in the lobby
 	var y := at.y + LOGO * 5 + 70
 	var heading: String = {"host_join": _mode.to_upper().replace("COOP", "CO-OP"), "join": "JOIN A FRIEND",
-			"lobby": "THE CREW"}.get(_page, "")
+			"lobby": "THE CREW", "credits": "CREDITS"}.get(_page, "")
 	if not heading.is_empty():
 		_text(Vector2(at.x + 4, y), heading, AMBER, 3)
 		y += 30
@@ -476,6 +495,8 @@ func _draw_view() -> void:
 		y += 34
 	if _page == "lobby":
 		y = _draw_crew(Vector2(at.x + 4, y))
+	if _page == "credits":
+		y = _draw_credits(Vector2(at.x + 4, y))
 	# the choices
 	_rects.clear()
 	for i in _items.size():
@@ -494,7 +515,26 @@ func _draw_view() -> void:
 		_text(Vector2(at.x + 22, y + 10), _note, Color(1.0, 0.7, 0.5), SMALL)
 	_text(Vector2(at.x + 4, size.y - 30), "STICK OR D-PAD, [A] TO PICK, [B] TO GO BACK" if Settings.pad
 			else "MOUSE OR ARROW KEYS, ENTER TO PICK, ESC TO GO BACK", Color(DIM, 0.6), SMALL)
+	var v := version_text()
+	_text(Vector2(size.x - PixFont.width(v, SMALL) - 24, size.y - 30), v, Color(DIM, 0.6), SMALL)
 
+
+## What the corner says: "V1.0.0".
+static func version_text() -> String:
+	return "V" + Version.VERSION
+
+
+## The credits, under the page's heading. Returns where they end.
+func _draw_credits(at: Vector2) -> float:
+	var y := at.y
+	for c: Array in CREDITS:
+		_text(Vector2(at.x, y), str(c[0]), AMBER, SMALL)
+		y += 16
+		for line: String in c[1]:
+			_text(Vector2(at.x + 12, y), line, CREAM, SMALL)
+			y += 14
+		y += 8
+	return y + 6
 
 ## Who's aboard (and in rivals, which boat), and the code to send: under the lobby's heading. Returns where it ends.
 func _draw_crew(at: Vector2) -> float:

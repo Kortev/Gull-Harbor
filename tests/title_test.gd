@@ -23,6 +23,20 @@ func _ready() -> void:
 	var menu: Node = sea.get_children().filter(func(n: Node) -> bool: return n.get_script() == load("res://ui/menu.gd"))[0]
 	await get_tree().process_frame
 	_check(not (menu.get("_panel") as Control).visible, "the dock menu waits under it")
+	# the version in the corner is the exe's (core/version.gd, export_presets.cfg)
+	var presets := ConfigFile.new()
+	presets.load("res://export_presets.cfg")
+	var v := str(load("res://core/version.gd").get("VERSION"))
+	_check(Title.version_text() == "V" + v and str(presets.get_value("preset.0.options", "application/file_version"))
+			== v + ".0" and str(presets.get_value("preset.0.options", "application/product_version")) == v + ".0",
+			"the corner says %s, the exe's file and product version %s.0" % [Title.version_text(), v])
+	_check(FileAccess.file_exists(str(presets.get_value("preset.0.options", "application/icon"))),
+			"the exe's icon is there")
+	# the credits, and back
+	t.call("_go", "credits")
+	_check(str(t.get("_page")) == "credits" and (t.get("_items") as Array).size() == 1, "CREDITS: the credits, BACK")
+	t.call("_press")
+	_check(str(t.get("_page")) == "main", "BACK to the title's choices")
 	# solo: off the title, the camera gliding down into your eyes
 	t.call("_solo")
 	var cam := t.get("_cam") as Camera3D
