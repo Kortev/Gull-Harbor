@@ -90,6 +90,11 @@ func _menus() -> void:
 	await _wait(0.2)
 	for i in 3:
 		await _key(KEY_DOWN)
+	await _key(KEY_ENTER)        # ACHIEVEMENTS
+	await _shot("achievements")
+	await _key(KEY_ESCAPE)
+	_check(title.get("_page") == "main" and title.get("_pick") == 3, "Esc on ACHIEVEMENTS: back to the title, on it")
+	await _key(KEY_DOWN)
 	await _key(KEY_ENTER)        # SETTINGS
 	await _shot("settings_0")
 	for t in 4:

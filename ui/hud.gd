@@ -24,6 +24,8 @@ const CREAM := Color(0.95, 0.93, 0.88)
 const GREEN := Color(0.55, 1.0, 0.55)
 const AMBER := Color(1.0, 0.75, 0.35)
 const RED := Color(1.0, 0.4, 0.3)
+## Behind the HUD's words and tallies: dark enough to read over a bright sky, light enough to see the sea through.
+const BACKING := Color(0.0, 0.02, 0.04, 0.42)
 
 var _prompt: HBoxContainer
 var _key: Label
@@ -78,8 +80,7 @@ func _ready() -> void:
 	var box := StyleBoxFlat.new()
 	box.bg_color = Color(0, 0, 0, 0.35)
 	box.border_color = Color(CREAM, 0.8)
-	box.set_border_width_all(1)
-	box.set_corner_radius_all(3)
+	box.set_border_width_all(1)            # (square: a pixel cap, no rounded smoothing)
 	box.content_margin_left = 6
 	box.content_margin_right = 6
 	cap.add_theme_stylebox_override("panel", box)
@@ -88,6 +89,7 @@ func _ready() -> void:
 	_key.text = "E"
 	cap.add_child(_key)
 	_what = _label(BODY, CREAM)
+	_band(_what)
 	_prompt.add_child(_what)
 	_prompt.visible = false
 	_tell = _label(BIG, CREAM)
@@ -149,7 +151,7 @@ static func _label(size: int, col: Color) -> Label:
 ## A dark band behind a line of words, just their width.
 static func _band(l: Label) -> void:
 	var box := StyleBoxFlat.new()
-	box.bg_color = Color(0.0, 0.02, 0.04, 0.42)
+	box.bg_color = BACKING
 	box.content_margin_left = 12
 	box.content_margin_right = 12
 	box.content_margin_top = 4
@@ -254,6 +256,9 @@ func _draw_tally() -> void:
 	if _trip.is_empty():
 		return
 	var w := 200.0
+	# a dark backing, so it reads over a bright sky (Rivals' race tally carries on under it, vs/vs.gd)
+	var pips := (int(_trip["cap"]) + int(_trip["deck"])) * 14.0 + 6.0
+	_tally.draw_rect(Rect2(-10, -6, maxf(w, pips) + 20.0, 56), BACKING)
 	if _trip.has("rivals"):
 		# (Rivals: the match's day, no quota; her box as ever)
 		_text(_tally, Vector2(0, 12), "Day %d  -  best of three" % int(_trip["day"]), SMALL, Color(CREAM, 0.85))

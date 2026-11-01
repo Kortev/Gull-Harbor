@@ -1003,6 +1003,7 @@ func _draw_count() -> void:
 func _draw_race() -> void:
 	var lbs: Array = _race.get_meta("lbs", [0.0, 0.0])
 	var top := maxf(maxf(float(lbs[0]), float(lbs[1])), 1.0)
+	_race.draw_rect(Rect2(-18, 0, 258, 40), Hud.BACKING)      # (under the HUD's tally's, ui/hud.gd)
 	for k in 2:
 		var t := my_team if k == 0 else 1 - my_team
 		var y := k * 18.0

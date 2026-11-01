@@ -113,7 +113,8 @@ func _ready() -> void:
 		chapters.add_child(b)
 		_chapters.append(b)
 	var again := Button.new()
-	again.text = "Dale's tips again"
+	again.text = "   Dale's tips again"         # (under the chapters' names)
+	again.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	again.flat = true
 	again.add_theme_color_override("font_color", Color(0.55, 0.2, 0.15))
 	again.pressed.connect(func() -> void:

@@ -51,6 +51,7 @@ var _invite: Button
 var _leave: Button
 ## The boat's owner's manual (ui/manual.gd), open instead of the menu.
 var _manual: Manual
+var _dim: ColorRect
 var _reading := false
 ## The settings page, open instead of the menu.
 var _settings: SettingsPage
@@ -111,6 +112,12 @@ func _ready() -> void:
 	col.add_child(_leave)
 	col.add_child(_button("BACK TO THE TITLE", _to_title))
 	col.add_child(_button("QUIT THE GAME", func() -> void: get_tree().quit()))
+	# (the manual over a dimmed screen, as the settings and achievements pages are: the HUD under it out of the way)
+	_dim = ColorRect.new()
+	_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_dim.color = Color(0.01, 0.02, 0.035, 0.6)
+	_dim.visible = false
+	add_child(_dim)
 	_manual = Manual.new(get_parent().get("tips") as Node)
 	_manual.set_anchors_preset(Control.PRESET_CENTER)
 	_manual.custom_minimum_size = Vector2(820, 560)
@@ -262,6 +269,7 @@ func _process(_delta: float) -> void:
 	_board.visible = open and not away and _panel == _board
 	_pause.visible = open and not away and _panel == _pause
 	_manual.visible = _reading
+	_dim.visible = _reading
 	(get_node("CloseManual") as Control).visible = _reading
 	_open = open
 	_hold_world(open and _panel == _pause and not vs_on)

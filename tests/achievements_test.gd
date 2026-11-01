@@ -164,7 +164,8 @@ func _page() -> void:
 	_check(rects.size() == n + 1, "all %d drawn, and BACK (%d)" % [n, rects.size()])
 	# earned and locked: the words, the date, the medal
 	var w := Page.words("FIRST_FISH")
-	_check(w[0] == "FIRST BLUEFIN" and not str(w[2]).is_empty() and str(w[2]).ends_with(str(Time.get_date_dict_from_system()["year"])),
+	var year := str(Time.get_date_dict_from_system()["year"])
+	_check(w[0] == "FIRST BLUEFIN" and not str(w[2]).is_empty() and str(w[2]).ends_with(year),
 			"earned: its name and the day (%s)" % [w])
 	w = Page.words("ONE_THROW")
 	_check(w[0] == "ONE THROW" and str(w[1]).begins_with("STICK") and str(w[2]).is_empty(),
