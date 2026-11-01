@@ -404,7 +404,7 @@ func _up_and_off(me: Node) -> void:
 ## tallying up, the stamp on the day's winner, the menu waiting under it. A friend aboard B (a stand-in, peer 77):
 ## NEXT DAY waits for both; once both have, a fade to black and the next day from the countdown, both boats back at
 ## their berths. Day 2 to B again: the match, the match's card; REMATCH from both, a fresh match, new weather. Day 3,
-## no fish either side: a tie; the friend leaves, the card says so, and there's no going on without them.
+## no fish either side: a tie; the friend leaves, the card says so, and NEXT DAY goes on without them.
 func _card(sea: Sea, vs: Vs, a_boat: Node3D, b_boat: Node3D, a_hold: Node, b_hold: Node) -> void:
 	vs.teams[77] = 1
 	var card := vs.card
@@ -488,11 +488,13 @@ func _card(sea: Sea, vs: Vs, a_boat: Node3D, b_boat: Node3D, a_hold: Node, b_hol
 	await _until(func() -> bool: return card.t > card.T_BUTTONS, 6.0)
 	Net.peer_left.emit(77)
 	await get_tree().process_frame
-	_check(card.gone and int(card.states[1]) == 3 and card._status().begins_with("THEY'VE LEFT"),
-			"the friend leaves: the card says so")
+	_check(not card.gone and int(card.states[1]) == 4 and card._status().begins_with("THEY'VE LEFT"),
+			"the friend leaves: the card says so (%s, %s)" % [card.states, card._status()])
+	_check(card._can_press(), "and NEXT DAY's still there for us")
 	vs.press_ready()
-	await get_tree().create_timer(1.0).timeout
-	_check(card.up() and card.dark() == 0.0 and not card._can_press(), "and there's no going on, only the title")
+	await _until(func() -> bool: return not card.up(), 4.0)
+	await get_tree().process_frame
+	_check(not card.up() and vs.count_end > 0.0, "pressed: on without them, the countdown")
 
 
 func _until(ok: Callable, most: float) -> void:

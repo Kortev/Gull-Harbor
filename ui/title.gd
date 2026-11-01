@@ -5,6 +5,7 @@ extends CanvasLayer
 ##   FISH     your boat: out after the quota alone, and open for friends to come aboard any time (it hosts quietly:
 ##            a Steam friend sees your boat, or the Esc menu has the join code to send)
 ##   RIVALS   two boats, a crew each; most pounds aboard by dusk wins the day, best of three (vs/vs.gd)
+##   REJOIN   (only after a friend's boat dropped you mid-game) straight back aboard her, your same spot
 ##   JOIN A FRIEND   aboard a friend's boat, whichever game they're playing
 ##   SETTINGS the look, the sound, the screen and the keys (ui/settings_page.gd, over the title)
 ##   QUIT
@@ -85,6 +86,8 @@ func _ready() -> void:
 	sea.add_child(_cam)
 	_cam.make_current()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_note = Net.farewell          # (dropped from a friend's boat: the game came back here, saying so)
+	Net.farewell = ""
 	_go("main")
 	Net.hosted.connect(func() -> void:
 		if _mode != "fish":
@@ -112,7 +115,12 @@ func _go(page: String) -> void:
 	_items.clear()
 	match page:
 		"main":
-			_items = [["FISH", "YOUR BOAT. MAKE THE QUOTA. FRIENDS CAN JOIN ANY TIME.", _fish],
+			_items = []
+			if not Net.last_join.is_empty() and not Net.in_session_or_hosting():
+				_items.append(["REJOIN", "BACK ABOARD THE BOAT YOU WERE DROPPED FROM, IN YOUR SPOT.", func() -> void:
+					_mode = ""
+					_note = "JOINING..." if Net.rejoin() == OK else "COULDN'T START JOINING"])
+			_items += [["FISH", "YOUR BOAT. MAKE THE QUOTA. FRIENDS CAN JOIN ANY TIME.", _fish],
 				["RIVALS", "TWO BOATS, A CREW EACH. MOST FISH BY DUSK WINS THE DAY.", func() -> void: _choose("rivals")],
 				["JOIN A FRIEND", "GET ABOARD A FRIEND'S BOAT.", func() -> void:
 					_mode = ""

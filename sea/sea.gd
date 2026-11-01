@@ -195,6 +195,12 @@ func _ready() -> void:
 		if multiplayer.is_server():
 			print("Weather: sending ours (seed %d)" % weather.seed)
 			_weather_seed.rpc_id(id, weather.seed, str(_args.get("weather", ""))))
+	# (crew whose host's gone mid-game, in the game itself: back to the title, saying so, REJOIN on it; Rivals'
+	# results card, if it's up, says so itself and has the way back)
+	Net.dropped.connect(func(_reason: String) -> void:
+		if get_parent() == get_tree().root and title != null and not title.up and not vs.card.up():
+			Net.farewell = "LOST THE HOST'S BOAT. REJOIN TO GET BACK ABOARD."
+			get_tree().reload_current_scene.call_deferred())
 	add_child(Menu.new())
 	# the game itself (not a test, which builds the sea under its own node): the boat you last took, at the dock,
 	# and the title over it

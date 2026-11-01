@@ -5,7 +5,8 @@ extends CanvasLayer
 ## (WINNER for the match, DAY WON for a day, TIE when it's dead even). Under it NEXT DAY (or REMATCH once the match is
 ## won) and BACK TO THE TITLE. Everyone has to press NEXT DAY / REMATCH (pressed again it's taken back); under each
 ## boat, whether her crew have. When they all have, the screen fades to black and the next day (or a fresh match)
-## starts from the countdown. If the other crew leave, it says so and only the title's left.
+## starts from the countdown. If the other crew's line drops (or they quit), it says so: wait for them to come back,
+## or press on without them. If the host's gone, it says so and only the title's left.
 ##
 ## The pixel font (ui/pixfont.gd) at whole sizes, the colours of the title (ui/title.gd) and the menu (ui/menu.gd).
 
@@ -44,10 +45,11 @@ var vs: Node                 # vs/vs.gd
 var data := {}
 ## s since it came up.
 var t := 0.0
-## Each boat: 0 deciding, 1 ready, 2 nobody aboard her, 3 her crew left (vs/vs.gd's word); and who's pressed.
+## Each boat: 0 deciding, 1 ready, 2 nobody aboard her, 3 her crew's line dropped (waiting on them), 4 they've left
+## (vs/vs.gd's word); and who's pressed.
 var states := [0, 0]
 var ready_ids: Array = []
-## The other crew's gone (they left, or the host did).
+## The host's gone (and the other boat with them): only the title's left.
 var gone := false
 ## Which boat you're on, kept for after the two boats have gone (the host left).
 var mine := 0
@@ -105,6 +107,13 @@ func close() -> void:
 	data = {}
 	_view.visible = false
 	_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+## Down at once, the black too (joining a boat again after a drop: the host says what's up now).
+func drop() -> void:
+	close()
+	_fading = false
+	_black.modulate.a = 0.0
 
 
 ## Everyone's pressed: the card and the harbour behind it fade to black.
@@ -325,8 +334,8 @@ func _draw_card() -> void:
 	# each boat's crew: pressed yet?
 	for i in 2:
 		var s := int(states[i])
-		var said: String = ["DECIDING...", "READY", "NOBODY ABOARD", "LEFT THE GAME"][s]
-		var sc2: Color = [DIM, GOOD, Color(DIM, 0.5), BAD][s]
+		var said: String = ["DECIDING...", "READY", "NOBODY ABOARD", "LOST CONNECTION", "LEFT THE GAME"][s]
+		var sc2: Color = [DIM, GOOD, Color(DIM, 0.5), BAD, BAD][s]
 		if s == 0 and fmod(t, 1.0) < 0.5:
 			said = "DECIDING.. "
 		_centred(cx[i], ly + 30.0, said, Color(sc2, after * sc2.a), 2)
@@ -398,8 +407,11 @@ func _status() -> String:
 		return ""
 	var me := _team()
 	var word := "A REMATCH" if bool(data.get("decided", false)) else "THE NEXT DAY"
-	var ours := int(states[me]) in [1, 2]
-	var theirs := int(states[1 - me]) in [1, 2]
+	if int(states[1 - me]) >= 3 and not ready_ids.has(Net.my_id()):
+		return ("THEY LOST CONNECTION. WAIT, OR %s TO GO ON WITHOUT THEM" if int(states[1 - me]) == 3
+				else "THEY'VE LEFT. %s TO GO ON WITHOUT THEM") % _primary()
+	var ours := int(states[me]) >= 1
+	var theirs := int(states[1 - me]) >= 1
 	if ready_ids.has(Net.my_id()) and not ours:
 		return "WAITING FOR YOUR CREW..."
 	if ready_ids.has(Net.my_id()) and not theirs:

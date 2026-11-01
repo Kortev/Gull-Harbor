@@ -139,6 +139,10 @@ func _use_kind(k: String) -> void:
 func _build() -> void:
 	for n in _built:
 		if is_instance_valid(n):
+			# (out of the tree now, not at the frame's end: her new seats take their names, "Seat0" ..., not
+			# "@Area3D@701", so their RPCs find them on every peer, however many times she's rebuilt this frame)
+			if n.get_parent() != null:
+				n.get_parent().remove_child(n)
 			n.queue_free()
 	_built.clear()
 	floods.clear()

@@ -32,6 +32,14 @@ const CODE_ABC := "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 var code := ""
 var _upnp: UPNP
 var _upnp_thread: Thread
+## Where we were last aboard as crew, to get back after a drop (the title's REJOIN): {"lobby": id} (Steam) or
+## {"to": address, "port": n}; {} once we leave a crew ourselves.
+var last_join := {}
+## Said on the title after the host's gone mid-game (the game goes back to it: sea/sea.gd), then cleared.
+var farewell := ""
+## Host: crew who said they were going as they went (Leave, the title), not dropped (peer id -> true).
+var quit := {}
+var _joining := {}
 ## Steam (core/steam_link.gd): `steam.available` says whether it's there.
 var steam: Node
 ## How this session runs: "", "steam" or "code".
@@ -53,8 +61,12 @@ func _ready() -> void:
 		dropped.emit(reason))
 	add_child(steam)
 	multiplayer.peer_connected.connect(func(id: int) -> void: peer_joined.emit(id))
-	multiplayer.peer_disconnected.connect(func(id: int) -> void: peer_left.emit(id))
-	multiplayer.connected_to_server.connect(func() -> void: joined.emit())
+	multiplayer.peer_disconnected.connect(func(id: int) -> void:
+		peer_left.emit(id)
+		quit.erase(id))
+	multiplayer.connected_to_server.connect(func() -> void:
+		last_join = _joining
+		joined.emit())
 	multiplayer.connection_failed.connect(func() -> void:
 		_close()
 		dropped.emit("Couldn't reach that boat."))
@@ -72,6 +84,7 @@ func host_steam() -> void:
 ## Joining a Steam friend's boat (their lobby, from the menu's list).
 func join_steam(lobby: int) -> void:
 	_close()
+	_joining = {"lobby": lobby}
 	steam.call("join", lobby)
 
 
@@ -104,14 +117,39 @@ func join(address: String, port := PORT) -> Error:
 	if err != OK:
 		return err
 	mode = "code"
+	_joining = {"to": to, "port": port}
 	multiplayer.multiplayer_peer = peer
 	return OK
 
 
+## Back aboard the boat we were dropped from (`last_join`), the same way we got there.
+func rejoin() -> Error:
+	if last_join.has("lobby"):
+		join_steam(int(last_join["lobby"]))
+		return OK
+	if last_join.has("to"):
+		return join(str(last_join["to"]), int(last_join["port"]))
+	return ERR_UNAVAILABLE
+
+
 func leave() -> void:
 	var was_host := in_session_or_hosting() and multiplayer.is_server()
+	if in_session_or_hosting():
+		last_join = {}          # (we left: nothing to get back to)
+	if in_session() and not multiplayer.is_server():
+		# (the host's told we're going on purpose, not dropped: no spot kept for us)
+		_bye.rpc_id(1)
+		var p := multiplayer.multiplayer_peer as ENetMultiplayerPeer
+		if p != null and p.host != null:
+			p.host.flush()
 	_close()
 	left.emit(was_host)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _bye() -> void:
+	if multiplayer.is_server():
+		quit[multiplayer.get_remote_sender_id()] = true
 
 
 func in_session() -> bool:

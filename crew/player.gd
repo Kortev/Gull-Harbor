@@ -773,6 +773,14 @@ func _exit_tree() -> void:
 		body.queue_free()
 
 
+## Back aboard after a drop (crew/crew.gd): your oilskins fade in where you stand over `s` s, no pop.
+func fade_in(s: float) -> void:
+	var tw := create_tween().set_parallel()
+	for part: MeshInstance3D in _parts.values():
+		part.transparency = 1.0
+		tw.tween_property(part, "transparency", 0.0, s).set_trans(Tween.TRANS_SINE)
+
+
 ## Puts you at a boat-local spot, facing `yaw` (radians round the boat's up axis; 0 faces the bow): on `on`'s deck
 ## (crew/crew.gd's spawn: your own boat), else the one you're on.
 func place(local: Vector3, yaw: float, on: Node3D = null) -> void:
