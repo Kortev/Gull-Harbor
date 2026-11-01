@@ -1,7 +1,7 @@
 extends Node
 ## Up on her rail (crew/player.gd), headless, in each kind of boat: Space at her side steps you up onto the cap (eased,
 ## nothing jumping), your eyes higher, still in her deck space riding her as she heaves; A/D along it; S back down onto
-## her deck. Up again and Space looking out: a leap off it, in the air in the world's space going her way, and into
+## her deck. Up again and Space looking out: a leap off it, in the air going her way (reckoned over her), and into
 ## the sea (SWIM, a splash). Walking off it outward: the same. A lurch with her rail dipping throws you off it.
 ## Run: godot --headless --fixed-fps 30 --path . res://tests/rail_test.tscn
 
@@ -108,11 +108,11 @@ func _rail(kind: String) -> void:
 		prev = me.global_position
 		if me.mode == Player.AIR:
 			air = true
-			flew = flew or me.frame == null
+			flew = flew or me.frame == boat      # (falling through the world, reckoned over her)
 		if me.mode == Player.SWIM:
 			break
 	Input.action_release("jump")
-	_check(air and flew, "%s: Space looking out: a leap, in the air in the world's space" % kind)
+	_check(air and flew, "%s: Space looking out: a leap, in the air going her way" % kind)
 	await _until(func() -> bool: return me.splashes > s0, 2.0)
 	_check(me.mode == Player.SWIM and me.splashes > s0, "%s: and into the sea, a splash" % kind)
 	_check(step < 0.4, "%s: the whole way, nothing jumping (at most %.2f m a frame)" % [kind, step])

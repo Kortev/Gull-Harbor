@@ -75,6 +75,9 @@ var _wheel_turn := 0.0
 var _wheel_base := Basis.IDENTITY
 ## What _build made (freed by the next one): the model, her collider here and in the deck space, the lights.
 var _built: Array[Node] = []
+## Her pose the frame before, and that frame's length (s): how any spot of her is going (point_velocity).
+var _was := Transform3D.IDENTITY
+var _was_dt := 0.0
 
 
 func _ready() -> void:
@@ -340,6 +343,8 @@ func _process(delta: float) -> void:
 		wheel.basis = Basis(WHEEL_AXIS, _wheel_turn) * _wheel_base
 	if ocean == null:
 		return
+	_was = global_transform
+	_was_dt = delta
 	global_transform = pose()
 	# her hull pushes the sea down where she sits and the sea's cut away inside her: no crest shows up through her
 	# deck (the boat you're on; in Rivals the other boat's only cut away)
@@ -381,6 +386,16 @@ func pose() -> Transform3D:
 	roll += rock.y
 	y -= DIG_SINK * astern
 	return Transform3D(turn * Basis.from_euler(Vector3(pitch, 0.0, roll)), Vector3(mid.x, y, mid.z))
+
+
+## How the spot `local` of her (boat-local) is going through the world (m/s): her way, her turn, her heave, her
+## pitch and roll there, all of it (what you take with you leaping off her rail, and what a deck you come down on is
+## doing under you). Over her last frame; before she's had one, just the helm's word.
+func point_velocity(local: Vector3) -> Vector3:
+	if _was_dt <= 0.0:
+		var v := Helm.ahead_of(helm.heading) * helm.speed + helm.drift if helm else Vector2.ZERO
+		return Vector3(v.x, 0.0, v.y)
+	return (global_transform * local - _was * local) / _was_dt
 
 
 ## A rod holder's tube in world space: origin at the rim, +Z along the tube out of it.
