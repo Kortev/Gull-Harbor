@@ -110,6 +110,9 @@ func _build() -> void:
 				caps.append(["NO CAP" if n == 0 else str(n), n])
 			_rows.append({"kind": "choice", "label": "MAX FPS", "options": caps,
 					"get": func() -> int: return Settings.max_fps, "set": Settings.set_max_fps})
+			_rows.append({"kind": "choice", "label": "MENU AND HUD", "options": [["CRISP PIXELS", "crisp"],
+					["LARGE", "large"]], "get": func() -> String: return Settings.ui_size,
+					"set": Settings.set_ui_size})
 		"KEYS":
 			for a: Array in Settings.REBINDABLE:
 				_rows.append({"kind": "key", "label": a[1], "action": a[0]})

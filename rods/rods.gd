@@ -1185,7 +1185,7 @@ func crew_says(at_wheel: bool, throttle: float) -> String:
 	if on.holder != 0 and on.holder != Net.my_id() and on.arms < 0.25:
 		return "YOUR MATE'S ARMS ARE GOING! E ON THE ROD: TAKE OVER"
 	if on.holder == 0 and far < Fight.SQUARE:
-		return "HE'S ASTERN! E ON THE ROD: FIGHT HIM" + (" (LEAVE THE WHEEL: E)" if at_wheel else "")
+		return "HE'S ASTERN! E: LEAVE THE WHEEL, TAKE THE ROD" if at_wheel else "HE'S ASTERN! E ON THE ROD: FIGHT HIM"
 	if on.holder == 0 and at_wheel:
 		return "ROD'S IN THE HOLDER: SWING HER STERN TO HIM, %s" % key
 	return ""

@@ -12,7 +12,8 @@ extends Node
 const Sea := preload("res://sea/sea.gd")
 const FightBot := preload("res://tests/fight_bot.gd")
 var OUT := "res://docs/shots/play/"
-const PORT := 7824
+## The port the boat's hosted on (--port=: another, so two runs side by side don't meet).
+var PORT := 7824
 const SAVE := "user://bluefin_qa.cfg"
 
 var sea: Sea
@@ -39,6 +40,8 @@ func _ready() -> void:
 			part = a.trim_prefix("--part=")
 		elif a.begins_with("--out="):         # (somewhere else for the shots, a folder)
 			OUT = a.trim_prefix("--out=").trim_suffix("/") + "/"
+		elif a.begins_with("--port="):
+			PORT = int(a.trim_prefix("--port="))
 	fast = OS.get_cmdline_user_args().has("--fast")
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT))
 	sea = (load("res://sea/sea.tscn") as PackedScene).instantiate() as Sea

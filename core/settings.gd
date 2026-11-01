@@ -21,7 +21,9 @@ extends Node
 ## defaults (whatever in it makes sense is kept) and is written over by the next save.
 ##
 ## The window starts borderless on the whole screen the first time (no file yet); windowed it's centred, never bigger
-## than the screen. The game going to the background (alt-tab, a click on another window) lets the mouse go, which
+## than the screen. The menus and the HUD are laid out for 1152 x 648 at least and only ever scaled up by a whole
+## number (2560 x 1440 is twice, 1920 x 1080 once with the room to spare), so the pixel font's pixels stay square and
+## even. The game going to the background (alt-tab, a click on another window) lets the mouse go, which
 ## puts the pause card up (ui/menu.gd), as Esc would.
 
 signal changed
@@ -58,6 +60,10 @@ var window := "borderless"
 var window_size := Vector2i(1280, 720)
 var vsync := true
 var max_fps := 0
+## The menus and the HUD: "crisp" (scaled by whole numbers only: the pixel font's pixels square and even; on a
+## 1920 x 1080 screen that's once) or "large" (scaled to fill the window, a pixel or two uneven).
+var ui_size := "crisp"
+const UI_SIZES := ["crisp", "large"]
 ## The pad: the right stick's look (1: Pad.LOOK_PX), up/down flipped, rumble.
 var pad_sensitivity := 1.0
 var pad_invert_y := false
@@ -80,6 +86,9 @@ func _ready() -> void:
 			AudioServer.set_bus_name(i, b)
 			AudioServer.set_bus_send(i, "Master")
 	Pad.bind()
+	get_tree().root.content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
+	get_tree().root.size_changed.connect(_ui_scale)
+	_ui_scale()
 	for a: Array in REBINDABLE:
 		_defaults[a[0]] = InputMap.action_get_events(a[0]).duplicate()
 	get_tree().node_added.connect(_on_node_added)
@@ -97,6 +106,8 @@ func _ready() -> void:
 ## --resolution WxH on the command line (Godot's own, for screenshots and tests): that window this run, whatever's
 ## saved (and not saved over it).
 var _cmd_size := Vector2i.ZERO
+## The smallest screen the menus and the HUD are laid out for (px).
+const UI_MIN := Vector2(1152, 648)
 
 
 ## (Godot keeps its own options out of get_cmdline_args(): the window it opened says. It opens at the project's
@@ -108,6 +119,20 @@ static func _resolution_arg() -> Vector2i:
 	var project := Vector2i(int(ProjectSettings.get_setting("display/window/size/viewport_width", 1152)),
 			int(ProjectSettings.get_setting("display/window/size/viewport_height", 648)))
 	return opened if opened != project and opened.x > 0 else Vector2i.ZERO
+
+
+## The menus and the HUD scaled to the window, laid out on at least UI_MIN: crisp, by the biggest whole number it has
+## room for (the pixel font's pixels square and even), the room left over theirs to use; large, by as much as fills it.
+func _ui_scale() -> void:
+	var root := get_tree().root
+	var k := minf(root.size.x / UI_MIN.x, root.size.y / UI_MIN.y)
+	root.content_scale_factor = maxf(floorf(k) if ui_size == "crisp" else k, 1.0)
+
+
+func set_ui_size(v: String) -> void:
+	ui_size = v if UI_SIZES.has(v) else "crisp"
+	_ui_scale()
+	changed.emit()
 
 
 ## The game to the background: the mouse let go (the pause card comes up, ui/menu.gd), not left captured behind it.
@@ -178,6 +203,7 @@ func apply() -> void:
 	for b: String in volume:
 		_apply_volume(b)
 	_apply_display()
+	_ui_scale()
 	changed.emit()
 
 
@@ -402,6 +428,7 @@ func save_file() -> Error:
 	c.set_value("display", "window_size", window_size)
 	c.set_value("display", "vsync", vsync)
 	c.set_value("display", "max_fps", max_fps)
+	c.set_value("display", "ui_size", ui_size)
 	for a: Array in REBINDABLE:
 		var codes := PackedStringArray()
 		for e in InputMap.action_get_events(a[0]):
@@ -438,6 +465,9 @@ func load_file() -> Error:
 		window_size = s
 	vsync = _flag(c, "display", "vsync", vsync)
 	max_fps = clampi(int(_num(c, "display", "max_fps", max_fps)), 0, 1000)
+	ui_size = str(c.get_value("display", "ui_size", ui_size))
+	if not UI_SIZES.has(ui_size):
+		ui_size = "crisp"
 	for a: Array in REBINDABLE:
 		var codes: Variant = c.get_value("keys", a[0], PackedStringArray())
 		if not (codes is PackedStringArray or codes is Array):

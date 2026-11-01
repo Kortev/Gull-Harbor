@@ -4,7 +4,9 @@ extends CanvasLayer
 ## inner one for your arms once they start to go, a thin red outer one for the line wearing on the hull), a word or
 ## two on what to do, and under that the metres to boatside (green winning, red losing) and the fish's fight left.
 ## Top left the trip: the quota as a bar (what's aboard ghosted on), the day, the fish box as pips. At the wheel her
-## knots and a throttle bar; with a fish on, the plotter. Notices, a few words, top middle, and fade. Every key named
+## knots and a throttle bar, bottom left (the dash's screens have the middle); with a fish on, the plotter. Notices, a
+## few words, top middle, and fade. The fight's word and a notice sit on a dark band just their width, so they read
+## over a bright sky or a dark sea alike, a size down if they'd run off a narrow screen. Every key named
 ## is the pad's while it's the pad in your hands (core/settings.gd's say(): E is [X]), changing over as you swap.
 
 ## The one type scale: small (numbers, the tally), body (prompts, notices, readouts), big (the fight's word).
@@ -13,8 +15,9 @@ const Pad := preload("res://core/pad.gd")
 const SMALL := 14
 const BODY := 17
 const BIG := 21
-## How wide the fight's word under the crosshair can run (px: inside the narrowest screen, 1152).
+## How wide the fight's word under the crosshair and a notice can run (px), at most: the screen less MARGIN a side.
 const TELL_W := 1100.0
+const MARGIN := 48.0
 ## Line out when a fish is alongside (tuna/fight.gd's BOATSIDE).
 const BOATSIDE := 7.0
 const CREAM := Color(0.95, 0.93, 0.88)
@@ -89,9 +92,10 @@ func _ready() -> void:
 	_prompt.visible = false
 	_tell = _label(BIG, CREAM)
 	_tell.set_anchors_preset(Control.PRESET_CENTER)
-	_tell.position += Vector2(-TELL_W * 0.5, 56)
-	_tell.size = Vector2(TELL_W, 30)
+	_tell.position += Vector2(0, 52)
 	_tell.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_band(_tell)
+	_tell.visible = false
 	add_child(_tell)
 	_meter = Control.new()
 	_meter.set_anchors_preset(Control.PRESET_CENTER)
@@ -106,9 +110,10 @@ func _ready() -> void:
 	add_child(_ring)
 	_note = _label(BODY, CREAM)
 	_note.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_note.position += Vector2(-TELL_W * 0.5, 40)      # (as wide as the screen'll take: a long one stays centred)
-	_note.size = Vector2(TELL_W, 30)
+	_note.position += Vector2(0, 40)
 	_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_band(_note)
+	_note.visible = false
 	add_child(_note)
 	_tally = Control.new()
 	_tally.position = Vector2(18, 16)
@@ -116,8 +121,8 @@ func _ready() -> void:
 	_tally.draw.connect(_draw_tally)
 	add_child(_tally)
 	_helm = Control.new()
-	_helm.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	_helm.position += Vector2(0, -34)
+	_helm.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_helm.position += Vector2(18, -30)
 	_helm.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_helm.draw.connect(_draw_helm)
 	add_child(_helm)
@@ -139,6 +144,38 @@ static func _label(size: int, col: Color) -> Label:
 	l.add_theme_constant_override("shadow_offset_x", 1)
 	l.add_theme_constant_override("shadow_offset_y", 1)
 	return l
+
+
+## A dark band behind a line of words, just their width.
+static func _band(l: Label) -> void:
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(0.0, 0.02, 0.04, 0.42)
+	box.content_margin_left = 12
+	box.content_margin_right = 12
+	box.content_margin_top = 4
+	box.content_margin_bottom = 3
+	l.add_theme_stylebox_override("normal", box)
+
+
+## `l` says `text` at the biggest of `sizes` that fits in `share` of the screen's width, centred on its anchor, its
+## band its width.
+func _fit(l: Label, text: String, sizes: Array, share := 0.9) -> void:
+	l.text = text
+	l.visible = not text.is_empty()
+	if text.is_empty():
+		return
+	var screen := get_viewport().get_visible_rect().size.x
+	var room := minf(TELL_W, minf(screen * share, screen - MARGIN * 2.0))
+	var font := l.get_theme_font("font")
+	var size: int = sizes[-1]
+	for s: int in sizes:
+		if font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, s).x <= room:
+			size = s
+			break
+	l.add_theme_font_size_override("font_size", size)
+	var w := ceilf(font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x) + 24.0
+	l.offset_left = -floorf(w * 0.5)        # (from its anchor, the middle: centred however the window's sized)
+	l.offset_right = l.offset_left + w
 
 
 func _text(on: Control, at: Vector2, text: String, size: int, col: Color, align := HORIZONTAL_ALIGNMENT_LEFT,
@@ -192,15 +229,16 @@ func helm(knots: float, throttle := 0.0) -> void:
 func _draw_helm() -> void:
 	if _knots < 0.0:
 		return
+	# her knots over a throttle bar, ahead green right of the middle tick, astern amber left of it
 	var w := 80.0
-	_text(_helm, Vector2(-60, -12), "%d kn" % roundi(_knots), BODY, CREAM, HORIZONTAL_ALIGNMENT_CENTER, 120.0)
-	_helm.draw_rect(Rect2(-w, 0, w * 2.0, 6), Color(0, 0, 0, 0.4))
+	_text(_helm, Vector2(0, -12), "%d kn" % roundi(_knots), BODY, CREAM)
+	_helm.draw_rect(Rect2(0, 0, w * 2.0, 6), Color(0, 0, 0, 0.4))
 	var t := clampf(_throttle, -1.0, 1.0)
 	if t > 0.0:
-		_helm.draw_rect(Rect2(0, 0, w * t, 6), Color(GREEN, 0.85))
+		_helm.draw_rect(Rect2(w, 0, w * t, 6), Color(GREEN, 0.85))
 	elif t < 0.0:
-		_helm.draw_rect(Rect2(w * t, 0, -w * t, 6), Color(AMBER, 0.9))
-	_helm.draw_line(Vector2(0, -3), Vector2(0, 9), Color(CREAM, 0.9), 2.0)
+		_helm.draw_rect(Rect2(w + w * t, 0, -w * t, 6), Color(AMBER, 0.9))
+	_helm.draw_rect(Rect2(w - 1, -3, 2, 12), Color(CREAM, 0.9))
 
 
 ## The trip, top left (boat/fish_hold.gd): day, days, box, cap, deck (counts), earned, quota, aboard (dollars), and
@@ -253,7 +291,7 @@ func _draw_box() -> void:
 ## A few words at the top for a few seconds ("Fish on!").
 func notify(text: String) -> void:
 	_note_raw = text
-	_note.text = Settings.say(text)
+	_fit(_note, Settings.say(text), [BODY, SMALL])
 	_note.modulate.a = 1.0
 	_note_t = 4.0
 
@@ -276,11 +314,7 @@ func _process(delta: float) -> void:
 func fight(tell: String, strain: float, arms := 1.0, line := -1.0, gain := 0.0, fresh := 1.0, wear := 0.0) -> void:
 	var said := Settings.say(tell)
 	if said != _tell.text:
-		_tell.text = said
-		# (a long one down a size, so it's all on the screen, centred)
-		var font := _tell.get_theme_font("font")
-		var fits := font.get_string_size(said, HORIZONTAL_ALIGNMENT_LEFT, -1, BIG).x <= TELL_W
-		_tell.add_theme_font_size_override("font_size", BIG if fits else BODY)
+		_fit(_tell, said, [BIG, BODY, SMALL], 0.72)       # (a long one down a size, so it's all on the screen, centred)
 	_tell.add_theme_color_override("font_color", _tell_colour(tell))
 	if line != _line or absf(gain - _gain) > 0.05 or absf(fresh - _fresh) > 0.01:
 		_line = line
@@ -357,7 +391,7 @@ func follow(player: Node) -> void:
 ## The pad picked up or put down: the prompt and the notice said again in its keys.
 func _on_device() -> void:
 	_on_prompt(_prompt_raw)
-	_note.text = Settings.say(_note_raw)
+	_fit(_note, Settings.say(_note_raw), [BODY, SMALL])
 
 
 ## The prompt: "words" (the key's E), or "KEY|words" for another key or the mouse.

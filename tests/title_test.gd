@@ -6,13 +6,16 @@ extends Node
 
 const Sea := preload("res://sea/sea.gd")
 const Title := preload("res://ui/title.gd")
-const PORT := 7795
+var PORT := 7795       ## (--port=: another)
 
 var fails: Array[String] = []
 var sea: Sea
 
 
 func _ready() -> void:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--port="):
+			PORT = int(a.trim_prefix("--port="))
 	sea = (load("res://sea/sea.tscn") as PackedScene).instantiate() as Sea
 	add_child(sea)
 	await get_tree().process_frame

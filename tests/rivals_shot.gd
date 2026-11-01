@@ -13,7 +13,8 @@ extends Node
 ##   godot --path . --resolution 1280x720 res://tests/rivals_shot.tscn -- --role=host --out=<dir>
 ##   godot --path . --resolution 1280x720 res://tests/rivals_shot.tscn -- --role=join --out=<dir>
 
-const PORT := 7811
+## (--port=: another, so two pairs side by side don't meet)
+var PORT := 7811
 
 var sea: Node
 var host := false
@@ -33,6 +34,8 @@ func _ready() -> void:
 			host = true
 		elif a.begins_with("--out="):
 			out = a.trim_prefix("--out=")
+		elif a.begins_with("--port="):
+			PORT = int(a.trim_prefix("--port="))
 	DirAccess.make_dir_recursive_absolute(out)
 	get_window().size = Vector2i(1280, 720)
 	get_window().position = Vector2i(0, 40) if host else Vector2i(-1600, 165)
