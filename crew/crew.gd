@@ -153,6 +153,9 @@ func _on_peer_joined(id: int) -> void:
 		if was.has("team") and vs != null and bool(vs.get("on")):
 			(vs.get("teams") as Dictionary)[id] = int(was["team"])     # (made aboard her here: vs/vs.gd tells everyone)
 		_say_waiting()
+	var vs: Node = sea.get("vs")
+	if vs != null and bool(vs.get("on")):
+		vs.call("seat_new", id)        # (someone new: their boat now, so they're made on her)
 	var roster := slots.duplicate()
 	roster[id] = slot
 	var w: RefCounted = sea.get("weather")
@@ -280,7 +283,8 @@ func _remove(id: int) -> void:
 	back.erase(id)
 	if multiplayer.is_server() and slots.has(id) and id != 1:
 		if Net.quit.has(id):
-			hud.notify("%s left" % call_sign(id))       # (on purpose: no spot kept)
+			if bool(Net.quit[id]):
+				hud.notify("%s left" % call_sign(id))       # (on purpose: no spot kept; false: back already, vs/vs.gd)
 		elif _mid_game():
 			away[id] = {"sign": call_sign(id), "slot": int(slots[id])}
 			_say_waiting()

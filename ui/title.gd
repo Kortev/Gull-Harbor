@@ -90,6 +90,8 @@ func _ready() -> void:
 	Net.farewell = ""
 	_go("main")
 	Net.hosted.connect(func() -> void:
+		if _mode == "rivals":
+			(sea.get("vs") as Node).call("host_set_on", true)     # (two boats from the lobby on: who's on which is real, SWAP works)
 		if _mode != "fish":
 			_go("lobby"))
 	Net.joined.connect(func() -> void:
@@ -313,6 +315,8 @@ func _input(e: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	var boat := sea.get("boat") as Node3D
+	if (up or _intro >= 0.0) and not _cam.current:
+		_cam.make_current()       # (joining: your own deckhand's made aboard, eyes and all; the title keeps the view)
 	if up:
 		# the drift: out over the water off the pier's end, swinging slowly from side to side, looking back in at the
 		# boats and the harbour behind them
@@ -373,8 +377,8 @@ func _draw_caption() -> void:
 	var vs := sea.get("vs") as Node
 	var rivals := vs != null and bool(vs.get("on"))
 	var lines := ["GULL HARBOR, FIRST LIGHT",
-			"TWO BOATS. ONE DAY." if rivals else ("ONE BOAT, A CREW." if _mode == "coop" else "ONE BOAT. JUST YOU."),
-			"MOST POUNDS AT DUSK WINS." if rivals else "FIND THE BIRDS, FIND THE TUNA."]
+			"TWO BOATS. THE SAME BIRDS." if rivals else ("ONE BOAT, A CREW." if _mode == "coop" else "ONE BOAT. JUST YOU."),
+			"MOST POUNDS BY DUSK. BEST OF THREE." if rivals else "FIND THE BIRDS, FIND THE TUNA."]
 	var span := LEG * 2.0 / lines.size()
 	var i := mini(int(_intro / span), lines.size() - 1)
 	var u := (_intro - i * span) / span
@@ -513,11 +517,17 @@ func _draw_crew(at: Vector2) -> float:
 			yy += 24
 		var ids := slots.keys()
 		ids.sort()
+		var aboard := 0
 		for id: int in ids:
 			if rivals and int(teams.get(id, 0)) != c:
 				continue
 			var who := str(crew.call("call_sign", id)).to_upper() + ("  (YOU)" if id == Net.my_id() else "")
 			_text(Vector2(x + 8, yy), who, CREAM, 2)
+			yy += 18
+			aboard += 1
+		if aboard == 0:
+			# (an empty boat says what fills her)
+			_text(Vector2(x + 8, yy), "A FRIEND JOINS HERE" if Net.is_host() else "NOBODY YET", Color(DIM, 0.55), 2)
 			yy += 18
 		y = maxf(y, yy) if c == cols - 1 else y
 		if c < cols - 1:
@@ -525,6 +535,9 @@ func _draw_crew(at: Vector2) -> float:
 	y = maxf(y, at.y) + 14
 	if Net.is_host() and Net.mode == "code" and not Net.code.is_empty():
 		_text(Vector2(at.x, y), "JOIN CODE: " + Net.code, CREAM, 3)
+		y += 30
+	elif Net.is_host() and Net.mode == "code":
+		_text(Vector2(at.x, y), "JOIN CODE: ASKING YOUR ROUTER" + ".".repeat(1 + Time.get_ticks_msec() / 400 % 3), DIM, 3)
 		y += 30
 	elif not Net.is_host():
 		_text(Vector2(at.x, y), "WAITING FOR THE HOST TO START", DIM, 2)

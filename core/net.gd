@@ -66,6 +66,7 @@ func _ready() -> void:
 		quit.erase(id))
 	multiplayer.connected_to_server.connect(func() -> void:
 		last_join = _joining
+		last_join["id"] = multiplayer.get_unique_id()      # (who we were here: said again if we come back)
 		joined.emit())
 	multiplayer.connection_failed.connect(func() -> void:
 		_close()
@@ -123,13 +124,19 @@ func join(address: String, port := PORT) -> Error:
 
 
 ## Back aboard the boat we were dropped from (`last_join`), the same way we got there.
+## Who we were aboard rides along (`was`): back before the host's noticed we'd gone, they still know us by it
+## (vs/vs.gd: our own boat, not the emptier one).
 func rejoin() -> Error:
+	var was := int(last_join.get("id", 0))
+	var err := ERR_UNAVAILABLE
 	if last_join.has("lobby"):
 		join_steam(int(last_join["lobby"]))
-		return OK
-	if last_join.has("to"):
-		return join(str(last_join["to"]), int(last_join["port"]))
-	return ERR_UNAVAILABLE
+		err = OK
+	elif last_join.has("to"):
+		err = join(str(last_join["to"]), int(last_join["port"]))
+	if err == OK and was > 1:
+		_joining["was"] = was
+	return err
 
 
 func leave() -> void:

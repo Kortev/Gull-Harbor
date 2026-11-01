@@ -14,7 +14,7 @@ extends Node
 ## both are let go at once: each crew takes her out through the harbour mouth themselves. No skipper's button, no
 ## moving the boats anywhere.
 ## The trip: when one boat heads out the other goes too, in the same kind of boat. The
-## schools turn up round one boat, then the other, then between them (spawn_anchor). Out there they're solid to each
+## schools turn up between them first, then round one boat and the other in turn (spawn_anchor). Out there they're solid to each
 ## other and rock in each other's wakes (vs/contact.gd), and you can jump across to board her. Top left, small: both boats' pounds
 ## aboard, and a blinking dot and the squelch on the radio when the other crew hooks up. An air horn at each console
 ## (vs/horn.gd) to rattle the other crew. At dusk the race home: HOME s to bring her in alongside her own berth
@@ -105,6 +105,8 @@ var pressed := {}
 var _pending := {}
 var _days := 0
 var _match: Array = []
+## The match's day out there now (everyone's: the HUD's top left).
+var day := 1
 var _fading_for := -1.0
 var _go_shown := -10.0
 var _ticked := -1
@@ -137,13 +139,15 @@ func _ready() -> void:
 		if was.has("team"):
 			teams[id] = int(was["team"])
 		else:
-			var n := [0, 0]
-			for t: int in teams.values():
-				n[t] += 1
-			teams[id] = 0 if n[0] <= n[1] else 1
+			seat_new(id)
 		_switch.rpc_id(id, true, teams, result, wins)
+		# (both holds again: their two-boat start set A's aside, wiping what A's hold had just told them)
+		for s: Node in sides:
+			var hold: Node = s.get("fish_hold")
+			hold.rpc_id(id, &"_sync", hold.call("_state"))
 		_teams.rpc(teams)
 		_counting.rpc_id(id, count_end)
+		_day_is.rpc_id(id, day)
 		_homeward.rpc_id(id, home_by, home)
 		if card.up():
 			_card_open.rpc_id(id, card.data)
@@ -159,7 +163,11 @@ func _ready() -> void:
 	# (joining someone's boat: their skipper's word on VS from here; leaving or dropped: your own one boat)
 	Net.joined.connect(func() -> void:
 		card.drop()        # (a card kept up from a boat we were dropped from: gone, the host's word follows)
-		_switch(false, {}, [], [0, 0]))
+		_switch(false, {}, [], [0, 0])
+		var was := int(Net.last_join.get("was", 0))
+		Net.last_join.erase("was")
+		if was > 1:
+			_was.rpc_id(1, was))
 	Net.left.connect(func(_was_host: bool) -> void: _switch(false, {}, [], [0, 0]))
 	Net.dropped.connect(func(_reason: String) -> void:
 		# (the host's gone: the card stays up, saying so, with only the title left)
@@ -188,6 +196,36 @@ func host_set_on(want: bool) -> void:
 		_switch.rpc(want, t, [], wins)
 	else:
 		_switch(want, t, [], wins)
+
+
+## Host: someone new aboard, on the boat with fewer (crew/crew.gd asks before making them, so they're made on her,
+## not made on A and straight away again on B).
+func seat_new(id: int) -> void:
+	if teams.has(id):
+		return
+	var n := [0, 0]
+	for t: int in teams.values():
+		n[t] += 1
+	teams[id] = 0 if n[0] <= n[1] else 1
+
+
+## Host: someone back (REJOIN) saying who they were. If their old line's still here (we hadn't noticed it go: they
+## noticed first), it's cut now and they're put back on their own boat, not the emptier one seat_new gave them.
+@rpc("any_peer", "call_remote", "reliable")
+func _was(old: int) -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if not on or not multiplayer.is_server() or old == id or not teams.has(old) or not teams.has(id):
+		return
+	var team := int(teams[old])
+	if multiplayer.get_peers().has(old):
+		Net.quit[old] = false        # (gone, but not to be waited on or called out: they're here)
+		(multiplayer.multiplayer_peer as MultiplayerPeer).disconnect_peer(old)
+	teams.erase(old)
+	pressed.erase(old)
+	teams[id] = team
+	_teams.rpc(teams)
+	if card.up():
+		_send_states()
 
 
 ## Crossing to boat `t` (at the dock).
@@ -224,6 +262,11 @@ func _process(delta: float) -> void:
 	_show(delta)
 	_weigh(delta)
 	_count.queue_redraw()
+	# (the HUD's notes go under the banner while there's one, not over it)
+	var banner := count_end > 0.0 or _now() - _go_shown < 2.0 or home_by > 0.0
+	var hud: Node = (sea.get("crew") as Node).get("hud")
+	if hud != null:
+		hud.call("note_at", 104.0 if banner else 40.0)
 	if count_end > 0.0:
 		var left := ceili(count_end - _now())
 		if left != _ticked and left <= 5 and left > 0:
@@ -430,6 +473,12 @@ func _host_count(holds: Array, delta: float) -> void:
 
 
 @rpc("authority", "call_local", "reliable")
+func _day_is(n: int) -> void:
+	day = n
+	(sea.get("fish_hold") as Node).call("_tally")
+
+
+@rpc("authority", "call_local", "reliable")
 func _counting(end: float) -> void:
 	count_end = end
 	_ticked = -1
@@ -563,6 +612,8 @@ func _host_set_out(holds: Array, first: int) -> void:
 	_last = [0.0, 0.0]
 	if wins.max() >= MATCH:
 		wins = [0, 0]         # (a new match)
+	_say(&"_day_is", [_days + 1])
+	_anchor = 0
 	holds[1 - first].call("head_out", str(holds[first].get("kind")))
 	_alongside_for = [0.0, 0.0]
 	if Net.in_session():
@@ -595,12 +646,29 @@ func _others_fish(delta: float) -> void:
 	schools.set("sea", keep)
 
 
-## Where the next school turns up round (tuna/schools.gd): one boat, the other, then between them, in turn.
+## Where the next school turns up round (tuna/schools.gd): each day between them first, then one boat and the other in
+## turn (A first on odd days, B on even: neither always gets the early one); only round a boat that's out on the
+## grounds (one still under the coast: round the other).
 func spawn_anchor() -> Vector2:
-	_anchor = (_anchor + 1) % 3
-	var a: Vector2 = ((sides[0].get("boat") as Node).get("helm") as Node).get("at")
-	var b: Vector2 = ((sides[1].get("boat") as Node).get("helm") as Node).get("at")
-	return [a, b, (a + b) * 0.5][_anchor]
+	var at := _ats()
+	var order := [2, 0, 1] if day % 2 == 1 else [2, 1, 0]
+	var pick: int = order[_anchor % 3]
+	_anchor += 1
+	var schools: Node = sea.get("schools")
+	var out := [not bool(schools.call("_in_close", at[0])), not bool(schools.call("_in_close", at[1]))]
+	if out[0] != out[1]:
+		pick = 0 if out[0] else 1
+	return [at[0], at[1], (at[0] + at[1]) * 0.5][pick]
+
+
+## Both boats still in the harbour or close in under the coast: no schools yet (tuna/schools.gd).
+func all_in_close() -> bool:
+	var schools: Node = sea.get("schools")
+	return _ats().all(func(p: Vector2) -> bool: return bool(schools.call("_in_close", p)))
+
+
+func _ats() -> Array:
+	return sides.map(func(s: Node) -> Vector2: return ((s.get("boat") as Node).get("helm") as Node).get("at"))
 
 
 # ------------------------------------------------------------------ everyone
@@ -744,6 +812,7 @@ func _build() -> void:
 	_pending = {}
 	_days = 0
 	_match = [{}, {}]
+	day = 1
 	pressed = {}
 	_ui.visible = true
 	if Net.is_host():
@@ -789,6 +858,9 @@ func _tear_down() -> void:
 		horn.queue_free()
 	sides = []
 	_ui.visible = false
+	var hud: Node = (sea.get("crew") as Node).get("hud")
+	if hud != null:
+		hud.call("note_at", 40.0)
 	(sea.get("fish_hold") as Node).call("set_career", true)       # (the career back, and her boat)
 	(sea.get("boat") as Node).call("use_kind", str((sea.get("fish_hold") as Node).get("kind")))
 
@@ -821,12 +893,11 @@ func _build_ui() -> void:
 	_ui.add_child(_race)
 	_verdict = Label.new()
 	_verdict.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_verdict.position = Vector2(-300, 14)
-	_verdict.size = Vector2(600, 70)
+	_verdict.position = Vector2(-400, 60)        # (under the crew's notices at the very top)
+	_verdict.size = Vector2(800, 110)
 	_verdict.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_verdict.add_theme_font_size_override("font_size", 30)
-	_verdict.add_theme_constant_override("outline_size", 8)
-	_verdict.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	_shade(_verdict, 3)
 	_ui.add_child(_verdict)
 	# the weigh-in: a column for each boat, right of the dock's slip, her fish read off down it
 	# the countdown, big, top middle (the pixel font, ui/pixfont.gd)
@@ -928,11 +999,11 @@ func _draw_race() -> void:
 		_text(Vector2(0, y + 11), "AB"[t], Color(col, lit))
 		_race.draw_rect(Rect2(16, y + 2, 120, 9), Color(0, 0, 0, 0.45))
 		_race.draw_rect(Rect2(16, y + 2, 120.0 * float(lbs[t]) / top, 9), Color(col, 0.85 * lit))
-		_text(Vector2(142, y + 11), "%d" % roundi(float(lbs[t])), Color(Hud.CREAM, lit))
+		_text(Vector2(142, y + 11), "%d lb" % roundi(float(lbs[t])), Color(Hud.CREAM, lit))
 		for d in int(wins[t]):
-			_race.draw_circle(Vector2(188 + d * 10, y + 6), 3.0, Color(col, lit))
+			_race.draw_rect(Rect2(212 + d * 10, y + 3, 6, 6), Color(col, lit))     # (square, like the pixels)
 		if t != my_team and _hooked > 0 and fmod(_their_on, 0.8) < 0.5:
-			_race.draw_circle(Vector2(-8, y + 6), 3.5, Hud.RED)
+			_race.draw_rect(Rect2(-12, y + 2, 8, 8), Hud.RED)
 
 
 func _text(at: Vector2, text: String, col: Color) -> void:
@@ -978,14 +1049,15 @@ func _weigh(delta: float) -> void:
 				col.name = "Boat%d" % int(s[1])
 				col.add_theme_constant_override("separation", 0)
 				_board.add_child(col)
-				var head := _line("AB"[int(s[1])], 26, COLOURS[int(s[1])])
+				var head := _line("BOAT %s%s" % ["AB"[int(s[1])], "  (YOU)" if int(s[1]) == my_team else ""], 24,
+						COLOURS[int(s[1])])
 				col.add_child(head)
 				var rows := HFlowContainer.new()
 				rows.name = "Fish"
 				rows.add_theme_constant_override("h_separation", 14)
 				rows.custom_minimum_size = Vector2(340, 0)
 				col.add_child(rows)
-				var sum := _line("0 lb", 22, Hud.CREAM)
+				var sum := _line("0 lb", 24, Hud.CREAM)
 				sum.name = "Sum"
 				sum.set_meta("lb", 0.0)
 				col.add_child(sum)
@@ -1025,6 +1097,12 @@ func _line(text: String, size: int, col: Color) -> Label:
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", col)
-	l.add_theme_constant_override("outline_size", 6)
-	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	_shade(l, 2)
 	return l
+
+
+## A hard shadow under a label's letters (the pixel font has no outline to give).
+static func _shade(l: Label, px: int) -> void:
+	l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.85))
+	l.add_theme_constant_override("shadow_offset_x", px)
+	l.add_theme_constant_override("shadow_offset_y", px)
