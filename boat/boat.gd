@@ -71,6 +71,8 @@ var _radar: Node3D
 var deck_space: SubViewport
 var deck_root: Node3D
 var _lights_on := false
+var _night := false
+var _cabin: OmniLight3D
 var _wheel_turn := 0.0
 var _wheel_base := Basis.IDENTITY
 ## What _build made (freed by the next one): the model, her collider here and in the deck space, the lights.
@@ -283,12 +285,12 @@ func _build() -> void:
 	cabin.name = "CabinLight"
 	cabin.position = spec["cabin_light"]
 	cabin.light_color = Color(1.0, 0.45, 0.32)
-	cabin.light_energy = 1.4
-	cabin.omni_range = 4.0
-	cabin.visible = _lights_on
+	cabin.light_energy = 0.5
+	cabin.omni_range = 1.8          # (round the skipper's feet and the dash: not up into the canvas over them)
+	cabin.visible = _night
 	add_child(cabin)
 	_built.append(cabin)
-	floods.append(cabin)
+	_cabin = cabin
 	src.free()
 
 
@@ -329,10 +331,14 @@ static func _src_transform(n: Node3D, root: Node3D) -> Transform3D:
 	return t
 
 
-func set_lights(on: bool) -> void:
+## The floods and deck lights on (dark, a storm, fog); the helm's red night light only in the dark.
+func set_lights(on: bool, night := on) -> void:
 	_lights_on = on
+	_night = night
 	for l in floods:
 		l.visible = on
+	if is_instance_valid(_cabin):
+		_cabin.visible = night
 
 
 ## Every frame (the ocean's clock moves per frame, so the pose does too; the crew ride it smoothly).

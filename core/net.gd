@@ -215,8 +215,10 @@ static func decode(text: String) -> String:
 ## (On its own thread.) Asks the router to forward the port to us, and finds our address on the internet.
 func _open_port(port: int) -> void:
 	var u := UPNP.new()
+	# (no router answering: get_gateway() would print an engine error, so the count's asked first)
 	var ok := u.discover(2000, 2) == UPNP.UPNP_RESULT_SUCCESS and u.get_device_count() > 0 \
-			and u.get_gateway() != null and u.get_gateway().is_valid_gateway()      # (no router: nothing printed)
+			and u.get_gateway() != null \
+			and u.get_gateway().is_valid_gateway()
 	var ip := ""
 	if ok:
 		ok = u.add_port_mapping(port, port, "Bluefin", "UDP", 0) == UPNP.UPNP_RESULT_SUCCESS

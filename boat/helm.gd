@@ -142,7 +142,7 @@ func _set_captain(who: int, at_heading: float) -> void:
 	if p:
 		p.set("steering", true)
 		var spot: Transform3D = boat.get("helm_spot")
-		p.call("place", spot.origin + Vector3(0, 0.05, 0), 0.0)
+		p.call("take_wheel", spot.origin + Vector3(0, 0.05, 0))      # (a step in to it, turning to her bow)
 		if p.is_multiplayer_authority():
 			var hud: Node = boat.get("sea").get("crew").get("hud")
 			var tips: Node = boat.get("sea").get("tips")

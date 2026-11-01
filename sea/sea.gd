@@ -261,12 +261,55 @@ func moor() -> void:
 		return
 	var helm := boat.helm
 	var at: Vector2 = harbour.berth(float(boat.beam) * 0.5, float(boat.length))
+	if _came_alongside:
+		# (brought in alongside: eased the last few metres onto her berth, every peer, no jump)
+		if Net.in_session():
+			_ease_berth.rpc(helm.at, helm.heading, at)
+		else:
+			_ease_berth(helm.at, helm.heading, at)
+		return
 	helm.at = at
 	helm.heading = 0.0
 	helm.speed = 0.0
 	helm.throttle = 0.0
 	if Net.in_session():
 		helm.rpc("_sync", helm.captain, 0.0, at, 0.0)
+
+
+## Everyone: she's tied up where she lies alongside; the last metres onto her berth and round to it, eased (BERTH s).
+## (And no fade to black for it on anyone's screen: arrive().)
+@rpc("authority", "call_local", "reliable")
+func _ease_berth(from: Vector2, from_heading: float, to: Vector2) -> void:
+	_came_alongside = true
+	_berth_t = 0.0
+	_berth_from = from
+	_berth_heading = from_heading
+	_berth_to = to
+
+
+var _berth_t := -1.0
+var _berth_from := Vector2.ZERO
+var _berth_heading := 0.0
+var _berth_to := Vector2.ZERO
+const BERTH := 2.5
+
+
+func _berthing(delta: float) -> void:
+	if _berth_t < 0.0:
+		return
+	_berth_t += delta
+	var k := smoothstep(0.0, 1.0, _berth_t / BERTH)
+	var helm := boat.helm
+	helm.at = _berth_from.lerp(_berth_to, k)
+	helm.heading = lerp_angle(_berth_heading, 0.0, k)
+	helm.speed = 0.0
+	helm.throttle = 0.0
+	helm.set("_net_at", helm.at)
+	helm.set("_net_heading", helm.heading)
+	helm.set("_net_speed", 0.0)
+	helm.set("_net_age", 0.0)
+	if k >= 1.0:
+		_berth_t = -1.0
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -405,6 +448,7 @@ func _tie_up(delta: float) -> void:
 func _process(_delta: float) -> void:
 	_frames += 1
 	_tie_up(_delta)
+	_berthing(_delta)
 	var goal := _dark_goal()
 	_dark_eased = goal if _dark_eased < 0.0 or _args.has("noon") or _args.has("night") else 			move_toward(_dark_eased, goal, _delta / LIGHT_EASE)
 	_race_home()
@@ -626,7 +670,7 @@ func _apply_look() -> void:
 	sun.visible = dark < 0.98
 	ocean.set_sky_color(hor.lerp(fog, 0.5))
 	sea_fx.night = dark
-	boat.set_lights(dark > 0.45 or storm + _share("fog") > 0.5)
+	boat.set_lights(dark > 0.45 or storm + _share("fog") > 0.5, dark > 0.45)
 	# the land and the rig fade into the same colour as the sea's haze; their lights come on with the boat's
 	var far := lerpf(a["far"], b["far"], m) * (1.0 - 0.5 * dark)
 	seeing = far

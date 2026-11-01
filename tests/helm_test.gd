@@ -1,5 +1,5 @@
 extends Node
-## The captain: E on the wheel takes it; A swings her bow to port (her heading, the boat's pose, the wheel) and
+## The captain: E on the wheel takes it (a step in to its spot, no jump); A swings her bow to port (her heading, the boat's pose, the wheel) and
 ## every fish on swings the other way round her; the captain can't grab a rod; S backs her down; Q leaves the wheel.
 ## Then alone in the skiff with a fish on (main's skiff trip): the rod into its holder, a few steps to the wheel,
 ## steer, and back to the rod to pick it up again (walking there for real, round her console).
@@ -20,6 +20,10 @@ func _ready() -> void:
 	helm.call("interact", me)
 	_check(int(helm.get("captain")) == 1 and bool(me.get("steering")), "took the wheel")
 	var spot: Transform3D = sea.boat.get("helm_spot")
+	var from: Vector3 = me.local_position()
+	await get_tree().process_frame
+	_check(me.local_position().distance_to(from) < 0.2, "a step toward the wheel, not a jump to it")
+	await get_tree().create_timer(1.5).timeout
 	_check(me.local_position().distance_to(spot.origin) < 0.3, "standing at the helm")
 	sea.rods.strike(0, 200.0)
 	await get_tree().process_frame

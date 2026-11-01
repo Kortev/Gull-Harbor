@@ -230,7 +230,8 @@ func _process(delta: float) -> void:
 			_ticked = left
 			Sfx.play("ui.tick", 1.0, 1.0 if left > 3 else 1.3)
 	# (the sea lights the boat you're on: hers come on with them)
-	(sides[1 - my_team].get("boat") as Node).call("set_lights", bool((sea.get("boat") as Node).get("_lights_on")))
+	(sides[1 - my_team].get("boat") as Node).call("set_lights", bool((sea.get("boat") as Node).get("_lights_on")),
+			bool((sea.get("boat") as Node).get("_night")))
 	if not Net.is_host():
 		return
 	var holds: Array = sides.map(func(s: Node) -> Node: return s.get("fish_hold"))
