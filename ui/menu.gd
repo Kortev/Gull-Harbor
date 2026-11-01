@@ -182,6 +182,8 @@ func open_settings(page := 0) -> void:
 
 
 func _resume() -> void:
+	while Input.is_action_pressed("jump"):          # (A on the pad is a jump too: let go of it before the deck's live)
+		await get_tree().process_frame
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
