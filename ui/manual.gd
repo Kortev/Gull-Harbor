@@ -1,6 +1,6 @@
 extends PanelContainer
 ## The boat's owner's manual (the Esc menu's "The manual"): everything in docs/FEATURES.md, short, in the voice of a
-## manual nobody proofread. Chapters down the left, the page on the right.
+## manual nobody proofread. Chapters down the left (the one open lit, the numbers lined up), the page on the right.
 
 const CHAPTERS := [
 	["1. Controls", "WASD walk (at the wheel: throttle, steer). Mouse look. Shift sprint, Space jump.\n"
@@ -65,7 +65,7 @@ const CHAPTERS := [
 		+ "Leave it 90 s and the hook pulls."],
 	["9. Getting paid", "On deck: E bleeds it, E again ices it. The grade (#1, #2, #3) is speed: landed quick, "
 		+ "bled within a minute, iced within three. A #1 pays about twice a warm one.\n\n"
-		+ "The fish box (the pips top left) holds 2 (skiff) or 12 (sportfisher). Head in from the menu to sell."],
+		+ "The fish box (the pips top left) holds 2 (skiff) or 12 (sportfisher). Bring her home and tie up alongside the fish pier to sell."],
 	["10. Boats and gear", "The skiff: 2 rods, quick, handy alone or with two. Box for 2.\n"
 		+ "The sportfisher ($20,000, or $2,500 a day chartered): 4 rods, box for 12, slow to turn, and the tuna "
 		+ "door means wiring. She wants a crew. Her fighting chair and seats: E to sit, E or jump to get up. Her tuna "
@@ -73,7 +73,14 @@ const CHAPTERS := [
 		+ "Gear lasts the run: a two-speed reel (winds a quarter faster), heavier line (rubs the hull longer)."],
 ]
 
+const INK := Color(0.12, 0.1, 0.08)
+const BLUE := Color(0.2, 0.25, 0.4)
+
 var _page: Label
+var _scroll: ScrollContainer
+var _chapters: Array[Button] = []
+## The chapter open.
+var open := 0
 var _tips: Node               # ui/tips.gd
 
 
@@ -97,16 +104,17 @@ func _ready() -> void:
 	head.add_theme_color_override("font_color", Color(0.15, 0.12, 0.1))
 	head.add_theme_font_size_override("font_size", 16)
 	chapters.add_child(head)
-	for c: Array in CHAPTERS:
+	for i in CHAPTERS.size():
 		var b := Button.new()
-		b.text = str(c[0])
+		var name := str(CHAPTERS[i][0])
+		b.text = (" " if name.find(".") == 1 else "") + name        # (1. under 10.: the numbers lined up)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.flat = true
-		b.add_theme_color_override("font_color", Color(0.2, 0.25, 0.4))
-		b.pressed.connect(func() -> void: _page.text = str(c[1]))
+		b.pressed.connect(turn.bind(i))
 		chapters.add_child(b)
+		_chapters.append(b)
 	var again := Button.new()
-	again.text = "Dale's tips again"
+	again.text = "   Dale's tips again"         # (under the chapters' names)
+	again.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	again.flat = true
 	again.add_theme_color_override("font_color", Color(0.55, 0.2, 0.15))
 	again.pressed.connect(func() -> void:
@@ -114,13 +122,38 @@ func _ready() -> void:
 			_tips.call("reset")
 		again.text = "Dale will be in touch")
 	chapters.add_child(again)
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	cols.add_child(scroll)
+	_scroll = ScrollContainer.new()
+	_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	cols.add_child(_scroll)
 	_page = Label.new()
 	_page.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_page.add_theme_color_override("font_color", Color(0.12, 0.1, 0.08))
-	_page.text = str(CHAPTERS[0][1])
-	scroll.add_child(_page)
+	_page.add_theme_color_override("font_color", INK)
+	_page.add_theme_constant_override("line_spacing", 2)
+	_scroll.add_child(_page)
+	turn(0)
+
+
+## Open at chapter i: its page from the top, its name lit in the list.
+func turn(i: int) -> void:
+	open = i
+	_page.text = str(CHAPTERS[i][1])
+	_scroll.scroll_vertical = 0
+	for j in _chapters.size():
+		var b := _chapters[j]
+		var on := j == i
+		for st: String in ["normal", "hover", "pressed", "focus"]:
+			var box := StyleBoxFlat.new()
+			box.bg_color = Color(BLUE, 0.16 if on else (0.08 if st == "hover" else 0.0))
+			if st == "focus":
+				box.bg_color = Color(0, 0, 0, 0)
+				box.border_color = Color(BLUE, 0.8)
+				box.set_border_width_all(2)
+			box.content_margin_left = 6
+			box.content_margin_right = 6
+			box.content_margin_top = 2
+			box.content_margin_bottom = 2
+			b.add_theme_stylebox_override(st, box)
+		for c: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+			b.add_theme_color_override(c, INK if on else BLUE)

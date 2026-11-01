@@ -1,17 +1,17 @@
 extends CanvasLayer
 ## Rivals' results card (vs/vs.gd): up on every screen at the same moment once a day's been weighed (the host's word),
 ## the mouse freed for it. A dark card over the harbour, the two boats side by side: days won, fish, total, biggest,
-## the money, the late cut and the pounds weighed, each row tallying up in turn, then the stamp lands on the winner
-## (WINNER for the match, DAY WON for a day, TIE when it's dead even). Under it NEXT DAY (or REMATCH once the match is
-## won) and BACK TO THE TITLE. Everyone has to press NEXT DAY / REMATCH (pressed again it's taken back); under each
-## boat, whether her crew have. When they all have, the screen fades to black and the next day (or a fresh match)
-## starts from the countdown. If the other crew's line drops (or they quit), it says so: wait for them to come back,
-## or press on without them. If the host's gone, it says so and only the title's left.
+## the late cut and the pounds weighed (what decides it: the money's the career's, not Rivals'), each row tallying up
+## in turn, then the stamp lands on the winner (WINNER for the match, DAY WON for a day, TIE when it's dead even).
+## Under it NEXT DAY (or REMATCH once the match is won) and BACK TO THE TITLE. Everyone has to press NEXT DAY /
+## REMATCH (pressed again it's taken back); under each boat, whether her crew have. When they all have, the screen
+## fades to black and the next day (or a fresh match) starts from the countdown. If the other crew's line drops (or
+## they quit), it says so: wait for them to come back, or press on without them. If the host's gone, it says so and
+## only the title's left.
 ##
 ## The pixel font (ui/pixfont.gd) at whole sizes, the colours of the title (ui/title.gd) and the menu (ui/menu.gd).
 
 const PixFont := preload("res://ui/pixfont.gd")
-const FishHold := preload("res://boat/fish_hold.gd")
 const Sfx := preload("res://audio/sfx.gd")
 const Pad := preload("res://core/pad.gd")
 
@@ -26,15 +26,15 @@ const BG := Color(0.025, 0.035, 0.045, 0.95)
 const COLOURS := [Color(1.0, 0.74, 0.32), Color(0.45, 0.8, 1.0)]
 ## The card (px), and its rows.
 const W := 780
-const H := 500
-const ROWS := ["DAYS WON", "FISH", "TOTAL", "BIGGEST", "MONEY", "LATE: HALF", "WEIGHED"]
+const H := 470
+const ROWS := ["DAYS WON", "FISH", "TOTAL", "BIGGEST", "LATE: HALF", "WEIGHED"]
 ## The tally: the first row starts T0 s in, each next ROW s after, counting up over UP s; then the stamp (STAMP s to
 ## land), then the buttons.
 const T0 := 0.5
 const ROW := 0.3
 const UP := 0.6
 const STAMP := 0.22
-const T_STAMP := T0 + ROW * 7 + UP + 0.2
+const T_STAMP := T0 + ROW * 6 + UP + 0.2
 const T_BUTTONS := T_STAMP + STAMP + 0.3
 ## The fade to black and back (s).
 const FADE := 0.8
@@ -153,8 +153,7 @@ func _value(row: int, i: int) -> float:
 		1: return float(b.get("fish", 0))
 		2: return float(b.get("kg", 0.0))
 		3: return float(b.get("big", 0.0))
-		4: return float(b.get("money", 0))
-		5: return float(b.get("late", 0.0))
+		4: return float(b.get("late", 0.0))
 		_: return float(b.get("lb", 0.0))
 
 
@@ -248,10 +247,6 @@ func _centred(cx: float, y: float, text: String, col: Color, sc: int) -> void:
 	_text(Vector2(floorf(cx - PixFont.width(text, sc) * 0.5), y), text, col, sc)
 
 
-static func _money(n: int) -> String:
-	return ("-$" if n < 0 else "$") + FishHold._money(absi(n))
-
-
 func _draw_card() -> void:
 	var size := _view.size
 	var a := clampf(t / 0.35, 0.0, 1.0)
@@ -271,7 +266,7 @@ func _draw_card() -> void:
 	var winner := int(data.get("winner", -1))
 	var me := _team()
 	_text(o + Vector2(28, 22), "THE MATCH" if decided else "DAY %d" % int(data.get("day", 1)), Color(AMBER, fade), 4)
-	var sub := ("OVER %d DAYS, BEST OF THREE" % int(data.get("day", 1))) if decided else "BEST OF THREE: FIRST TO TWO DAYS"
+	var sub := ("OVER %d DAYS, BEST OF THREE" % int(data.get("day", 1))) if decided else "FIRST TO TWO DAYS WINS"
 	_text(o + Vector2(30, 50), sub, Color(DIM, fade), 2)
 	_view.draw_rect(Rect2(o + Vector2(28, 70), Vector2(W - 56, 2)), Color(DIM, 0.25 * fade))
 	var cx := [o.x + 380.0, o.x + 610.0]
@@ -389,11 +384,8 @@ func _cell(r: int, i: int, cx: float, y: float, on: float) -> void:
 		2: text = "%d KG" % roundi(v)
 		3: text = "%d KG" % roundi(v) if float(_value(1, i)) > 0.0 else "-"
 		4:
-			text = _money(roundi(v))
-			col = Color(GOOD if _value(4, i) > 0.0 else BAD, on) if t > T0 + r * ROW + UP else col
-		5:
-			text = "-%d LB" % roundi(v) if _value(5, i) > 0.0 else "-"
-			col = Color(BAD, on) if _value(5, i) > 0.0 else Color(DIM, on)
+			text = "-%d LB" % roundi(v) if _value(4, i) > 0.0 else "-"
+			col = Color(BAD, on) if _value(4, i) > 0.0 else Color(DIM, on)
 		_:
 			text = "%d LB" % roundi(v)
 			col = Color(COLOURS[i], on)

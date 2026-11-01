@@ -12,7 +12,8 @@ extends Node
 const Sea := preload("res://sea/sea.gd")
 const FightBot := preload("res://tests/fight_bot.gd")
 var OUT := "res://docs/shots/play/"
-const PORT := 7824
+## The port the boat's hosted on (--port=: another, so two runs side by side don't meet).
+var PORT := 7824
 const SAVE := "user://bluefin_qa.cfg"
 
 var sea: Sea
@@ -39,6 +40,8 @@ func _ready() -> void:
 			part = a.trim_prefix("--part=")
 		elif a.begins_with("--out="):         # (somewhere else for the shots, a folder)
 			OUT = a.trim_prefix("--out=").trim_suffix("/") + "/"
+		elif a.begins_with("--port="):
+			PORT = int(a.trim_prefix("--port="))
 	fast = OS.get_cmdline_user_args().has("--fast")
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT))
 	sea = (load("res://sea/sea.tscn") as PackedScene).instantiate() as Sea
@@ -87,6 +90,11 @@ func _menus() -> void:
 	await _wait(0.2)
 	for i in 3:
 		await _key(KEY_DOWN)
+	await _key(KEY_ENTER)        # ACHIEVEMENTS
+	await _shot("achievements")
+	await _key(KEY_ESCAPE)
+	_check(title.get("_page") == "main" and title.get("_pick") == 3, "Esc on ACHIEVEMENTS: back to the title, on it")
+	await _key(KEY_DOWN)
 	await _key(KEY_ENTER)        # SETTINGS
 	await _shot("settings_0")
 	for t in 4:
