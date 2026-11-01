@@ -682,6 +682,13 @@ func _result(weighed: Array, fish: Array, won: Array) -> void:
 	_verdict.visible = false
 	if weighed.size() == 2:
 		_weigh_in()
+		# (achievements: the day yours, the match)
+		var a: float = roundi(float(weighed[0]))
+		var b: float = roundi(float(weighed[1]))
+		if a != b and (0 if a > b else 1) == my_team:
+			Net.achievements.unlock("RIVALS_DAY")
+		if won.size() == 2 and int(won[my_team]) >= MATCH:
+			Net.achievements.unlock("RIVALS_MATCH")
 
 
 ## Which boat crew member `id` is on.

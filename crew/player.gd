@@ -244,6 +244,8 @@ const BRACED := 0.5
 const KNOCK_DRAG := 5.0
 const KNOCK := 0.7
 const OVER_SPEED := 1.4
+## How long after a shove lands a rival in the sea still counts as you putting them there (s).
+const OVERBOARD_IN := 2.5
 ## A crewmate's word on where they are is played back this far behind their own clock (s: a few of their words in
 ## hand, so one coming late or two at once doesn't show); the playback goes faster or slower to keep there (their
 ## clock and ours needn't go at the same rate), by this much for each s it's out, between these, easing to it (1/s);
@@ -1855,6 +1857,21 @@ func _set_frame(to: Node3D) -> void:
 			body.get_parent().remove_child(body)
 			root.add_child(body)
 		body.position = _local
+		if is_multiplayer_authority():
+			_boarded(to)
+
+
+## You've gone aboard `to`: the other crew's boat out at sea in Rivals is Boarding Party (core/achievements.gd).
+func _boarded(to: Node3D) -> void:
+	var sea: Node = to.get("sea")
+	var vs: Node = sea.get("vs") if sea else null
+	var hold: Node = sea.get("fish_hold") if sea else null
+	if vs == null or not bool(vs.get("on")) or hold == null or bool(hold.get("docked")):
+		return
+	var sides: Array = vs.get("sides")
+	var team := int(vs.get("my_team"))
+	if team < sides.size() and (sides[team] as Node).get("boat") != to:
+		Net.achievements.unlock("BOARDED")
 
 
 func _set_mode(m: int) -> void:
@@ -2036,6 +2053,29 @@ func _host_push() -> void:
 		best.rpc("_pushed", v)
 	else:
 		best.call("_pushed", v)
+	# (a rival in the sea a moment after: Man Overboard for whoever shoved, core/achievements.gd)
+	var vs: Node = (boat.get("sea") as Node).get("vs") if boat and boat.get("sea") else null
+	if vs == null or not bool(vs.get("on")):
+		return
+	var teams: Dictionary = vs.get("teams")
+	var me := str(name).to_int()
+	var them := str(best.name).to_int()
+	if int(teams.get(me, 0)) == int(teams.get(them, 0)):
+		return
+	get_tree().create_timer(OVERBOARD_IN).timeout.connect(func() -> void:
+		if is_instance_valid(best) and is_inside_tree() and int(best.get("mode")) == SWIM:
+			if me == Net.my_id():
+				_shoved_over()
+			elif Net.in_session():
+				_shoved_over.rpc_id(me))
+
+
+## The host's word: someone you shoved went over the side.
+@rpc("any_peer", "call_remote", "reliable")
+func _shoved_over() -> void:
+	if multiplayer.get_remote_sender_id() > 1:
+		return
+	Net.achievements.unlock("OVERBOARD")
 
 
 ## Whether you're braced against a shove: a fish on the rod in your hands, the wheel in them, sat in the chair.

@@ -36,6 +36,7 @@ const Tuna := preload("res://tuna/tuna.gd")
 const Action := preload("res://core/action.gd")
 const Kinds := preload("res://boat/kinds.gd")
 const Sfx := preload("res://audio/sfx.gd")
+const Achievements := preload("res://core/achievements.gd")
 const SAVE := "user://career.cfg"
 ## The bank's file before the career had a version (read once, if there's no career yet).
 const OLD_SAVE := "user://bluefin.cfg"
@@ -124,6 +125,8 @@ var save_path := SAVE
 var career := true
 ## The books are a host's we're crewing for (their _sync), not ours: never saved over ours.
 var _borrowed := false
+## Fish ids already looked at for achievements (core/achievements.gd: _achieve).
+var _seen := {}
 
 
 func _ready() -> void:
@@ -159,6 +162,7 @@ func _ready() -> void:
 		_host_changed()
 	if docked:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE     # (a game starts at the dock: its screen's up)
+	_achieve_career()
 
 
 ## Back on your own boat after crewing for someone: your own bank and gear, an empty hold (theirs stays theirs),
@@ -167,6 +171,7 @@ func _own_boat() -> void:
 	_borrowed = false
 	_load()
 	fish = []
+	_seen = {}
 	sale = {}
 	docked = true
 	_rebuild()
@@ -549,6 +554,7 @@ func _state() -> Dictionary:
 
 @rpc("authority", "call_local", "reliable")
 func _sync(state: Dictionary) -> void:
+	var first := not multiplayer.is_server() and not _borrowed      # (just aboard someone's boat: what's there was theirs)
 	if not multiplayer.is_server():
 		_borrowed = true
 	fish = state["fish"]
@@ -579,11 +585,14 @@ func _sync(state: Dictionary) -> void:
 	_rebuild()
 	if docked != was:
 		_dock_changed(docked)
+	_achieve(first)
 	if sale.is_empty():
 		_sold_noted = false
 	elif not _sold_noted:
 		_sold_noted = true
 		Sfx.play("kit.coins")
+		if not first:
+			_achieve_sale()
 
 
 ## The sounds of the work on deck, from what's newly done to each fish since last time: a bleed (a wet slap), the
@@ -1050,6 +1059,78 @@ func _note(text: String) -> void:
 
 
 ## Tests and screenshots: never the player's career (Settings' rule, and a sea a test built under its own node).
+# ------------------------------------------------------------------ achievements (core/achievements.gd)
+
+## Whether this is the hold of the boat you're on (in Rivals the other boat's things see a crew with no `me`).
+func _mine() -> bool:
+	var crew := sea.get("crew") as Node if sea != null else null
+	return crew != null and crew.get("me") != null
+
+
+## Whether a friend's aboard your boat with you (in Rivals, on your side).
+func _crewed() -> bool:
+	var crew := sea.get("crew") as Node
+	var vs := sea.get("vs") as Node
+	if vs != null and bool(vs.get("on")):
+		var mine := int(vs.get("my_team"))
+		return (vs.get("teams") as Dictionary).values().count(mine) > 1
+	return crew != null and (crew.get("slots") as Dictionary).size() > 1
+
+
+## Everyone, as the books come in: a fish newly on your deck (`first`: just aboard someone's boat, what's on her deck
+## was theirs), and the career's own (_achieve_career).
+func _achieve(first: bool) -> void:
+	var mine := _mine()
+	for f: Dictionary in fish:
+		var id := int(f["id"])
+		if _seen.has(id):
+			continue
+		_seen[id] = true
+		if first or not mine or docked:
+			continue
+		var a := Net.achievements
+		a.unlock("FIRST_FISH")
+		if float(f["kg"]) >= Achievements.GIANT_KG:
+			a.unlock("GIANT")
+		if _crewed():
+			a.unlock("CREW")
+		if day_fraction() > 1.0:
+			a.unlock("NIGHT")
+		if str(sea.get("condition")) == "storm":
+			a.unlock("STORM")
+	_achieve_career()
+
+
+## Everyone, a sale on your boat: a #1, the kilos toward A Ton Ashore, a quota made.
+func _achieve_sale() -> void:
+	if not _mine():
+		return
+	var a := Net.achievements
+	var kg := 0.0
+	for l: Array in sale.get("lines", []):
+		kg += float(l[0])
+		if str(l[1]) == "#1":
+			a.unlock("GRADE_ONE")
+	a.add_sold(kg)
+	if str(sale.get("verdict", "")) == "met":
+		a.unlock("QUOTA")
+		if quota_n - 1 >= 3:
+			a.unlock("THREE_QUOTAS")
+
+
+## The host's own career: the sportfisher bought, quotas made (a career from before there were achievements too).
+func _achieve_career() -> void:
+	if _borrowed or not career or not Net.is_host() or not _mine():
+		return
+	var a := Net.achievements
+	if owned.has("sportfisher"):
+		a.unlock("SPORTFISHER")
+	if best_run >= 1:
+		a.unlock("QUOTA")
+	if best_run >= 3:
+		a.unlock("THREE_QUOTAS")
+
+
 func _testing() -> bool:
 	if DisplayServer.get_name() == "headless" or "--shot" in " ".join(OS.get_cmdline_user_args()):
 		return true
@@ -1082,8 +1163,8 @@ func _load() -> void:
 			or not (g is Array) or not Kinds.KINDS.has(k):
 		push_warning("Career: %s isn't one this game reads; a fresh start" % from)
 		return
-	bank = int(cfg.get_value("trips", "bank", START_CASH))
-	best = int(cfg.get_value("trips", "best", 0))
+	bank = int(_number(cfg, "trips", "bank", START_CASH))
+	best = int(_number(cfg, "trips", "best", 0))
 	owned = ["skiff"]
 	for x: Variant in o:
 		if Kinds.KINDS.has(str(x)) and not owned.has(str(x)):
@@ -1093,17 +1174,24 @@ func _load() -> void:
 		if GEAR.has(str(x)) and not gear.has(str(x)):
 			gear.append(str(x))
 	kind = k
-	best_run = int(cfg.get_value("run", "best_run", 0))
+	best_run = int(_number(cfg, "run", "best_run", 0))
 	if cfg.has_section_key("run", "quota"):
-		quota_n = maxi(int(cfg.get_value("run", "quota_n", 1)), 1)
-		quota = int(cfg.get_value("run", "quota", quota_for(quota_n)))
-		earned = int(cfg.get_value("run", "earned", 0))
-		day = clampi(int(cfg.get_value("run", "day", 1)), 1, DAYS)
-		run_fish = int(cfg.get_value("run", "run_fish", 0))
-		run_biggest = float(cfg.get_value("run", "run_biggest", 0.0))
+		quota_n = maxi(int(_number(cfg, "run", "quota_n", 1)), 1)
+		quota = int(_number(cfg, "run", "quota", quota_for(quota_n)))
+		earned = int(_number(cfg, "run", "earned", 0))
+		day = clampi(int(_number(cfg, "run", "day", 1)), 1, DAYS)
+		run_fish = int(_number(cfg, "run", "run_fish", 0))
+		run_biggest = float(_number(cfg, "run", "run_biggest", 0.0))
 	# (else a save from before the quota: its bank, boats and gear; the first quota starts now)
-	if bool(cfg.get_value("run", "at_sea", false)):
+	var at_sea: Variant = cfg.get_value("run", "at_sea", false)
+	if at_sea is bool and at_sea:
 		_abandoned = true
+
+
+## A number from the career's file (anything else there, from a hand-edited or broken file: `default`).
+static func _number(cfg: ConfigFile, section: String, key: String, default: float) -> float:
+	var v: Variant = cfg.get_value(section, key, default)
+	return float(v) if (v is int or v is float) and is_finite(float(v)) else default
 
 
 ## Host: the career into its file (not Rivals', not a host's we're crewing for, not in tests).

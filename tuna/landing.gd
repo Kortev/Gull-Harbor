@@ -846,6 +846,8 @@ func _flown(who: int, p: Vector3, v: Vector3) -> void:
 
 ## The thrower's word on where it went: into fish i (at, dir: where and which way, in the fish's frame), or -1 a miss.
 func _report(i: int, at: Vector3, dir: Vector3) -> void:
+	if fish.has(i) and int(fish[i]["misses"]) == 0 and not bool(fish[i]["stuck"]) and not needs_wire(i):
+		Net.achievements.unlock("ONE_THROW")
 	if Net.is_host():
 		_ask_throw_as(Net.my_id(), i, at, dir)
 	else:

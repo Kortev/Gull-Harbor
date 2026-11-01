@@ -777,3 +777,10 @@ func _build_mesh() -> ArrayMesh:
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	mesh.custom_aabb = AABB(Vector3(-reach, -80.0, -reach), Vector3(reach * 2.0, 160.0, reach * 2.0))
 	return mesh
+
+
+## Freed (the game closing, back to the title): the GPU sea's textures and shaders freed with it, not left to leak.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE and _fft != null:
+		_fft.free_all()
+		_fft = null

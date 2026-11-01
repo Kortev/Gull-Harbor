@@ -227,6 +227,8 @@ func _run(t: float, ch: PackedFloat32Array, pc: float) -> void:
 func free_all() -> void:
 	if _rd == null:
 		return
+	for t: Texture2DRD in tex_a + tex_b:
+		t.texture_rd_rid = RID()      # (nothing left pointing at them)
 	RenderingServer.call_on_render_thread(func() -> void:
 		for r: RID in _spec_sets + _fft_sets + _h0 + _a + _b:
 			if r.is_valid():

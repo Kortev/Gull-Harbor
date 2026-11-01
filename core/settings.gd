@@ -17,7 +17,12 @@ extends Node
 ## was last touched (the prompts name its buttons then: say()). L3 sprints till the left stick lets go.
 ##
 ## Tests and screenshots (headless, or a scene under tests/) start from the defaults and never read or write the
-## player's file (`path` is "" there, unless a test sets it).
+## player's file (`path` is "" there, unless a test sets it). A file that won't read, or holds nonsense, is the
+## defaults (whatever in it makes sense is kept) and is written over by the next save.
+##
+## The window starts borderless on the whole screen the first time (no file yet); windowed it's centred, never bigger
+## than the screen. The game going to the background (alt-tab, a click on another window) lets the mouse go, which
+## puts the pause card up (ui/menu.gd), as Esc would.
 
 signal changed
 ## The pad picked up, or put down for the keys and mouse (`pad`).
@@ -49,8 +54,8 @@ var fov := 75.0
 var volume := {"Master": 1.0, "Effects": 1.0, "Voice": 1.0, "Music": 1.0}
 ## The window: windowed, borderless (a borderless window the size of the screen) or fullscreen (exclusive); its size
 ## when windowed; vsync; the frame cap (0: none).
-var window := "windowed"
-var window_size := Vector2i(1152, 648)
+var window := "borderless"
+var window_size := Vector2i(1280, 720)
 var vsync := true
 var max_fps := 0
 ## The pad: the right stick's look (1: Pad.LOOK_PX), up/down flipped, rumble.
@@ -78,9 +83,17 @@ func _ready() -> void:
 	get_tree().node_added.connect(_on_node_added)
 	if _testing():
 		path = ""
+		window = "windowed"           # (screenshots keep the project's own window)
+		window_size = Vector2i(1152, 648)
 	else:
 		load_file()
 	apply()
+
+
+## The game to the background: the mouse let go (the pause card comes up, ui/menu.gd), not left captured behind it.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 func _testing() -> bool:
@@ -380,31 +393,36 @@ func save_file() -> Error:
 func load_file() -> Error:
 	if path.is_empty():
 		return ERR_UNAVAILABLE
+	if not FileAccess.file_exists(path):
+		return ERR_FILE_NOT_FOUND
 	var c := ConfigFile.new()
 	var err := c.load(path)
 	if err != OK:
+		push_warning("Settings: %s won't read; the defaults till they're saved again" % path)
 		return err
-	sensitivity = clampf(float(c.get_value("look", "sensitivity", sensitivity)), 0.1, 4.0)
-	invert_y = bool(c.get_value("look", "invert_y", invert_y))
-	fov = clampf(float(c.get_value("look", "fov", fov)), 55.0, 110.0)
-	pad_sensitivity = clampf(float(c.get_value("pad", "sensitivity", pad_sensitivity)), 0.1, 4.0)
-	pad_invert_y = bool(c.get_value("pad", "invert_y", pad_invert_y))
-	rumble = bool(c.get_value("pad", "rumble", rumble))
+	sensitivity = clampf(_num(c, "look", "sensitivity", sensitivity), 0.1, 4.0)
+	invert_y = _flag(c, "look", "invert_y", invert_y)
+	fov = clampf(_num(c, "look", "fov", fov), 55.0, 110.0)
+	pad_sensitivity = clampf(_num(c, "pad", "sensitivity", pad_sensitivity), 0.1, 4.0)
+	pad_invert_y = _flag(c, "pad", "invert_y", pad_invert_y)
+	rumble = _flag(c, "pad", "rumble", rumble)
 	for b: String in volume:
-		volume[b] = clampf(float(c.get_value("sound", b.to_lower(), volume[b])), 0.0, 1.0)
+		volume[b] = clampf(_num(c, "sound", b.to_lower(), volume[b]), 0.0, 1.0)
 	window = str(c.get_value("display", "window", window))
 	if not WINDOWS.has(window):
 		window = "windowed"
 	var s: Variant = c.get_value("display", "window_size", window_size)
-	window_size = s if s is Vector2i else window_size
-	vsync = bool(c.get_value("display", "vsync", vsync))
-	max_fps = maxi(int(c.get_value("display", "max_fps", max_fps)), 0)
+	if s is Vector2i and (s as Vector2i).x >= 640 and (s as Vector2i).y >= 360:
+		window_size = s
+	vsync = _flag(c, "display", "vsync", vsync)
+	max_fps = clampi(int(_num(c, "display", "max_fps", max_fps)), 0, 1000)
 	for a: Array in REBINDABLE:
-		if not c.has_section_key("keys", a[0]):
+		var codes: Variant = c.get_value("keys", a[0], PackedStringArray())
+		if not (codes is PackedStringArray or codes is Array):
 			continue
 		var events: Array[InputEvent] = []
-		for code: String in c.get_value("keys", a[0], PackedStringArray()):
-			var e := _decode(code)
+		for code: Variant in codes:
+			var e := _decode(str(code))
 			if e != null:
 				events.append(e)
 		if not events.is_empty():
@@ -414,3 +432,14 @@ func load_file() -> Error:
 	Pad.bind()
 	apply()
 	return OK
+
+
+## A number from the file (anything else there: `default`).
+static func _num(c: ConfigFile, section: String, key: String, default: float) -> float:
+	var v: Variant = c.get_value(section, key, default)
+	return float(v) if (v is float or v is int) and is_finite(float(v)) else default
+
+
+static func _flag(c: ConfigFile, section: String, key: String, default: bool) -> bool:
+	var v: Variant = c.get_value(section, key, default)
+	return bool(v) if (v is bool or v is int) else default

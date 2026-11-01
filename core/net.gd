@@ -10,6 +10,7 @@ extends Node
 
 const PORT := 7777
 const MAX_CREW := 4
+const Achievements := preload("res://core/achievements.gd")
 
 ## We're hosting now (the crew can join).
 signal hosted
@@ -42,6 +43,8 @@ var quit := {}
 var _joining := {}
 ## Steam (core/steam_link.gd): `steam.available` says whether it's there.
 var steam: Node
+## The achievements (core/achievements.gd): here, beside Steam, so they're there from the start.
+var achievements: Achievements
 ## How this session runs: "", "steam" or "code".
 var mode := ""
 
@@ -60,6 +63,9 @@ func _ready() -> void:
 		_close()
 		dropped.emit(reason))
 	add_child(steam)
+	achievements = Achievements.new()
+	achievements.name = "Achievements"
+	add_child(achievements)
 	multiplayer.peer_connected.connect(func(id: int) -> void: peer_joined.emit(id))
 	multiplayer.peer_disconnected.connect(func(id: int) -> void:
 		peer_left.emit(id)
@@ -209,8 +215,8 @@ static func decode(text: String) -> String:
 ## (On its own thread.) Asks the router to forward the port to us, and finds our address on the internet.
 func _open_port(port: int) -> void:
 	var u := UPNP.new()
-	var ok := u.discover(2000, 2) == UPNP.UPNP_RESULT_SUCCESS and u.get_gateway() != null \
-			and u.get_gateway().is_valid_gateway()
+	var ok := u.discover(2000, 2) == UPNP.UPNP_RESULT_SUCCESS and u.get_device_count() > 0 \
+			and u.get_gateway() != null and u.get_gateway().is_valid_gateway()      # (no router: nothing printed)
 	var ip := ""
 	if ok:
 		ok = u.add_port_mapping(port, port, "Bluefin", "UDP", 0) == UPNP.UPNP_RESULT_SUCCESS

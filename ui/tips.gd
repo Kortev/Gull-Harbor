@@ -69,7 +69,8 @@ func _ready() -> void:
 			for k in cfg.get_section_keys("seen") if cfg.has_section("seen") else []:
 				_seen[k] = true
 			for k in cfg.get_section_keys("taught") if cfg.has_section("taught") else []:
-				_taught[k] = int(cfg.get_value("taught", k))
+				var v: Variant = cfg.get_value("taught", k)
+				_taught[k] = int(v) if (v is int or v is float) else 0
 	radio = Radio.new()
 	radio.name = "Radio"
 	add_child(radio)

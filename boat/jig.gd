@@ -220,6 +220,8 @@ func _ask_mackerel_as(who: int) -> void:
 @rpc("authority", "call_local", "reliable")
 func _caught(who: int, kept := true) -> void:
 	_caught_on[who] = 1.2
+	if kept and who == Net.my_id():
+		Net.achievements.unlock("LIVE_BAIT")
 	var p := ((sea.get("crew") as Node).call("get_player", who)) as Node3D
 	var at := _tip(p) if p else global_position
 	Sfx.play_point(self, at, "dock.slap", 0.5, 1.6)
