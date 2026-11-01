@@ -216,6 +216,11 @@ func _draw_tally() -> void:
 	if _trip.is_empty():
 		return
 	var w := 200.0
+	if _trip.has("rivals"):
+		# (Rivals: the match's day, no quota; her box as ever)
+		_text(_tally, Vector2(0, 12), "Day %d  -  best of three" % int(_trip["day"]), SMALL, Color(CREAM, 0.85))
+		_draw_box()
+		return
 	var quota := maxf(float(_trip["quota"]), 1.0)
 	var earned := float(_trip["earned"])
 	var made := earned >= quota
@@ -227,6 +232,10 @@ func _draw_tally() -> void:
 	var aboard := clampf((earned + float(_trip["aboard"])) / quota, 0.0, 1.0)
 	_tally.draw_rect(Rect2(0, 20, w * aboard, 6), Color(1, 1, 1, 0.5))
 	_tally.draw_rect(Rect2(0, 20, w * clampf(earned / quota, 0.0, 1.0), 6), Color(GREEN if made else AMBER, 0.85))
+	_draw_box()
+
+
+func _draw_box() -> void:
 	# the fish box, a pip a place (filled once iced), and any still on deck after it
 	var x := 0.0
 	for i in int(_trip["cap"]):
@@ -247,6 +256,12 @@ func notify(text: String) -> void:
 	_note.text = Settings.say(text)
 	_note.modulate.a = 1.0
 	_note_t = 4.0
+
+
+## The notes' top edge (px): moved down under a banner that has the top (Rivals' countdown and race home, vs/vs.gd).
+func note_at(y: float) -> void:
+	if _note.position.y != y:      # (only when it moves: set every frame, it's laid out again every frame)
+		_note.position.y = y
 
 
 func _process(delta: float) -> void:

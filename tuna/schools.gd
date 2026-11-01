@@ -132,11 +132,12 @@ func _docked() -> bool:
 const IN_CLOSE := 450.0
 
 
-func _in_close() -> bool:
+func _in_close(at := Vector2.INF) -> bool:
 	var marks: Node = sea.get("landmarks") if sea != null else null
 	if marks == null or (sea.get_parent() != get_tree().root and start_far > 0.0):
 		return false
-	var at := boat_at()
+	if at == Vector2.INF:
+		at = boat_at()
 	return at.y > float(marks.call("shore_z", at.x)) - IN_CLOSE
 
 
@@ -167,12 +168,15 @@ func _process(delta: float) -> void:
 		# night it's the radar that finds them)
 		var light := 1.0 - float(sea.call("_dark")) if sea.has_method("_dark") else 1.0
 		bird_mat.set_shader_parameter("color", Color(0.16, 0.15, 0.15) * lerpf(0.25, 1.0, light))
-	if Net.is_host() and not _docked():
+	# (Rivals, vs/vs.gd: either boat out on the grounds will do, not just the host's)
+	var vs: Node = sea.get("vs")
+	var rivals: bool = vs != null and bool(vs.get("on"))
+	if Net.is_host() and (not bool(vs.call("_all_docked")) if rivals else not _docked()):
 		_next -= delta
 		if _next <= 0.0:
 			_next = randf_range(10.0, 25.0)
 			# (none while she's still in the harbour or close in under the coast: they're out on the grounds)
-			if _in_close():
+			if bool(vs.call("all_in_close")) if rivals else _in_close():
 				_next = 3.0
 			elif schools.size() < MAX_SCHOOLS:
 				_host_start()

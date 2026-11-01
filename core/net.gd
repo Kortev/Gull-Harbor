@@ -41,12 +41,25 @@ var farewell := ""
 ## Host: crew who said they were going as they went (Leave, the title), not dropped (peer id -> true).
 var quit := {}
 var _joining := {}
+## Leaving a host's boat: our old line, kept a moment so the goodbye gets there before it's cut (s left).
+var _going: ENetMultiplayerPeer
+var _going_for := 0.0
 ## Steam (core/steam_link.gd): `steam.available` says whether it's there.
 var steam: Node
 ## The achievements (core/achievements.gd): here, beside Steam, so they're there from the start.
 var achievements: Achievements
 ## How this session runs: "", "steam" or "code".
 var mode := ""
+
+
+func _process(delta: float) -> void:
+	if _going == null:
+		return
+	_going.poll()
+	_going_for -= delta
+	if _going_for <= 0.0 or _going.get_connection_status() == MultiplayerPeer.CONNECTION_DISCONNECTED:
+		_going.close()
+		_going = null
 
 
 func _ready() -> void:
@@ -72,6 +85,7 @@ func _ready() -> void:
 		quit.erase(id))
 	multiplayer.connected_to_server.connect(func() -> void:
 		last_join = _joining
+		last_join["id"] = multiplayer.get_unique_id()      # (who we were here: said again if we come back)
 		joined.emit())
 	multiplayer.connection_failed.connect(func() -> void:
 		_close()
@@ -129,13 +143,19 @@ func join(address: String, port := PORT) -> Error:
 
 
 ## Back aboard the boat we were dropped from (`last_join`), the same way we got there.
+## Who we were aboard rides along (`was`): back before the host's noticed we'd gone, they still know us by it
+## (vs/vs.gd: our own boat, not the emptier one).
 func rejoin() -> Error:
+	var was := int(last_join.get("id", 0))
+	var err := ERR_UNAVAILABLE
 	if last_join.has("lobby"):
 		join_steam(int(last_join["lobby"]))
-		return OK
-	if last_join.has("to"):
-		return join(str(last_join["to"]), int(last_join["port"]))
-	return ERR_UNAVAILABLE
+		err = OK
+	elif last_join.has("to"):
+		err = join(str(last_join["to"]), int(last_join["port"]))
+	if err == OK and was > 1:
+		_joining["was"] = was
+	return err
 
 
 func leave() -> void:
@@ -144,10 +164,15 @@ func leave() -> void:
 		last_join = {}          # (we left: nothing to get back to)
 	if in_session() and not multiplayer.is_server():
 		# (the host's told we're going on purpose, not dropped: no spot kept for us)
+		# (the goodbye first, then the line's let go once it's through: cut at once, the host hears the cut before
+		# the goodbye, and keeps a spot for us as if we'd dropped)
 		_bye.rpc_id(1)
 		var p := multiplayer.multiplayer_peer as ENetMultiplayerPeer
-		if p != null and p.host != null:
-			p.host.flush()
+		if p != null and p.get_peer(1) != null:
+			p.get_peer(1).peer_disconnect_later()
+			_going = p
+			_going_for = 1.0
+			multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	_close()
 	left.emit(was_host)
 
