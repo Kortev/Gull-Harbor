@@ -25,6 +25,11 @@ extends Node
 ## once it's won, the match's) numbers side by side and the winner stamped; everyone presses NEXT DAY (REMATCH), the
 ## screen fades to black, both boats are back at their berths, fresh weather from the host, and the countdown again.
 ##
+## A crewmate whose line drops mid-match: their boat carries on without them (coasting to a stop, her baits fishing),
+## everyone told who we're waiting on (crew/crew.gd), and when they join again they're back aboard her with the
+## match as it stands: the wins, both holds, the countdown or the race home, the card if it's up. Gone at the card:
+## it says they lost connection, and the rest can go on without them (NEXT DAY) or wait.
+##
 ## Dev and tests: --vs turns it on at the start (with --team=b, the host takes boat B).
 
 const BoatSide := preload("res://vs/side.gd")
@@ -127,29 +132,41 @@ func _ready() -> void:
 	Net.peer_joined.connect(func(id: int) -> void:
 		if not on or not multiplayer.is_server():
 			return
-		var n := [0, 0]
-		for t: int in teams.values():
-			n[t] += 1
-		teams[id] = 0 if n[0] <= n[1] else 1
+		# (back after a drop: their own boat, crew/crew.gd's word; anyone new, the boat with fewer aboard)
+		var was: Dictionary = ((sea.get("crew") as Node).get("back") as Dictionary).get(id, {})
+		if was.has("team"):
+			teams[id] = int(was["team"])
+		else:
+			var n := [0, 0]
+			for t: int in teams.values():
+				n[t] += 1
+			teams[id] = 0 if n[0] <= n[1] else 1
 		_switch.rpc_id(id, true, teams, result, wins)
 		_teams.rpc(teams)
+		_counting.rpc_id(id, count_end)
+		_homeward.rpc_id(id, home_by, home)
 		if card.up():
 			_card_open.rpc_id(id, card.data)
 			_send_states())
 	Net.peer_left.connect(func(id: int) -> void:
+		var away: Dictionary = (sea.get("crew") as Node).get("away")
+		if on and away.has(id) and teams.has(id):
+			(away[id] as Dictionary)["team"] = int(teams[id])     # (their boat kept for them)
 		teams.erase(id)
 		pressed.erase(id)
 		if on and card.up():
 			_send_states())
 	# (joining someone's boat: their skipper's word on VS from here; leaving or dropped: your own one boat)
-	Net.joined.connect(func() -> void: _switch(false, {}, [], [0, 0]))
+	Net.joined.connect(func() -> void:
+		card.drop()        # (a card kept up from a boat we were dropped from: gone, the host's word follows)
+		_switch(false, {}, [], [0, 0]))
 	Net.left.connect(func(_was_host: bool) -> void: _switch(false, {}, [], [0, 0]))
 	Net.dropped.connect(func(_reason: String) -> void:
 		# (the host's gone: the card stays up, saying so, with only the title left)
 		var keep := card.up()
 		if keep:
 			card.gone = true
-			card.states[1 - card.mine] = 3
+			card.states[1 - card.mine] = 4
 		_switch(false, {}, [], [0, 0], keep))
 
 
@@ -307,6 +324,9 @@ func _card_after(day: Array, winner: int) -> void:
 	var crewed := [false, false]
 	for t: int in teams.values():
 		crewed[t] = true
+	for w: Dictionary in ((sea.get("crew") as Node).get("away") as Dictionary).values():
+		if w.has("team"):
+			crewed[int(w["team"])] = true
 	_pending = {"decided": decided, "winner": (0 if int(wins[0]) >= MATCH else 1) if decided else winner,
 			"day": _days, "wins": wins.duplicate(), "crewed": crewed, "day_lb": _last.duplicate(),
 			"boats": _match.duplicate(true) if decided else day}
@@ -446,21 +466,27 @@ func _host_ready(who: int) -> void:
 	_send_states()
 
 
-## Host: each boat's crew on the card (0 deciding, 1 all pressed, 2 nobody ever aboard her, 3 they've left), to all.
+## Host: each boat's crew on the card (0 deciding, 1 all pressed, 2 nobody ever aboard her, 3 their line dropped and
+## we're waiting on them, 4 they've left), to all.
 func _send_states() -> void:
 	var states := [0, 0]
 	var crewed: Array = card.data.get("crewed", [true, true])
+	var lost := [false, false]
+	for w: Dictionary in ((sea.get("crew") as Node).get("away") as Dictionary).values():
+		if w.has("team"):
+			lost[int(w["team"])] = true
 	for i in 2:
 		var ids := teams.keys().filter(func(id: int) -> bool: return int(teams[id]) == i)
 		if ids.is_empty():
-			states[i] = 3 if bool(crewed[i]) else 2
+			states[i] = 3 if bool(lost[i]) else (4 if bool(crewed[i]) else 2)
 		else:
 			states[i] = 1 if ids.all(func(id: int) -> bool: return bool(pressed.get(id, false))) else 0
 	_say(&"_readied", [states, pressed.keys()])
 
 
+## Everyone there's pressed (a crew that's gone doesn't hold the rest up; someone has to be there and press).
 func _all_ready() -> bool:
-	return card.states.all(func(s: int) -> bool: return s == 1 or s == 2)
+	return card.states.all(func(s: int) -> bool: return s >= 1) and card.states.has(1)
 
 
 @rpc("authority", "call_local", "reliable")
@@ -473,7 +499,6 @@ func _card_open(d: Dictionary) -> void:
 func _readied(states: Array, ids: Array) -> void:
 	card.states = states
 	card.ready_ids = ids
-	card.gone = states.has(3)
 
 
 @rpc("authority", "call_local", "reliable")
