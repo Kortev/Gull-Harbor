@@ -313,6 +313,8 @@ func _input(e: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	var boat := sea.get("boat") as Node3D
+	if busy() and not _cam.current:
+		_cam.make_current()        # (a crew's player made aboard under the title takes its own eyes: not yet)
 	if up:
 		# the drift: out over the water off the pier's end, swinging slowly from side to side, looking back in at the
 		# boats and the harbour behind them
@@ -407,15 +409,16 @@ func _on_input(e: InputEvent) -> void:
 				_press()
 	elif e is InputEventKey and (e as InputEventKey).pressed:
 		var k := e as InputEventKey
-		if k.keycode == KEY_UP or k.keycode == KEY_W:
+		# (W and S are letters of a join code: typed, on the join page)
+		if k.keycode == KEY_UP or (k.keycode == KEY_W and _page != "join"):
 			_pick = posmod(_pick - 1, maxi(_items.size(), 1))
-		elif k.keycode == KEY_DOWN or k.keycode == KEY_S and _page != "join":
+		elif k.keycode == KEY_DOWN or (k.keycode == KEY_S and _page != "join"):
 			_pick = posmod(_pick + 1, maxi(_items.size(), 1))
 		elif k.keycode == KEY_ENTER or k.keycode == KEY_KP_ENTER:
 			_press()
 		elif k.keycode == KEY_ESCAPE:
 			if _page == "join":
-				_go("host_join")
+				_go("host_join" if _mode == "rivals" else "main")      # (as its BACK: from the first page, back there)
 			elif _page == "host_join":
 				_go("main")
 		elif _page == "join":

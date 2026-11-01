@@ -13,6 +13,8 @@ const Pad := preload("res://core/pad.gd")
 const SMALL := 14
 const BODY := 17
 const BIG := 21
+## How wide the fight's word under the crosshair can run (px: inside the narrowest screen, 1152).
+const TELL_W := 1100.0
 ## Line out when a fish is alongside (tuna/fight.gd's BOATSIDE).
 const BOATSIDE := 7.0
 const CREAM := Color(0.95, 0.93, 0.88)
@@ -87,8 +89,8 @@ func _ready() -> void:
 	_prompt.visible = false
 	_tell = _label(BIG, CREAM)
 	_tell.set_anchors_preset(Control.PRESET_CENTER)
-	_tell.position += Vector2(-360, 56)
-	_tell.size = Vector2(720, 30)
+	_tell.position += Vector2(-TELL_W * 0.5, 56)
+	_tell.size = Vector2(TELL_W, 30)
 	_tell.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(_tell)
 	_meter = Control.new()
@@ -104,8 +106,8 @@ func _ready() -> void:
 	add_child(_ring)
 	_note = _label(BODY, CREAM)
 	_note.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_note.position += Vector2(-300, 40)
-	_note.size = Vector2(600, 30)
+	_note.position += Vector2(-TELL_W * 0.5, 40)      # (as wide as the screen'll take: a long one stays centred)
+	_note.size = Vector2(TELL_W, 30)
 	_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(_note)
 	_tally = Control.new()
@@ -257,7 +259,13 @@ func _process(delta: float) -> void:
 ## it back (m/s, - while it takes line), `fresh`: the fish, 1 fresh .. 0 beat. `wear`: the line's wear on the hull,
 ## 0..1.
 func fight(tell: String, strain: float, arms := 1.0, line := -1.0, gain := 0.0, fresh := 1.0, wear := 0.0) -> void:
-	_tell.text = Settings.say(tell)
+	var said := Settings.say(tell)
+	if said != _tell.text:
+		_tell.text = said
+		# (a long one down a size, so it's all on the screen, centred)
+		var font := _tell.get_theme_font("font")
+		var fits := font.get_string_size(said, HORIZONTAL_ALIGNMENT_LEFT, -1, BIG).x <= TELL_W
+		_tell.add_theme_font_size_override("font_size", BIG if fits else BODY)
 	_tell.add_theme_color_override("font_color", _tell_colour(tell))
 	if line != _line or absf(gain - _gain) > 0.05 or absf(fresh - _fresh) > 0.01:
 		_line = line

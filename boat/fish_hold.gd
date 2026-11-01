@@ -96,6 +96,9 @@ var sale := {}
 var _next_id := 1
 var _deck := {}               # fish id -> its Tuna on deck
 var _sold_noted := false
+## In or out as this peer last saw it (the dock screen, the fade in): the host's head_in() and head_out() change
+## `docked` before their word comes back round, so it's this, not `docked`, the word's checked against.
+var _docked_seen := true
 var _heard := {}              # fish id -> [bled, iced] last time (_hear_work)
 ## Bleeding: how long the knife's held on a fish (s); the one you're bleeding (-1 none) and how far through.
 const BLEED_HOLD := 1.1
@@ -169,6 +172,7 @@ func _own_boat() -> void:
 	fish = []
 	sale = {}
 	docked = true
+	_docked_seen = true
 	_rebuild()
 	_dock_changed(true)
 	(sea.get("boat") as Node).call("use_kind", kind)
@@ -556,9 +560,10 @@ func _sync(state: Dictionary) -> void:
 	best = int(state["best"])
 	sale = state["sale"]
 	_next_id = int(state["next"])
-	var was := docked
+	var was := _docked_seen
 	_hear_work()
 	docked = bool(state.get("docked", docked))
+	_docked_seen = docked
 	if docked and not was and sea.has_method("arrive") and sea.get_parent() == get_tree().root:
 		sea.call("arrive")
 	box_open = bool(state.get("box", box_open))

@@ -89,8 +89,11 @@ var look_scale := 1.0
 var rod_lease_frame := -10
 var fight_mouse := Vector2.ZERO
 var cam_goal := Vector2(NAN, NAN)
-## At the wheel (boat/helm.gd): your feet stay put and the keys steer her instead.
+## At the wheel (boat/helm.gd): your feet stay put and the keys steer her instead. `_helm_to`: the spot at the wheel
+## you're stepping into (boat-local; INF: there), `_helm_t` how long you've been at it.
 var steering := false
+var _helm_to := Vector3.INF
+var _helm_t := 0.0
 ## In a seat (boat/chair.gd says: the fighting chair, a bench, the leaning post...), and which. On the way into it
 ## and back up off it you're carried there a step at a time (SIT_SPEED: nothing jumps); `_rise_to` is where you're
 ## getting up to (INF: not). `chair_k`: how far the rod's butt is down in the fighting chair's gimbal (0..1).
@@ -815,6 +818,7 @@ func place(local: Vector3, yaw: float, on: Node3D = null) -> void:
 	aloft = false
 	_tower_legs = []
 	_rise_to = Vector3.INF
+	_helm_to = Vector3.INF
 	_cap = CAP_OFF
 	body.position = local
 	body.velocity = Vector3.ZERO
@@ -1057,6 +1061,14 @@ func _walk(delta: float) -> void:
 		return
 	if steering:
 		body.velocity = Vector3.ZERO
+		if _helm_to != Vector3.INF:
+			# a step in to the wheel and round to face her bow, the way into a seat: nothing jumps
+			body.position = body.position.move_toward(_helm_to, SIT_SPEED * delta)
+			_helm_t += delta
+			if _helm_t < 1.2:
+				_yaw = lerp_angle(_yaw, 0.0, 1.0 - exp(-SIT_TURN * delta))
+			if body.position.distance_to(_helm_to) < 0.01 and _helm_t >= 1.2:
+				_helm_to = Vector3.INF
 		return
 	if seated and not is_instance_valid(sat_in):
 		seated = false            # (she's been rebuilt under you: the seat's gone)
@@ -1133,6 +1145,18 @@ func sit_in(s: Node3D) -> void:
 	sat_in = s
 	_sit_t = 0.0
 	_rise_to = Vector3.INF
+
+
+## The wheel's yours (boat/helm.gd, every peer): on her deck within a stride or two of it you step in to its spot
+## (`to`, boat-local) and turn to her bow; from anywhere else (a test, the dock) you're put there. A crewmate's copy
+## follows their own word.
+func take_wheel(to: Vector3) -> void:
+	if mode == DECK and frame == boat and not aloft and _cap == CAP_OFF 			and body.position.distance_to(to) < 4.0:
+		if is_multiplayer_authority():
+			_helm_to = to
+			_helm_t = 0.0
+		return
+	place(to, 0.0)
 
 
 ## Up out of your seat (the host's word, on every peer), to `to` (boat-local, on her deck) a step at a time.

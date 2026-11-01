@@ -212,6 +212,13 @@ func _ready() -> void:
 	_update_waves()
 
 
+## (the GPU sea's textures and shaders given back as the sea goes: back to the title, or quitting)
+func _exit_tree() -> void:
+	if _fft != null:
+		_fft.free_all()
+		_fft = null
+
+
 func _process(delta: float) -> void:
 	if follow_camera:
 		var cam := get_viewport().get_camera_3d()

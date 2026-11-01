@@ -65,7 +65,7 @@ const KINDS := {
 		"hold": 2, "wire": false,
 		"ahead": 11.0, "astern": 2.6, "spurt": 2.4, "back": 3.0, "coast": 4.5, "turn": 0.75,
 		"transom": Vector3(0.0, 0.0, 4.9), "house": 0.25, "engines": Vector3(0.0, 0.9, 4.7), "bow": Vector3(0.5, 0.45, -3.3),
-		"cabin_light": Vector3(0.0, 2.3, 0.4), "crown": Vector3(0.0, 2.75, 0.0),
+		"cabin_light": Vector3(0.0, 1.0, 0.55), "crown": Vector3(0.0, 2.75, 0.0),
 		"chum": Vector3(0.75, 0.46, 3.85), "jig": 2,
 		"price": 0, "fuel": 60,
 		"radar_bar": Vector3(0.0, 2.68, -0.3),
