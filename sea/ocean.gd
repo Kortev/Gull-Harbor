@@ -38,12 +38,16 @@ const CHOP_HS := 1.6
 ## the long wide ridges with sharp tops. BIG_HS of the weather's swell height is theirs (the FFT's swell tile carries
 ## the rest), and their crests together are BIG_STEEP sharp (1: just touching a point).
 const BIG_N := 7
-const BIG_LENGTHS := Vector2(30.0, 110.0)
+const BIG_LENGTHS := Vector2(45.0, 150.0)
 const BIG_HS := 0.55
 const BIG_STEEP := 0.78
 ## How sharp each tile's crests are: its water's typical squeeze, as a share of the sea's steepness (`_steep`, the
 ## weather's). A few times that where the waves line up, and the crest folds over and breaks (the foam).
 const TILE_STEEP := Vector3(0.5, 0.5, 0.2)
+## But never more sideways than a real sea: a bit of water on a wave goes round in a circle as big as the wave is high
+## (1), so a gentle sea's crests stay gentle rather than the whole surface sliding metres to and fro to sharpen them (at
+## up to 5 times that, a still boat saw the water slide about 2.8 m at 2.2 m/s while it rose and fell at 0.8).
+const MAX_CHOP := 1.0
 ## The shader's arrays hold 32: where there's no GPU sea it draws this many of the swell and the rest of the chop.
 const SHADER_SWELL := 20
 const SEA_SEED := 20261029
@@ -644,7 +648,9 @@ func _update_waves() -> void:
 	for i in _big.size():
 		var w: Array = _big[i]
 		var big := _wave(float(w[0]), big_a * shares[i], base + float(w[2]), float(w[3]))
-		big.append(BIG_STEEP / maxf(ka, 0.0001))
+		var sharp := BIG_STEEP / maxf(ka, 0.0001)
+		big.append(minf(sharp, MAX_CHOP))
+		big.append(sharp / minf(sharp, MAX_CHOP))
 		_waves.append(big)
 	for c in 2:
 		for w: Array in _spectrum.biggest[c]:
@@ -654,12 +660,19 @@ func _update_waves() -> void:
 			_waves.append(_wave(TAU / k, float(w[0]) * hs[c], atan2(-kv.y, -kv.x), PI * 0.5 - float(w[3])))
 	# each tile's crests as sharp as its share of the weather's steepness, every wave in it counted (the rolling waves
 	# here get their tile's: the GPU sea and these are the same waves)
+	# (the water moves no more than MAX_CHOP sideways, but the foam's still worked out from how sharp the crest would
+	# be at the full measure, `fold` times that: where it would fold over is where it breaks white)
 	var q := Vector3.ZERO
+	var fold := Vector3.ONE
 	for c in 3:
-		q[c] = _steep * TILE_STEEP[c] / maxf(_spectrum.steepness[c] * hs[c], 0.0001)
+		var sharp := _steep * TILE_STEEP[c] / maxf(_spectrum.steepness[c] * hs[c], 0.0001)
+		q[c] = minf(sharp, MAX_CHOP)
+		fold[c] = sharp / maxf(q[c], 0.0001)
 	for i in range(_big.size(), _waves.size()):
 		var w := _waves[i]
-		w.append(q[0] if i < _big.size() + SWELL_N else q[1])
+		var c := 0 if i < _big.size() + SWELL_N else 1
+		w.append(q[c])
+		w.append(fold[c])
 		_waves[i] = w
 	_q = q[0]
 	_flatten()
@@ -671,18 +684,20 @@ func _update_waves() -> void:
 			continue
 		var w := _waves[i]
 		wa.append(Vector4(w[0], w[1], w[2], w[3]))
-		wb.append(Vector4(w[4], w[5], w[6], 0.0))
+		wb.append(Vector4(w[4], w[5], w[6], w[7]))
 	_mat.set_shader_parameter("waves", wa)
 	_mat.set_shader_parameter("waves_b", wb)
 	_mat.set_shader_parameter("wave_count", wa.size())
 	_mat.set_shader_parameter("swell_count", _big.size() + mini(SHADER_SWELL, SWELL_N))
 	_mat.set_shader_parameter("big_count", _big.size())
 	_mat.set_shader_parameter("fft_gain", hs)
+	_mat.set_shader_parameter("fft_fold", fold)
 	# the surf: the bigger the swell, the bigger it breaks on the coast
 	surf_height = swell * 0.17
 	_mat.set_shader_parameter("surf_height", surf_height)
 	if _fft != null:
 		_fft.chops = PackedFloat32Array([q[0], q[1], q[2]])
+		_fft.folds = PackedFloat32Array([fold[0], fold[1], fold[2]])
 	_mat.set_shader_parameter("steep", _steep)
 	_mat.set_shader_parameter("swell", swell)
 	_mat.set_shader_parameter("whitecaps", whitecaps)
@@ -752,6 +767,7 @@ func _make_spectrum() -> void:
 		for c in 3:
 			_mat.set_shader_parameter("fft_a%d" % c, _fft.tex_a[c])
 			_mat.set_shader_parameter("fft_b%d" % c, _fft.tex_b[c])
+			_mat.set_shader_parameter("fft_f%d" % c, _fft.tex_f[c])
 		_mat.set_shader_parameter("fft_size", Vector3(Spectrum.CASCADES[0]["size"], Spectrum.CASCADES[1]["size"],
 				Spectrum.CASCADES[2]["size"]))
 		_mat.set_shader_parameter("fft_n", float(Spectrum.N))

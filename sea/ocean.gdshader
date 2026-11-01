@@ -97,6 +97,11 @@ uniform sampler2D fft_a2 : filter_linear, repeat_enable;
 uniform sampler2D fft_b0 : filter_linear, repeat_enable;
 uniform sampler2D fft_b1 : filter_linear, repeat_enable;
 uniform sampler2D fft_b2 : filter_linear, repeat_enable;
+// (and the foam each tile's left behind lately, ocean_fft.gd's f: the swell's and the chop's)
+uniform sampler2D fft_f0 : filter_linear, repeat_enable;
+uniform sampler2D fft_f1 : filter_linear, repeat_enable;
+// how much sharper each tile's crests are for the foam than the water's allowed to move (ocean.gd's MAX_CHOP)
+uniform vec3 fft_fold = vec3(1.0);
 uniform vec3 fft_size = vec3(1100.0, 233.0, 47.0);
 uniform vec3 fft_gain = vec3(1.0);
 uniform float fft_n = 256.0;
@@ -333,6 +338,7 @@ void fragment() {
 	float k = (1.0 - smoothstep(fade_start, fade_end, length(local.xz))) * calm_at(q);
 	float y = 0.0;
 	float jac = 0.0;
+	float jac_was = 0.0;
 	vec2 slope = vec2(0.0);
 	vec2 sh = shelter_at(q);
 	float g = group_at(q) * sh.y;
@@ -354,12 +360,18 @@ void fragment() {
 		y = tg.x * a0.z + tg.y * a1.z + tg.z * a2.z;
 		slope = vec2(tg.x * a0.w + tg.y * a1.w + tg.z * a2.w, tg.x * b0.x + tg.y * b1.x + tg.z * b2.x);
 		// the chop's crests break (thin, lacy, where they're squeezed hardest); the swell's broad tops only help them
-		float jxx = 1.0 + tg.y * b1.y + tg.z * b2.y;
-		float jzz = 1.0 + tg.y * b1.z + tg.z * b2.z;
-		float jxz = tg.y * b1.w + tg.z * b2.w;
-		float swell_squeeze = -tg.x * (b0.y + b0.z);
+		// (at the crests' full sharpness: the water sways no more than a real sea's, but where the crest would fold
+		// over is where it breaks)
+		vec2 tf = tg.yz * fft_fold.yz;
+		float jxx = 1.0 + tf.x * b1.y + tf.y * b2.y;
+		float jzz = 1.0 + tf.x * b1.z + tf.y * b2.z;
+		float jxz = tf.x * b1.w + tf.y * b2.w;
+		float swell_squeeze = -tg.x * fft_fold.x * (b0.y + b0.z);
 		// (scaled to read like the rolling waves' crest measure: where the tiles' crests line up it goes past 1)
 		jac = (1.0 - (jxx * jzz - jxz * jxz) + 0.45 * swell_squeeze) * fft_crest;
+		// and how hard it's been squeezed here lately: where a crest broke a moment ago, its foam still on the water
+		jac_was = (tg.y * texture(fft_f1, tile_uv(q, fft_size.y)).x
+				+ 0.45 * tg.x * texture(fft_f0, tile_uv(q, fft_size.x)).x) * fft_crest;
 	}
 	for (int i = 0; i < 32; i++) {
 		if (i >= wave_count || (fft_on && i >= big_count)) {
@@ -372,7 +384,8 @@ void fragment() {
 		float th = w.z * dot(w.xy, q) - b.x * wave_time + b.y;
 		float s = sin(th);
 		y += a * s;
-		jac += b.z * w.z * a * s;
+		jac += b.z * b.w * w.z * a * s;
+		jac_was += b.z * b.w * w.z * a * s;
 		slope += a * w.z * cos(th) * w.xy;
 	}
 	// the smooth surface's normal, blended with the flat facet: the PS1 facets stay, the sawtooth of long thin
@@ -416,7 +429,16 @@ void fragment() {
 			smoothstep(edge - 0.1, edge + 0.2, crest) * 0.6, far) * step(0.01, whitecaps);
 	if (fft_on) {
 		// (calm water breaks nowhere, only round what's in it: whitecaps come in with the wind)
-		foam *= mix(0.55, 0.95, smoothstep(edge, edge + 0.5, crest)) * smoothstep(0.26, 0.5, whitecaps);
+		// (a fair day's breeze puts the odd whitecap on the sea; a blow, plenty)
+		float caps = smoothstep(0.1, 0.45, whitecaps);
+		foam *= mix(0.55, 0.95, smoothstep(edge, edge + 0.5, crest)) * caps;
+		// and the white a crest left as it broke: where it broke a moment ago (ocean_fft.gd's f), torn into lace and
+		// thinning from its edges as it fades, staying on the water where it was made
+		float crest_was = jac_was * k / max(steep, 0.001);
+		float tear = texture(noise, qk * 0.13 + vec2(0.41, 0.67)).r;
+		float left = smoothstep(edge - 0.02, edge + 0.4, crest_was + (grain - 0.5) * 0.8)
+				* smoothstep(0.3, 0.6, tear + 0.35 * smoothstep(edge, edge + 0.6, crest_was));
+		foam = max(foam, left * 0.7 * caps * (1.0 - far * 0.6));
 	}
 	// in a blow, streaks of foam laid along the wind
 	vec2 wd = normalize(wind);
