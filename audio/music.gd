@@ -30,6 +30,8 @@ const LEVEL := {"title": 1.0, "calm": 0.85, "fish": 0.8, "race": 1.0, "sting": 1
 ## While the radio or a voice is on: everything down to this share; how long it holds after they stop (s); the
 ## level (dB) on their bus that counts as on.
 const DUCK := 0.55
+## Under the pause card (the world held still, ui/menu.gd), the music at this share.
+const PAUSED := 0.4
 const DUCK_HOLD := 0.6
 const DUCK_AT := -42.0
 const DUCK_BUSES := [&"Radio", &"Voice"]
@@ -250,6 +252,8 @@ func _ducking(delta: float) -> void:
 			on = true
 	_duck_for = DUCK_HOLD if on else maxf(_duck_for - delta, 0.0)
 	var want := DUCK if _duck_for > 0.0 else 1.0
+	if get_tree().paused:
+		want = minf(want, PAUSED)         # (the world held still under the pause card: the music on, quieter)
 	_duck = move_toward(_duck, want, delta * (1.6 if want < _duck else 0.4))
 
 

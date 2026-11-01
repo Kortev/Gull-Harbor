@@ -557,12 +557,12 @@ func _pose_body(delta: float) -> void:
 		p["fore_r"] = Vector3(1.3, 0.0, 0.0)
 		p["torso"] = Vector3(0.08, -0.25, 0.0)
 	elif steering:
-		# both hands on the wheel, working it as she turns
+		# both hands on the wheel, working it as she turns (low on its rim, elbows bent: not up in the dash's screens)
 		var steer := float(helm.get("steer")) if helm else 0.0
-		p["arm_l"] = Vector3(1.15 + steer * 0.3, 0.0, -0.05)
-		p["fore_l"] = Vector3(0.75, 0.0, 0.0)
-		p["arm_r"] = Vector3(1.15 - steer * 0.3, 0.0, 0.05)
-		p["fore_r"] = Vector3(0.75, 0.0, 0.0)
+		p["arm_l"] = Vector3(0.55 + steer * 0.2, 0.0, -0.12)
+		p["fore_l"] = Vector3(0.85, 0.0, 0.0)
+		p["arm_r"] = Vector3(0.55 - steer * 0.2, 0.0, 0.12)
+		p["fore_r"] = Vector3(0.85, 0.0, 0.0)
 		p["torso"] = Vector3(-0.04, steer * 0.12, 0.0)
 	if hands != null and not hands.stowed() and hands.shown_item() != "":
 		# something of the kit in your right hand, held out in front
@@ -1153,12 +1153,21 @@ func sit_in(s: Node3D) -> void:
 ## (`to`, boat-local) and turn to her bow; from anywhere else (a test, the dock) you're put there. A crewmate's copy
 ## follows their own word.
 func take_wheel(to: Vector3) -> void:
-	if mode == DECK and frame == boat and not aloft and _cap == CAP_OFF 			and body.position.distance_to(to) < 4.0:
+	if can_step_to(to):
 		if is_multiplayer_authority():
 			_helm_to = to
 			_helm_t = 0.0
 		return
 	place(to, 0.0)
+
+
+## Whether you could step straight to `to` (boat-local, on her deck): on her, on your feet, a stride or two off, nothing
+## in the way at chest height (the console, the leaning post, a bulkhead). Else being put there would be a jump.
+func can_step_to(to: Vector3) -> bool:
+	if mode != DECK or frame != boat or aloft or _cap != CAP_OFF or body.position.distance_to(to) >= 4.0:
+		return false
+	var up := Vector3(0.0, 0.9, 0.0)
+	return _ray(_deck_space(boat), body.position + up, to + up).is_empty()
 
 
 ## Up out of your seat (the host's word, on every peer), to `to` (boat-local, on her deck) a step at a time.

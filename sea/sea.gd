@@ -294,6 +294,11 @@ var _berth_to := Vector2.ZERO
 const BERTH := 2.5
 
 
+## How long the ease onto her berth has still to run (s; 0: none running).
+func berthing_left() -> float:
+	return BERTH - _berth_t if _berth_t >= 0.0 else 0.0
+
+
 func _berthing(delta: float) -> void:
 	if _berth_t < 0.0:
 		return

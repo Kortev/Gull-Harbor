@@ -170,6 +170,7 @@ func _build() -> void:
 			mi.get_parent().remove_child(mi)
 			mi.transform = t
 			visual.add_child(mi)
+	_upholster(visual)
 	chair = visual.get_node_or_null("chair") as Node3D
 	seats.clear()
 	if chair:
@@ -292,6 +293,23 @@ func _build() -> void:
 	_built.append(cabin)
 	_cabin = cabin
 	src.free()
+
+
+## The "rubber" in her model (the leaning post's pad and backrest, the cooler cushion, the wheel's rim) is near black:
+## right under your eyes at the wheel it read as a hole in the picture, a flat black slab. Lifted to a dark slate
+## vinyl, its pixels and its shading still there.
+const VINYL := Color(2.4, 2.6, 3.0)
+
+
+func _upholster(visual: Node3D) -> void:
+	for mi: Node in visual.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		for i in m.mesh.get_surface_count():
+			var sm := m.mesh.surface_get_material(i) as BaseMaterial3D
+			if sm != null and sm.resource_name == "rubber":
+				var v := sm.duplicate() as BaseMaterial3D
+				v.albedo_color = sm.albedo_color * VINYL
+				m.set_surface_override_material(i, v)
 
 
 ## The radar's bar on a little pedestal (a boat whose model hasn't one: the skiff's T-top).

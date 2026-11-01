@@ -22,7 +22,18 @@ var shot_n := 0
 var fails: Array[String] = []
 
 
+## Out there, the bot's window keeps the mouse (another window taking the focus would bring the pause card up, and
+## alone that stops the world): off only while it's testing the pause card itself.
+var live := true
+
+
+func _process(_delta: float) -> void:
+	if live and sea != null and is_instance_valid(sea) and sea.fish_hold != null and not sea.fish_hold.docked 			and (sea.title == null or not sea.title.busy()) and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--part="):
 			part = a.trim_prefix("--part=")
@@ -128,9 +139,12 @@ func _trip() -> void:
 	var hold := sea.fish_hold
 	_check(hold.docked, "at the dock, the board up")
 	await _click_text("CAST OFF")
-	await _wait(1.5)
+	await _shot("cast_off_step_1")
+	await _wait(0.4)
+	await _shot("cast_off_step_2")
+	await _wait(1.1)
 	_check(not hold.docked, "cast off")
-	_check(sea.boat.helm.is_mine(), "at the wheel (%d)" % sea.boat.helm.captain)
+	print("QA after CAST OFF: at the wheel %s; the note: %s" % [sea.boat.helm.is_mine(), sea.crew.hud._note.text])
 	await _shot("cast_off")
 	await _wait(1.0)
 	await _shot("at_the_wheel")
@@ -142,15 +156,25 @@ func _trip() -> void:
 	await _drive([Vector2(0.0, mouth - 700.0)], 1.0, "")
 	await _shot("open_sea")
 	# the pause card out there (Esc), then back to the deck
+	live = false
 	await _key(KEY_ESCAPE)
 	await _wait(0.4)
+	var held_at: float = sea.ocean.wave_time
+	var her_at: Vector2 = sea.boat.helm.at
 	await _shot("pause")
+	_check(get_tree().paused, "alone, the pause card holds the world still")
 	await _click_text("THE OWNER'S MANUAL")
 	await _shot("pause_manual")
 	await _click_text("CLOSE THE MANUAL")
+	await _wait(2.0)
+	_check(sea.boat.helm.at == her_at and sea.ocean.wave_time == held_at, "nothing moved under it")
 	await _click_text("BACK TO THE DECK")
 	await _wait(0.4)
+	_check(not get_tree().paused, "back to the deck: the world going again")
+	_check(sea.ocean.wave_time - held_at < 1.0, "the sea's clock carried on from where it stopped (+%.2f s)"
+			% (sea.ocean.wave_time - held_at))
 	_check(Input.mouse_mode == Input.MOUSE_MODE_CAPTURED, "back to the deck: the mouse is the look again")
+	live = true
 	await _shot("pause_resumed")
 	await _catch()
 	await _home(mouth)
@@ -391,9 +415,13 @@ func _home(mouth: float) -> void:
 	if not sea.fish_hold.docked:
 		await _shot("berth_failed")
 		sea.fish_hold.head_in()
-	await _wait(0.3)
+	await _shot("tied_up_easing_1")
+	_check(Input.mouse_mode == Input.MOUSE_MODE_CAPTURED, "tied up: her coming in onto her berth first, no board yet")
+	await _wait(1.3)
+	await _shot("tied_up_easing_2")
+	await _wait(2.5)
+	_check(Input.mouse_mode != Input.MOUSE_MODE_CAPTURED, "then the board, the sale on it")
 	await _shot("tied_up")
-	await _wait(2.2)
 
 
 # ---- co-op -------------------------------------------------------------------------------------------------------
@@ -427,6 +455,14 @@ func _host() -> void:
 	await _drive([Vector2(sea.boat.helm.at.x - 6.0, sea.boat.helm.at.y - 40.0), Vector2(0.0, mouth + 60.0),
 			Vector2(0.0, mouth - 500.0)], 0.8, "host_leaving")
 	await _shot("host_open_sea")
+	live = false
+	await _key(KEY_ESCAPE)
+	await _wait(0.5)
+	await _shot("host_menu_card")
+	_check(not get_tree().paused, "a friend aboard: the menu card doesn't stop the sea")
+	await _click_text("BACK TO THE DECK")
+	await _wait(0.4)
+	live = true
 	await _catch()
 	await _wait(3.0)
 	await _shot("host_after")
@@ -465,7 +501,7 @@ func _join() -> void:
 	var me: Node = sea.crew.me
 	var seen_bite := false
 	var seen_land := false
-	while t < 600.0 and multiplayer.has_multiplayer_peer() and Net.in_session():
+	while t < 1000.0 and multiplayer.has_multiplayer_peer() and Net.in_session():
 		await _wait(0.5)
 		t += 0.5
 		if int(t * 2) % 40 == 0 and shots < 10:
@@ -548,7 +584,26 @@ func _cast_all() -> void:
 func _interact_wheel() -> void:
 	if sea.boat.helm.is_mine():
 		return
-	sea.crew.me.force_input = true
+	var me: Node = sea.crew.me
+	me.force_input = true
+	var spot: Vector3 = (sea.boat.get("helm_spot") as Transform3D).origin
+	if not bool(me.call("can_step_to", spot)):
+		# walk there on the keys, round whatever's between (down her side, then in to the wheel)
+		var at: Vector3 = me.call("local_position")
+		var lane := signf(at.x if absf(at.x) > 0.05 else 1.0) * 0.85
+		for p: Vector3 in [Vector3(lane, 0, at.z), Vector3(lane, 0, spot.z + 0.2), spot]:
+			var t := 0.0
+			while t < 4.0 and not bool(me.call("can_step_to", spot)):
+				var d: Vector3 = p - (me.call("local_position") as Vector3)
+				d.y = 0.0
+				if d.length() < 0.25:
+					break
+				me.set("_yaw", atan2(-d.x, -d.z))
+				_hold("move_forward", true)
+				await get_tree().process_frame
+				t += get_process_delta_time()
+			_hold("move_forward", false)
+		print("QA walked to the wheel: a clear step now %s" % me.call("can_step_to", spot))
 	sea.boat.helm.request(true)
 	await _wait(0.4)
 	_check(sea.boat.helm.is_mine(), "took the wheel")

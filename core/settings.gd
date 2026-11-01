@@ -71,6 +71,8 @@ var _defaults := {}          # action -> [InputEvent], as the project has them
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS       # (the pad picked up under the pause card: its hints)
+	_cmd_size = _resolution_arg()
 	for b: String in BUSES:
 		if AudioServer.get_bus_index(b) < 0:
 			AudioServer.add_bus()
@@ -87,7 +89,25 @@ func _ready() -> void:
 		window_size = Vector2i(1152, 648)
 	else:
 		load_file()
+	if _cmd_size != Vector2i.ZERO:
+		window = "windowed"
 	apply()
+
+
+## --resolution WxH on the command line (Godot's own, for screenshots and tests): that window this run, whatever's
+## saved (and not saved over it).
+var _cmd_size := Vector2i.ZERO
+
+
+## (Godot keeps its own options out of get_cmdline_args(): the window it opened says. It opens at the project's
+## size unless told otherwise.)
+static func _resolution_arg() -> Vector2i:
+	if DisplayServer.get_name() == "headless":
+		return Vector2i.ZERO
+	var opened := DisplayServer.window_get_size()
+	var project := Vector2i(int(ProjectSettings.get_setting("display/window/size/viewport_width", 1152)),
+			int(ProjectSettings.get_setting("display/window/size/viewport_height", 648)))
+	return opened if opened != project and opened.x > 0 else Vector2i.ZERO
 
 
 ## The game to the background: the mouse let go (the pause card comes up, ui/menu.gd), not left captured behind it.
@@ -204,6 +224,7 @@ func set_window(mode: String, size := Vector2i.ZERO) -> void:
 	window = mode if WINDOWS.has(mode) else "windowed"
 	if size != Vector2i.ZERO:
 		window_size = size
+		_cmd_size = Vector2i.ZERO        # (picked on the page: that, now)
 	_apply_display()
 	changed.emit()
 
@@ -241,7 +262,8 @@ func _apply_display() -> void:
 		DisplayServer.window_set_mode(want)
 	if want == DisplayServer.WINDOW_MODE_WINDOWED:
 		var screen := DisplayServer.screen_get_usable_rect(DisplayServer.window_get_current_screen())
-		var s := Vector2i(mini(window_size.x, screen.size.x), mini(window_size.y, screen.size.y))
+		var size := _cmd_size if _cmd_size != Vector2i.ZERO else window_size
+		var s := Vector2i(mini(size.x, screen.size.x), mini(size.y, screen.size.y))
 		if DisplayServer.window_get_size() != s:
 			DisplayServer.window_set_size(s)
 			DisplayServer.window_set_position(screen.position + (screen.size - s) / 2)
