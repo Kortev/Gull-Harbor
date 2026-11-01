@@ -102,7 +102,7 @@ uniform vec3 fft_gain = vec3(1.0);
 uniform float fft_n = 256.0;
 uniform float fft_crest = 1.3;
 
-// The boat's wake, painted on the water (ocean.gd's add_wake: a trail of points she leaves, world x, z, the wave time
+// The boat's wake, painted on the water (ocean.gd's wake_at: a trail of points she leaves, world x, z, the wave time
 // she was there, how hard she was going 0..1): churned white right behind her, two arms of foam spreading out in a
 // V at the Kelvin angle, both thinning and tearing up as they age. And splashes (add_splash: x, z, when, how big): a
 // ring of foam opening out and a white patch where it went in.

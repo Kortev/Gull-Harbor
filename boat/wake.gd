@@ -1,6 +1,6 @@
 extends Node3D
 ## Her going, seen, heard and felt (a child of boat/boat.gd): the engines' rumble rising with the throttle, her wake
-## painted on the water behind her (sea/ocean.gd's add_wake: the churn, the V's arms spreading out, riding every
+## painted on the water behind her (sea/ocean.gd's wake_at: the churn, the V's arms spreading out, riding every
 ## wave), the water churning white astern of the transom when the screws bite, spray thrown off her bow at speed,
 ## and backing down hard, the sea slopping in over the transom. All of it from the helm's word
 ## (boat/helm.gd: her speed and throttle), so every peer sees and hears the same.
@@ -12,7 +12,6 @@ var boat: Node3D              # boat/boat.gd
 ## Boat-local, from her kind (boat/kinds.gd): her transom (where the wash boils up), her engines, her bow's flare.
 var _transom := Vector3(0.0, 0.0, 7.3)
 var _wash: GPUParticles3D
-var _wake_in := 0.0
 var _spray: Array[GPUParticles3D] = []
 var _over: GPUParticles3D
 var _engine: Node
@@ -74,15 +73,14 @@ func _process(delta: float) -> void:
 	var work := absf(gas)
 	Sfx.level(_engine, 0.3 + 0.7 * work, 0.55 + 0.4 * work + 0.02 * going)
 	Sfx.level(_rumble, 0.15 + 0.35 * work, 0.7 + 0.3 * work)
-	# the wake: a point of it every few metres she goes (and every so often when she's slow), painted on the water
+	# the wake: her stern's spot every frame, painted on the water (the churn starts right at her transom and the
+	# trail grows with her, not a stretch at a time)
 	var stern := boat.global_transform * _transom
 	stern.y = float(ocean.call("height_at", stern)) + 0.05
-	_wake_in -= delta
 	# (the sea paints one trail: VS, the boat you're on; two boats' points in one trail would streak between them)
 	var follow: Variant = ocean.get("follow")
-	if _wake_in <= 0.0 and (follow == null or follow == boat):
-		_wake_in = clampf(2.5 / maxf(going, 0.5), 0.12, 0.6)
-		ocean.call("add_wake", stern, clampf(going / 8.0, 0.0, 1.0) if going > 0.3 else 0.0)
+	if follow == null or follow == boat:
+		ocean.call("wake_at", stern, clampf(going / 8.0, 0.0, 1.0))
 	# the screws biting: white water boiling up astern of her
 	_wash.global_position = stern + boat.global_basis.z * 0.6
 	_wash.emitting = work > 0.15
@@ -159,6 +157,9 @@ func _particles(amount: int, life: float, upright: bool, dir: Vector3, spread: f
 	p.amount = amount
 	p.lifetime = life
 	p.local_coords = false
+	# (stepped every frame she's drawn, not 30 times a second: thrown off a boat doing 10 m/s, a 30 Hz step leaves
+	# them in clumps a third of a metre apart)
+	p.fixed_fps = 0
 	p.emitting = false
 	p.process_material = pm
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF

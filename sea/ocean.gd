@@ -552,24 +552,41 @@ func _surf_at(p: Vector2, t: float, sz := NAN) -> Vector3:
 
 ## Her wake: a trail of points she leaves (world x, z), each with the wave time and how hard she was going (0..1),
 ## the newest first; the shader paints the churn and the V's arms from them. And splashes: rings of foam.
+## The first point is live: it's wherever her stern is this frame (wake_at, every frame), so the churn starts right at
+## her transom and grows with her, never a stretch behind and catching up. The rest are laid down every WAKE_STEP s of
+## wave time behind it, spaced so the whole trail outlasts the shader's wake_life (26 s): the oldest point's long faded
+## when it's dropped, so the tail never pops off either.
 const WAKE_POINTS := 64
+const WAKE_STEP := 0.42
 var _wake := PackedVector4Array()
+var _wake_lo := Vector2(INF, INF)
+var _wake_hi := Vector2(-INF, -INF)
 var _splashes := PackedVector4Array()
 var _splash_next := 0
 
 
-func add_wake(at: Vector3, power: float) -> void:
-	_wake.insert(0, Vector4(at.x, at.z, wave_time, clampf(power, 0.0, 1.0)))
-	if _wake.size() > WAKE_POINTS:
-		_wake.resize(WAKE_POINTS)
+## Her stern's here now (world), going this hard (0..1): every frame.
+func wake_at(at: Vector3, power: float) -> void:
+	var head := Vector4(at.x, at.z, wave_time, clampf(power, 0.0, 1.0))
+	# (moved somewhere else entirely: moored, or another boat followed: a fresh trail, not a streak across the sea)
+	if not _wake.is_empty() and Vector2(_wake[0].x - head.x, _wake[0].y - head.y).length() > 40.0:
+		_wake.clear()
+	if _wake.size() < 2 or wave_time - _wake[1].z >= WAKE_STEP or wave_time < _wake[1].z:
+		# (lay the head down where it is, and a new live head starts from it)
+		_wake.insert(0, head)
+		if _wake.size() > WAKE_POINTS:
+			_wake.resize(WAKE_POINTS)
+		_wake_lo = Vector2(INF, INF)
+		_wake_hi = Vector2(-INF, -INF)
+		for i in range(1, _wake.size()):
+			_wake_lo = _wake_lo.min(Vector2(_wake[i].x, _wake[i].y))
+			_wake_hi = _wake_hi.max(Vector2(_wake[i].x, _wake[i].y))
+		_mat.set_shader_parameter("wake_count", _wake.size())
+	_wake[0] = head
 	_mat.set_shader_parameter("wake_pts", _wake)
-	_mat.set_shader_parameter("wake_count", _wake.size())
 	# (a circle round the lot, so the rest of the sea doesn't look through it)
-	var lo := Vector2(INF, INF)
-	var hi := Vector2(-INF, -INF)
-	for w in _wake:
-		lo = lo.min(Vector2(w.x, w.y))
-		hi = hi.max(Vector2(w.x, w.y))
+	var lo := _wake_lo.min(Vector2(head.x, head.y))
+	var hi := _wake_hi.max(Vector2(head.x, head.y))
 	var mid := (lo + hi) * 0.5
 	_mat.set_shader_parameter("wake_bound", Vector3(mid.x, mid.y, (hi - lo).length() * 0.5 + 50.0))
 
