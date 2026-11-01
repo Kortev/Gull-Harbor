@@ -35,12 +35,18 @@ const CHAPTERS := [
 		+ "Only a bait out in front of it gets eaten.\n\n"
 		+ "Your baits trail behind you: cut across ahead of it and drag them through its path, run alongside just "
 		+ "ahead of it at its pace, or stop in its way and cast. Nothing bites over 12 knots."],
-	["5. Bait", "Tuna take ONLY A LIVE MACKEREL. No lures. Every boat has a live well: a mackerel on every hook "
-		+ "and 4 more in the well each trip (8 at most).\n\n"
-		+ "A mackerel tires out in 10 minutes and gets a quarter of the bites: bait in hand (5), E on the rod "
-		+ "for a fresh one from the well, then cast.\n\n"
-		+ "Well empty? Jig more: the jig rod (3), stopped, rod out over the rail. Click to drop it, tap to work "
-		+ "it, tap on the knock, hold to wind it up.\n\n"
+	["5. Bait", "Tuna want A LIVE MACKEREL. No lures. Every boat has a live well, a mackerel in it for every "
+		+ "hook and 4 more each trip (8 at most). The hooks go out bare: you bait them.\n\n"
+		+ "Open the well (E), E again nets one out. E on a rod with its line in: the hook comes up to it. "
+		+ "Click as the point's at its nose, just ahead of the eyes. A bit off and it swims crooked (half the "
+		+ "bites); back through the eyes and it's dead. A dead one still gets taken, now and then.\n\n"
+		+ "Then send it out: pick the rod up, hold left mouse and let go to cast, or hold right mouse to let it "
+		+ "back off the stern (let go to thumb it). Q puts the rod in its holder to troll.\n\n"
+		+ "A mackerel tires out in 10 minutes. Wind it in (left mouse, rod in your hands) and put a fresh one on.\n\n"
+		+ "Well empty? Jig more: the jig rod (3), stopped, rod out over the rail. Click to open the spool, click "
+		+ "to thumb it: the line's a colour every 10 m, and they're down where the green goes out. Tap to work "
+		+ "it, tap on the knock, hold to wind it up, click at the well to swing it in. Full well: it goes on ice "
+		+ "for dead bait.\n\n"
 		+ "Chum (the transom bucket, 24 scoops a trip): a slick pulls schools from about 450 m and keeps them "
 		+ "while you keep it coming, a scoop a minute or so."],
 	["6. The fight", "Reel screams: grab the rod (E). Anyone can, and anyone can take over.\n\n"
@@ -56,7 +62,7 @@ const CHAPTERS := [
 		+ "Backing down (S) wins line back fast.\n\n"
 		+ "If it goes UNDER her: out of gear. W or S while it's under and the props cut the line. Steering's "
 		+ "fine.\n\n"
-		+ "Reel the other baits in (E on each rod) or a running fish tangles them."],
+		+ "Get the other baits in (pick each rod up, wind) or a running fish tangles them."],
 	["8. Landing it", "At about 7 m of line it's alongside.\n\n"
 		+ "The big boat: wire it first (hold E at the tuna door). Then the harpoon off the port rack: hold left "
 		+ "mouse to wind up (the dots show where it comes down), let go to throw. It swims while the harpoon "

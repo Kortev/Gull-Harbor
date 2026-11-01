@@ -18,7 +18,8 @@ func _ready() -> void:
 	sea.fish_hold.head_out("sportfisher")           # (off the dock: nothing bites there)
 	await get_tree().process_frame
 	for r in sea.rods.rods:
-		sea.rods.host_cast(r.index)                 # (the crew cast every bait out: tests/cast_test.tscn)
+		sea.rods._baited(r.index, sea.rods._now(), true)     # (the crew bait up: tests/bait_test.tscn)
+		sea.rods.host_cast(r.index)                 # (and cast every bait out: tests/cast_test.tscn)
 	for r in sea.rods.rods:
 		while sea.rods.flying(r.index):
 			await get_tree().process_frame          # (and they've landed)

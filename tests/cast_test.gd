@@ -1,8 +1,10 @@
 extends Node
-## Casting the baits by hand (rods/rods.gd): she heads out with every line in and a bait on; pick a rod up, hold left
-## mouse to wind up and let go, and the bait flies out where you look, as far as you wound it, and lands; holding
-## left mouse with it out winds it back in; a fish takes the bait off the hook, and a bait in your hands (E on the
-## rod) puts a fresh one on. Run: godot --headless --fixed-fps 30 --path . res://tests/cast_test.tscn
+## Sending the baits out by hand (rods/rods.gd): she heads out with every line in and the hooks bare (a bare hook won't
+## cast); baited, pick a rod up, hold left mouse to wind up and let go, and the bait flies out where you look, as far
+## as you wound it, and lands; holding left mouse with it out winds it back in; a fish takes the bait off the hook
+## and the slack line lies out till someone winds it in (nothing winds itself); a mackerel in your fist (E on the rod,
+## its line in) goes on; and holding right mouse lets one back off the stern, the line paying off with the clicker, till
+## you let go and it's fished there. Run: godot --headless --fixed-fps 30 --path . res://tests/cast_test.tscn
 
 const Sea := preload("res://sea/sea.gd")
 const Rods := preload("res://rods/rods.gd")
@@ -41,9 +43,8 @@ func _ready() -> void:
 	await _wait(0.3)
 	var all_in := true
 	for r in rods.rods:
-		all_in = all_in and r.bait_in and r.baited
-	_check(all_in, "heading out: every line in, a bait on every hook")
-	_check(rods.bite_odds(0) == 0.0, "nothing bites a bait hanging off the rod tip")
+		all_in = all_in and r.bait_in and not r.baited
+	_check(all_in, "heading out: every line in, every hook bare")
 	var me: Node3D = sea.crew.me
 	me.force_input = true
 	# face out over her starboard quarter
@@ -52,6 +53,13 @@ func _ready() -> void:
 	await _wait(0.1)
 	_check(rods.held_by(1) == rods.rods[0], "picked the rod up")
 	var r: Node = rods.rods[0]
+	Input.action_press("use_primary")
+	await _wait(0.4)
+	_check(r.wind == 0.0 and r.bait_in, "a bare hook: nothing to cast")
+	Input.action_release("use_primary")
+	await get_tree().process_frame
+	rods._baited(0, rods._now(), true)        # (rods/rig.gd hooks one on: tests/bait_test)
+	_check(rods.bite_odds(0) == 0.0, "nothing bites a bait hanging off the rod tip")
 	# wind up: hold left mouse
 	Input.action_press("use_primary")
 	await _wait(0.5)
@@ -109,32 +117,69 @@ func _ready() -> void:
 	rods.strike(0, 120.0)
 	_check(r.hooked and not r.baited, "a fish on: it's got the bait")
 	rods._host_off(0, Rods.WHY["pulled"])
-	_check(not r.bait_in and r.auto_in == 1, "the hook pulled: the slack line's wound in, the whole way")
-	for k in 60:
-		if r.bait_in:
-			break
-		await get_tree().create_timer(0.25).timeout
-	_check(r.bait_in and not r.baited, "in, with a bare hook")
-	rods.host_cast(0)
-	await _flown(rods, 0)
-	_check(rods.bite_odds(0) == 0.0, "nothing takes a bare hook")
-	# a bait in your hands, E on the rod: a fresh one on, the line in for it
-	me.hands.pick("bait")
-	_check(str(r.call("interact_prompt", me)) == "Bait it", "with a bait in your hands the rod wants it")
-	rods.request_bait(0)
-	await get_tree().process_frame
-	_check(not r.bait_in and r.auto_in == 2, "its line comes in first (wound in, the whole way)")
-	for k in 40:
-		if r.bait_in:
-			break
-		await get_tree().create_timer(0.5).timeout
-	_check(r.bait_in and r.baited and rods.freshness(0) > 0.99, "baited fresh, line in to cast again")
-	me.hands.pick("bait")
+	var lying: float = r.out
+	await _wait(1.5)
+	_check(not r.bait_in and r.auto_in == 0 and absf(r.out - lying) < 0.01,
+			"the hook pulled: the slack line lies out there, nobody winding it (%.0f m)" % r.out)
+	# a mackerel in your fist: the line has to come in first, by hand
+	me.hands.carry("live")
+	_check(str(r.call("interact_prompt", me)).begins_with("Wind it in first"), "a bait in your fist, the line out: "
+			+ "wind it in first (%s)" % r.call("interact_prompt", me))
+	me.hands.carry("")
 	rods.request_grab(0)
+	await _wait(0.1)
+	var crank0: float = r.crank
+	var out0: float = r.out
+	Input.action_press("use_primary")
+	await _wait(1.0)
+	var turns: float = (r.crank - crank0) / TAU
+	_check(absf(turns - (out0 - r.out) / r.PER_TURN) < 0.3, "the crank goes round with the line it brings in "
+			+ "(%.1f turns for %.1f m)" % [turns, out0 - r.out])
+	await _wait(r.out / Rods.REEL_SPEED + 0.6)
+	Input.action_release("use_primary")
 	await get_tree().process_frame
+	_check(r.bait_in and not r.baited, "wound in by hand, a bare hook")
+	rods.request_return(0)
+	await _wait(0.5)
+	me.place(Vector3(0.0, float(sea.boat.spec["deck"]) + 0.05, float(rods.stern.z) - 1.2), 0.0)
+	await _wait(0.1)
+	me.hands.carry("live")
+	_check(str(r.call("interact_prompt", me)) == "Hook it on", "with it in, the rod wants the bait")
+	(r._grab as Node).call("interact", me)
+	for k in 90:
+		if rods.rig.phase == "aim":
+			break
+		await get_tree().process_frame
+	rods.rig.point = rods.rig.NOSE
+	rods.rig.press()
+	for k in 90:
+		if r.baited:
+			break
+		await get_tree().process_frame
+	_check(r.bait_in and r.baited and rods.freshness(0) > 0.99, "hooked on fresh, line in to send out again")
+	rods.request_grab(0)
+	await _wait(0.5)
 	rods.cast_mine(0.5)
 	await _flown(rods, 0)
 	_check(rods.bite_odds(0) > 0.0, "and out it goes again")
+	# letting one back: right mouse, the spool open
+	Input.action_press("use_primary")
+	await _wait(short / Rods.REEL_SPEED + 3.0)
+	Input.action_release("use_primary")
+	await get_tree().process_frame
+	_check(r.bait_in, "(wound in again)")
+	Input.action_press("use_secondary")
+	await _wait(0.5)
+	_check(r.letting and not r.bait_in, "right mouse: thumb off, the bait dropped over")
+	await _wait(3.0)
+	var let_out: float = r.out
+	_check(let_out > 2.0 and r.noise.clicks > 0.0, "it goes back, taking line, the clicker going (%.1f m)" % let_out)
+	_check(rods.bite_odds(0) == 0.0, "(nothing takes it while it's going back)")
+	Input.action_release("use_secondary")
+	await _wait(0.2)
+	_check(not r.letting and rods.bite_odds(0) > 0.0, "let go: thumbed, it's fishing there")
+	var spot_d := Vector2(r.spot.x - rods.stern.x, r.spot.z - rods.stern.z).length()
+	_check(spot_d < let_out + 3.0, "where it got to (%.0f m back)" % spot_d)
 	for f in fails:
 		print("FAIL ", f)
 	print("CAST TEST ", "PASSED" if fails.is_empty() else "FAILED")

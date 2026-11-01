@@ -6,7 +6,8 @@ extends Control
 ## pick.
 
 const Kit := preload("res://crew/kit.gd")
-const NAMES := {"knife": "Knife", "gaff": "Gaff", "jig": "Jig rod", "scoop": "Chum scoop", "bait": "Bait"}
+const NAMES := {"knife": "Knife", "gaff": "Gaff", "jig": "Jig rod", "scoop": "Chum scoop", "bait": "Live mackerel",
+		"dead": "Dead mackerel"}
 const CELL := 48.0
 const GAP := 6.0
 ## Each item drawn 16 px square, doubled: a character a pixel, from PALETTE ("." left clear). The scoop's chum ("m",
@@ -120,6 +121,8 @@ func _draw() -> void:
 		draw_rect(r, Color(1, 1, 1, 0.2 * a).lerp(Color(1.0, 0.86, 0.5, 0.95 * a), up), false, 2.0)
 		var tex := _icons["scoop_full" if it == "scoop" and bool(hands.get("scoop_full")) else it] as Texture2D
 		var tint := Color(0.62, 0.66, 0.7, 0.75 * a).lerp(Color(1, 1, 1, a), up)
+		if it == "bait" and str(hands.call("carrying")) == "dead":
+			tint *= Color(0.6, 0.58, 0.56)        # (a dead one in your fist: dull)
 		draw_texture_rect(tex, Rect2(r.position + Vector2(8, 8), Vector2(32, 32)), false, tint)
 		# its key, small in the corner; how many you've got where that matters (chum scoops left, live bait in the well)
 		var font := get_theme_default_font()
@@ -133,7 +136,8 @@ func _draw() -> void:
 					Color(1, 1, 1, 0.85 * a))
 	# what you've just picked, named once over the bar (it fades with it)
 	if held != "" and _shown > 0.0:
-		draw_string(get_theme_default_font(), Vector2(-w * 0.5, -14), str(NAMES.get(held, held)),
+		var named := str(hands.call("net_item"))
+		draw_string(get_theme_default_font(), Vector2(-w * 0.5, -14), str(NAMES.get(named, named)),
 				HORIZONTAL_ALIGNMENT_CENTER, w, 14, Color(1.0, 0.92, 0.7, clampf(_shown / 0.6, 0.0, 1.0)))
 	# winding up: how hard it'll go (the scoop's throw, or a rod's cast: rods.gd's wind on your rod)
 	var wind := float(hands.get("wind"))

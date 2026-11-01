@@ -7,7 +7,8 @@ Each item is its own .glb in ../crew/gear/, its origin where the right hand grip
   gaff.glb     a stout aluminium gaff pole with two foam grips and a big stainless hook; empties "grip_l" (where
                the left hand holds it) and "hook" (the point)
   jig.glb      a short, stiff jig rod (1.45 m): cork grips, a little blue reel on top, a thin blank with its guides; empties "tip"
-               (where the line leaves) and "grip_l"; "rig" (the jig hanging off the tip on a bit of line: a string
+               (where the line leaves), "grip_l" and "knob" (the crank's knob: the left hand); "crank" (turns
+               on its axle); "rig" (the jig hanging off the tip on a bit of line: a string
                of feathered hooks and a chrome sinker, its origin at the tip so it can swing); "blank" (the part
                that bends, from the foregrip to the tip)
   scoop.glb    a chum scoop: a blue plastic cup on a long wooden handle; "Chum" (a scoopful in the cup, hidden
@@ -226,9 +227,15 @@ def jig(coll):
         b.cylinder((s * 0.018, rc[1], rc[2]), (s * 0.024, rc[1], rc[2]), 0.026, "reel", seg=10)
     b.cylinder((-0.018, rc[1], rc[2]), (0.018, rc[1], rc[2]), 0.021, "line", seg=10)
     b.box((-0.007, -0.016, 0.008), (0.007, 0.034, 0.016), "black")
-    b.beam((0.024, rc[1], rc[2]), (0.03, rc[1] - 0.024, rc[2] - 0.01), 0.007, 0.005, "black")
-    b.cylinder((0.03, rc[1] - 0.024, rc[2] - 0.01), (0.044, rc[1] - 0.024, rc[2] - 0.01), 0.007, "black", seg=6)
     butt = finish(b, coll)
+    # the crank, its own piece on the left (a left-hand wind: the right hand holds the rod), turning on its axle as
+    # line comes in (crew/hands.gd)
+    c = psx.Mesh("crank", TILES)
+    axle = (-0.024, rc[1], rc[2])
+    c.cylinder(axle, (-0.03, rc[1], rc[2]), 0.004, "hook", seg=6)
+    c.beam((-0.03, rc[1], rc[2]), (-0.03, rc[1] - 0.026, rc[2]), 0.007, 0.005, "black")
+    c.cylinder((-0.03, rc[1] - 0.026, rc[2]), (-0.046, rc[1] - 0.026, rc[2]), 0.007, "black", seg=6)
+    crank = finish(c, coll, origin=axle)
     k = psx.Mesh("blank", TILES)
     k.cylinder((0, 0.2, 0), (0, JIG_TIP, 0), 0.0085, "jblank", seg=6, r1=0.0028)
     # little guides on top, smaller toward the tip, the line running through them
@@ -250,7 +257,8 @@ def jig(coll):
         g.beam((s * 0.026, tip[1], z - 0.042), (s * 0.026, tip[1] + 0.008, z - 0.05), 0.002, 0.002, "hook")
     g.sphere((0.0, tip[1], -0.38), 0.011, "lead", seg=6, rings=4, squash=(1.0, 1.0, 1.9))
     rig = finish(g, coll, origin=tip)
-    return [butt, blank, rig, psx.empty("tip", coll, tip), psx.empty("grip_l", coll, (0.0, 0.13, 0.0))]
+    return [butt, crank, blank, rig, psx.empty("tip", coll, tip), psx.empty("grip_l", coll, (0.0, 0.13, 0.0)),
+            psx.empty("knob", coll, (-0.038, rc[1] - 0.026, rc[2]))]
 
 
 def scoop(coll):

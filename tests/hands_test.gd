@@ -77,9 +77,21 @@ func _jig() -> void:
 	await _stand("jig")
 	me.hands.press(true)
 	me.hands.press(false)
-	_check(jig.state == "down", "at the rail, left mouse lets the jig go")
-	await _wait(1.5)
-	_check(jig.depth > Jig.KNOCK_DEEP, "it sinks (%.1f m)" % jig.depth)
+	_check(jig.state == "free", "at the rail, left mouse opens the spool: the jig goes")
+	await _wait(1.0)
+	var d1 := jig.depth
+	await _wait(0.5)
+	_check(jig.state == "free" and jig.depth > d1 and jig.depth > 0.5, "it sinks, line going off (%.1f m)" % jig.depth)
+	var waited := 0.0
+	while jig.depth < Jig.SCHOOL.x + 1.0 and waited < 10.0:
+		await get_tree().process_frame
+		waited += get_process_delta_time()
+	me.hands.press(true)
+	me.hands.press(false)
+	var stopped := jig.depth
+	await _wait(0.5)
+	_check(jig.state == "down" and absf(jig.depth - stopped) < 0.3, "click again: thumbed, it stops there (%.1f m)"
+			% jig.depth)
 	# a knock, too slow to strike
 	jig.set("_knock_in", 0.01)
 	await _frames(3)
@@ -95,14 +107,30 @@ func _jig() -> void:
 	_check(jig.state == "on", "a tap on the knock sets the hook")
 	# wind it up: hold left mouse
 	var well := hold.well
+	var crank0 := jig.crank
+	var line0 := jig.line
 	Input.action_press("use_primary")
 	me.hands.press(true)
-	await _wait(Jig.DEEP / Jig.WIND + 0.8)
+	await _wait(jig.line / Jig.WIND + 0.8)
 	Input.action_release("use_primary")
 	me.hands.press(false)
 	await _frames(2)
-	_check(jig.state == "up" and jig.depth == 0.0, "held: wound all the way up")
-	_check(hold.well == well + 1, "a mackerel swung aboard, into the well (%d)" % hold.well)
+	_check(jig.state == "hang" and jig.line <= Jig.RIG + 0.001, "held: wound all the way up, the mackerel off the tip")
+	_check(absf((jig.crank - crank0) - (line0 - Jig.RIG) / Jig.PER_TURN * TAU) < 0.05,
+			"the crank went round with every bit of it (%.1f turns)" % ((jig.crank - crank0) / TAU))
+	_check(hold.well == well, "not in the well till it's swung in")
+	me.hands.press(true)
+	me.hands.press(false)
+	_check(jig.state == "hang", "not at the well: it stays on")
+	var mouth: Vector3 = sea.boat.live_well.mouth()
+	var local: Vector3 = sea.boat.global_transform.affine_inverse() * mouth
+	me.place(Vector3(local.x, float(sea.boat.spec["deck"]) + 0.05, local.z - 1.2), 0.0)
+	await _frames(3)
+	me.hands.press(true)
+	me.hands.press(false)
+	_check(jig.state == "swing", "at the well: swung over to it")
+	await _wait(Jig.SWING + 0.3)
+	_check(jig.state == "up" and hold.well == well + 1, "shaken off into the well (%d)" % hold.well)
 	me.hands.pick("")
 
 

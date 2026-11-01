@@ -88,8 +88,10 @@ var day := 1
 var run_fish := 0
 var run_biggest := 0.0
 var best_run := 0
-## This trip's live mackerel in the well, and scoops of chum left.
+## This trip's live mackerel in the well, the dead ones on ice in the bait box beside it (a mackerel that died on the
+## hook or was swung aboard with the well full: still bait, a poor one), and scoops of chum left.
 var well := 0
+var dead := 0
 var chum := 0
 var _dusk_noted := 0
 ## The last sale, shown till she heads back out: {lines: [[kg, grade, dollars]], total, bank, best}; empty: none.
@@ -473,6 +475,7 @@ func head_out(k := "") -> void:
 	docked = false
 	trip_t0 = _now()
 	well = WELL_START
+	dead = 0
 	chum = CHUM
 	(sea.get("boat") as Node).call("use_kind", kind)
 	_save()
@@ -533,6 +536,27 @@ func host_add_live() -> bool:
 	return true
 
 
+## Host: a dead mackerel out of the bait box (false: none), or one into it.
+func host_take_dead() -> bool:
+	if docked or dead <= 0:
+		return false
+	dead -= 1
+	_host_changed()
+	return true
+
+
+func host_add_dead() -> void:
+	if not docked:
+		dead += 1
+		_host_changed()
+
+
+## Host: the trip's bait stocked: `n` more live ones in the well (the rods go out bare: the crew bait them).
+func host_stock(n: int) -> void:
+	well = mini(well + n, WELL_MAX)
+	_host_changed()
+
+
 ## Host: a scoop of chum out of the bucket (false: it's empty).
 func host_take_chum() -> bool:
 	if docked or chum <= 0:
@@ -551,7 +575,7 @@ func _host_changed() -> void:
 
 func _state() -> Dictionary:
 	return {"fish": fish, "bank": bank, "best": best, "sale": sale, "next": _next_id, "docked": docked, "box": box_open, "well_open": well_open,
-			"trip_t0": trip_t0, "kind": kind, "owned": owned, "gear": gear, "well": well, "chum": chum,
+			"trip_t0": trip_t0, "kind": kind, "owned": owned, "gear": gear, "well": well, "dead": dead, "chum": chum,
 			"quota_n": quota_n, "quota": quota, "earned": earned, "day": day, "run_fish": run_fish,
 			"run_biggest": run_biggest, "best_run": best_run}
 
@@ -579,6 +603,7 @@ func _sync(state: Dictionary) -> void:
 	owned = state.get("owned", owned)
 	gear = state.get("gear", gear)
 	well = int(state.get("well", well))
+	dead = int(state.get("dead", dead))
 	chum = int(state.get("chum", chum))
 	quota_n = int(state.get("quota_n", quota_n))
 	quota = int(state.get("quota", quota))

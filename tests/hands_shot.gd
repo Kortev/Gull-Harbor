@@ -20,14 +20,19 @@ func _ready() -> void:
 	var me := sea.crew.me
 	var only := OS.get_cmdline_user_args()
 	for item in Kit.ITEMS:
-		me.hands.pick(item)
+		if item == "bait":
+			me.hands.carry("live")          # (a bait's netted out of the live well, not picked)
+		else:
+			me.hands.pick(item)
 		await get_tree().create_timer(0.4).timeout
 		await _grab("hands_" + item)
+	me.hands.carry("")
 	# a cast: wound up, the bait in the air, landed
 	me.hands.pick("")
 	me.force_input = true
 	me.set("_yaw", -PI * 0.8)
 	me.set("_pitch", 0.15)
+	sea.rods._baited(0, sea.rods._now(), true)      # (hooked on: tests/gear_shot shows how)
 	sea.rods.request_grab(0)
 	await get_tree().create_timer(0.3).timeout
 	Input.action_press("use_primary")

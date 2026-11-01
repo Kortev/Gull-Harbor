@@ -1,10 +1,12 @@
 extends Node3D
 ## Her live well in the transom (every boat has one: boat/fish_hold.gd's `well`, the live mackerel for bait), its lid
-## the model's own piece ("well_lid", hinged at its after edge: art/boat.py, art/skiff.py). E on the lid opens it, E
-## again shuts it (the host's word, like the fish box's, so everyone sees the same); and it swings up on its own for a
-## moment whenever a mackerel goes in (swung aboard off the jig, boat/jig.gd) or comes out (onto a hook, rods.gd).
-## Open, you see into it: dark water and the mackerel circling, as many as there are (up to SHOWN). It swings, never
-## jumps (SPEED). Built by boat/boat.gd as a child of the boat, so it rides her.
+## the model's own piece ("well_lid", hinged at its after edge: art/boat.py, art/skiff.py). E on the lid opens it (the
+## host's word, like the fish box's, so everyone sees the same); open, E nets a mackerel out into your fist (a live one;
+## none left, a dead one off the ice in the bait box: fish_hold's `dead`), E with one in your fist puts it back (either
+## way the lid goes down after it, to keep the water cool), and E with nothing to take or give shuts it. It swings up on its own for a moment whenever a mackerel goes in (swung
+## aboard off the jig, boat/jig.gd) or comes out. Open, you see into it: dark water and the mackerel circling, as many
+## as there are (up to SHOWN), and the dead ones lying still on the ice at its end. It swings, never jumps (SPEED).
+## Built by boat/boat.gd as a child of the boat, so it rides her.
 
 const Action := preload("res://core/action.gd")
 const Kit := preload("res://crew/kit.gd")
@@ -26,7 +28,9 @@ var _sign := 1.0
 var _well := -1
 var _water: Node3D
 var _fish: Array[Node3D] = []
+var _dead: Array[Node3D] = []
 var _act: Action
+var _half := Vector2(0.4, 0.4)
 
 
 func setup(on: Node3D) -> void:
@@ -61,22 +65,62 @@ func setup(on: Node3D) -> void:
 		f.visible = false
 		_water.add_child(f)
 		_fish.append(f)
+	for i in 3:
+		var d := Kit.make("dead")
+		d.scale = Vector3.ONE * 0.8
+		d.visible = false
+		_water.add_child(d)
+		_dead.append(d)
+	_half = Vector2(size.x, size.z) * 0.5
 	# E on the lid
 	_act = Action.new(Vector3(size.x, 0.25, size.z))
 	_act.name = "LiveWell"
 	_act.position = centre + Vector3(0.0, 0.08, 0.0)
-	_act.use = func(_p: Node) -> void:
+	_act.use = func(p: Node) -> void:
 		var hold := _hold()
-		if hold != null and not bool(hold.get("docked")):
-			hold.call("request_well_lid", not bool(hold.get("well_open")))
+		if hold == null or bool(hold.get("docked")):
+			return
+		if not bool(hold.get("well_open")):
+			hold.call("request_well_lid", true)
+			return
+		var hands: Node = p.get("hands") if p else null
+		var rods: Node = boat.get("sea").get("rods") if boat.get("sea") else null
+		var carrying := str(hands.call("carrying")) if hands else ""
+		if not carrying.is_empty() and rods != null:
+			rods.call("request_put_back", carrying)       # (back in, and the lid down after it)
+			hands.call("carry", "")
+			p.call("gesture", "reach")
+			hold.call("request_well_lid", false)
+		elif hands != null and rods != null and not bool(hands.call("stowed")) \
+				and int(hold.get("well")) + int(hold.get("dead")) > 0:
+			rods.call("request_take_bait")                # (netted out: the host hands it over; the lid down)
+			p.call("gesture", "reach")
+			hold.call("request_well_lid", false)
+		else:
+			hold.call("request_well_lid", false)
 	_act.prompt = func() -> String:
 		var hold := _hold()
 		if hold == null or bool(hold.get("docked")):
 			return ""
-		if bool(hold.get("well_open")):
-			return "Shut the live well"
-		return "Live well: %d mackerel" % int(hold.get("well"))
+		var live := int(hold.get("well"))
+		var dead := int(hold.get("dead"))
+		if not bool(hold.get("well_open")):
+			return "Live well: %d mackerel%s" % [live, (", %d dead" % dead) if dead > 0 else ""]
+		var me: Node = boat.get("sea").get("crew").get("me") if boat.get("sea") else null
+		var hands: Node = me.get("hands") if me else null
+		if hands != null and not str(hands.call("carrying")).is_empty():
+			return "Put it back"
+		if hands != null and not bool(hands.call("stowed")) and live > 0:
+			return "Net a mackerel (%d)" % live
+		if hands != null and not bool(hands.call("stowed")) and dead > 0:
+			return "A dead one off the ice (%d)" % dead
+		return "Shut the live well"
 	add_child(_act)
+
+
+## The well's mouth (world): where a mackerel's swung in or netted out.
+func mouth() -> Vector3:
+	return _water.global_position if _water else global_position
 
 
 func _hold() -> Node:
@@ -117,3 +161,11 @@ func _process(delta: float) -> void:
 			var r := 0.16 + 0.05 * sin(t * 0.7 + i)
 			f.position = Vector3(cos(a) * r * 1.2, 0.006 + 0.004 * i, sin(a) * r * 0.8)
 			f.basis = Basis(Vector3.UP, -a)
+	# the dead ones, still, on their sides at the end of it
+	var hold_dead := int(hold.get("dead"))
+	for i in _dead.size():
+		var d := _dead[i]
+		d.visible = _water.visible and i < hold_dead
+		if d.visible:
+			d.position = Vector3((-0.6 + 0.3 * i) * _half.x, 0.012, _half.y * 0.7)
+			d.basis = Basis(Vector3.UP, 0.3 * i) * Basis(Vector3.FORWARD, PI * 0.5)
