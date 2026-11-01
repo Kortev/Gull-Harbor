@@ -114,10 +114,17 @@ var _pitch := 0.0
 var _prompt := ""
 var _prev_local := Vector3.ZERO
 var _local := Vector3.ZERO
-## A crewmate's last reported spot and look (their own peer moves them; we ease toward it).
+## A crewmate's last reported spot and look (their own peer moves them), and their words in hand (_state: each
+## [their clock (s), spot, yaw, pitch, mode, frame]), the last one played past, and where on their clock we're playing
+## them back (_play_net; below zero: not yet), how fast, and how they were going last (here, m/s, their frame).
 var _net_at := Vector3.ZERO
 var _net_yaw := 0.0
 var _net_pitch := 0.0
+var _snaps: Array = []
+var _snap_was: Array = []
+var _play_t := -1.0
+var _play_rate := 1.0
+var _net_v := Vector3.ZERO
 var _send_in := 0
 ## The crew model's pieces by name, their rest poses, and the walk's phase (_pose_body).
 var _parts := {}
@@ -219,9 +226,11 @@ const LAND_STUMBLE := 1.2
 const LAND_DRAG := 12.0
 const KNEES := 1.0
 const KNEES_SPRING := 60.0
-## Into another frame: the step between where you were shown and where you're shown now eases away this quickly
-## (s), and her tilt (s).
-const HOP_EASE := 0.12
+## Into another frame: the step between where you were shown and where you're shown now eases away (a spring, so it
+## comes on gently too) no quicker than this (s), and slower the bigger it is, so as never to be taken up harder than
+## HOP_ACCEL (m/s²); her tilt (s).
+const HOP_EASE := 0.06
+const HOP_ACCEL := 15.0
 const HOP_TILT := 0.3
 ## The shove: how far you reach (m), the windup (s), how often (s), the push (m/s across, up), how much of it a braced
 ## one takes, how fast a pushed one slows (m/s each s: their feet dragging), how long they've no say in it (s), and how
@@ -235,6 +244,15 @@ const BRACED := 0.5
 const KNOCK_DRAG := 5.0
 const KNOCK := 0.7
 const OVER_SPEED := 1.4
+## A crewmate's word on where they are is played back this far behind their own clock (s: a few of their words in
+## hand, so one coming late or two at once doesn't show); the playback goes faster or slower to keep there (their
+## clock and ours needn't go at the same rate), by this much for each s it's out, between these, easing to it (1/s);
+## past their last word they're carried on the way they were going at most this long (s).
+const NET_DELAY := 0.1
+const NET_KEEP := 3.0
+const NET_RATE := Vector2(0.5, 2.0)
+const NET_EASE := 4.0
+const NET_ON := 0.2
 
 var mode := DECK
 ## The space your spot's in: a boat (the one you're aboard, or whose ladder you're on, or you leapt off and are still
@@ -311,6 +329,10 @@ var _hop_tick := -1
 var _hop_settle := false
 var _hop_carry := false
 var _hop_off := Vector3.ZERO
+var _hop_off_v := Vector3.ZERO
+## (of it, the part that's a spot squared up, not a frame's way: what the others are told, as they ease their own)
+var _hop_fix := Vector3.ZERO
+var _hop_fix_v := Vector3.ZERO
 var _hop_tilt := Quaternion.IDENTITY
 ## Steadying your aim (the harpoon, right mouse: tuna/landing.gd sets it), 0..1: your view closes in and your look
 ## goes slower.
@@ -801,6 +823,9 @@ func place(local: Vector3, yaw: float, on: Node3D = null) -> void:
 	_net_at = local
 	_yaw = yaw
 	_net_yaw = yaw
+	_snaps.clear()
+	_snap_was = []
+	_play_t = -1.0
 	_hop_clear()
 
 
@@ -899,13 +924,14 @@ func _physics_process(delta: float) -> void:
 		_send_in -= 1
 		if Net.in_session() and _send_in <= 0:
 			_send_in = 2      # 30 a second
-			_state.rpc(_local, _yaw, _pitch, act, hands.item, mode, _boat_index(frame))
+			# (where you're shown: a step squared up on landing goes to them eased, as you see it)
+			_state.rpc(_local + _hop_fix, _yaw, _pitch, act, hands.item, mode, _boat_index(frame), _clock())
 	else:
-		_local = _local.lerp(_net_at, 0.4)
-		_yaw = lerp_angle(_yaw, _net_yaw, 0.4)
-		_pitch = lerpf(_pitch, _net_pitch, 0.4)
+		_play_net(delta)
 		if mode == DECK:
 			body.position = _local
+		if _hop_settle:
+			_hop_settled()
 
 
 ## What you're up to that the others can't see for themselves (ACT_*).
@@ -931,20 +957,98 @@ func _doing() -> int:
 
 
 ## Where a crew member is and where they look, in which frame (`on`: _boat_index, -1 the world) and how (`m`, the
-## mode): sent by their own peer to everyone else.
+## mode), by their own clock (`t`, s: _clock): sent by their own peer to everyone else, ~30 a second. Kept, and
+## played back a moment behind (_play_net), so however the words come in, they go on smoothly.
 @rpc("authority", "call_remote", "unreliable_ordered")
-func _state(at: Vector3, yaw: float, pitch: float, doing := 0, item := "", m := DECK, on := -2) -> void:
+func _state(at: Vector3, yaw: float, pitch: float, doing := 0, item := "", m := DECK, on := -2, t := -1.0) -> void:
+	var f := frame
 	if on != -2:
-		var f := _boat_at(on)
-		if f != frame and (f != null or on == -1):
-			_set_frame(f)
-		if m != mode:
-			_set_mode(m)
+		var b := _boat_at(on)
+		if b != null or on == -1:
+			f = b
+	if t < 0.0:
+		t = _clock()          # (no clock with it: as it comes)
+	if not _snaps.is_empty() and t <= float((_snaps.back() as Array)[0]):
+		return
+	_snaps.append([t, at, yaw, pitch, m, f])
+	if _snaps.size() > 30:
+		_snaps.pop_front()
 	_net_at = at
 	_net_yaw = yaw
 	_net_pitch = pitch
 	_net_act = doing
 	_net_item = item
+
+
+## This peer's clock for the word to the others (s: its physics ticks, so it goes as the game goes, not the wall).
+static func _clock() -> float:
+	return float(Engine.get_physics_frames()) / float(Engine.physics_ticks_per_second)
+
+
+## A crewmate, from their words in hand: NET_DELAY behind the last one on their clock (going faster or slower to
+## stay there, easing into it, never a jump unless it's far out), between the two words either side of that moment
+## (in their frame; the last in it, on the way they were going); into the frame and mode of a word once it's played
+## past (so they go over to another boat, or into the sea, when they did, the step between eased over).
+func _play_net(delta: float) -> void:
+	if _snaps.is_empty():
+		return
+	var newest := float((_snaps.back() as Array)[0])
+	var want := newest - NET_DELAY
+	if _play_t < 0.0 or absf(want - _play_t) > 1.0:
+		_play_t = want
+		_play_rate = 1.0
+	else:
+		var aim := clampf(1.0 + (want - _play_t) * NET_KEEP, NET_RATE.x, NET_RATE.y)
+		_play_rate = lerpf(_play_rate, aim, minf(delta * NET_EASE, 1.0))
+		_play_t += delta * _play_rate
+	while _snaps.size() >= 2 and float((_snaps[1] as Array)[0]) <= _play_t:
+		_snap_was = _snaps.pop_front()
+	var s0: Array = _snaps[0]
+	var f: Variant = s0[5]
+	if (typeof(f) == TYPE_NIL or is_instance_valid(f)) and f != frame:
+		# into the frame they went into: from where they'd have got to in the one they were in (going on as they
+		# were), whatever the two of ours make of the step between, eased over (_set_frame, _hop_settled)
+		_local += _net_v * delta
+		_set_frame(f)         # (a boat gone since: stay where you are)
+	if int(s0[4]) != mode:
+		_set_mode(int(s0[4]))
+	var at: Vector3 = s0[1]
+	var yaw := float(s0[2])
+	var pitch := float(s0[3])
+	var s1: Array = _snaps[1] if _snaps.size() >= 2 else []
+	if not s1.is_empty() and s1[5] == s0[5]:
+		var k := clampf((_play_t - float(s0[0])) / maxf(float(s1[0]) - float(s0[0]), 0.001), 0.0, 1.0)
+		at = at.lerp(s1[1], k)
+		yaw = lerp_angle(yaw, float(s1[2]), k)
+		pitch = lerpf(pitch, float(s1[3]), k)
+	elif not _snap_was.is_empty() and _snap_was[5] == s0[5] and _play_t > float(s0[0]):
+		# (past their last word in this frame: on the way they were going, a little while)
+		var dt := float(s0[0]) - float(_snap_was[0])
+		if dt > 0.0 and dt < 0.3:
+			at += (at - (_snap_was[1] as Vector3)) / dt * minf(_play_t - float(s0[0]), NET_ON)
+	if s0[5] != frame:
+		at = _snap_at([0.0, at, 0.0, 0.0, 0, s0[5]])
+		yaw += _snap_turn(s0)
+	_net_v = (at - _local) / delta if delta > 0.0 else Vector3.ZERO
+	_local = at
+	_yaw = yaw
+	_pitch = pitch
+
+
+## A word's spot (`s`, see _snaps) in the frame you're in here, by where both are now.
+func _snap_at(s: Array) -> Vector3:
+	var f: Node3D = s[5] if is_instance_valid(s[5]) else null
+	if f == frame or (f == null and typeof(s[5]) != TYPE_NIL):
+		return s[1]
+	return _xf(frame).affine_inverse() * _xf(f) * (s[1] as Vector3)
+
+
+## How much a word's heading (`s`) turns, taken from its frame into yours.
+func _snap_turn(s: Array) -> float:
+	var f: Node3D = s[5] if is_instance_valid(s[5]) else null
+	if f == frame or (f == null and typeof(s[5]) != TYPE_NIL):
+		return 0.0
+	return (_xf(frame).affine_inverse() * _xf(f)).basis.orthonormalized().get_euler(EULER_ORDER_YXZ).y
 
 
 func _walk(delta: float) -> void:
@@ -1732,6 +1836,9 @@ func _set_frame(to: Node3D) -> void:
 	_net_at = m * _net_at
 	_shown_at = m * _shown_at
 	_hop_off = m.basis * _hop_off
+	_hop_off_v = m.basis * _hop_off_v
+	_hop_fix = m.basis * _hop_fix
+	_hop_fix_v = m.basis * _hop_fix_v
 	var mb := m.basis.orthonormalized()
 	var turn := mb.get_euler(EULER_ORDER_YXZ).y
 	# (her tilt and the one you were in aren't the same: you're turned as you were, easing over to hers)
@@ -1790,13 +1897,28 @@ func _hop_settled() -> void:
 	var d := _local - (_hop_to_xf.affine_inverse() * _hop_w)
 	_prev_local += d
 	_hop_off -= d
+	_hop_fix -= d
 	_hop_carry = frame != _hop_from
+
+
+## A step `off` (m) eased on by a frame (`v`, its way, m/s): a spring, critically damped, as quick as HOP_EASE for a
+## small one and gentler for a big one (HOP_ACCEL at most to begin with); [off, v], both nothing once it's gone.
+static func _ease_hop(off: Vector3, v: Vector3, delta: float) -> Array:
+	var w := minf(1.0 / HOP_EASE, sqrt(HOP_ACCEL / maxf(off.length(), 0.001)))
+	v += (-w * w * off - 2.0 * w * v) * delta
+	off += v * delta
+	if off.length() < 0.0005 and v.length() < 0.01:
+		return [Vector3.ZERO, Vector3.ZERO]
+	return [off, v]
 
 
 func _hop_clear() -> void:
 	_hop_settle = false
 	_hop_carry = false
 	_hop_off = Vector3.ZERO
+	_hop_off_v = Vector3.ZERO
+	_hop_fix = Vector3.ZERO
+	_hop_fix_v = Vector3.ZERO
 	_hop_tilt = Quaternion.IDENTITY
 	_skid = 0.0
 	_knees = 0.0
@@ -2050,9 +2172,13 @@ func _process(delta: float) -> void:
 		_shown_vy = vy
 	_shown_at = local + _hop_off
 	if _hop_off != Vector3.ZERO:
-		_hop_off *= exp(-delta / HOP_EASE)
-		if _hop_off.length() < 0.0005:
-			_hop_off = Vector3.ZERO
+		var o := _ease_hop(_hop_off, _hop_off_v, delta)
+		_hop_off = o[0]
+		_hop_off_v = o[1]
+	if _hop_fix != Vector3.ZERO:
+		var o := _ease_hop(_hop_fix, _hop_fix_v, delta)
+		_hop_fix = o[0]
+		_hop_fix_v = o[1]
 	if _hop_tilt != Quaternion.IDENTITY:
 		_hop_tilt = _hop_tilt.slerp(Quaternion.IDENTITY, 1.0 - exp(-delta / HOP_TILT))
 		if _hop_tilt.angle_to(Quaternion.IDENTITY) < 0.0005:

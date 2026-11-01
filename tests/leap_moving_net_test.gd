@@ -1,8 +1,9 @@
 extends Node
 ## Boat to boat under way over the network (crew/player.gd), Rivals, two processes on this machine: A and B run north
-## side by side, 2 m apart, at RUN m/s, in a heavy sea. The friend (B's crew) gets up on B's rail and leaps to A; the
-## host watches them go: smoothly the whole way (off B's deck, over the gap, into A's deck space), nothing jumping
-## as they go into her frame. Then the host leaps from A to B and the friend watches the same.
+## side by side, a metre apart, at RUN m/s, in a heavy sea. The friend (B's crew) gets up on B's rail and leaps to
+## A; the host watches them go: smoothly the whole way (off B's deck, over the gap, into A's deck space), nothing
+## jumping as they go into her frame, however their words come in. Then the host leaps from A to B and the friend
+## watches the same.
 ## Run (two shells, the host first):
 ##   godot --headless --fixed-fps 30 --path . res://tests/leap_moving_net_test.tscn -- --role=host
 ##   godot --headless --fixed-fps 30 --path . res://tests/leap_moving_net_test.tscn -- --role=join
@@ -11,9 +12,11 @@ extends Node
 const Sea := preload("res://sea/sea.gd")
 const Player := preload("res://crew/player.gd")
 const PORT := 7802
-## Where B starts, and A 2 m off her starboard side; both bow north, under way.
+## Where B starts, and A a metre off her starboard side (a gap cleared in any sea: 2 m off, a heavy swell now and then
+## lifts the other's side into the way, and a leap knocking off her hull is a knock, not what's watched here; tests/
+## leap_moving_test leaps 2 m); both bow north, under way.
 const SPOT := Vector2(300.0, -600.0)
-const GAP := 2.0
+const GAP := 1.0
 const RUN := 6.0
 ## Most a frame's step across the sea may change by, watching someone leap (m: a pop, a frame of her way, is more).
 const JERK := 0.15
