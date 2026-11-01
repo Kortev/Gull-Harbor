@@ -24,6 +24,7 @@ const FishHold := preload("res://boat/fish_hold.gd")
 const Kinds := preload("res://boat/kinds.gd")
 const Manual := preload("res://ui/manual.gd")
 const SettingsPage := preload("res://ui/settings_page.gd")
+const AchievementsPage := preload("res://ui/achievements_page.gd")
 
 ## The type sizes: the pixel font's 6 px line at 2, 3 and 4 times.
 const SMALL := 12
@@ -45,12 +46,18 @@ var _dock_of := []
 var _status: Label
 var _crew_box: VBoxContainer
 var _code: Label
+var _copy: Button
+var _invite: Button
+var _leave: Button
 ## The boat's owner's manual (ui/manual.gd), open instead of the menu.
 var _manual: Manual
 var _reading := false
 ## The settings page, open instead of the menu.
 var _settings: SettingsPage
 var _tuning := false
+## The achievements page (ui/achievements_page.gd), open instead of the menu.
+var _medals: AchievementsPage
+var _proud := false
 ## The pause card's heading (PAUSED alone; with others aboard nothing stops: THE MENU) and the line under it.
 var _heading: Label
 var _still: Label
@@ -84,16 +91,24 @@ func _ready() -> void:
 	col.add_child(_button("BACK TO THE DECK", _resume, true))
 	col.add_child(_button("THE OWNER'S MANUAL", func() -> void: _reading = true))
 	col.add_child(_button("SETTINGS", open_settings))
+	col.add_child(_button("ACHIEVEMENTS", open_achievements))
+	# (the card in three: the way back and the pages; bringing a friend aboard; leaving)
 	_crew_box = VBoxContainer.new()
 	_crew_box.add_theme_constant_override("separation", 6)
+	col.add_child(_gap())
 	col.add_child(_crew_box)
+	_crew_box.add_child(_label("A FRIEND JOINS YOUR BOAT WITH", SMALL, DIM))
 	_code = _label("", BODY, CREAM)
 	_crew_box.add_child(_code)
-	_crew_box.add_child(_button("COPY THE JOIN CODE", func() -> void:
+	_copy = _button("COPY THE JOIN CODE", func() -> void:
 		DisplayServer.clipboard_set(Net.code)
-		_status.text = "COPIED: SEND IT TO YOUR FRIEND"))
-	_crew_box.add_child(_button("INVITE A STEAM FRIEND", func() -> void: Net.steam.call("invite")))
-	col.add_child(_button("LEAVE THE CREW", _leave_crew))
+		_status.text = "COPIED: SEND IT TO YOUR FRIEND")
+	_crew_box.add_child(_copy)
+	_invite = _button("INVITE A STEAM FRIEND", func() -> void: Net.steam.call("invite"))
+	_crew_box.add_child(_invite)
+	col.add_child(_gap())
+	_leave = _button("LEAVE THE CREW", _leave_crew)
+	col.add_child(_leave)
 	col.add_child(_button("BACK TO THE TITLE", _to_title))
 	col.add_child(_button("QUIT THE GAME", func() -> void: get_tree().quit()))
 	_manual = Manual.new(get_parent().get("tips") as Node)
@@ -111,6 +126,9 @@ func _ready() -> void:
 	_settings = SettingsPage.new()
 	_settings.closed.connect(func() -> void: _tuning = false)
 	add_child(_settings)
+	_medals = AchievementsPage.new()
+	_medals.closed.connect(func() -> void: _proud = false)
+	add_child(_medals)
 	_panel = _board
 	Net.dropped.connect(func(reason: String) -> void: _status.text = reason.to_upper())
 	if _shot_page() >= 0:
@@ -131,6 +149,13 @@ func _card_panel(size: Vector2) -> PanelContainer:
 	box.set_content_margin_all(22)
 	p.add_theme_stylebox_override("panel", box)
 	return p
+
+
+## A little space between groups of buttons.
+static func _gap() -> Control:
+	var c := Control.new()
+	c.custom_minimum_size = Vector2(0, 4)
+	return c
 
 
 func _label(text: String, size := BODY, col := CREAM, align := HORIZONTAL_ALIGNMENT_LEFT) -> Label:
@@ -190,6 +215,12 @@ func open_settings(page := 0) -> void:
 	_settings.open(page)
 
 
+## The achievements page, the same way.
+func open_achievements() -> void:
+	_proud = true
+	_medals.open(AchievementsPage.run_of(_fish_hold()))
+
+
 func _resume() -> void:
 	while Input.is_action_pressed("jump"):          # (A on the pad is a jump too: let go of it before the deck's live)
 		await get_tree().process_frame
@@ -220,24 +251,33 @@ func _process(_delta: float) -> void:
 	if _tuning and not open:
 		_tuning = false
 		_settings.close()
+	if _proud and not open:
+		_proud = false
+		_medals.close()
 	var hold := _fish_hold()
 	var docked: bool = hold != null and bool(hold.get("docked"))
 	var vs_on := vs != null and bool(vs.get("on"))
 	_panel = _board if docked and not vs_on else _pause
-	_board.visible = open and not _reading and not _tuning and _panel == _board
-	_pause.visible = open and not _reading and not _tuning and _panel == _pause
+	var away := _reading or _tuning or _proud         # (a page up in the card's place)
+	_board.visible = open and not away and _panel == _board
+	_pause.visible = open and not away and _panel == _pause
 	_manual.visible = _reading
 	(get_node("CloseManual") as Control).visible = _reading
 	_open = open
 	_hold_world(open and _panel == _pause and not vs_on)
 	if not open:
 		return
-	if Settings.pad and not _tuning:
+	if Settings.pad and not _tuning and not _proud:
 		_pad_focus()
 	_crew_box.visible = Net.in_session_or_hosting() and multiplayer.is_server()
-	_code.text = "JOIN CODE: " + Net.code if Net.mode == "code" and not Net.code.is_empty() else ""
-	(_crew_box.get_child(1) as Control).visible = Net.mode == "code" and not Net.code.is_empty()
-	(_crew_box.get_child(2) as Control).visible = Net.mode == "steam"
+	_code.text = Net.code if Net.mode == "code" and not Net.code.is_empty() else ""
+	_code.visible = not _code.text.is_empty()
+	(_crew_box.get_child(0) as Control).visible = _code.visible
+	_copy.visible = _code.visible
+	_invite.visible = Net.mode == "steam"
+	# (leaving's only a thing with a crew: a friend's boat, or friends aboard yours; alone it's just the title)
+	_leave.visible = Net.in_session() and (not multiplayer.is_server() or not multiplayer.get_peers().is_empty())
+	_status.visible = not _status.text.is_empty()
 	var now := [docked, Net.is_host(), (hold.get("sale") as Dictionary).duplicate(true), hold.get("bank"),
 			hold.get("kind"), (hold.get("owned") as Array).duplicate(), (hold.get("gear") as Array).duplicate(),
 			hold.get("quota"), hold.get("earned"), hold.get("day"), Net.in_session_or_hosting(), _wipe] if hold else []
@@ -304,7 +344,7 @@ func _first_button(n: Node, primary := false) -> Button:
 
 ## The pad's B (or START) out there: the pause card's gone, back to the deck; on the manual, it's shut.
 func _unhandled_input(e: InputEvent) -> void:
-	if not _open or _tuning or not (e is InputEventJoypadButton and (e as InputEventJoypadButton).pressed):
+	if not _open or _tuning or _proud or not (e is InputEventJoypadButton and (e as InputEventJoypadButton).pressed):
 		return
 	var b := (e as InputEventJoypadButton).button_index
 	if b != JOY_BUTTON_B and b != JOY_BUTTON_START:
@@ -372,7 +412,7 @@ func _fill_board(hold: Node, docked: bool) -> void:
 	fill.bg_color = GOOD if earned >= quota else AMBER
 	bar.add_theme_stylebox_override("fill", fill)
 	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0, 0, 0, 0.5)
+	bg.bg_color = Color(0.16, 0.19, 0.22)          # (empty, it's still a bar: what's to fill)
 	bar.add_theme_stylebox_override("background", bg)
 	q.add_child(bar)
 	q.add_child(_label("MADE: ON TO THE NEXT" if earned >= quota else "$%s MORE BY DAY %d, OR THE BANK TAKES HER"
@@ -481,6 +521,7 @@ func _fill_board(hold: Node, docked: bool) -> void:
 	_dock.add_child(links)
 	links.add_child(_button("THE OWNER'S MANUAL", func() -> void: _reading = true))
 	links.add_child(_button("SETTINGS", open_settings))
+	links.add_child(_button("ACHIEVEMENTS", open_achievements))
 	if skipper:
 		# (twice to wipe it: the first press asks)
 		var wipe := _button("SURE? WIPE IT ALL" if _wipe else "NEW CAREER", func() -> void:

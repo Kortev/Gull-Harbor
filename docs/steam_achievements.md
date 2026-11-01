@@ -5,9 +5,11 @@ The game's 16 achievements, for Steamworks (App Admin, **Stats & Achievements > 
 be entered exactly as below. Everything is earned on the player's own machine; no Steam stats need defining
 (A Ton Ashore's kilos are counted by the game itself).
 
-For each: **New Achievement**, then fill in API Name, Display Name and Description as written, leave Hidden off
-(none are spoilers), Set By **Client**, and upload two 64 x 64 icons (achieved, and the greyed unachieved one).
-**Publish** the changes when they're all in.
+For each: **New Achievement**, then fill in API Name, Display Name and Description as written, Hidden on for
+`NIGHT` and `STORM` only (the game's own page keeps those two a surprise too), Set By **Client**, and upload its two
+64 x 64 icons from `art/achievements/`: `<API name>.png` (achieved) and `<API name>_locked.png` (the greyed one).
+tools/make_medals.gd draws them (ui/medals.gd, the same pictures the game shows); `sheet.png` there is all of them
+at once. **Publish** the changes when they're all in.
 
 | API name | Display name | Description | How it's earned in the game |
 | --- | --- | --- | --- |

@@ -7,6 +7,7 @@ extends CanvasLayer
 ##   RIVALS   two boats, a crew each; most pounds aboard by dusk wins the day, best of three (vs/vs.gd)
 ##   REJOIN   (only after a friend's boat dropped you mid-game) straight back aboard her, your same spot
 ##   JOIN A FRIEND   aboard a friend's boat, whichever game they're playing
+##   ACHIEVEMENTS   the medals earned and still to earn (ui/achievements_page.gd, over the title)
 ##   SETTINGS the look, the sound, the screen and the keys (ui/settings_page.gd, over the title)
 ##   CREDITS  who made it, and what with (CREDITS; the licenses in full are in THIRD_PARTY_NOTICES.txt by the exe)
 ##   QUIT
@@ -23,6 +24,7 @@ extends CanvasLayer
 const PixFont := preload("res://ui/pixfont.gd")
 const Kinds := preload("res://boat/kinds.gd")
 const SettingsPage := preload("res://ui/settings_page.gd")
+const AchievementsPage := preload("res://ui/achievements_page.gd")
 const Pad := preload("res://core/pad.gd")
 const Version := preload("res://core/version.gd")
 
@@ -72,8 +74,12 @@ var _keys: Array[Transform3D] = []
 var _caption: Control
 var _from: Transform3D
 var _friends_in := 0.0
+## Rivals' START pressed with a boat nobody's aboard: it asked; pressed again, it goes.
+var _sure := false
 ## The settings page, over the title while it's open.
 var settings: SettingsPage
+## The achievements page, the same.
+var achievements: AchievementsPage
 
 
 func _ready() -> void:
@@ -96,6 +102,11 @@ func _ready() -> void:
 		_view.visible = true
 		_view.grab_focus())
 	add_child(settings)
+	achievements = AchievementsPage.new()
+	achievements.closed.connect(func() -> void:
+		_view.visible = true
+		_view.grab_focus())
+	add_child(achievements)
 	_cam = Camera3D.new()
 	_cam.fov = 60.0
 	_cam.far = 6000.0
@@ -128,6 +139,7 @@ func _ready() -> void:
 
 ## Turn to a page of the title: its choices.
 func _go(page: String) -> void:
+	_sure = _sure and page == "lobby" and empty_boat() >= 0
 	_page = page
 	_pick = 0
 	_items.clear()
@@ -143,6 +155,8 @@ func _go(page: String) -> void:
 				["JOIN A FRIEND", "GET ABOARD A FRIEND'S BOAT.", func() -> void:
 					_mode = ""
 					_go("join")],
+				["ACHIEVEMENTS", "%d OF %d EARNED." % [AchievementsPage.count(), Net.achievements.LIST.size()],
+						open_achievements],
 				["SETTINGS", "THE MOUSE, THE SOUND, THE SCREEN AND THE KEYS.", open_settings],
 				["CREDITS", "WHO MADE IT, AND WHAT WITH.", func() -> void: _go("credits")],
 				["QUIT", "", func() -> void: get_tree().quit()]]
@@ -169,7 +183,7 @@ func _go(page: String) -> void:
 		"lobby":
 			_items = []
 			if Net.is_host():
-				_items.append(["START", "EVERYONE TO THE DOCK.", _start])
+				_items.append(["START ANYWAY" if _sure else "START", "EVERYONE TO THE DOCK.", _start_pressed])
 				if Net.mode == "steam":
 					_items.append(["INVITE A FRIEND", "", func() -> void: Net.steam.call("invite")])
 				elif not Net.code.is_empty():
@@ -197,6 +211,12 @@ func _go(page: String) -> void:
 func open_settings() -> void:
 	_view.visible = false
 	settings.open()
+
+
+## The achievements page over the title, the same way.
+func open_achievements() -> void:
+	_view.visible = false
+	achievements.open(AchievementsPage.run_of(sea.get("fish_hold") as Node))
 
 
 func _choose(mode: String) -> void:
@@ -237,6 +257,31 @@ func _swap() -> void:
 	if not bool(vs.get("on")):
 		return
 	vs.call("ask_team", 1 - int(vs.get("my_team")))
+
+
+## Host's START: in Rivals with a boat nobody's aboard it asks first (there'd be nobody to race); again, it goes.
+func _start_pressed() -> void:
+	var empty := empty_boat()
+	if empty >= 0 and not _sure:
+		_sure = true
+		_note = "NOBODY'S ON BOAT %s YET: SEND A FRIEND THE CODE, OR START AGAIN TO GO ALONE" % "AB"[empty]
+		_go("lobby")
+		return
+	_sure = false
+	_start()
+
+
+## Rivals' lobby: a boat with nobody aboard her (0 A, 1 B), -1 if both have a crew (or it's not Rivals).
+func empty_boat() -> int:
+	var vs := sea.get("vs") as Node
+	if _mode != "rivals" and not bool(vs.get("on")):
+		return -1
+	var teams: Dictionary = vs.get("teams")
+	var ids: Array = ((sea.get("crew") as Node).get("slots") as Dictionary).keys()
+	for c in 2:
+		if not ids.any(func(id: int) -> bool: return int(teams.get(id, 0)) == c):
+			return c
+	return -1
 
 
 ## Host: off the title, everyone aboard with you (rivals: two boats first).
@@ -468,8 +513,8 @@ func _draw_view() -> void:
 	var size := _view.size
 	# a dark wash down the left, the harbour bright beside it
 	var wash := Color(0.01, 0.02, 0.035, 0.78)
-	var w0 := size.x * 0.42
-	var w1 := size.x * 0.72
+	var w0 := size.x * 0.5
+	var w1 := size.x * 0.8
 	_view.draw_rect(Rect2(0, 0, w0, size.y), wash)
 	_view.draw_polygon(PackedVector2Array([Vector2(w0, 0), Vector2(w1, 0), Vector2(w1, size.y), Vector2(w0, size.y)]),
 			PackedColorArray([wash, Color(wash, 0.0), Color(wash, 0.0), wash]))
@@ -496,8 +541,17 @@ func _draw_view() -> void:
 		_text(Vector2(at.x + 4, y), heading, AMBER, 3)
 		y += 30
 	if _page == "join":
-		_text(Vector2(at.x + 4, y), "CODE: " + _code + ("_" if Time.get_ticks_msec() % 1000 < 500 else " "), CREAM, 4)
-		y += 34
+		# the code's own box, so it's plain it's where you type
+		_text(Vector2(at.x + 4, y + 4), "CODE", DIM, 3)
+		var fx := at.x + 4 + PixFont.width("CODE", 3) + 18
+		var field := Rect2(fx, y - 6, maxf(PixFont.width(_code + "_", 4) + 28, 300), 34)
+		_view.draw_rect(field, Color(0.02, 0.03, 0.05, 0.85))
+		_view.draw_rect(field.grow(-1.0), Color(AMBER, 0.7), false, 2.0)
+		_text(Vector2(fx + 14, y), _code + ("_" if Time.get_ticks_msec() % 1000 < 500 else " "), CREAM, 4)
+		y += 40
+		if bool(Net.steam.get("available")) and _items.size() <= 2:
+			_text(Vector2(at.x + 4, y), "NO STEAM FRIENDS HAVE A BOAT OUT RIGHT NOW", Color(DIM, 0.8), SMALL)
+			y += 26
 	if _page == "lobby":
 		y = _draw_crew(Vector2(at.x + 4, y))
 	if _page == "credits":
@@ -512,10 +566,12 @@ func _draw_view() -> void:
 		if on:
 			_view.draw_rect(Rect2(at.x - 4, y - 6, 8, ITEM * 5 + 12), AMBER)
 		_text(Vector2(at.x + 22, y), label, AMBER if on else CREAM, ITEM)
+		# what the picked one does, beside it
+		var blurb: String = _items[i][1]
+		if on and not blurb.is_empty():
+			_text(Vector2(at.x + 22 + PixFont.width(label, ITEM) + 26, y + (ITEM * 5 - SMALL * 5) / 2), blurb,
+					Color(CREAM, 0.8), SMALL)
 		y += ITEM * 5 + 16
-	if _pick >= 0 and _pick < _items.size() and not str(_items[_pick][1]).is_empty():
-		_text(Vector2(at.x + 22, y + 4), str(_items[_pick][1]), DIM, SMALL)
-		y += 24
 	if not _note.is_empty():
 		_text(Vector2(at.x + 22, y + 10), _note, Color(1.0, 0.7, 0.5), SMALL)
 	_text(Vector2(at.x + 4, size.y - 30), "STICK OR D-PAD, [A] TO PICK, [B] TO GO BACK" if Settings.pad

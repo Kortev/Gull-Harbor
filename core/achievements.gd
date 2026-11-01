@@ -5,13 +5,14 @@ extends Node
 ## steam_link.gd's `available`), sets it there too and stores the stats. What was earned with Steam off is handed to
 ## Steam the next time it's on (Steam ignores the ones it has). docs/steam_achievements.md is the list for Steamworks.
 ##
-## A pixel toast comes in at the top right as one's earned (ui/pixfont.gd), eases in, waits, eases out; several
-## queue up one after another.
+## A pixel toast comes in at the top right as one's earned (ui/pixfont.gd, its medal from ui/medals.gd), eases in,
+## waits, eases out; several queue up one after another. The page of them all is ui/achievements_page.gd.
 ##
 ## Tests and screenshots (headless, or a scene under tests/) start with none and never read or write the player's
 ## file, and never touch Steam (`path` is "" and `steam` null there, unless a test sets them).
 
 const PixFont := preload("res://ui/pixfont.gd")
+const Medals := preload("res://ui/medals.gd")
 
 const PATH := "user://achievements.cfg"
 ## [Steam API name, the name shown, what it's for]. The API names are what Steamworks is given; never rename one.
@@ -35,6 +36,8 @@ const LIST := [
 ]
 ## A Ton Ashore: kilos sold in all (kept here, not a Steam stat).
 const TON_KG := 1000.0
+## Keeping Her: quotas made in one run.
+const QUOTAS := 3
 ## GIANT: kilos.
 const GIANT_KG := 300.0
 ## The toast: s easing in, s up, s easing out.
@@ -45,8 +48,6 @@ const CREAM := Color(1.0, 0.95, 0.82)
 const AMBER := Color(1.0, 0.78, 0.34)
 const DIM := Color(0.72, 0.76, 0.8)
 const PANEL := Color(0.02, 0.04, 0.07, 0.92)
-## The medal on the toast, a font pixel each ('#' amber, '+' cream, '-' the ribbon).
-const MEDAL := ["-...-", ".-.-.", "..-..", ".###.", "##+##", "#+++#", "##+##", ".###."]
 
 signal unlocked(api: String)
 
@@ -79,6 +80,10 @@ func _ready() -> void:
 	_view.draw.connect(_draw_toast)
 	_layer.add_child(_view)
 	_link.call_deferred()
+
+
+func _exit_tree() -> void:
+	Medals.forget()
 
 
 func _testing() -> bool:
@@ -121,6 +126,24 @@ static func info(api: String) -> Array:
 
 func has(api: String) -> bool:
 	return got.has(api)
+
+
+## Kept a surprise till it's earned (its words and picture hidden on the page).
+static func secret(api: String) -> bool:
+	return Medals.SECRET.has(api)
+
+
+## How far along a counted one is, [have, need]: A Ton Ashore's kilos; Keeping Her's quotas, the best run in
+## `best_run` (the career's, boat/fish_hold.gd's; -1: not known). [] for the rest, and once it's earned.
+func progress(api: String, best_run := -1) -> Array:
+	if got.has(api):
+		return []
+	match api:
+		"TON":
+			return [minf(kg_sold, TON_KG), TON_KG]
+		"THREE_QUOTAS":
+			return [clampi(best_run, 0, QUOTAS), QUOTAS] if best_run >= 0 else []
+	return []
 
 
 ## Earns `api` (once: false if it's had already, or isn't one of LIST's).
@@ -214,8 +237,9 @@ func _draw_toast() -> void:
 	var title := str(a[1]).to_upper()
 	var line := str(a[2]).to_upper()
 	var s := 2 if _view.size.x < 1400.0 else 3          # (a font pixel's size: bigger on a big screen)
-	var w := maxi(PixFont.width(title, s * 2), maxi(PixFont.width(line, s), PixFont.width(head, s))) + s * 22
-	var h := s * 30
+	var icon := 32 * (s - 1)                             # (the medal: its 32 grid at 1x, or 2x on a big screen)
+	var w := maxi(PixFont.width(title, s * 2), maxi(PixFont.width(line, s), PixFont.width(head, s))) + icon + s * 14
+	var h := maxi(s * 30, icon + s * 8)
 	# eased in from off the right edge, and back out (continuous, a whole pixel at a time)
 	var k := 1.0
 	if _t < IN:
@@ -234,16 +258,10 @@ func _draw_toast() -> void:
 	_view.draw_rect(Rect2(x + w - s, y, s, h), AMBER)
 	# the medal
 	var mx := x + s * 4
-	var my := y + s * 5
-	for row in MEDAL.size():
-		var cells: String = MEDAL[row]
-		for c in cells.length():
-			var ch := cells[c]
-			if ch == ".":
-				continue
-			var col := AMBER if ch == "#" else (CREAM if ch == "+" else Color(0.45, 0.8, 1.0))
-			_view.draw_rect(Rect2(mx + c * s * 2, my + row * s * 2, s * 2, s * 2), col)
-	var tx := mx + 5 * s * 2 + s * 4
-	PixFont.draw(_view, Vector2(tx, y + s * 4), head, DIM, s)
-	PixFont.draw(_view, Vector2(tx, y + s * 11), title, CREAM, s * 2)
-	PixFont.draw(_view, Vector2(tx, y + s * 23), line, DIM, s)
+	var my := floorf(y + (h - icon) * 0.5)
+	_view.draw_texture_rect(Medals.texture(queue[0]), Rect2(mx, my, icon, icon), false)
+	var tx := mx + icon + s * 5
+	var ty := floorf(y + (h - s * 26) * 0.5)
+	PixFont.draw(_view, Vector2(tx, ty + s), head, DIM, s)
+	PixFont.draw(_view, Vector2(tx, ty + s * 8), title, CREAM, s * 2)
+	PixFont.draw(_view, Vector2(tx, ty + s * 20), line, DIM, s)
