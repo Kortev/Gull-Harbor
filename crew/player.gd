@@ -22,18 +22,20 @@ extends Node3D
 ##   CLIMB  on a ladder: W up it a step at a time, S down, neither and you hang there; at the top over the transom's
 ##          cap and down onto her deck (any boat's), at the bottom S lets you back into the water, and E lets go where
 ##          you are. From her deck, E at the top of her ladder takes you over the cap and onto it, going down.
-##   AIR    off her in the air: falling through the world, going as her deck was going where you left it (her way,
-##          her turn, her heave, pitch and roll there: boat/boat.gd's point_velocity) plus your jump, your spot
-##          still reckoned over her (so you go on with her as smoothly as you did on her deck). Each tick it looks
-##          under you: any boat's deck (or her rail's cap) and you land there, in her deck space from that instant
-##          (nothing jumping; your knees take the drop, and a deck going by under you faster than your own leap had
-##          you going is a stumble, skidding over it); her side below her cap and you bounce off it; the sea and
-##          you're in.
-## Her rail's cap (still DECK, `_cap`): Space at the rail (against it or a step off, going or looking its way) steps
-## you up onto it, higher, swaying with her: A/D along it, S (or Space looking inboard) back down onto her deck, Space
-## looking out leaps off it (onto a boat lying alongside or a couple of metres off, or into the sea), and leaning out
-## over the edge steps you off. A lurch in a big sea can throw you off it (outboard if her rail's dipping that way,
-## else back down onto her deck). A hard shove into the rail tips you up onto it and over.
+##   AIR    off every boat in the air (her deck space's floor gone from under you: off her side, her transom, her
+##          gunwale): falling through the world, going as her deck was going where you left it (her way, her turn,
+##          her heave, pitch and roll there: boat/boat.gd's point_velocity) plus your jump. While any of her is still
+##          under any of you, you're reckoned over her; clear of her, in the world's frame; come in over any boat
+##          and you're in hers (each change eased: _hop_*), and with your middle over her and room for you, into
+##          her deck space still falling (DECK, _drop_in): her collider's yours to bump into and come down on, your
+##          knees taking the drop, and a deck going by under you faster than your own leap had you going a stumble,
+##          skidding over it (_touch_down). Her side below her gunwale bounces you off it; the sea and you're in.
+## Her rail's no mode, just her collider (boat/boat.gd's _deck_shape: her liner, her cap, her topsides): on deck a
+## jump's a jump, in her deck space. Jump at an edge you're walking into that's within VAULT_HIGH of where you took
+## off (her gunwale, the transom, a hatch) and your legs get you up it (_vault_at: up and over the edge, a step on):
+## walking, you're stood up on top (on her gunwale, for a harpoon shot); sprinting, straight on over it and off her.
+## Up on her gunwale you just stand there, walk along it, jump off it, or step off it, any way; a lurch in a big sea
+## can throw you off it, and a hard shove into the rail sends you up it and over.
 ## Shoving (F, VS's rough stuff, any boat): a windup everyone sees and hears (arms back, a grunt, SHOVE_WINDUP s),
 ## then a push on whoever's in front of you then (the host says who and how hard): they stagger off across the deck,
 ## and hit the rail hard enough and they go over it. Braced (a fish on the rod in your hands, the wheel, the chair)
@@ -141,7 +143,8 @@ const ACT_JIG := 2
 const ACT_HAUL := 4
 const ACT_CRANK := 8
 const ACT_TOWER := 16      # (on the tower's ladder or leg, climbing: the others see you climb)
-const ACT_CAP := 32       # (up on her rail's cap)
+const ACT_RAIL := 32      # (standing up on her gunwale)
+const ACT_VAULT := 64     # (getting up over an edge)
 var act := 0
 var _net_act := 0
 var _gesture := ""
@@ -163,7 +166,8 @@ var _stumble_in := 0.0
 ## How hard a lurch has to be (m/s, the deck's heave changing that much in a tenth of a second) to throw you.
 const LURCH := 2.2
 
-## Where you are (see the top): on deck (or her rail's cap), in the sea, up a ladder, in the air.
+## Where you are (see the top): on deck (or up on her gunwale, or falling in her deck space), in the sea, up a
+## ladder, in the air.
 enum { DECK, SWIM, CLIMB, AIR }
 const Voice := preload("res://crew/voice.gd")
 const Splash := preload("res://sea/splash.gd")
@@ -202,24 +206,23 @@ const GRAB := 1.8
 const GRAB_DECK := 1.2
 ## A swimmer is kept this far off any hull (m).
 const SWIMMER := 0.35
-## Space at the rail: this near it (m, past your shoulder). Up onto its cap (s; a shove's tip quicker), back down
-## (s), along it (m/s); you stand this far out from her collider's wall (boat/kinds.gd's `bulwark`: it stands that
-## much over the cap), and it's no step up past CAP_HIGH m. Leaning out over its edge this long (s) steps you off.
-const RAIL_REACH := 0.6
-const CAP_UP := 0.4
-const CAP_DOWN := 0.34
-const CAP_WALK := 1.1
-const CAP_IN := 0.05
-const CAP_HIGH := 1.4
-const CAP_EDGE := 0.25
-## A leap off the cap (m/s out the way you look, up), on top of her way: a gap of two or three metres to a boat
-## lying off. A lurch on the cap has to be this much harder than LURCH to throw you.
-const LEAP_OUT := 5.0
-const LEAP_UP := 3.8
-## The leap's push comes on over this long (s: your legs straightening under you), this much of it at once.
-const LEAP_PUSH := 0.12
-const LEAP_KICK := 0.35
-const CAP_LURCH := 1.25
+## A jump's push the way you're going (m/s, at most, on top of the way you had: your legs drive you off, so a
+## standing leap off her gunwale goes as far as a running one).
+const JUMP_PUSH := 4.6
+## Getting up an edge you jump at (_vault_at): no higher than this over where you took off (m: her gunwale's 0.7 to
+## 0.9 over her deck), with this much to spare over it walking (m) and this much sprinting, straight on over; at
+## most this long (s), coming in to stand over it this quickly (1/s). Stood up on it, a held key doesn't walk you
+## straight off the far side for this long (s: finding your feet).
+const VAULT_HIGH := 1.05
+const VAULT_CLEAR := 0.14
+const VAULT_OVER := 0.5
+const VAULT_TIME := 0.7
+const VAULT_PULL := 9.0
+const VAULT_FEET := 0.45
+## Up on her gunwale: you're there when this far out past you (m) there's nothing of her under it; a lurch has to be
+## this much harder than LURCH to throw you off it.
+const RAIL_OUT := 0.45
+const RAIL_LURCH := 1.25
 ## Down on a deck out of the air: of your leap's way over her you keep this much (a step or two on, slowing as you
 ## walk would); her deck going by under you this much faster (m/s) than your own leap had you going over it and you
 ## stumble, your feet skidding over it, slowing this much (m/s each s). Your knees take this much of how fast you
@@ -292,30 +295,31 @@ var _climb_way := 1
 var _climb_ph := 0.0
 ## Tests climb without holding W.
 var force_climb := false
-## Her rail's cap: CAP_OFF, stepping up onto it, standing on it, stepping down; how far into the step (0..1), from
-## where on deck (her space), the spot on the cap and the way out over it (flat), how long you've leant out; a leap
-## asked for on the way up (Space again); and a shove's tip (m/s: on up and straight over).
-enum { CAP_OFF, CAP_STEP_UP, CAP_ON, CAP_STEP_DOWN }
-var _cap := CAP_OFF
-var _cap_k := 0.0
-var _cap_from := Vector3.ZERO
-var _cap_at := Vector3.ZERO
-var _cap_out := Vector3.ZERO
-var _cap_edge := 0.0
-var _cap_leap := false
-var _cap_tip := 0.0
-## In the air: your way (world, m/s), the boat you left and how long since (s: her own cap doesn't catch you
-## stepping off it).
+## Jumping on her deck: the height you took off from (her space) and s since. Up an edge (_vault_at): s left of it,
+## the spot over the edge you're coming in to (her space, flat), the edge's top, your way over it (her space, flat)
+## and whether it's straight on over; s left finding your feet up there.
+var _jump_y := 0.0
+var _jump_t := INF
+var _vault_t := 0.0
+var _vault_to := Vector3.ZERO
+var _vault_top := 0.0
+var _vault_v := Vector3.ZERO
+var _vault_over := false
+var _feet_t := 0.0
+## In the air: your way (world, m/s), and how long since you left her (s).
 var _air_v := Vector3.ZERO
-var _air_from: Node3D
 var _air_t := 0.0
-## Your own leap (world, m/s: the part of your way in the air that isn't her deck's) and s left of its push coming
-## on; the way of the frame you're reckoned in, where you are over it (_air_to). Down off it: s left skidding over
-## her deck; your knees giving (m your eyes are down, m/s, and what was shown of it), and where you were last shown
-## (your frame) and how fast you were coming down (m/s), for your knees to take it when your feet stop.
+## Your own leap (world, m/s: the part of your way in the air that isn't her deck's); the way of the frame you're
+## reckoned in, where you are over it (_air_to). Down off it: s left skidding over her deck; your knees giving (m
+## your eyes are down, m/s, and what was shown of it), and where you were last shown (your frame) and how fast you
+## were coming down (m/s), for your knees to take it when your feet stop.
 var _air_push := Vector3.ZERO
-var _push_in := 0.0
 var _air_carry := Vector3.ZERO
+## Come in over a boat out of the air and into her deck space, still falling (_drop_in): of your way over her, your
+## own leap's part and her deck going by under you (her space, flat), for when your feet find her (_touch_down).
+var _dropping := false
+var _drop_push := Vector3.ZERO
+var _drop_slip := Vector3.ZERO
 var _skid := 0.0
 var _knees := 0.0
 var _knees_v := 0.0
@@ -333,6 +337,8 @@ var _hop_w := Vector3.ZERO
 var _hop_tick := -1
 var _hop_settle := false
 var _hop_carry := false
+## (in the air, your own: the carry's where you are from then on, nothing to ease: _process)
+var _hop_bake := false
 var _hop_off := Vector3.ZERO
 var _hop_off_v := Vector3.ZERO
 ## (of it, the part that's a spot squared up, not a frame's way: what the others are told, as they ease their own)
@@ -690,9 +696,9 @@ func _pose_body(delta: float) -> void:
 			p["shin_r"] = Vector3(-1.3, 0.0, 0.0)
 			drop = 0.0
 			crouch = 0.0
-	# up on her rail's cap: the off arm out a little for balance, knees soft (stepping up: a knee lifted)
-	if doing & ACT_CAP and mode == DECK:
-		var up := sin(_cap_k * PI) if _cap != CAP_ON and _cap != CAP_OFF else 0.0
+	# up on her gunwale: the off arm out a little for balance, knees soft; getting up an edge, a knee lifted
+	if doing & (ACT_RAIL | ACT_VAULT) and mode == DECK:
+		var up := 1.0 if doing & ACT_VAULT else 0.0
 		p["arm_l"] = (p["arm_l"] as Vector3) + Vector3(0.0, 0.0, -0.5)
 		p["leg_l"] = Vector3(1.0 * up, 0.0, 0.0)
 		p["shin_l"] = Vector3(-1.4 * up - 0.1, 0.0, 0.0)
@@ -821,7 +827,10 @@ func place(local: Vector3, yaw: float, on: Node3D = null) -> void:
 	_tower_legs = []
 	_rise_to = Vector3.INF
 	_helm_to = Vector3.INF
-	_cap = CAP_OFF
+	_vault_t = 0.0
+	_feet_t = 0.0
+	_jump_t = INF
+	_dropping = false
 	body.position = local
 	body.velocity = Vector3.ZERO
 	_prev_local = local
@@ -945,7 +954,7 @@ func _doing() -> int:
 	var sea: Node = boat.get("sea") if boat else null
 	if sea == null:
 		return 0
-	var out := ACT_CAP if _cap != CAP_OFF else 0
+	var out := ACT_VAULT if mode == DECK and _vault_t > 0.0 else (ACT_RAIL if on_rail() != Vector3.ZERO else 0)
 	var jig: Node = sea.get("jig")
 	if jig != null and bool(jig.call("active")):
 		out |= ACT_JIG
@@ -1093,14 +1102,17 @@ func _walk(delta: float) -> void:
 		if body.position.distance_to(_rise_to) < 0.01:
 			_rise_to = Vector3.INF
 		return
-	if _cap != CAP_OFF:
-		_on_cap(delta)
-		return
 	var live := force_input or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back") if live else Vector2.ZERO
 	var wish := Basis(Vector3.UP, _yaw) * Vector3(input.x, 0.0, input.y)
 	wish = wish.normalized() * (SPRINT if Input.is_action_pressed("sprint") else WALK) * minf(input.length(), 1.0) * burden
 	var rate := ACCEL if body.is_on_floor() else AIR_ACCEL
+	_jump_t += delta
+	var leg := wish        # (what a jump pushes you toward)
+	if _feet_t > 0.0:
+		# just up on top of an edge: finding your feet, not walking on off it yet
+		_feet_t -= delta
+		wish = Vector3.ZERO
 	if _knock > 0.0:
 		# shoved: your feet dragging, no say in where they go
 		_knock -= delta
@@ -1113,28 +1125,42 @@ func _walk(delta: float) -> void:
 		rate = LAND_DRAG
 	var v := body.velocity
 	var pre := Vector3(v.x, 0.0, v.z)
-	var flat := pre.move_toward(wish, rate * delta)
+	var flat := pre.move_toward(wish, rate * delta) if not _dropping else pre
+	if _vault_t > 0.0:
+		# up an edge: on over it the way you went at it, or in to stand over it
+		_vault_t -= delta
+		if _vault_over:
+			flat = _vault_v
+		else:
+			var to := _vault_to - body.position
+			flat = Vector3(to.x, 0.0, to.z) * VAULT_PULL
+			flat = flat.limit_length(maxf(_vault_v.length(), WALK))
+		if body.is_on_floor() and body.position.y >= _vault_top - 0.05 and v.y <= 0.0:
+			_vault_t = 0.0        # (up: stood on it)
+			if not _vault_over:
+				_feet_t = VAULT_FEET
+				flat = Vector3.ZERO
 	v.x = flat.x
 	v.z = flat.z
 	if body.is_on_floor() and v.y <= 0.0:
 		v.y = 0.0
 		if live and _knock <= 0.0 and Input.is_action_just_pressed("jump"):
-			# at the rail: up onto its cap
-			var out := _rail_ahead(wish)
-			if out != Vector3.ZERO and _step_up(out):
-				return
+			# a jump, pushing off the way you're going
 			v.y = JUMP
+			var push := Vector3(leg.x - v.x, 0.0, leg.z - v.z).limit_length(JUMP_PUSH)
+			v.x += push.x
+			v.z += push.z
+			_jump_y = body.position.y
+			_jump_t = 0.0
+			_feet_t = 0.0
 	else:
 		v.y -= GRAVITY * delta
 	body.velocity = v
 	body.move_and_slide()
-	if _knock > 0.0:
-		# hard into the rail: tipped up onto it and over
-		for i in body.get_slide_collision_count():
-			var n := body.get_slide_collision(i).get_normal()
-			var into := -Vector3(n.x, 0.0, n.z).normalized()
-			if absf(n.y) < 0.5 and pre.dot(into) > OVER_SPEED and _is_side(into) and _step_up(into, pre.dot(into)):
-				return
+	if _dropping and body.is_on_floor():
+		_touch_down()
+	if _vault_t <= 0.0 and not body.is_on_floor() and (_jump_t < 0.8 or _knock > 0.0):
+		_vault_at(wish, pre)
 	if not body.is_on_floor() and (_nothing_under(boat, body.position)
 			or body.position.y < float(boat.get("deck")) - 0.8):
 		# off her somewhere the rail doesn't stop you: in the air
@@ -1164,7 +1190,7 @@ func take_wheel(to: Vector3) -> void:
 ## Whether you could step straight to `to` (boat-local, on her deck): on her, on your feet, a stride or two off, nothing
 ## in the way at chest height (the console, the leaning post, a bulkhead). Else being put there would be a jump.
 func can_step_to(to: Vector3) -> bool:
-	if mode != DECK or frame != boat or aloft or _cap != CAP_OFF or body.position.distance_to(to) >= 4.0:
+	if mode != DECK or frame != boat or aloft or _vault_t > 0.0 or body.position.distance_to(to) >= 4.0:
 		return false
 	var up := Vector3(0.0, 0.9, 0.0)
 	return _ray(_deck_space(boat), body.position + up, to + up).is_empty()
@@ -1259,177 +1285,79 @@ func _tower_at(t: float) -> Vector3:
 	return from
 
 
-## Your way over the rail (boat-local, flat), if her side's within RAIL_REACH of you the way you're going (standing
-## still, the way you're looking) and it's her side, the sea past it; else zero.
-func _rail_ahead(wish: Vector3) -> Vector3:
-	var way := wish if wish.length() > 0.3 else Basis(Vector3.UP, _yaw) * Vector3.FORWARD
-	way = Vector3(way.x, 0.0, way.z).normalized()
+# ------------------------------------------------------------------ up an edge, on her gunwale, and off her
+
+## In the air on her deck, into something you're going at (`wish`, or knocked `pre`: her space, m/s): if it's an
+## edge with its top within VAULT_HIGH of where you took off and room to stand on it, your legs get you up it
+## (_walk carries it on): rising to clear it, then in to stand over it, or (sprinting, or knocked) straight on over.
+func _vault_at(wish: Vector3, pre: Vector3) -> void:
 	var space := body.get_world_3d().direct_space_state
-	for h: float in [0.5, 0.85]:
-		var at := body.position + Vector3(0.0, h, 0.0)
-		var hit := _ray(space, at, at + way * (0.3 + RAIL_REACH))
-		if hit.is_empty():
+	for i in body.get_slide_collision_count():
+		var c := body.get_slide_collision(i)
+		var n := c.get_normal()
+		if absf(n.y) > 0.5:
 			continue
-		var n: Vector3 = hit["normal"]
 		var into := -Vector3(n.x, 0.0, n.z).normalized()
-		if absf(n.y) < 0.5 and way.dot(into) > 0.5 and _is_side(into):
-			return into
+		var going := wish.dot(into)
+		var knocked := _knock > 0.0 and pre.dot(into) > OVER_SPEED
+		if going < WALK * 0.5 and not knocked:
+			continue
+		var at := c.get_position() + into * 0.05
+		var hi := _jump_y + VAULT_HIGH
+		var hit := _ray(space, Vector3(at.x, hi + 0.05, at.z), Vector3(at.x, body.position.y - 0.05, at.z))
+		if hit.is_empty() or (hit["normal"] as Vector3).y < 0.7:
+			continue
+		var top := float((hit["position"] as Vector3).y)
+		var stand := Vector3(at.x, top + 0.03, at.z)
+		if top <= body.position.y + 0.02 or not _fits(space, stand + Vector3(0.0, 0.1, 0.0)):
+			continue
+		_vault_over = knocked or wish.length() > WALK + 0.3
+		var speed := maxf(maxf(going, pre.dot(into)), WALK if knocked else 0.0)
+		var along := pre - into * pre.dot(into)
+		_vault_v = into * speed + along
+		_vault_to = stand
+		_vault_top = top
+		_vault_t = VAULT_TIME
+		var rise := top + (VAULT_OVER if _vault_over else VAULT_CLEAR) - body.position.y
+		body.velocity.y = maxf(body.velocity.y, sqrt(2.0 * GRAVITY * rise))
+		if knocked:
+			gesture("stumble")
+		return
+
+
+## Standing up on her gunwale (or her transom): the way out over it (her space, flat), else zero.
+func on_rail() -> Vector3:
+	if mode != DECK or boat == null or aloft or seated or not body.is_on_floor() \
+			or body.position.y < float(boat.get("deck")) + 0.3:
+		return Vector3.ZERO
+	for out: Vector3 in [Vector3.RIGHT, Vector3.LEFT, Vector3.BACK]:
+		if _nothing_under(boat, body.position + out * RAIL_OUT):
+			return out
 	return Vector3.ZERO
 
 
-## Whether the wall `into` (boat-local, flat) of you is her side: nothing of her past it, just the sea.
-func _is_side(into: Vector3) -> bool:
-	var space := body.get_world_3d().direct_space_state
-	var at := body.position + Vector3(0.0, 0.5, 0.0)
-	var hit := _ray(space, at, at + into * 1.2)
-	var past: Vector3 = (hit["position"] as Vector3 if not hit.is_empty() else at + into * 0.4) + into * 0.35
-	return _ray(space, past + Vector3(0.0, 2.5, 0.0), past - Vector3(0.0, 3.0, 0.0)).is_empty()
-
-
-# ------------------------------------------------------------------ up on the rail, and off her
-
-## Up onto her rail's cap `out` of you (boat-local, flat), if there's a cap there to stand on; `tip`, a shove's
-## (m/s): up and straight on over it.
-func _step_up(out: Vector3, tip := 0.0) -> bool:
-	var c := _find_cap(boat, body.position, out, body.position.y + 0.5)
-	if c.is_empty():
-		return false
-	var at: Vector3 = c["at"]
-	var rise := at.y - body.position.y
-	if rise > CAP_HIGH or rise < 0.15:
-		return false
-	_cap_from = body.position
-	_cap_at = at
-	_cap_out = c["out"]
-	_cap_k = 0.0
-	_cap_edge = 0.0
-	_cap_leap = false
-	_cap_tip = tip
-	_cap = CAP_STEP_UP
-	_knock = 0.0
-	body.velocity = Vector3.ZERO
-	return true
-
-
-## On her rail's cap: stepping up (eased, a beat), standing there (A/D along it, S or Space looking in back down,
-## Space looking out a leap, leaning out over it a step off), stepping back down.
-func _on_cap(delta: float) -> void:
-	var live := force_input or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
-	var jump := live and Input.is_action_just_pressed("jump")
-	body.velocity = Vector3.ZERO
-	match _cap:
-		CAP_STEP_UP:
-			_cap_k = minf(_cap_k + delta / (CAP_UP * (0.6 if _cap_tip > 0.0 else 1.0)), 1.0)
-			_cap_leap = _cap_leap or jump
-			body.position = _cap_path(_cap_k)
-			if _cap_k >= 1.0:
-				_cap = CAP_ON
-				if _cap_tip > 0.0:
-					# shoved: straight on over
-					gesture("stumble")
-					_leave_cap(_cap_out * maxf(1.6, _cap_tip * 0.6) + Vector3.UP * 1.0)
-				elif _cap_leap:
-					_leap()
-		CAP_STEP_DOWN:
-			_cap_k = maxf(_cap_k - delta / CAP_DOWN, 0.0)
-			body.position = _cap_path(_cap_k)
-			if _cap_k <= 0.0:
-				_cap = CAP_OFF
-		CAP_ON:
-			var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back") if live \
-					else Vector2.ZERO
-			var dir := Basis(Vector3.UP, _yaw) * Vector3(input.x, 0.0, input.y)
-			var out := _cap_out
-			if jump:
-				_leap()
-				return
-			if dir.dot(-out) > 0.6:
-				_step_down()
-				return
-			if dir.dot(out) > 0.6:
-				_cap_edge += delta
-				if _cap_edge > CAP_EDGE:
-					_leave_cap(out * 1.2 + Vector3.UP * 0.4)
-					return
-			else:
-				_cap_edge = 0.0
-			# along it, following her sheer and the curve of her side
-			var along := Vector3(-out.z, 0.0, out.x)
-			var go := dir.dot(along) * CAP_WALK * burden
-			if absf(go) > 0.05:
-				var c := _find_cap(boat, _cap_at + along * go * delta, out, _cap_at.y - 0.12)
-				if not c.is_empty() and absf((c["at"] as Vector3).y - _cap_at.y) < 0.2:
-					_cap_at = c["at"]
-					_cap_out = ((c["out"] as Vector3) + out * 2.0).normalized()
-			body.position = _cap_at
-
-
-## Between her deck and her cap, `k` of the way up (boat-local): the foot up first, then over onto it.
-func _cap_path(k: float) -> Vector3:
-	var p := _cap_from.lerp(_cap_at, smoothstep(0.0, 1.0, k))
-	p.y = lerpf(_cap_from.y, _cap_at.y, sin(k * PI * 0.5)) + 0.06 * sin(k * PI)
-	return p
-
-
-## Back down off the cap onto her deck just inboard of it (nowhere to stand there: a hop down inboard).
-func _step_down() -> void:
-	var space := body.get_world_3d().direct_space_state
-	for d: float in [0.45, 0.6, 0.75, 0.9]:
-		var at := _cap_at - _cap_out * d
-		var hit := _ray(space, at + Vector3(0.0, 0.3, 0.0), at - Vector3(0.0, 2.0, 0.0))
-		if hit.is_empty() or (hit["normal"] as Vector3).y < 0.7:
-			continue
-		var stand: Vector3 = hit["position"] + Vector3(0.0, 0.03, 0.0)
-		if _fits(space, stand):
-			_cap_from = stand
-			_cap_k = 1.0
-			_cap = CAP_STEP_DOWN
-			return
-	_leave_cap(-_cap_out * 1.6 + Vector3.UP * 1.0)
-
-
-## Space on the cap: looking out, a leap off it that way; looking in, back down onto her deck.
-func _leap() -> void:
-	var look := Basis(Vector3.UP, _yaw) * Vector3.FORWARD
-	if look.dot(_cap_out) < 0.15:
-		_step_down()
-		return
-	_leave_cap(look * LEAP_OUT + Vector3.UP * LEAP_UP)
-	# (your legs straightening under you: the push comes on over a moment, not all at once)
-	_air_v -= _air_push * (1.0 - LEAP_KICK)
-	_push_in = LEAP_PUSH
-
-
-## Off the cap going `v` (boat-local, m/s, over her deck).
-func _leave_cap(v: Vector3) -> void:
-	_cap = CAP_OFF
-	_take_off(boat.global_basis * v, _deck_velocity(boat, body.position))
-
-
 ## Off her into the air, your own leap `push` on top of the way her deck's going there, `deck_v` (world, m/s):
-## whatever you had hold of is let go. Your spot stays in her frame (the air's reckoned over her: _airborne).
+## whatever you had hold of is let go. Clear of her, you're in the world's frame from here (_air_frame).
 func _take_off(push: Vector3, deck_v: Vector3) -> void:
 	_local = body.position
 	_let_go()
-	_cap = CAP_OFF
-	_air_from = boat
+	_vault_t = 0.0
+	_feet_t = 0.0
+	_dropping = false
 	_air_t = 0.0
 	_air_push = push
-	_push_in = 0.0
 	_air_v = push + deck_v
 	_set_mode(AIR)
+	_air_frame(_xf(frame) * _local)
 
 
 ## In the air: falling through the world, going your way; each tick, any boat under you or in your way
-## (_air_meets), else on, and into the sea when you get to it. Your spot's kept over the boat whose frame you're
-## in (the one you left), going over her as your way and hers differ (_air_to): her pose carries the rest, every
-## frame drawn, so you're shown going on with her as smoothly as on her deck, not a tick behind her.
+## (_air_meets), else on, and into the sea when you get to it. Your spot's kept in the frame you're over
+## (_air_frame: a boat, or the world), going over it as your way and its differ (_air_to): its pose carries the
+## rest, every frame drawn, so over a boat you're shown going on with her as smoothly as on her deck.
 func _airborne(delta: float) -> void:
 	_air_t += delta
 	_air_v.y -= GRAVITY * delta
-	if _push_in > 0.0:
-		_air_v += _air_push * (1.0 - LEAP_KICK) * minf(delta, _push_in) / LEAP_PUSH
-		_push_in -= delta
 	_air_carry = _deck_velocity(frame, _local) if frame != null else Vector3.ZERO
 	var from := _xf(frame) * _local
 	for b: Node3D in _boats():
@@ -1437,9 +1365,76 @@ func _airborne(delta: float) -> void:
 			return
 	var at := _air_to(from, delta)
 	_local = _xf(frame).affine_inverse() * at
+	_air_frame(at)
+	if frame != null and _drop_in(frame):
+		return
 	var ocean := _ocean()
-	if ocean != null and at.y < float(ocean.call("height_at", at)):
+	# (over a boat her hull keeps the sea out: a crest at her transom isn't the sea under you)
+	var aboard := frame != null and _local.y > 0.2
+	if ocean != null and not aboard and at.y < float(ocean.call("height_at", at)):
 		_into_sea(_air_v)
+
+
+## In the air at `at` (world): over a boat (anything of her under any of you) you're in her frame, else the
+## world's; each change mid-air, carried across where you are (_set_frame: nothing moves). Clear of one and already
+## over another lying alongside, you go straight into hers.
+func _air_frame(at: Vector3) -> void:
+	if frame != null and _over(frame, at):
+		return
+	var over: Node3D = null
+	for b: Node3D in _boats():
+		if _over(b, at):
+			over = b
+			break
+	if over != frame:
+		_hop_bake = true
+		_set_frame(over)
+
+
+## In over boat `b` out of the air (her frame's yours: _air_frame), your middle over her and room for you there:
+## into her deck space, still falling, going as you were over her (true). Her collider's yours to bump into and come
+## down on from now (_walk); your feet on her, _touch_down.
+func _drop_in(b: Node3D) -> bool:
+	if _nothing_under(b, _local) or not _fits(_deck_space(b), _local):
+		return false
+	var turn := b.global_basis.inverse()
+	var deck_v := _deck_velocity(b, _local)
+	var push := turn * Vector3(_air_push.x, 0.0, _air_push.z)
+	var by := _air_v - _air_push - deck_v
+	var slip := turn * Vector3(by.x, 0.0, by.z)
+	_drop_push = Vector3(push.x, 0.0, push.z)
+	_drop_slip = Vector3(slip.x, 0.0, slip.z)
+	_set_mode(DECK)
+	body.position = _local
+	body.velocity = turn * (_air_v - deck_v)
+	_dropping = true
+	_jump_t = INF
+	_follow_me()
+	return true
+
+
+## Your feet down on her deck after coming in over her out of the air: of your own leap's way over her you keep some
+## (LAND_KEEP: a step on), and her deck going by under you past that you keep all of: a stumble, skidding till your
+## feet have caught up with her.
+func _touch_down() -> void:
+	_dropping = false
+	body.velocity = _drop_push * LAND_KEEP + _drop_slip
+	_skid = 0.0
+	if _drop_slip.length() > LAND_STUMBLE:
+		_skid = body.velocity.length() / LAND_DRAG
+		gesture("stumble")
+
+
+## Anything of boat `b` under you at `at` (world): your middle or the edge of you.
+func _over(b: Node3D, at: Vector3) -> bool:
+	var l := _xf(b).affine_inverse() * at
+	if absf(l.z) > float(b.get("length")) * 0.5 + 0.4 or absf(l.x) > float(b.get("beam")) * 0.5 + 0.4:
+		return false
+	for off: Vector3 in [Vector3.ZERO, Vector3(0.3, 0.0, 0.0), Vector3(-0.3, 0.0, 0.0), Vector3(0.0, 0.0, 0.3),
+			Vector3(0.0, 0.0, -0.3)]:
+		if not _nothing_under(b, l + off):
+			return true
+	return false
 
 
 ## Where this tick takes you from `from` (world, by the poses the boats had when it began: they move on between
@@ -1448,9 +1443,9 @@ func _air_to(from: Vector3, delta: float) -> Vector3:
 	return from + (_air_v - _air_carry) * delta
 
 
-## Boat `b` on your way from `from` (world) this tick: her side below her cap bounces you off it (over it, her
-## collider's raised bulwark is nothing to you); coming down on her deck, or her cap from outside her, you land
-## there (true), in her deck space from now.
+## Boat `b` on your way from `from` (world) this tick: her side below her gunwale bounces you off it (over it,
+## your toes catching it are let off); coming down on her deck, or her gunwale, or anything of her to stand on,
+## you land there (true), in her deck space from now.
 func _air_meets(b: Node3D, from: Vector3, delta: float) -> bool:
 	var x := b.global_transform
 	var inv := x.affine_inverse()
@@ -1471,8 +1466,7 @@ func _air_meets(b: Node3D, from: Vector3, delta: float) -> bool:
 			n = Vector3(n.x, 0.0, n.z).normalized()
 			if n.dot(move) > 0.0:
 				n = -n
-			if outside and lf.y >= _wall_top(space, hit["position"], -n, (hit["position"] as Vector3).y) \
-					- _bulwark(b) - 0.15:
+			if outside and lf.y >= _wall_top(space, hit["position"], -n, (hit["position"] as Vector3).y) - 0.15:
 				continue        # (over her rail: your toes catching it are let off)
 			var nw := x.basis * n
 			var into := (_air_v - _deck_velocity(b, lt)).dot(nw)
@@ -1483,39 +1477,11 @@ func _air_meets(b: Node3D, from: Vector3, delta: float) -> bool:
 	var rel := inv.basis * (_air_v - _deck_velocity(b, lt))       # (your way over her deck)
 	if rel.y > 0.0:
 		return false
-	# her deck (or anything of her to stand on) under you
+	# her deck (or anything of her to stand on: her gunwale) under you
 	var hit := _ray(space, Vector3(lt.x, maxf(lf.y, lt.y) + 0.6, lt.z), Vector3(lt.x, lt.y - 0.02, lt.z))
 	if not hit.is_empty() and (hit["normal"] as Vector3).y > 0.7:
 		_hop_to(_air_to(from, delta))
 		_land(b, _fit(space, hit["position"] + Vector3(0.0, 0.03, 0.0)))
-		return true
-	if not outside or (b == _air_from and _air_t < 0.35):
-		return false
-	# her cap, just outside her collider's wall: coming down onto it (not flying in over it)
-	var mid := Vector3(0.0, lt.y, clampf(lt.z, -half * 0.5, half * 0.5))
-	var inward := Vector3(mid.x - lt.x, 0.0, mid.z - lt.z).normalized()
-	var h := lt.y + 0.2
-	var side := _ray(space, Vector3(lt.x, h, lt.z) - inward * 0.05, Vector3(lt.x, h, lt.z) + inward * 0.4)
-	if side.is_empty() or absf((side["normal"] as Vector3).y) > 0.5:
-		return false
-	var n: Vector3 = side["normal"]
-	var out := Vector3(n.x, 0.0, n.z).normalized()
-	if out.dot(inward) > 0.0:
-		out = -out
-	var wall: Vector3 = side["position"]
-	var cap := _wall_top(space, wall, -out, h) - _bulwark(b)
-	if lf.y >= cap - 0.02 and lt.y <= cap + 0.02 and rel.dot(-out) < 2.5:
-		_hop_to(_air_to(from, delta))
-		_set_frame(b)
-		_set_mode(DECK)
-		_cap = CAP_ON
-		_cap_at = Vector3(wall.x, cap, wall.z) + out * CAP_IN
-		_cap_out = out
-		_cap_edge = 0.0
-		body.position = _cap_at
-		body.velocity = Vector3.ZERO
-		_local = _cap_at
-		_follow_me()
 		return true
 	return false
 
@@ -1530,8 +1496,8 @@ func _land(b: Node3D, stand: Vector3) -> void:
 	var by := _air_v - _air_push - _deck_velocity(b, stand)
 	var slip := turn * Vector3(by.x, 0.0, by.z)
 	_set_frame(b)
-	_cap = CAP_OFF
 	_set_mode(DECK)
+	_dropping = false
 	body.position = stand
 	body.velocity = Vector3(push.x, 0.0, push.z) * LAND_KEEP + Vector3(slip.x, 0.0, slip.z)
 	_skid = 0.0
@@ -1540,24 +1506,6 @@ func _land(b: Node3D, stand: Vector3) -> void:
 		gesture("stumble")
 	_local = stand
 	_follow_me()
-
-
-## Her rail's cap by `near` (boat `b`'s space) the way `out` (flat) goes over it, its collider's wall found by a ray
-## at height `h`: {at: where you'd stand on it, out}; empty, no rail there. (The wall stands her `bulwark` m over
-## the cap: the cap's that far under the wall's top.)
-func _find_cap(b: Node3D, near: Vector3, out: Vector3, h: float) -> Dictionary:
-	var space := _deck_space(b)
-	var a := Vector3(near.x, h, near.z) - out * 0.25
-	var hit := _ray(space, a, a + out * 1.6)
-	if hit.is_empty() or absf((hit["normal"] as Vector3).y) > 0.5:
-		return {}
-	var n: Vector3 = hit["normal"]
-	var way := Vector3(n.x, 0.0, n.z).normalized()
-	if way.dot(out) < 0.0:
-		way = -way
-	var wall: Vector3 = hit["position"]
-	var cap := _wall_top(space, wall, way, h) - _bulwark(b)
-	return {"at": Vector3(wall.x, cap, wall.z) + way * CAP_IN, "out": way}
 
 
 ## The top of the wall at `wall` (a ray going `toward` finds it at height `lo`): up it till a ray over it finds
@@ -1584,11 +1532,16 @@ func _fits(space: PhysicsDirectSpaceState3D, at: Vector3) -> bool:
 
 
 func _fit(space: PhysicsDirectSpaceState3D, stand: Vector3) -> Vector3:
-	var inward := Vector3(-signf(stand.x), 0.0, 0.0) if absf(stand.x) > 0.2 else Vector3(0.0, 0.0, -signf(stand.z))
-	for k in 7:
-		var p := stand + inward * 0.1 * k
-		if _fits(space, p):
-			return p
+	if _fits(space, stand):
+		return stand
+	# (in off her side, her transom, or both: the least way that does)
+	var across := Vector3(-signf(stand.x), 0.0, 0.0)
+	var along := Vector3(0.0, 0.0, -signf(stand.z))
+	for k in range(1, 7):
+		for inward: Vector3 in [across, along, (across + along).normalized()]:
+			var p := stand + inward * 0.06 * k
+			if _fits(space, p):
+				return p
 	return stand
 
 
@@ -1605,10 +1558,6 @@ func _ray(space: PhysicsDirectSpaceState3D, a: Vector3, b: Vector3) -> Dictionar
 
 static func _deck_space(b: Node3D) -> PhysicsDirectSpaceState3D:
 	return (b.get("deck_root") as Node3D).get_world_3d().direct_space_state
-
-
-static func _bulwark(b: Node3D) -> float:
-	return float((b.get("spec") as Dictionary).get("bulwark", 0.5))
 
 
 ## How the spot `local` of boat `b` (her space) is going through the world (m/s): what you take with you going over
@@ -1633,7 +1582,6 @@ static func _boat_velocity(b: Node3D) -> Vector3:
 ## Into the sea, going `v` (world, m/s): whatever you had hold of is let go, and you're in the world's space.
 func _into_sea(v: Vector3) -> void:
 	_let_go()
-	_cap = CAP_OFF
 	_set_frame(null)
 	_swim_v = v
 	_set_mode(SWIM)
@@ -1765,7 +1713,7 @@ func climb(on: Node3D) -> void:
 		_climb_legs = ladder.call("path", _local)
 		_climb_t = 0.0
 		_climb_way = 1
-	elif mode == DECK and on == boat and not steering and not seated and not aloft and _cap == CAP_OFF:
+	elif mode == DECK and on == boat and not steering and not seated and not aloft:
 		_let_go()
 		var foot: Vector3 = (ladder.call("path", Vector3.ZERO) as Array)[0][0]
 		_climb_from = foot
@@ -1965,6 +1913,7 @@ static func _ease_hop(off: Vector3, v: Vector3, delta: float) -> Array:
 func _hop_clear() -> void:
 	_hop_settle = false
 	_hop_carry = false
+	_hop_bake = false
 	_hop_off = Vector3.ZERO
 	_hop_off_v = Vector3.ZERO
 	_hop_fix = Vector3.ZERO
@@ -2139,16 +2088,13 @@ func _pushed(v: Vector3) -> void:
 	if steering:
 		steering = false
 		(boat.get("helm") as Node).call("request", false)
-	var local := boat.global_basis.inverse() * v
-	if _cap != CAP_OFF:
-		# up on her rail: off it, over the side if that's the way it came, else back down onto her deck
-		if local.dot(_cap_out) > 0.5:
-			_leave_cap(local + Vector3.UP * 0.6)
-		elif _cap == CAP_ON:
-			_step_down()
-		return
-	body.velocity = local
+	# (off across her deck, and hard into her rail up it and over: _walk, _vault_at; up on it, off it either way)
+	body.velocity = boat.global_basis.inverse() * v
 	_knock = KNOCK
+	_vault_t = 0.0
+	_feet_t = 0.0
+	_jump_y = body.position.y
+	_jump_t = 0.0
 
 
 ## Every peer, every frame: going in (a splash, a ring of foam, water over your eyes) and coming up again (a gasp).
@@ -2235,7 +2181,20 @@ func _process(delta: float) -> void:
 		# you were in would have carried you, easing over)
 		_hop_carry = false
 		var carried := _xf(_hop_from) * _hop_from_xf.affine_inverse() * _hop_to_xf * (local + _hop_off)
-		_hop_off = x.affine_inverse() * carried - local
+		var off := x.affine_inverse() * carried - local
+		if _hop_bake:
+			# (in the air, from one frame into the next: the step's only the frames being posed at different moments,
+			# not you going anywhere, so it's where you are from now on rather than a step to ease away)
+			var by := off - _hop_off
+			_local += by
+			_prev_local += by
+			local += by
+			_shown_at += by
+			if mode == DECK:
+				body.position += by       # (down into her deck space already: _drop_in)
+			off = _hop_off
+		_hop_bake = false
+		_hop_off = off
 	if delta > 0.0:
 		# coming down fast and your feet stopped (out of the air, a jump on deck; anyone, as they're shown): your
 		# knees take it, your eyes going on down
@@ -2378,14 +2337,14 @@ func _lurch(delta: float) -> void:
 	_deck_y = y
 	_deck_vy = lerpf(_deck_vy, vy, minf(delta * 10.0, 1.0))
 	_stumble_in -= delta
-	if _cap == CAP_ON and jerk > LURCH * CAP_LURCH and _stumble_in <= 0.0:
+	var out := on_rail() if jerk > LURCH * RAIL_LURCH and _stumble_in <= 0.0 else Vector3.ZERO
+	if out != Vector3.ZERO:
 		# thrown off her rail: over the side if it's dipping that way, else down onto her deck
 		_stumble_in = 5.0
 		gesture("stumble")
-		if (boat.global_basis * _cap_out).y < -0.04:
-			_leave_cap(_cap_out * 1.4 + Vector3.UP * 0.8)
-		else:
-			_step_down()
+		var way := out if (boat.global_basis * out).y < -0.04 else -out
+		body.velocity = way * 2.2 + Vector3.UP * 1.2
+		_knock = KNOCK
 	elif jerk > LURCH and _stumble_in <= 0.0 and not steering and body.is_on_floor():
 		_stumble_in = 5.0
 		gesture("stumble")
@@ -2442,7 +2401,7 @@ func _ladder_near() -> Node3D:
 				near = d
 				best = ladder
 		return best
-	if mode == DECK and boat != null and not steering and not seated and not aloft and _cap == CAP_OFF:
+	if mode == DECK and boat != null and not steering and not seated and not aloft:
 		var ladder: Node3D = boat.get("ladder")
 		if ladder == null:
 			return null
@@ -2454,12 +2413,6 @@ func _ladder_near() -> Node3D:
 	return null
 
 
-func _harpoon_in_hand() -> bool:
-	var sea: Node = boat.get("sea") if boat else null
-	var landing: Node = sea.get("landing") if sea else null
-	return landing != null and int(landing.get("harpoon_holder")) == str(name).to_int()
-
-
 func _update_prompt() -> void:
 	var t := _target()
 	var text := ""
@@ -2467,11 +2420,6 @@ func _update_prompt() -> void:
 		text = "W|Up the ladder, S down, E lets go"
 	elif t:
 		text = str(t.call("interact_prompt")) if t.has_method("interact_prompt") else "Use"
-	elif mode == DECK and _cap == CAP_ON and not _harpoon_in_hand():
-		text = "SPACE|Leap off, S steps down"       # (not over your aim with the harpoon)
-	elif mode == DECK and _cap == CAP_OFF and not steering and not seated and body.is_on_floor() \
-			and _rail_ahead(Vector3.ZERO) != Vector3.ZERO:
-		text = "SPACE|Up on the rail"
 	if text != _prompt:
 		_prompt = text
 		prompt_changed.emit(text)

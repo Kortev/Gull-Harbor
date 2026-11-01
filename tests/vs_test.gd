@@ -262,8 +262,8 @@ func _meet(sea: Sea, vs: Vs, b: Node, a_boat: Node3D, b_boat: Node3D) -> void:
 
 ## Boarding her (crew/player.gd): A lying alongside B, you (B's crew) up on B's rail and a leap, and you're over both
 ## onto A's deck, riding her as she moves; her wheel isn't yours to take. In the sea, up her ladder: any boat's. Back
-## to B the same way, over the rails. Then A lying a couple of metres off: up on B's rail, looking at A, Space, and
-## you leap the gap onto her deck, in her deck space from the moment you land, nothing jumping; too far off, it's
+## to B the same way, over the rails. Then A lying a couple of metres off: up on B's rail, looking at A, W and Space,
+## and you leap the gap onto her deck, in her deck space once you're over her, nothing jumping; too far off, it's
 ## into the sea.
 func _board(sea: Sea, a_boat: Node3D, b_boat: Node3D) -> void:
 	var ha: Node = a_boat.get("helm")
@@ -296,6 +296,7 @@ func _board(sea: Sea, a_boat: Node3D, b_boat: Node3D) -> void:
 		if t > 3.0:
 			break
 	Input.action_release("move_forward")
+	Input.action_release("sprint")
 	_check(me.boat == a_boat and int(me.get("mode")) == 0 and me.get("home") == b_boat,
 			"over B's rail onto A's deck, still B's crew (%.1f s)" % t)
 	_check(step < 0.3, "a leap, not a jump in where you are (at most %.2f m a frame)" % step)
@@ -335,27 +336,23 @@ func _board(sea: Sea, a_boat: Node3D, b_boat: Node3D) -> void:
 		await get_tree().process_frame
 		t += 1.0 / 30.0
 	Input.action_release("move_forward")
+	Input.action_release("sprint")
 	_check(me.boat == b_boat and int(me.get("mode")) == 0, "and back over the rails to B")
-	# A two metres off B's starboard side: a step off the rail, looking her way, Space
+	# A two metres off B's starboard side: a step off the rail, looking her way, up on it and a leap
 	for gap: float in [2.0, 6.0]:
 		ha.set("at", at + Vector2(float(b_boat.get("beam")) + gap, 0.0))
 		hb.set("at", at)
 		await get_tree().create_timer(0.3).timeout
 		me.place(Vector3(1.6, deck + 0.02, 3.5), -PI * 0.5, b_boat)
 		await get_tree().create_timer(0.3).timeout
+		await _up_and_off(me)
 		var w := {"t": 0.0, "step": 0.0, "prev": me.global_position, "handed": INF}
-		Input.action_press("jump")
-		await _watch_leap(me, a_boat, w)
-		Input.action_release("jump")
-		while int(me.get("_cap")) != 2 and float(w["t"]) < 1.5:
-			await _watch_leap(me, a_boat, w)
-		Input.action_press("jump")
-		await _watch_leap(me, a_boat, w)
-		Input.action_release("jump")
 		while int(me.get("mode")) != 0 and int(me.get("mode")) != 1 or float(w["t"]) < 0.8:
 			await _watch_leap(me, a_boat, w)
 			if float(w["t"]) > 5.0:
 				break
+		Input.action_release("move_forward")
+		Input.action_release("sprint")
 		t = w["t"]
 		step = w["step"]
 		var handed: float = w["handed"]
@@ -383,17 +380,24 @@ func _watch_leap(me: Node3D, to: Node3D, w: Dictionary) -> void:
 	w["t"] = float(w["t"]) + 1.0 / 30.0
 
 
-## Space at the rail (up on its cap), then Space again looking out (a leap off it).
+## A walk at her rail and a jump (up on it), then Shift, W and Space (a leap off it; W and Shift still held).
 func _up_and_off(me: Node) -> void:
+	Input.action_press("move_forward")
 	Input.action_press("jump")
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	Input.action_release("jump")
 	var t := 0.0
-	while int(me.get("_cap")) != 2 and t < 1.5:
+	while me.call("on_rail") == Vector3.ZERO and t < 1.5:
 		await get_tree().process_frame
 		t += 1.0 / 30.0
-	_check(int(me.get("_cap")) == 2, "Space at her rail: up on it")
+		if t > 0.25:
+			Input.action_release("move_forward")
+	Input.action_release("move_forward")
+	_check(me.call("on_rail") != Vector3.ZERO, "a walk at her rail and a jump: up on it")
+	await get_tree().create_timer(0.2).timeout
+	Input.action_press("sprint")
+	Input.action_press("move_forward")
 	Input.action_press("jump")
 	await get_tree().physics_frame
 	await get_tree().physics_frame

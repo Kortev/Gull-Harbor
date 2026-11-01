@@ -55,7 +55,7 @@ func _ready() -> void:
 	var z := float((b_boat.spec["fish_water"] as Vector3).z)
 	me.place(Vector3((float(b_boat.beam) * 0.5 - 0.6) * side, float(b_boat.deck) + 0.02, z), -PI * 0.5 * side, b_boat)
 	await get_tree().create_timer(0.4).timeout
-	await _tap("jump")
+	await _up()
 	await get_tree().create_timer(0.8).timeout
 	landing._request_harpoon(true)
 	await get_tree().create_timer(0.4).timeout
@@ -81,10 +81,10 @@ func _ready() -> void:
 	me.place(Vector3(float(b_boat.beam) * 0.5 - 0.6, float(b_boat.deck) + 0.02, 1.5), -PI * 0.5, b_boat)
 	me.set("_pitch", -0.15)
 	await get_tree().create_timer(0.4).timeout
-	await _tap("jump")
+	await _up()
 	await get_tree().create_timer(0.7).timeout
 	await _grab("rail_before_leap")
-	await _tap("jump")
+	await _leap()
 	for k in 5:
 		await get_tree().process_frame
 	await _grab("rail_mid_leap")
@@ -99,14 +99,32 @@ func _ready() -> void:
 	cam.global_position = mid + Vector3(0.0, 3.5, -9.0)
 	cam.look_at(mid + Vector3(0.0, 1.5, 1.5), Vector3.UP)
 	cam.make_current()
-	await _tap("jump")
+	await _up()
 	await get_tree().create_timer(0.7).timeout
-	await _tap("jump")
+	await _leap()
 	for k in 9:
 		await get_tree().process_frame
 	await _grab("rail_mid_leap_side")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(sea.fish_hold.save_path))
 	get_tree().quit()
+
+
+## A walk into her rail and a jump: up on it.
+func _up() -> void:
+	Input.action_press("move_forward")
+	await _tap("jump")
+	await get_tree().create_timer(0.25).timeout
+	Input.action_release("move_forward")
+
+
+## Shift, W and Space up there: a leap (let go of a moment later).
+func _leap() -> void:
+	Input.action_press("sprint")
+	Input.action_press("move_forward")
+	await _tap("jump")
+	get_tree().create_timer(0.6).timeout.connect(func() -> void:
+		Input.action_release("move_forward")
+		Input.action_release("sprint"))
 
 
 func _tap(action: String) -> void:

@@ -146,7 +146,7 @@ func _ready() -> void:
 	page.call("_input", _key(KEY_K))
 	_check(InputMap.event_is_action(_key(KEY_K), "shove") and str(page.get("_waiting")).is_empty(),
 			"the next key pressed is it")
-	_check(Settings.clashes("shove").has("JUMP / UP ON THE RAIL"), "and K on jump too shows as a clash")
+	_check(Settings.clashes("shove").has("JUMP"), "and K on jump too shows as a clash")
 	page.call("_press", shove)
 	var esc := _key(KEY_ESCAPE)
 	page.call("_input", esc)

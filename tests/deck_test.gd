@@ -45,7 +45,7 @@ func _tick() -> void:
 		max_z = maxf(max_z, l.z)
 	elif frame == 901:
 		Input.action_release("move_forward")
-		p.set("_yaw", float(p.get("_yaw")) + PI)    # (facing forward: Space at the transom is up onto its cap)
+		p.set("_yaw", float(p.get("_yaw")) + PI)    # (facing forward, away from the transom: a plain jump)
 	elif frame == 960:
 		start_local = l
 		Input.action_press("jump")

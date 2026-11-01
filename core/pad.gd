@@ -5,7 +5,7 @@ extends RefCounted
 ## the pad's what you last touched (Settings.pad).
 ##
 ##   left stick   walk, swim, climb; at the wheel throttle and steer     right stick   look (the rod, with a fish on)
-##   A            jump, up on the rail                                    B             drop it, put back
+##   A            jump                                                    B             drop it, put back
 ##   X            use, grab (hold to haul)                                Y             shove
 ##   RT           cast, reel (as hard as it's pulled), swing; throttle    LT            heave, aim, steady; astern
 ##   LB / RB      last / next in hand (with a fish on: the drag)          d-pad < >     the same

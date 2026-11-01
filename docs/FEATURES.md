@@ -33,7 +33,7 @@ bigger. Miss it and the bank takes the boat, and the run's over.
 | Scroll, with a fish on | the drag, a notch at a time |
 | Q | put the rod (or the harpoon) back |
 | F | shove whoever's in front of you |
-| Space, into the rail | over it: onto a boat lying alongside, or into the sea |
+| Space, walking into the rail | up on it (her gunwale: stand there, walk along it, jump off it); sprinting, straight over: onto a boat lying alongside, or into the sea |
 | Esc | the menu: head in and sell, host / join, Steam friends |
 
 **Teach it:** the HUD prompt (an E key cap and a word or two: "Grab it!", "Bleed it") names every action under
@@ -309,9 +309,11 @@ rules.
   difference is what extra hands can do, and the boats (the skiff for one or two, the sportfisher wants a crew).
 - The jobs: captain, angler, line-clearer, spotter (binoculars), wirer, harpooner, haulers, the one who bleeds and
   ices, chum and jig while you wait.
-- **Over the side** (`crew/player.gd`): Space at the rail (against it or a step off, walking or looking its way)
-  and you're over it, into the sea with a splash. Another boat within a jump (about 3 m past the rail) and you
-  leap the gap onto her deck instead, riding her from the moment you land. Whatever you had hold of is let go: a rod
+- **Over the side** (`crew/player.gd`): no mode, just her rail. Walk into it and jump and your legs get you up
+  onto her gunwale (stand there for a harpoon shot, walk along it, step or jump off it; a big sea can throw you
+  off); sprint and jump and you're straight over it, into the sea with a splash. Another boat within a jump (about
+  3 m past the rail) and you leap the gap onto her deck instead: clear of your boat you're in the world's frame,
+  in over hers you're in hers, still falling, riding her from then on. Whatever you had hold of is let go: a rod
   goes back in its holder, fish and all.
 - **Swimming:** you float at the real waves' height (the height the boats ride), your eyes at the waterline, lifted
   by each swell a beat late and drifting down wind, a wave washing over the lens now and then. WASD swims in strokes
@@ -354,7 +356,7 @@ rules.
 - **The air horn** (`vs/horn.gd`), on the dash beside each wheel (E): a twin-tone blast heard a mile off. Within
   about 120 m of the other boat it rattles her crew's view and jerks any fish on her lines (the rod tip snaps, a
   little shock in the fight, never enough on its own to lose it). One blast every couple of seconds.
-- **Boarding her:** within a jump (alongside, or up to about 3 m off), Space at your rail and you leap over both
+- **Boarding her:** within a jump (alongside, or up to about 3 m off), up on your rail and a leap, or a sprint and a jump, and you're over both
   onto her deck, riding her; or up her ladder from the sea. Her wheel and rods aren't yours to take, but you can shove her crew about, and over.
   The cost: your own boat's a hand short while you're over there.
 - **No cutting her off:** running across her stern doesn't part her lines (it used to, and two boats could cut each

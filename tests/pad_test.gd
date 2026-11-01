@@ -129,10 +129,10 @@ func _ready() -> void:
 	_check(not Input.is_action_pressed("sprint"), "the stick let go: walking again")
 	# the prompts, in the pad's buttons
 	var hud: Node = sea.crew.hud
-	hud.call("_on_prompt", "SPACE|Up on the rail")
+	hud.call("_on_prompt", "SPACE|Jump")
 	var key := hud.get("_key") as Label
 	var what := hud.get("_what") as Label
-	_check(key.text == "A" and what.text == "Up on the rail", "a prompt's key cap: A, not SPACE (%s)" % key.text)
+	_check(key.text == "A" and what.text == "Jump", "a prompt's key cap: A, not SPACE (%s)" % key.text)
 	hud.call("_on_prompt", "HOLD LMB|BLEED HIM, QUICK")
 	_check(key.text == "HOLD RT", "the mouse's left button on a cap: RT (%s)" % key.text)
 	hud.call("_on_prompt", "Q: rod back first")
