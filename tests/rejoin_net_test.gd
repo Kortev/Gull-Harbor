@@ -146,7 +146,9 @@ func _as_friend() -> void:
 	var seed := int(sea.weather.seed)
 	# the line drops: nothing in or out for a few seconds, and both ends give up on it
 	get_tree().multiplayer_poll = false
-	await get_tree().create_timer(6.0).timeout
+	var until := Time.get_ticks_msec() + 6000          # (on the wall clock: ENet gives up by it, the frames here may race)
+	while Time.get_ticks_msec() < until:
+		await get_tree().process_frame
 	get_tree().multiplayer_poll = true
 	await _until(func() -> bool: return _dropped == 1, 20.0)
 	_check(_dropped == 1, "dropped")
