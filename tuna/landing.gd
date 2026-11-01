@@ -418,6 +418,7 @@ func _fly(delta: float, boat: Node3D, ocean: Node) -> Transform3D:
 		_splash.burst(hit["at"], 1.6, true)
 		Sfx.play_point(self, hit["at"], "collar.thump", 1.0, 0.75)
 		if bool(f["mine"]):
+			Settings.buzz(0.7, 1.0, 0.3)       # (it's in him)
 			var inv := node.global_transform.affine_inverse()
 			_report(int(hit["i"]), inv * (hit["at"] as Vector3), inv.basis * (bt.basis * v).normalized())
 	else:

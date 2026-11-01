@@ -10,6 +10,7 @@ extends Area3D
 ## heading, speed and throttle; with nobody at the wheel the host lets her coast to a stop and tells everyone.
 
 const Sfx := preload("res://audio/sfx.gd")
+const Pad := preload("res://core/pad.gd")
 const SEND := 1.0 / 15.0
 ## The 46 footer's handling (boat/kinds.gd has each boat's; configure() sets these from it):
 ## rad/s hard over (twin screws, one ahead and one astern, spin her faster than a fish circles: tuna/fight.gd).
@@ -145,7 +146,7 @@ func _set_captain(who: int, at_heading: float) -> void:
 		if p.is_multiplayer_authority():
 			var hud: Node = boat.get("sea").get("crew").get("hud")
 			var tips: Node = boat.get("sea").get("tips")
-			var keys := "W/S throttle   A/D steer"
+			var keys := "W/S throttle   A/D steer" if not Settings.pad else "[LS] or [RT]/[LT] throttle   [LS] steer"
 			hud.call("notify", str(tips.call("teach_once", keys)) if tips != null else keys)
 
 
@@ -222,6 +223,10 @@ func _process(delta: float) -> void:
 		var live := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or (me != null and bool(me.get("force_input")))
 		var want_steer := Input.get_axis("move_right", "move_left") if live else 0.0
 		var want_gas := Input.get_axis("move_back", "move_forward") if live else 0.0
+		if live:
+			# (a pad's triggers are the throttle too: RT ahead, LT astern, as far as they're pulled)
+			var pulled := Pad.trigger(JOY_AXIS_TRIGGER_RIGHT) - Pad.trigger(JOY_AXIS_TRIGGER_LEFT)
+			want_gas = clampf(want_gas + pulled, -1.0, 1.0)
 		steer = move_toward(steer, want_steer, delta * 2.5)
 		throttle = move_toward(throttle, want_gas, delta * 1.5)
 		if held():

@@ -11,7 +11,10 @@ const CHAPTERS := [
 "
 		+ "F: shove whoever's in front of you. Space at the rail: over it (onto a boat a jump away, or into the sea).
 "
-		+ "In the sea: WASD swim, Shift sprint, Ctrl dive. E by a boarding ladder: W climbs, S goes down, E lets go."],
+		+ "In the sea: WASD swim, Shift sprint, Ctrl dive. E by a boarding ladder: W climbs, S goes down, E lets go.\n\n"
+		+ "A pad: left stick walk, right stick look. RT cast and reel (harder pulled, faster), LT heave and aim. "
+		+ "A jump, X use, B put back, Y shove, LB/RB what's in your hands, L3 sprint, R3 dive, START the menu. "
+		+ "At the wheel the triggers are the throttle too. D-pad up talks, down's the VHF."],
 	["2. The loan", "Your boat belongs to First Coastal Savings & Loan.\n\n"
 		+ "Every 3 days (3 trips) the bank wants a payment: the quota. $5,000, then half as much again each time. "
 		+ "Every fish sold counts, and the money's yours to spend too. The bar top left is the quota.\n\n"

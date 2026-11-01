@@ -55,6 +55,7 @@ signal prompt_changed(text: String)
 
 const MODEL := preload("res://crew/crew.glb")
 const Hands := preload("res://crew/hands.gd")
+const Pad := preload("res://core/pad.gd")
 ## Each crew member's oilskins, by spawn slot order (crew/crew.gd): yellow, orange, green, red.
 const OILSKINS: Array[Color] = [Color(0.85, 0.62, 0.08), Color(0.92, 0.38, 0.06), Color(0.18, 0.45, 0.18),
 		Color(0.7, 0.12, 0.08)]
@@ -760,11 +761,27 @@ func _input(event: InputEvent) -> void:
 		look(m.relative)
 
 
-## Turns your head by a mouse move (px), with the player's own feel (core/settings.gd's sensitivity and invert Y).
-func look(relative: Vector2) -> void:
-	var k := LOOK * look_scale * Settings.sensitivity * (1.0 - 0.45 * steady)
+## Turns your head by a mouse move (px), with the player's own feel (core/settings.gd's sensitivity and invert Y; the
+## pad's own, `pad`).
+func look(relative: Vector2, pad := false) -> void:
+	var k := LOOK * look_scale * (Settings.pad_sensitivity if pad else Settings.sensitivity) * (1.0 - 0.45 * steady)
+	var flip := Settings.pad_invert_y if pad else Settings.invert_y
 	_yaw -= relative.x * k
-	_pitch = clampf(_pitch - relative.y * k * (-1.0 if Settings.invert_y else 1.0), -1.45, 1.45)
+	_pitch = clampf(_pitch - relative.y * k * (-1.0 if flip else 1.0), -1.45, 1.45)
+
+
+## The right stick (core/pad.gd's curve), as so many px of mouse this frame: your look, or the rod with a fish on.
+func _pad_look(delta: float) -> void:
+	if not (force_input or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED):
+		return
+	var v := Pad.look_stick()
+	if v == Vector2.ZERO:
+		return
+	var px := v * Pad.LOOK_PX * delta
+	if leased():
+		fight_mouse += px * look_scale * Settings.pad_sensitivity * Vector2(1.0, -1.0 if Settings.pad_invert_y else 1.0)
+	else:
+		look(px, true)
 
 
 ## The rod has your mouse (rods.gd stamped it this frame or the last: input comes before its _process).
@@ -1856,6 +1873,8 @@ func _strokes(delta: float, ocean: Node) -> void:
 func _process(delta: float) -> void:
 	var f := Engine.get_physics_interpolation_fraction()
 	var local := _prev_local.lerp(_local, f)
+	if is_multiplayer_authority():
+		_pad_look(delta)
 	global_transform = _xf(frame) * Transform3D(Basis(Vector3.UP, _yaw), local)
 	_pose_body(delta)
 	_water_fx(delta)

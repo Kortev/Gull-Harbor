@@ -381,9 +381,10 @@ func _handle_mine(r: Rod, delta: float, send: bool) -> void:
 	if not r.bait_in:
 		r.wind = 0.0
 		var winding := held and not flying(r.index)
-		r.reeling = REEL_SPEED if winding else 0.0
+		var pull := Input.get_action_strength("use_primary")      # (a trigger: as hard as it's pulled)
+		r.reeling = REEL_SPEED * pull if winding else 0.0
 		if winding:
-			wind_in(r, delta)
+			wind_in(r, delta, pull)
 			if send:
 				_reel_state.rpc(r.index, r.out)
 		return
@@ -396,11 +397,12 @@ func _handle_mine(r: Rod, delta: float, send: bool) -> void:
 		_wind_state.rpc(r.index, r.wind)
 
 
-## Winds `delta` s of rod r's line in: shorter by REEL_SPEED a second; at the tip, the bait's in.
-func wind_in(r: Rod, delta: float) -> void:
+## Winds `delta` s of rod r's line in: shorter by REEL_SPEED a second (times `pull`: a pad's trigger, part way); at
+## the tip, the bait's in.
+func wind_in(r: Rod, delta: float, pull := 1.0) -> void:
 	if r.out < 0.0:
 		r.out = line_out(r)
-	r.out = maxf(r.out - REEL_SPEED * delta, 0.0)
+	r.out = maxf(r.out - REEL_SPEED * pull * delta, 0.0)
 	if r.out <= 1.2:
 		_fresh_press = false
 		request_reel_in(r.index)
@@ -748,6 +750,7 @@ func _strike(i: int, kg: float, t: float, bearing: float, seed_value: int) -> vo
 	r.wear = 0.0
 	r.set_meta("seed", seed_value)
 	fx.struck(r)
+	Settings.buzz(0.4, 0.2, 0.5)       # (the reel screaming)
 
 
 @rpc("authority", "call_local", "reliable")
@@ -1300,11 +1303,13 @@ func _tow(r: Rod, spot: Vector3, speed: float, ocean: Node, delta: float) -> Vec
 func _fight_mine(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	var me := (sea.get("crew") as Node).get("me") as Node
 	var live := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or (me != null and bool(me.get("force_input")))
-	var crank := 1.0 if live and Input.is_action_pressed("use_primary") else 0.0
+	# (the pad's trigger reels as hard as it's pulled; a mouse button's all the way)
+	var crank := Input.get_action_strength("use_primary") if live and Input.is_action_pressed("use_primary") else 0.0
 	var heave := live and Input.is_action_pressed("use_secondary")
 	var fight := r.fight as Fight
 	if fight == null or fight.in_holder:
 		fight = _new_fight(r)
+		Settings.buzz(0.5, 0.8, 0.35)        # (hooked up: him, on the end of it, in your hands)
 	var side := _aim(r, me, fight, delta, heave)
 	r.lift = clampf((r.aim_pitch - 0.6) / 0.75, 0.0, 1.0)
 	fight.throttle = throttle

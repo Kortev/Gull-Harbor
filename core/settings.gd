@@ -12,10 +12,18 @@ extends Node
 ## actions on one input are a clash only if they weren't already sharing it there (jump and rod_reel both on Space:
 ## the deck and the rod never want it at once).
 ##
+## The pad (core/pad.gd: its buttons and sticks put onto the same actions at startup, so a rebind and RESET TO DEFAULTS
+## leave them be): the right stick's own sensitivity and invert Y, rumble on or off, and `pad`, whether the pad's what
+## was last touched (the prompts name its buttons then: say()). L3 sprints till the left stick lets go.
+##
 ## Tests and screenshots (headless, or a scene under tests/) start from the defaults and never read or write the
 ## player's file (`path` is "" there, unless a test sets it).
 
 signal changed
+## The pad picked up, or put down for the keys and mouse (`pad`).
+signal device_changed
+
+const Pad := preload("res://core/pad.gd")
 
 const PATH := "user://settings.cfg"
 ## Where they're kept ("": nowhere, in tests and screenshots, unless a test points it somewhere).
@@ -45,6 +53,15 @@ var window := "windowed"
 var window_size := Vector2i(1152, 648)
 var vsync := true
 var max_fps := 0
+## The pad: the right stick's look (1: Pad.LOOK_PX), up/down flipped, rumble.
+var pad_sensitivity := 1.0
+var pad_invert_y := false
+var rumble := true
+## The pad's what was last touched (not the keys or the mouse).
+var pad := false
+## The last rumble asked for: [weak, strong, seconds] (tests read it: there's no pad to feel it).
+var last_rumble: Array = []
+var _sprint_latch := false
 var _defaults := {}          # action -> [InputEvent], as the project has them
 
 
@@ -55,6 +72,7 @@ func _ready() -> void:
 			var i := AudioServer.bus_count - 1
 			AudioServer.set_bus_name(i, b)
 			AudioServer.set_bus_send(i, "Master")
+	Pad.bind()
 	for a: Array in REBINDABLE:
 		_defaults[a[0]] = InputMap.action_get_events(a[0]).duplicate()
 	get_tree().node_added.connect(_on_node_added)
@@ -72,6 +90,48 @@ func _testing() -> bool:
 		if a.contains("tests/"):
 			return true
 	return false
+
+
+## Which was touched last, the pad or the keys and mouse (a nudge of the mouse doesn't count); and L3's sprint.
+func _input(e: InputEvent) -> void:
+	var now := pad
+	if Pad.is_pad(e):
+		now = true
+	elif e is InputEventKey or e is InputEventMouseButton or (e is InputEventMouseMotion
+			and (e as InputEventMouseMotion).relative.length() > 4.0):
+		now = false
+	if now != pad:
+		pad = now
+		device_changed.emit()
+	var b := e as InputEventJoypadButton
+	if b != null and b.button_index == JOY_BUTTON_LEFT_STICK and b.pressed:
+		_sprint_latch = not _sprint_latch
+		if _sprint_latch:
+			Input.action_press("sprint")
+		else:
+			Input.action_release("sprint")
+
+
+func _process(_delta: float) -> void:
+	# (the sprint L3 clicked on goes off once the left stick's let go)
+	if _sprint_latch and Input.get_vector("move_left", "move_right", "move_forward", "move_back").length() < 0.2:
+		_sprint_latch = false
+		Input.action_release("sprint")
+
+
+## A buzz in the hands (a strike, a hook-up, the harpoon going in), if rumble's on: `weak` and `strong` 0..1, for
+## `secs`. Every pad plugged in feels it (Steam Input passes it on).
+func buzz(weak: float, strong: float, secs: float) -> void:
+	if not rumble:
+		return
+	last_rumble = [weak, strong, secs]
+	for d in Input.get_connected_joypads():
+		Input.start_joy_vibration(d, clampf(weak, 0.0, 1.0), clampf(strong, 0.0, 1.0), secs)
+
+
+## Prompt words with their keys as the pad's when it's the pad in your hands (Pad.say()).
+func say(text: String) -> String:
+	return Pad.say(text, pad)
 
 
 ## Anything that makes sound and was left on Master: onto Effects (so the effects slider has it).
@@ -95,6 +155,24 @@ func set_sensitivity(v: float) -> void:
 
 func set_invert_y(on: bool) -> void:
 	invert_y = on
+	changed.emit()
+
+
+func set_pad_sensitivity(v: float) -> void:
+	pad_sensitivity = clampf(v, 0.1, 4.0)
+	changed.emit()
+
+
+func set_pad_invert_y(on: bool) -> void:
+	pad_invert_y = on
+	changed.emit()
+
+
+func set_rumble(on: bool) -> void:
+	rumble = on
+	if not on:
+		for d in Input.get_connected_joypads():
+			Input.stop_joy_vibration(d)
 	changed.emit()
 
 
@@ -190,11 +268,12 @@ func clashes(action: String) -> Array[String]:
 	return out
 
 
-## What an action's on, as the keys page says it ("W", "LEFT CLICK / C").
+## What an action's on, as the keys page says it ("W", "LEFT CLICK / C"); the pad's own aren't listed there.
 func describe(action: String) -> String:
 	var names := PackedStringArray()
 	for e in InputMap.action_get_events(action):
-		names.append(input_name(e))
+		if not (e is InputEventJoypadButton or e is InputEventJoypadMotion):
+			names.append(input_name(e))
 	return " / ".join(names) if not names.is_empty() else "-"
 
 
@@ -211,7 +290,7 @@ static func input_name(e: InputEvent) -> String:
 				MOUSE_BUTTON_WHEEL_UP: "WHEEL UP", MOUSE_BUTTON_WHEEL_DOWN: "WHEEL DOWN",
 				MOUSE_BUTTON_XBUTTON1: "MOUSE 4", MOUSE_BUTTON_XBUTTON2: "MOUSE 5"}.get(
 				(e as InputEventMouseButton).button_index, "MOUSE %d" % (e as InputEventMouseButton).button_index)
-	return "?"
+	return Pad.input_name(e)
 
 
 ## A key or button as an action wants it: just which one (physical, no modifiers, not pressed).
@@ -239,13 +318,19 @@ static func _has(events: Array, e: InputEvent) -> bool:
 	return false
 
 
-## An input as the file keeps it: "key:87", "mouse:1".
+## An input as the file keeps it: "key:87", "mouse:1"; the pad's ("pad:0", "axis:5:1") aren't written, they're
+## always the defaults, put back as the file's read.
 static func _code(e: InputEvent) -> String:
 	if e is InputEventKey:
 		var k := e as InputEventKey
 		return "key:%d" % (k.physical_keycode if k.physical_keycode != KEY_NONE else k.keycode)
 	if e is InputEventMouseButton:
 		return "mouse:%d" % (e as InputEventMouseButton).button_index
+	if e is InputEventJoypadButton:
+		return "pad:%d" % (e as InputEventJoypadButton).button_index
+	if e is InputEventJoypadMotion:
+		var m := e as InputEventJoypadMotion
+		return "axis:%d:%d" % [m.axis, signf(m.axis_value)]
 	return ""
 
 
@@ -273,6 +358,9 @@ func save_file() -> Error:
 	c.set_value("look", "sensitivity", sensitivity)
 	c.set_value("look", "invert_y", invert_y)
 	c.set_value("look", "fov", fov)
+	c.set_value("pad", "sensitivity", pad_sensitivity)
+	c.set_value("pad", "invert_y", pad_invert_y)
+	c.set_value("pad", "rumble", rumble)
 	for b: String in volume:
 		c.set_value("sound", b.to_lower(), volume[b])
 	c.set_value("display", "window", window)
@@ -282,7 +370,8 @@ func save_file() -> Error:
 	for a: Array in REBINDABLE:
 		var codes := PackedStringArray()
 		for e in InputMap.action_get_events(a[0]):
-			codes.append(_code(e))
+			if e is InputEventKey or e is InputEventMouseButton:
+				codes.append(_code(e))
 		c.set_value("keys", a[0], codes)
 	return c.save(path)
 
@@ -298,6 +387,9 @@ func load_file() -> Error:
 	sensitivity = clampf(float(c.get_value("look", "sensitivity", sensitivity)), 0.1, 4.0)
 	invert_y = bool(c.get_value("look", "invert_y", invert_y))
 	fov = clampf(float(c.get_value("look", "fov", fov)), 55.0, 110.0)
+	pad_sensitivity = clampf(float(c.get_value("pad", "sensitivity", pad_sensitivity)), 0.1, 4.0)
+	pad_invert_y = bool(c.get_value("pad", "invert_y", pad_invert_y))
+	rumble = bool(c.get_value("pad", "rumble", rumble))
 	for b: String in volume:
 		volume[b] = clampf(float(c.get_value("sound", b.to_lower(), volume[b])), 0.0, 1.0)
 	window = str(c.get_value("display", "window", window))
@@ -319,5 +411,6 @@ func load_file() -> Error:
 			InputMap.action_erase_events(a[0])
 			for e in events:
 				InputMap.action_add_event(a[0], e)
+	Pad.bind()
 	apply()
 	return OK
