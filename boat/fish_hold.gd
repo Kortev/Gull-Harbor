@@ -626,6 +626,13 @@ func _dock_changed(now_docked: bool) -> void:
 	var vs: Node = real.get("vs")
 	if real.get("fish_hold") != self or (vs != null and bool(vs.get("on"))):
 		return
+	var left := float(real.call("berthing_left")) if now_docked and real.has_method("berthing_left") else 0.0
+	if left > 0.0:
+		# brought in alongside: see her come in onto her berth first, then the dock screen (still in, then)
+		_note("Tied up at the fish pier")
+		await get_tree().create_timer(left + 0.8).timeout
+		if not docked:
+			return
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if now_docked else Input.MOUSE_MODE_CAPTURED
 
 

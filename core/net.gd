@@ -50,6 +50,7 @@ var mode := ""
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS       # (Steam's callbacks, a friend's invite: under the pause card too)
 	steam = preload("res://core/steam_link.gd").new()
 	steam.name = "Steam"
 	steam.hosting.connect(func(peer: MultiplayerPeer) -> void:

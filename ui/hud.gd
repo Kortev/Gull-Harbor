@@ -122,8 +122,8 @@ func _ready() -> void:
 	_helm.draw.connect(_draw_helm)
 	add_child(_helm)
 	_plot = Control.new()
-	_plot.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	_plot.position += Vector2(0, -160)
+	_plot.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_plot.position += Vector2(-122, -122)      # (in the corner: the dash's own screens are low in the middle)
 	_plot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_plot.draw.connect(_draw_plot)
 	add_child(_plot)

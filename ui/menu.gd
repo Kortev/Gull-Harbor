@@ -51,6 +51,11 @@ var _reading := false
 ## The settings page, open instead of the menu.
 var _settings: SettingsPage
 var _tuning := false
+## The pause card's heading (PAUSED alone; with others aboard nothing stops: THE MENU) and the line under it.
+var _heading: Label
+var _still: Label
+## Alone out there with the pause card up, the world's held still (the tree paused): since when (ms, -1: it isn't).
+var _held_at := -1
 ## NEW CAREER pressed once: the board asks again before the career's wiped.
 var _wipe := false
 ## Up last frame (the board, the pause card, the manual or the settings).
@@ -59,6 +64,7 @@ var _open := false
 
 func _ready() -> void:
 	layer = 10
+	process_mode = Node.PROCESS_MODE_ALWAYS      # (it's what's left running while it holds the world still)
 	_board = _card_panel(Vector2(1040, 600))
 	add_child(_board)
 	_dock = VBoxContainer.new()
@@ -69,7 +75,10 @@ func _ready() -> void:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 10)
 	_pause.add_child(col)
-	col.add_child(_label("PAUSED", BIG, AMBER))
+	_heading = _label("PAUSED", BIG, AMBER)
+	col.add_child(_heading)
+	_still = _label("", SMALL, DIM)
+	col.add_child(_still)
 	_status = _label("", SMALL, DIM)
 	col.add_child(_status)
 	col.add_child(_button("BACK TO THE DECK", _resume, true))
@@ -220,6 +229,7 @@ func _process(_delta: float) -> void:
 	_manual.visible = _reading
 	(get_node("CloseManual") as Control).visible = _reading
 	_open = open
+	_hold_world(open and _panel == _pause and not vs_on)
 	if not open:
 		return
 	if Settings.pad and not _tuning:
@@ -234,6 +244,36 @@ func _process(_delta: float) -> void:
 	if now != _dock_of:
 		_dock_of = now
 		_fill_board(hold, docked)
+
+
+## The pause card out there, alone (a quiet host with nobody aboard yet counts): the world stops under it, the
+## sea's clock with it (on again it carries on from where it was: no waves jumping on, no day gone by). With anyone
+## else aboard it can't stop for one of you, and the card says so. A friend coming aboard lets it go at once.
+func _hold_world(want: bool) -> void:
+	var alone := multiplayer.multiplayer_peer == null or multiplayer.get_peers().is_empty()
+	# (only the game itself: a test builds the sea under its own node, and headless nobody's looking at a card)
+	var game := get_parent().get_parent() == get_tree().root and DisplayServer.get_name() != "headless"
+	var hold := want and alone and game
+	_heading.text = "PAUSED" if alone or not want else "THE MENU"
+	_still.text = "" if alone else "THE CREW'S STILL OUT THERE: THE SEA DOESN'T STOP."
+	_still.visible = not alone
+	if hold == (_held_at >= 0):
+		return
+	var tree := get_tree()
+	if hold:
+		_held_at = Time.get_ticks_msec()
+		tree.paused = true
+		return
+	var ocean := get_parent().get("ocean") as Node
+	if ocean != null:
+		ocean.set("clock_offset", float(ocean.get("clock_offset")) - (Time.get_ticks_msec() - _held_at) / 1000.0)
+	_held_at = -1
+	tree.paused = false
+
+
+func _exit_tree() -> void:
+	if _held_at >= 0:
+		get_tree().paused = false        # (back to the title, or quit, from the pause card)
 
 
 ## With the pad in hand, a button to be on: the first in the card up, if none of its own has the focus.
@@ -421,10 +461,18 @@ func _fill_board(hold: Node, docked: bool) -> void:
 		_dock.add_child(_button("CAST OFF", func() -> void:
 			hold.call("head_out")
 			_resume()
-			# (you're at the wheel: take her out through the harbour mouth yourself)
+			# (to the wheel, to take her out through the harbour mouth yourself: a step in to it if it's a clear stride
+			# or two away, seen as the board goes; else nothing moves you, and you're told where it is)
 			var boat: Node = get_parent().get("boat")
-			if boat != null and int(boat.get("helm").get("captain")) == 0:
-				boat.get("helm").call("request", true), true))
+			var me: Node = (get_parent().get("crew") as Node).get("me")
+			if boat == null or me == null or int(boat.get("helm").get("captain")) != 0:
+				return
+			var spot: Transform3D = boat.get("helm_spot")
+			if bool(me.call("can_step_to", spot.origin + Vector3(0, 0.05, 0))):
+				boat.get("helm").call("request", true)
+			else:
+				var hud: Node = (get_parent().get("crew") as Node).get("hud")
+				hud.call("notify", "Cast off! E at the wheel to take her out"), true))
 	else:
 		_dock.add_child(_label("WAITING FOR THE SKIPPER TO CAST OFF", BODY, DIM, HORIZONTAL_ALIGNMENT_CENTER))
 	var links := HBoxContainer.new()

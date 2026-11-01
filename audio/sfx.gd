@@ -156,6 +156,8 @@ static func play(event: String, volume := 1.0, pitch := 1.0) -> void:
 	_dress(p, event, s, volume, pitch)
 	p.autoplay = true
 	p.finished.connect(p.queue_free)
+	if event.begins_with("ui."):
+		p.process_mode = Node.PROCESS_MODE_ALWAYS       # (a menu's clicks, under the pause card too)
 	tree.root.add_child.call_deferred(p)
 
 
