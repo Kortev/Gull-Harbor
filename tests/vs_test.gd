@@ -406,8 +406,8 @@ func _up_and_off(me: Node) -> void:
 
 ## The results card (vs/card.gd): up on its own a moment after the weigh-in, the boats side by side, the numbers
 ## tallying up, the stamp on the day's winner, the menu waiting under it. A friend aboard B (a stand-in, peer 77):
-## NEXT DAY waits for both; once both have, a fade to black and the next day from the countdown, both boats back at
-## their berths. Day 2 to B again: the match, the match's card; REMATCH from both, a fresh match, new weather. Day 3,
+## NEXT DAY waits for both; once both have, the card goes and the next day's countdown starts, both boats lying where
+## they tied up, everyone where they were (no fade, nobody put anywhere). Day 2 to B again: the match, the match's card; REMATCH from both, a fresh match, new weather. Day 3,
 ## no fish either side: a tie; the friend leaves, the card says so, and NEXT DAY goes on without them.
 func _card(sea: Sea, vs: Vs, a_boat: Node3D, b_boat: Node3D, a_hold: Node, b_hold: Node) -> void:
 	vs.teams[77] = 1
@@ -443,22 +443,20 @@ func _card(sea: Sea, vs: Vs, a_boat: Node3D, b_boat: Node3D, a_hold: Node, b_hol
 	_check(card.up() and card.states == [1, 0] and card.dark() == 0.0 and card._status() == "WAITING FOR THEM...",
 			"NEXT DAY pressed: A ready, B still deciding, nothing yet (%s)" % [card.states])
 	vs._host_ready(77)
-	var dark_step := 0.0
-	var last := card.dark()
+	var a_was: Vector2 = a_boat.get("helm").get("at")
+	var b_was: Vector2 = b_boat.get("helm").get("at")
+	var me_was: Vector3 = sea.crew.me.global_position
 	var black := 0.0
 	while card.up():
 		await get_tree().process_frame
-		dark_step = maxf(dark_step, card.dark() - last)
-		last = card.dark()
-		black = maxf(black, last)
-	_check(black > 0.99 and dark_step < 0.2, "both pressed: a fade to black, no cut (at most %.2f a frame)" % dark_step)
+		black = maxf(black, card.dark())
+	_check(black < 0.01, "both pressed: the card goes, no fade to black (%.2f)" % black)
 	await get_tree().process_frame
 	_check(vs.result.is_empty() and vs.wins == [0, 1], "the next day: the match goes on (%s)" % [vs.wins])
-	_check((a_boat.get("helm").get("at") as Vector2).distance_to(vs._berth(0)) < 0.5
-			and (b_boat.get("helm").get("at") as Vector2).distance_to(vs._berth(1)) < 0.5, "both boats at their berths")
+	_check((a_boat.get("helm").get("at") as Vector2).distance_to(a_was) < 0.5
+			and (b_boat.get("helm").get("at") as Vector2).distance_to(b_was) < 0.5, "both boats lying where they tied up")
+	_check(sea.crew.me.global_position.distance_to(me_was) < 0.5, "and you where you were: nobody put anywhere")
 	_check(vs.count_end > 0.0 and sea.crew.me.boat == a_boat, "the countdown again, you aboard your own")
-	await _until(func() -> bool: return card.dark() < 0.01, 3.0)
-	_check(card.dark() < 0.01, "and it fades back up")
 	# day 2, to B again: the match
 	sea.fish_hold.call("head_out", "sportfisher")
 	await get_tree().create_timer(0.3).timeout

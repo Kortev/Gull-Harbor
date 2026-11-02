@@ -35,9 +35,9 @@ func _ready() -> void:
 	await get_tree().create_timer(0.3).timeout
 	sea.schools.set("_next", 9999.0)
 	if _host:
-		Net.host(PORT)
+		Net.host(_port())
 	else:
-		Net.join("127.0.0.1", PORT)
+		Net.join("127.0.0.1", _port())
 	if _host:
 		await _as_host()
 	else:
@@ -289,3 +289,11 @@ func _check(ok: bool, what: String) -> void:
 	print(("ok   " if ok else "FAIL ") + what)
 	if not ok:
 		fails.append(what)
+
+
+## The port: PORT, or --port=N (another, to run beside something already on it).
+static func _port() -> int:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--port="):
+			return int(a.trim_prefix("--port="))
+	return PORT

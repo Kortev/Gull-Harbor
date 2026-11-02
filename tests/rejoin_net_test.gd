@@ -41,10 +41,10 @@ func _ready() -> void:
 			p.get_peer(id).set_timeout(8, 1000, 3000))
 	Net.dropped.connect(func(_reason: String) -> void: _dropped += 1)
 	if _host:
-		Net.host(PORT)
+		Net.host(_port())
 		await _as_host()
 	else:
-		Net.join("127.0.0.1", PORT)
+		Net.join("127.0.0.1", _port())
 		await _as_friend()
 	_done()
 
@@ -213,3 +213,11 @@ func _check(ok: bool, what: String) -> void:
 	print(("ok   " if ok else "FAIL ") + what)
 	if not ok:
 		fails.append(what)
+
+
+## The port: PORT, or --port=N (another, to run beside something already on it).
+static func _port() -> int:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--port="):
+			return int(a.trim_prefix("--port="))
+	return PORT

@@ -40,6 +40,9 @@ func _ready() -> void:
 	hold.gear = []
 	hold.head_out("skiff")
 	await get_tree().create_timer(0.3).timeout
+	for r in rods.rods:
+		rods._host_line(r.index, true)      # (in the game her lines are in at the dock; a test's sea starts them out)
+		rods._unbaited(r.index)
 	_check(hold.chum == FishHold.CHUM, "a full chum bucket going out (%d)" % hold.chum)
 	var n := rods.rods.size()
 	_check(rods.rods[0].bait_in and not rods.rods[0].baited and hold.well == FishHold.WELL_START + n,
@@ -126,6 +129,7 @@ func _ready() -> void:
 	hold.quota = 100
 	hold.fish = [{"id": 99, "kg": 100.0, "fight_s": 100.0, "aboard_t": 0.0, "bled_s": 10.0, "iced_s": 20.0, "spot": 0}]
 	hold.head_in()
+	hold.host_sell_all()      # (the buyer's scale: the last fish sold, the day's settled)
 	_check(str(hold.sale["verdict"]) == "met" and hold.quota_n == 2 and hold.day == 1
 			and hold.quota == FishHold.quota_for(2) and hold.earned == 0, "quota made: the next one's bigger")
 	hold.head_out("skiff")

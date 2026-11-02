@@ -1083,6 +1083,35 @@ func _fill_master() -> void:
 		_fill.call_deferred(), skipper and bool(hold.get("docked")))))
 
 
+## The first time on your feet at the dock in a game: what the dock's for, said once (then the place's own prompts).
+var _told := 0.0
+
+
+func _first_light(delta: float) -> void:
+	if _told < 0.0:
+		return
+	var hold := _hold()
+	var title: Node = sea.get("title")
+	var me := _me()
+	if hold == null or me == null or not bool(hold.get("docked")) or (title != null and bool(title.call("busy"))) \
+			or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		return
+	_told += delta
+	if _told < 2.0:
+		return
+	_told = -1.0
+	var hud: Node = (sea.get("crew") as Node).get("hud")
+	var vs: Node = sea.get("vs")
+	if hud == null:
+		return
+	if vs != null and bool(vs.get("on")):
+		hud.call("notify", "On her lines at the float. On GO, let them go (E at her cleats) and take her out")
+	elif str(hold.get("prep")) != "off":
+		hud.call("notify", "Fuel at the pump, ice from the bin, bait from the shop. Then let go her lines (E at her cleats)")
+	else:
+		hud.call("notify", "On her lines at the float. Let them go (E at her cleats) and take her out")
+
+
 # ------------------------------------------------------------------ every frame
 
 func _process(delta: float) -> void:
@@ -1095,6 +1124,7 @@ func _process(delta: float) -> void:
 	_show_hose()
 	_show_totes()
 	_idle(delta)
+	_first_light(delta)
 	if not _serving.is_empty():
 		var me := _me()
 		var at: Vector3 = (counters[_serving] as Dictionary)["at"]

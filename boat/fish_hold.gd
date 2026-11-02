@@ -117,6 +117,7 @@ var sale := {}
 var _next_id := 1
 var _deck := {}               # fish id -> its Tuna on deck
 var _sold_noted := -1
+var _met_noted := false
 ## In or out as this peer last saw it (the dock screen, the fade in): the host's head_in() and head_out() change
 ## `docked` before their word comes back round, so it's this, not `docked`, the word's checked against.
 var _docked_seen := true
@@ -876,13 +877,17 @@ func _sync(state: Dictionary) -> void:
 	var sold_n := (sale.get("lines", []) as Array).size() if not sale.is_empty() else -1
 	if sold_n < 0:
 		_sold_noted = -1
-	elif sold_n > maxi(_sold_noted, 0):
-		Sfx.play("kit.coins")
+	elif sold_n > maxi(_sold_noted, 0) or (str(sale.get("verdict", "")) == "met" and not _met_noted):
+		if sold_n > maxi(_sold_noted, 0):
+			Sfx.play("kit.coins")
+		var from := maxi(_sold_noted, 0)
 		_sold_noted = sold_n
 		if not first:
-			_achieve_sale()
+			_achieve_sale(from)
 	else:
 		_sold_noted = maxi(_sold_noted, sold_n)
+	if sale.is_empty():
+		_met_noted = false
 
 
 ## What's newly done to each fish since last time, seen and heard by everyone (before the deck's rebuilt, while an
@@ -1702,17 +1707,19 @@ func _achieve(first: bool) -> void:
 
 
 ## Everyone, a sale on your boat: a #1, the kilos toward A Ton Ashore, a quota made.
-func _achieve_sale() -> void:
+func _achieve_sale(from := 0) -> void:
 	if not _mine():
 		return
 	var a := Net.achievements
 	var kg := 0.0
-	for l: Array in sale.get("lines", []):
+	for l: Array in (sale.get("lines", []) as Array).slice(from):
 		kg += float(l[0])
 		if str(l[1]) == "#1":
 			a.unlock("GRADE_ONE")
-	a.add_sold(kg)
-	if str(sale.get("verdict", "")) == "met":
+	if kg > 0.0:
+		a.add_sold(kg)
+	if str(sale.get("verdict", "")) == "met" and not _met_noted:
+		_met_noted = true
 		a.unlock("QUOTA")
 		if quota_n - 1 >= 3:
 			a.unlock("THREE_QUOTAS")

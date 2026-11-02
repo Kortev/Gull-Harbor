@@ -39,8 +39,15 @@ func _ready() -> void:
 	sea.schools.set("_next", 9999.0)
 	var rods := sea.rods
 	var hold := sea.fish_hold
+	# (at the dock in the game every line's in, as she's tied up: rods.gd; a test's sea starts with them out)
+	for r in rods.rods:
+		rods._host_line(r.index, true)
 	hold.head_out("skiff")
 	await _wait(0.3)
+	for r in rods.rods:
+		rods._host_line(r.index, true)       # (the skiff's rods, made for her)
+		rods._unbaited(r.index)
+	await _wait(0.1)
 	var all_in := true
 	for r in rods.rods:
 		all_in = all_in and r.bait_in and not r.baited

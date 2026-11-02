@@ -30,6 +30,10 @@ func _ready() -> void:
 	hold.gear = []
 	hold.head_out("skiff")
 	await get_tree().process_frame
+	for r in rods.rods:
+		rods._host_line(r.index, true)      # (in the game her lines are in at the dock; a test's sea starts them out)
+		rods._unbaited(r.index)
+	await get_tree().process_frame
 	var bare := hold.well
 	var all_bare := true
 	for r in rods.rods:

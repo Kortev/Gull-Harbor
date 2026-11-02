@@ -85,7 +85,7 @@ func fair(i: int, s: float) -> Vector3:
 	var beam := float(boat.get("beam"))
 	var p: Vector3
 	if rail.size() >= 5:
-		p = rail[4] if i == 0 else rail[0]
+		p = rail[4] if i == 0 else rail[1]      # (her bow, and her quarter forward of the rod holders)
 	else:
 		p = Vector3(beam * 0.5, 1.1, (-0.32 if i == 0 else 0.4) * length)
 	return Vector3(s * (absf(p.x) - 0.22), p.y + 0.04, p.z)
@@ -98,15 +98,26 @@ func _place_acts() -> void:
 	_acts.clear()
 	for i in 2:
 		for s: float in [1.0, -1.0]:
-			var act := Action.new(Vector3(0.5, 0.45, 0.6))
+			var act := Action.new(Vector3(0.34, 0.3, 0.4))
 			act.name = "Line%d%s" % [i, "S" if s > 0.0 else "P"]
-			act.position = fair(i, s) + Vector3(0.0, 0.12, 0.0)
+			act.position = fair(i, s) + Vector3(0.0, 0.08, 0.0)
 			var li := i
 			var side := s
 			act.use = func(_p: Node) -> void: _press(li, side)
 			act.prompt = func() -> String: return _prompt(li, side)
 			boat.add_child(act)
 			_acts.append(act)
+			# her cleat itself: a horn cleat on the cap, galvanised
+			var cleat := MeshInstance3D.new()
+			var bm := BoxMesh.new()
+			bm.size = Vector3(0.06, 0.05, 0.22)
+			cleat.mesh = bm
+			var steel := StandardMaterial3D.new()
+			steel.albedo_color = Color(0.62, 0.64, 0.66)
+			steel.metallic = 0.5
+			cleat.material_override = steel
+			cleat.position = Vector3(0.0, -0.05, 0.0)
+			act.add_child(cleat)
 
 
 ## What E at her cleat (line i, side s) says.

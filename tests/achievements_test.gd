@@ -78,6 +78,7 @@ func _ready() -> void:
 		hold._work(int(f["id"]))
 	a.kg_sold = 700.0
 	hold.head_in()
+	hold.host_sell_all()
 	await _frames(2)
 	var grades: Array = (hold.sale["lines"] as Array).map(func(l: Array) -> String: return str(l[1]))
 	_check(grades.has("#1") and a.has("GRADE_ONE"), "a #1 sold (%s): Number One" % [grades])
@@ -232,6 +233,7 @@ func _page() -> void:
 		return c.get_script() == load("res://ui/menu.gd"))[0]
 	sea.fish_hold.docked = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	menu.set("_boarding", true)        # (the pause card's THE HARBOUR BOARD)
 	await _frames(3)
 	var board := menu.get("_board") as Control
 	_check(board.visible and _find(board, "ACHIEVEMENTS") != null, "the board has ACHIEVEMENTS")

@@ -197,6 +197,15 @@ func _go(page: String) -> void:
 				_items.append(["BOAT: " + str(Kinds.KINDS[kind]["name"]).trim_prefix("the ").to_upper(),
 						"BOTH CREWS GET THE SAME KIND. ENTER TO CHANGE." if _mode == "rivals" else "ENTER TO CHANGE.",
 						_next_boat])
+				# the match settings (core/settings.gd), each with its default for the mode
+				var m := "rivals" if _mode == "rivals" else "career"
+				_items.append(["DOCK PREP: " + Settings.prep_for(m).to_upper(), {"full": "FUEL, ICE AND BAIT BY HAND AT THE "
+						+ "DOCK BEFORE CASTING OFF.", "quick": "THE SAME, QUICKER.", "off": "BOTH BOATS GO OUT FUELLED, ICED AND "
+						+ "BAITED."}[Settings.prep_for(m)] + " ENTER TO CHANGE.", func() -> void:
+					Settings.next_prep(m)
+					var keep := _pick
+					_go("lobby")
+					_pick = keep])
 			else:
 				if _mode == "rivals" or bool((sea.get("vs") as Node).get("on")):
 					_items.append(["SWAP BOATS", "PUT YOURSELF ON THE OTHER BOAT.", _swap])
