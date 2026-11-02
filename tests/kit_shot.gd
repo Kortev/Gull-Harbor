@@ -62,6 +62,7 @@ func _ready() -> void:
 	me.set("_pitch", -0.75)
 	me.hands.pick("knife")
 	await _wait(0.5)
+	hold._act_on(1, int(f["id"]), "spike", 0.0, 0.0)     # (dead: the knife where it's looking guts it)
 	me.hands._target = node.get_node("Handle")
 	node.get_node("Handle").call("use_item", me, "knife", true)
 	await _wait(0.5)

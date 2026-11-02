@@ -82,6 +82,34 @@ func _ready() -> void:
 	var door: Node = landing._doors[0 if side > 0.0 else 1]
 	_check(await _can_look_at(me, Vector3(side * 1.0, 0.6, 5.4), door, PI),
 			"from the cockpit you can put the crosshair on the tuna door")
+	# its tail first: a rope over it as it swings in close on its lap (flung while it's out wide: short, in the water)
+	_check(str(door.call("interact_prompt")) == "Rope its tail", "the door says: %s" % door.call("interact_prompt"))
+	var near_n := 0
+	var far_n := 0
+	var t0 := landing._now()
+	while landing._now() - t0 < Landing.WALLOW_S * 2.0:
+		await get_tree().process_frame
+		if landing.tail_near(0):
+			near_n += 1
+		else:
+			far_n += 1
+	_check(near_n > 20 and far_n > 20, "its tail swings in close and out wide on its lap (%d / %d frames near)" % [near_n, near_n + far_n])
+	while landing.tail_near(0):
+		await get_tree().process_frame
+	door.call("interact", me)
+	await get_tree().process_frame
+	_check(not bool(landing.fish[0].get("roped", false)) and landing._throws.has(0), "flung with its tail out wide: short, in the water")
+	_check(str(door.call("interact_prompt")).is_empty(), "coiling it again (no prompt a moment)")
+	await get_tree().create_timer(Landing.ROPE_WAIT + 0.1).timeout
+	while not landing.tail_near(0):
+		await get_tree().process_frame
+	door.call("interact", me)
+	await get_tree().process_frame
+	_check(bool(landing.fish[0].get("roped", false)), "flung as its tail swings in: roped")
+	_check(landing.hint().begins_with("Roped"), "the HUD says to haul it: %s" % landing.hint())
+	await get_tree().create_timer(0.8).timeout
+	var hinge := door.find_child("Hinge", true, false) as Node3D
+	_check(hinge != null and hinge.rotation.y > 1.0, "the tuna door's swung in for it")
 	_check(str(door.call("interact_prompt")).begins_with("Hold to haul"), "the door says: %s" % door.call("interact_prompt"))
 	Input.action_press("interact")
 	door.call("interact", me)
@@ -101,6 +129,14 @@ func _ready() -> void:
 	var expect := (1.0 - hauled) * (Landing.HAUL_BASE + 200.0 * Landing.HAUL_PER_KG)
 	_check(not landing.fish.has(0) and absf(t - expect) < 1.5, "hauled aboard alone in %.1f s more (about %.0f)" % [t, expect])
 	_check(hold.fish.size() == 1 and hold._deck.size() == 1, "it's on deck")
+	var landed: Node3D = hold._deck.values()[0]
+	var land: Transform3D = hold.fish[0]["land"]
+	var start := sea.boat.global_transform.affine_inverse() * landed.global_position
+	_check(start.distance_to(land.origin) < 0.15, "it starts on deck right where it came over the door (%.2f m off)" % start.distance_to(land.origin))
+	await get_tree().create_timer(0.9).timeout
+	var spot: Vector4 = sea.boat.spec["spots"][int(hold.fish[0]["spot"])]
+	var lies := sea.boat.global_transform.affine_inverse() * landed.global_position
+	_check(Vector2(lies.x - spot.x, lies.z - spot.z).length() < 0.1, "and slides onto its spot on deck")
 	var on_deck: Node = (hold._deck.values()[0] as Node).get_node("Handle")
 	_check(await _can_look_at(me, Vector3(1.0, 0.6, 4.95), on_deck, PI),
 			"from the cockpit you can put the crosshair on the fish on deck")
@@ -132,8 +168,8 @@ func _ready() -> void:
 		sea.rods.host_cast(r.index)       # (the crew cast the baits out: tests/cast_test.tscn)
 	_check(hold.sale.is_empty() and not hold.docked, "back out with an empty hold")
 	# grading: handled well beats handled badly
-	var good := FishHold.quality(200.0, 100.0, 20.0, 60.0)
-	var bad := FishHold.quality(200.0, 1500.0, -1.0, -1.0)
+	var good := FishHold.quality({"kg": 200.0, "fight_s": 100.0, "bled_s": 20.0, "iced_s": 60.0}, 0.0)
+	var bad := FishHold.quality({"kg": 200.0, "fight_s": 1500.0, "bled_s": -1.0, "iced_s": -1.0}, 0.0)
 	_check(FishHold.grade(good) == "#1" and FishHold.grade(bad) == "#3",
 			"fought fast, bled and iced: %s; slow and left warm: %s" % [FishHold.grade(good), FishHold.grade(bad)])
 	_check(FishHold._money(1234567) == "1,234,567" and FishHold._money(950) == "950", "money reads right")
@@ -184,6 +220,7 @@ func _skiff(sea: Sea) -> void:
 	_check(str(rail.name).begins_with("Gunwale"), "skiff: no tuna door, the gunwale (%s)" % rail.name)
 	_check(await _can_look_at(me, Vector3(side * 0.3, 0.5, 3.0), rail, -PI * 0.5 * side),
 			"skiff: from her deck you can put the crosshair on the gunwale by the fish")
+	landing.host_rope(0)
 	var t := 0.0
 	while landing.fish.has(0) and t < 30.0:
 		landing._ask_pull_as(1, 0)

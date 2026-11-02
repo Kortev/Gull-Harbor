@@ -2,14 +2,17 @@ extends Node
 ## Two of you in the skiff over the network (docs/COOP_DESIGN.md), two processes on this machine: the host and a friend.
 ## A fish comes up alongside on rod 0. The friend grabs the rod and holds it: on both machines it lies quiet a whole
 ## cycle, and the friend's HUD says to hold it there. The friend puts the rod back: on both it kicks off and down.
-## The host sticks it between kicks (the friend sees it stuck), and both haul it in together, twice as fast as alone.
+## The host sticks it between kicks (the friend sees it stuck), the friend ropes its tail as it swings in (the host
+## sees it roped), and both haul it in together, twice as fast as alone. On deck the friend pins it down while the
+## host spikes it (the friend sees it go limp), then the friend cuts it and pumps its tail (the host's books say so).
 ## Run (two shells, the host first):
 ##   godot --headless --fixed-fps 30 --path . res://tests/coop_net_test.tscn -- --role=host
 ##   godot --headless --fixed-fps 30 --path . res://tests/coop_net_test.tscn -- --role=join
-## (on a port of its own, PORT, so a game already hosting on this machine doesn't get in the way)
+## (on a port of its own, PORT, so a game already hosting on this machine doesn't get in the way; --port=N for another)
 
 const Sea := preload("res://sea/sea.gd")
 const Landing := preload("res://tuna/landing.gd")
+const Handling := preload("res://tuna/handling.gd")
 const PORT := 7792
 const KG := 150.0
 
@@ -27,11 +30,15 @@ func _ready() -> void:
 		_done())
 	await get_tree().create_timer(0.3).timeout
 	sea.schools.set("_next", 9999.0)
+	var port := PORT
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("--port="):
+			port = a.trim_prefix("--port=").to_int()
 	if _host:
 		sea.fish_hold.set("save_path", "user://bluefin_test.cfg")
-		Net.host(PORT)
+		Net.host(port)
 	else:
-		Net.join("127.0.0.1", PORT)
+		Net.join("127.0.0.1", port)
 	if _host:
 		await _as_host()
 	else:
@@ -72,6 +79,8 @@ func _as_host() -> void:
 	await _until(func() -> bool: return not landing.down(0) and landing.sheer_goal(0) == 0.0, Landing.SHEER_EVERY)
 	landing._ask_throw_as(1, 0)
 	_check(bool(landing.fish[0]["stuck"]), "stuck it between kicks")
+	await _until(func() -> bool: return bool(landing.fish[0].get("roped", false)), 30.0)
+	_check(bool(landing.fish[0].get("roped", false)), "the friend roped its tail")
 	# both of us on the haul (the friend says so)
 	# (the haul goes by frame time, not the sea's clock)
 	var took := 0.0
@@ -84,6 +93,16 @@ func _as_host() -> void:
 	var alone := Landing.HAUL_BASE + KG * Landing.HAUL_PER_KG
 	_check(two and not landing.fish.has(0), "two of us on the haul")
 	_check(took < alone * 0.7, "hauled in %.1f s (alone: %.1f)" % [took, alone])
+	# on deck: the friend pins it, I spike it; the friend cuts it and pumps its tail
+	var hold := sea.fish_hold
+	await _until(func() -> bool: return hold.fish.size() == 1 and int(hold.fish[0].get("pins", 0)) == 1, 15.0)
+	_check(hold.fish.size() == 1 and int(hold.fish[0]["pins"]) == 1, "the friend's pinning it down")
+	var id := int(hold.fish[0]["id"])
+	hold._send_act(id, "spike", 0.0, 0.0)
+	_check(float(hold.fish[0]["spiked_s"]) >= 0.0, "I spiked it")
+	await _until(func() -> bool: return int(hold.fish[0].get("pumps", 0)) >= 3, 20.0)
+	_check(float(hold.fish[0]["cut_q"]) > 0.9 and int(hold.fish[0]["pins"]) == 0, "the friend let go and cut it clean")
+	_check(int(hold.fish[0]["pumps"]) >= 3, "and pumped its tail (%d)" % int(hold.fish[0]["pumps"]))
 	await get_tree().create_timer(3.0).timeout       # (the friend's last look)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://bluefin_test.cfg"))
 
@@ -105,10 +124,32 @@ func _as_friend() -> void:
 	_check(most > 0.95, "rod back, it kicks off here too (sheer %.2f)" % most)
 	await _until(func() -> bool: return landing.fish.has(0) and bool(landing.fish[0]["stuck"]), 15.0)
 	_check(landing.fish.has(0) and bool(landing.fish[0]["stuck"]), "the host stuck it")
+	# its tail roped from here as it swings in (judged here, told to the host)
+	await _until(func() -> bool: return landing.tail_near(0), 15.0)
+	landing._throw_rope(0)
+	await _until(func() -> bool: return bool(landing.fish[0].get("roped", false)), 5.0)
+	_check(bool(landing.fish[0].get("roped", false)), "I roped its tail (the host says so)")
 	landing._ask_pull.rpc_id(1, 0)       # (on the haul with them)
 	await _until(func() -> bool: return not landing.fish.has(0), 20.0)
 	await get_tree().create_timer(0.5).timeout
 	_check(not landing.fish.has(0) and (sea.fish_hold.get("fish") as Array).size() == 1, "aboard, on deck")
+	# pin it down for the host's spike: it goes limp here too
+	var hold := sea.fish_hold
+	var id := int(hold.fish[0]["id"])
+	hold._send_act(id, "pin", 1.0)
+	await _until(func() -> bool: return float(hold.fish[0].get("spiked_s", -1.0)) >= 0.0, 15.0)
+	await get_tree().create_timer(0.2).timeout
+	var t: Node = hold._deck.get(id)
+	_check(t != null and bool(t.get("limp")), "the host spiked it: limp here too")
+	hold._send_act(id, "pin", 0.0)
+	hold._send_act(id, "cut", 0.6, 0.0)
+	for k in 3:
+		await get_tree().create_timer(Handling.PUMP_EVERY + 0.05).timeout
+		hold._send_act(id, "pump")
+	await _until(func() -> bool: return int(hold.fish[0].get("pumps", 0)) >= 3, 5.0)
+	_check(float(hold.fish[0]["cut_q"]) > 0.9 and int(hold.fish[0]["pumps"]) == 3, "cut and pumped (the host's books say)")
+	await get_tree().create_timer(0.4).timeout
+	_check(hold._streams.has(id), "its blood running here")
 
 
 ## The most fish 0 sheered off over `s` s of the sea's clock (real time).

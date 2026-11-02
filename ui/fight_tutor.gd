@@ -9,7 +9,7 @@ extends Control
 ## then says why in a line and waits again for you to read it: SPACE or a click and the fight runs on. (The side
 ## and the arms are things to do once he's moving again, so those cards only want reading.) Alone or with a crew,
 ## each says what's yours to do (`steps_solo`). The landing
-## goes step by step as you do each (rod back, wire, harpoon, haul); the fish's hook clock stands still meanwhile
+## goes step by step as you do each (rod back, wire, harpoon, rope, haul); the fish's hook clock stands still meanwhile
 ## (tuna/landing.gd's hold_clock), but the sea doesn't, so there's no NEXT between those steps, only after the last.
 ##
 ## Which you've been taught is kept on this machine (SAVE), like ui/tips.gd's radio tips, and the field guide's "show
@@ -306,8 +306,10 @@ func _land_step(landing: Node, f: Dictionary) -> Array:
 	if bool(f["stuck"]):
 		if harpoon == me:
 			return ["Q: PUT THE HARPOON BACK", "key:Q"]
-		return ["HOLD E AT THE %s: HAUL HIM ABOARD" % ("TUNA DOOR" if bool(spec.get("door", false)) else "GUNWALE"),
-				"key:E"]
+		var at := "TUNA DOOR" if bool(spec.get("door", false)) else "GUNWALE"
+		if not bool(f.get("roped", false)):
+			return ["E AT THE %s AS HIS TAIL SWINGS IN: ROPE IT" % at, "key:E"]
+		return ["HOLD E AT THE %s: HAUL HIM ABOARD" % at, "key:E"]
 	if mine != null and int(mine.get("index")) == i and crew_n > 1:
 		return ["KEEP THE ROD: HOLD HIM UP FOR YOUR MATE TO HARPOON", "none"]
 	if mine != null:
@@ -350,7 +352,7 @@ func _draw() -> void:
 		head = "HE'S ALONGSIDE! LAND HIM" if _phase == "do" else "HE'S ABOARD!"
 		tag = "FIRST FISH: HE'LL HOLD ON THE HOOK TILL YOU'RE DONE"
 		doing = _land_do
-		why = "BLEED HIM, ICE HIM, QUICK.\nA COLD FISH PAYS DOUBLE."
+		why = "SPIKE HIM, BLEED HIM, ICE HIM. QUICK.\nA CLEAN, COLD FISH PAYS DOUBLE."
 	else:
 		var l: Dictionary = LESSONS[_id]
 		head = l["head"]

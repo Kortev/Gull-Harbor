@@ -391,6 +391,8 @@ func _fill_board(hold: Node, docked: bool) -> void:
 			slip.add_child(_label("NO FISH", BODY, DIM))
 		for l: Array in lines.slice(0, 5):
 			slip.add_child(_row("%d KG  %s" % [roundi(float(l[0])), str(l[1]).to_upper()], "$" + _money(int(l[2]))))
+			if l.size() > 3:
+				slip.add_child(_why(l[3]))
 		if lines.size() > 5:
 			slip.add_child(_label("AND %d MORE" % (lines.size() - 5), SMALL, DIM))
 		for c: Array in sold.get("costs", []):
@@ -496,6 +498,18 @@ func _fill_board(hold: Node, docked: bool) -> void:
 
 
 ## A line of the slip: what on the left, the money on the right.
+## Why a fish graded what it did (tuna/handling.gd's reasons): the three that mattered most, a word or two each, the
+## bad in red and the good in green, under its line on the slip.
+func _why(reasons: Array) -> HBoxContainer:
+	var r := HBoxContainer.new()
+	r.set_meta("why", true)
+	r.add_theme_constant_override("separation", 10)
+	r.add_child(_label(" ", SMALL, DIM))
+	for w: Array in reasons.slice(0, 3):
+		r.add_child(_label(str(w[0]), SMALL, GOOD if bool(w[1]) else BAD))
+	return r
+
+
 func _row(what: String, money: String, col := CREAM, size := SMALL) -> HBoxContainer:
 	var r := HBoxContainer.new()
 	var a := _label(what, size, CREAM)

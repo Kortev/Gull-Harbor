@@ -29,6 +29,13 @@ var roll := 0.0
 var posed := false
 ## Posed but in the water (alongside): its tail, its bank and its curve follow how it's being moved.
 var swimming := false
+## On deck (boat/fish_hold.gd): a flop of its whole body off the deck (kick()), a shiver through it as a clean spike
+## takes (0..1, it fades), its tail pushed over and let go (pumping the blood out, 0..1), and limp: dead still.
+var shiver := 0.0
+var pump := 0.0
+var limp := false
+var _flop := 0.0
+var _flop_v := 0.0
 var mesh: MeshInstance3D
 var _phase := 0.0
 var _bend := 0.0
@@ -82,6 +89,14 @@ static func _swim_material(m: Material) -> Material:
 	return out
 
 
+## A kick on deck: the body flops over one way or the other (`strength` 1 a hard one) and springs back.
+func kick(strength := 1.0) -> void:
+	if limp:
+		return
+	_flop_v += strength * 3.2 * (1.0 if randf() < 0.5 else -1.0)
+	effort = maxf(effort, minf(strength, 1.6))
+
+
 ## Turns toward a direction (world) at a tuna's turn rate, cruising at `speed` m/s.
 func steer(dir: Vector3, speed: float, delta: float, turn := 1.6) -> void:
 	if dir.length_squared() < 1e-6:
@@ -98,13 +113,21 @@ func _process(delta: float) -> void:
 	if delta <= 0.0:
 		return
 	if posed and not swimming:
-		# (lying on deck: only the tail, slapping as hard as it's working)
-		_phase += TAU * (0.4 + effort) * delta
-		mesh.rotation = Vector3.ZERO
-		mesh.position = Vector3.ZERO
+		# (lying on deck: the tail slapping as hard as it's working; a kick flops the whole body over and back on a
+		# spring; a spike's shiver runs through it fast and fine; limp, nothing but a pushed tail)
+		var work := 0.0 if limp else effort
+		_phase += TAU * (0.4 + work + 5.0 * shiver) * delta
+		_flop_v += (-_flop * 90.0 - _flop_v * 9.0) * delta
+		_flop += _flop_v * delta
+		shiver = move_toward(shiver, 0.0, delta / 0.9)
+		pump = move_toward(pump, 0.0, delta * 2.5)
+		var jit := sin(_phase * 3.1) * 0.004 * shiver
+		# (lying on its side its own x is up: a flop yaws it on the deck and lifts it a touch)
+		mesh.rotation = Vector3(_flop * 0.2, 0.0, jit * 4.0)
+		mesh.position = Vector3(absf(_flop) * 0.05 * length, 0.0, 0.0)
 		mesh.set_instance_shader_parameter("swim_phase", _phase)
-		mesh.set_instance_shader_parameter("swim_amp", 0.01 + 0.04 * effort)
-		mesh.set_instance_shader_parameter("bend", 0.0)
+		mesh.set_instance_shader_parameter("swim_amp", (0.0 if limp else 0.01 + 0.04 * effort) + 0.012 * shiver)
+		mesh.set_instance_shader_parameter("bend", 0.22 * sin(pump * PI))
 		return
 	if not posed:
 		_free_swim(delta)

@@ -2,9 +2,11 @@ extends Node
 ## Landing a fish: from boatside to the deck. A fish fought to the boat (tuna/fight.gd's boatside) comes up beaten
 ## and circles slowly near the surface, still on the line: astern of the sportfisher's transom, or along the skiff's
 ## side by her stern quarter. Someone sticks it with the harpoon (E on the harpoon along the port side; hold left
-## mouse to wind up, let go to throw; Q puts it back), then it's hauled aboard: through the sportfisher's tuna door in
-## the transom, over the skiff's gunwale (hold E there: one person can, slowly; two or three make short work of a
-## giant). Then it's on deck (boat/fish_hold.gd). Leave it alongside too long without sticking it and the hook pulls.
+## mouse to wind up, let go to throw; Q puts it back), its tail roped (E at the door as its tail swings in close on its
+## wallowing lap: a loop flung over it; too far off and it splashes in short, and you coil it and try again), then
+## it's hauled aboard by the tail rope: through the sportfisher's tuna door in the transom (it swings open for it),
+## over the skiff's gunwale (hold E there: one person can, slowly; two or three make short work of a giant). Then it
+## slides off onto the deck from where it came over (boat/fish_hold.gd). Leave it alongside too long without sticking it and the hook pulls.
 ## Where all of that is comes from the boat's kind (boat/kinds.gd).
 ##
 ## The throw is a skill. Winding up you bring the harpoon up to your eye and sight along it: it flies where your
@@ -90,6 +92,16 @@ const SHEER_EVERY := 9.0
 const SHEER_FOR := 4.0
 const SHEER_OUT := Vector2(2.2, 1.4)
 const SHEER_RATE := 1.2
+## The tail rope: stuck, it wallows, its body swinging WALLOW radians either way every WALLOW_S s (off the shared
+## clock, so everyone sees the same); the loop goes over its tail only while that's swung in toward the door, nearer
+## than its middle by ROPE_IN of its length. After a miss you coil it again for ROPE_WAIT s; the loop's out over the
+## water ROPE_FLY s.
+const WALLOW := 0.65
+const WALLOW_S := 3.4
+const ROPE_IN := 0.15
+const ROPE_REACH := 4.0
+const ROPE_WAIT := 0.9
+const ROPE_FLY := 0.3
 
 var sea: Node                 # sea/sea.gd
 ## Fish alongside, by the rod they came up on: {kg, side (1 starboard, -1 port), hook_t (sea clock), t (s alongside),
@@ -129,6 +141,12 @@ var _send_in := 0.0
 ## Host: fish whose hook clock stands still (rod index -> the peer who asked): the first fish someone ever lands,
 ## while ui/fight_tutor.gd walks them through it one step at a time. It never runs the other way.
 var _clock_held := {}
+## Tail ropes thrown (fish -> {t: s since, to: where the loop went (world), ok: over its tail}); your coil (s till you
+## can throw again); the ropes as drawn.
+var _throws := {}
+var _rope_in := 0.0
+var _ropes: MeshInstance3D
+var _ropes_mesh: ImmediateMesh
 
 
 var _splash: Splash
@@ -151,6 +169,13 @@ func _ready() -> void:
 	add_child(_line)
 	_arc = _make_arc()
 	add_child(_arc)
+	_ropes = MeshInstance3D.new()
+	_ropes.name = "TailRopes"
+	_ropes_mesh = ImmediateMesh.new()
+	_ropes.mesh = _ropes_mesh
+	_ropes.material_override = _unshaded(Color(0.9, 0.85, 0.62))
+	_ropes.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_ropes)
 	_attach()
 	(sea.get("boat") as Node).connect("rebuilt", _attach)
 	Net.peer_joined.connect(func(id: int) -> void:
@@ -263,6 +288,19 @@ func _process(delta: float) -> void:
 		elif float(f["leave_t"]) >= 0.0:
 			node.effort = 1.0
 			f["going"] = minf(float(f["going"]) + delta / LEAVE, 1.0)
+	_rope_in = maxf(_rope_in - delta, 0.0)
+	_draw_ropes(delta)
+	# the tuna door swung in while a roped fish is coming through it, shut again after (a clank as it shuts)
+	for d in _doors.size():
+		var hinge := _doors[d].find_child("Hinge", true, false) as Node3D
+		if hinge == null:
+			continue
+		var on := _stuck_on(1.0 if d == 0 else -1.0)
+		var want := 1.0 if on >= 0 and bool(fish[on].get("roped", false)) else 0.0
+		var was := hinge.rotation.y
+		hinge.rotation.y = move_toward(was, 1.4 * want, delta * 2.2)
+		if was > 0.0 and hinge.rotation.y == 0.0:
+			Sfx.play_point(self, hinge.global_position, "kit.clank", 0.7, 0.9)
 	# hauling: let go of E, or walk away from the door, and you've stopped (the crosshair can drift as she rolls:
 	# you're still holding the line)
 	if _my_pull >= 0:
@@ -630,6 +668,10 @@ func _fish_transform(f: Dictionary, boat: Node3D, ocean: Node) -> Transform3D:
 		var was: Transform3D = boat.global_transform * (f["from"] as Transform3D)
 		water = was.origin.lerp(water, arrive)
 		head = (-was.basis.z).lerp(head, arrive).normalized()
+	# stuck, wallowing: its body swung one way and the other, its tail coming in toward her and out again
+	if bool(f["stuck"]) and go < 0.0:
+		var wallow := WALLOW * sin(_now() * TAU / WALLOW_S + float(f["spin"])) * (1.0 - k)
+		head = head.rotated(boat.global_basis.y, wallow)
 	var a: Vector3 = spec.get("fish_aboard", Vector3(1.0, 0.8, 6.22))
 	var aboard := boat.global_transform * Vector3(a.x * side, a.y, a.z)
 	# hauled: its head across her (toward her middle) or forward along her, rolling onto its side
@@ -680,8 +722,11 @@ func hint() -> String:
 		return "Wire it, then harpoon it"
 	if waiting:
 		return "Harpoon it"
+	for i: int in fish:
+		if bool(fish[i]["stuck"]) and not bool(fish[i].get("roped", false)):
+			return "Stuck: rope its tail as it swings in"
 	if stuck:
-		return "Stuck: haul it in"
+		return "Roped: haul it in"
 	return ""
 
 
@@ -698,6 +743,8 @@ func _rack_prompt() -> String:
 
 func _door_prompt(side: float) -> String:
 	var i := _stuck_on(side)
+	if i >= 0 and not bool(fish[i].get("roped", false)):
+		return "" if _rope_in > 0.0 else "Rope its tail"
 	if i >= 0:
 		return "Hold to haul  %d%%" % roundi(float(fish[i]["haul"]) * 100.0)
 	var j := _waiting_on(side)
@@ -985,7 +1032,7 @@ func _stuck(i: int, at := Vector3.ZERO, dir := Vector3.FORWARD) -> void:
 	node.effort = 1.0
 	if at == Vector3.ZERO:
 		at = Vector3(0.0, node.length * 0.1, -0.05)
-	_note("Stuck! Hold E at the %s to haul it aboard" % ("tuna door" if bool(spec.get("door", false)) else "gunwale"))
+	_note("Stuck! Rope its tail at the %s" % ("tuna door" if bool(spec.get("door", false)) else "gunwale"))
 	# the dart in its back, its shaft standing out the way it came in, and the float on its line
 	var dart := Node3D.new()
 	dart.name = "Dart"
@@ -1038,6 +1085,9 @@ func _start_pull(side: float) -> void:
 			else:
 				_ask_wire.rpc_id(1, j)
 		return
+	if not bool(fish[i].get("roped", false)):
+		_throw_rope(i)
+		return
 	_my_pull = i
 	if Net.is_host():
 		_ask_pull_as(Net.my_id(), i)
@@ -1081,7 +1131,7 @@ func _ask_pull(i: int) -> void:
 
 
 func _ask_pull_as(who: int, i: int) -> void:
-	if i < 0 or not fish.has(i) or not bool(fish[i]["stuck"]):
+	if i < 0 or not fish.has(i) or not bool(fish[i]["stuck"]) or not bool(fish[i].get("roped", false)):
 		_pulling.erase(who)
 	else:
 		_pulling[who] = i
@@ -1150,6 +1200,122 @@ func _ask_hold_as(who: int, i: int, on: bool) -> void:
 		_clock_held.erase(i)
 
 
+# ------------------------------------------------------------------ the tail rope
+
+## Where fish i's tail is (world), and whether it's swung in close enough to the door on its side to rope.
+func tail_at(i: int) -> Vector3:
+	var node := fish[i]["node"] as Tuna
+	return node.global_transform * Vector3(0.0, 0.0, 0.45 * node.length)
+
+
+func tail_near(i: int) -> bool:
+	if not fish.has(i):
+		return false
+	var door := _doors[0 if float(fish[i]["side"]) > 0.0 else 1].global_position
+	var tail := tail_at(i)
+	var mid := (fish[i]["node"] as Tuna).global_position
+	var toward := Vector2(door.x - mid.x, door.z - mid.z).normalized()
+	var swung := Vector2(tail.x - mid.x, tail.z - mid.z).dot(toward)
+	return swung > ROPE_IN * (fish[i]["node"] as Tuna).length \
+			and Vector2(tail.x - door.x, tail.z - door.z).length() < ROPE_REACH
+
+
+## E at the door on a stuck fish: the loop flung at its tail. Judged here, as you see it (like a throw); the host's
+## told, and everyone sees the loop go.
+func _throw_rope(i: int) -> void:
+	if _rope_in > 0.0:
+		return
+	_rope_in = ROPE_WAIT
+	var ok := tail_near(i)
+	var me := (sea.get("crew") as Node).get("me") as Node
+	if me:
+		me.call("gesture", "throw")
+	if Net.is_host():
+		_ask_rope_as(i, ok)
+	else:
+		_ask_rope.rpc_id(1, i, ok)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _ask_rope(i: int, ok: bool) -> void:
+	_ask_rope_as(i, ok)
+
+
+func _ask_rope_as(i: int, ok: bool) -> void:
+	if not fish.has(i) or not bool(fish[i]["stuck"]) or bool(fish[i].get("roped", false)):
+		return
+	if Net.in_session():
+		_roped.rpc(i, ok)
+	else:
+		_roped(i, ok)
+
+
+## Host, for the tests and screenshots: fish i's tail roped, no throw.
+func host_rope(i: int) -> void:
+	_ask_rope_as(i, true)
+
+
+## Everyone: the loop flung at fish i's tail: over it (roped: now it can be hauled), or in the water short of it.
+@rpc("authority", "call_local", "reliable")
+func _roped(i: int, ok: bool) -> void:
+	if not fish.has(i):
+		return
+	var door := _doors[0 if float(fish[i]["side"]) > 0.0 else 1].global_position
+	var tail := tail_at(i)
+	var to := tail if ok else door + (tail - door).normalized() * minf(ROPE_REACH * 0.9, door.distance_to(tail))
+	if not ok:
+		to.y = float((sea.get("ocean") as Node).call("height_at", to))
+	_throws[i] = {"t": 0.0, "to": to, "ok": ok}
+	Sfx.play_point(self, door, "brine.gust", 0.5, 1.9)
+	if ok:
+		fish[i]["roped"] = true
+
+
+## The tail ropes: each loop flying out from the door, then on a roped fish from the door to its tail (it shortens as
+## it comes in), a miss lying on the water a moment and coiled back in.
+func _draw_ropes(delta: float) -> void:
+	_ropes_mesh.clear_surfaces()
+	var lines := []
+	for i: int in _throws.keys():
+		var th: Dictionary = _throws[i]
+		th["t"] = float(th["t"]) + delta
+		if not fish.has(i):
+			_throws.erase(i)
+			continue
+		var door := _doors[0 if float(fish[i]["side"]) > 0.0 else 1].global_position
+		var t := float(th["t"])
+		if bool(th["ok"]):
+			var k := minf(t / ROPE_FLY, 1.0)
+			var to: Vector3 = (th["to"] as Vector3).lerp(tail_at(i), k)
+			lines.append([door, door.lerp(to, k), 0.25 * (1.0 - k) + 0.05])
+			if k >= 1.0 and not bool(th.get("landed", false)):
+				th["landed"] = true
+				_splash.burst(to, 0.8)
+				Sfx.play_point(self, to, "kit.chain", 0.6, 1.4)
+			continue
+		# a miss: out, splash, a moment on the water, coiled back in
+		var out := minf(t / ROPE_FLY, 1.0) * (1.0 - smoothstep(ROPE_WAIT * 0.6, ROPE_WAIT, t))
+		lines.append([door, door.lerp(th["to"], out), 0.3])
+		if t >= ROPE_FLY and not bool(th.get("landed", false)):
+			th["landed"] = true
+			_splash.burst(th["to"], 0.7)
+			Sfx.play_point(self, th["to"], "sea.spray", 0.6, 1.5)
+		if t >= ROPE_WAIT:
+			_throws.erase(i)
+	if lines.is_empty():
+		return
+	for l: Array in lines:
+		var a: Vector3 = l[0]
+		var b: Vector3 = l[1]
+		if a.distance_to(b) < 0.01:
+			continue
+		_ropes_mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
+		for k in 11:
+			var f := k / 10.0
+			_ropes_mesh.surface_add_vertex(a.lerp(b, f) + Vector3.DOWN * float(l[2]) * 4.0 * f * (1.0 - f))
+		_ropes_mesh.surface_end()
+
+
 # ------------------------------------------------------------------ comes alongside, comes aboard, gets away
 
 ## Host: rod i's fish is beaten and up alongside (rods.gd, when its fight comes boatside).
@@ -1200,7 +1366,10 @@ func _add(i: int, kg: float, side: float, hook_t: float, on_rod := true) -> void
 func _host_aboard(i: int) -> void:
 	var f: Dictionary = fish[i]
 	var now := float((sea.get("ocean") as Node).get("wave_time"))
-	(sea.get("fish_hold") as Node).call("host_add", float(f["kg"]), now - float(f["hook_t"]))
+	# (where it came over the side, so it slides on from there: no blink to its spot on deck)
+	var boat := sea.get("boat") as Node3D
+	var land := boat.global_transform.affine_inverse() * (f["node"] as Node3D).global_transform
+	(sea.get("fish_hold") as Node).call("host_add", float(f["kg"]), now - float(f["hook_t"]), land)
 	for peer: int in _pulling.keys():
 		if int(_pulling[peer]) == i:
 			_pulling.erase(peer)
@@ -1285,7 +1454,7 @@ func _states() -> Array:
 	for i: int in fish:
 		var f: Dictionary = fish[i]
 		out.append([i, f["kg"], f["side"], f["hook_t"], f["t"], f["stuck"], f["haul"], f.get("wired_until", -1.0),
-				f.get("up_t", 0.0), f.get("misses", 0)])
+				f.get("up_t", 0.0), f.get("misses", 0), f.get("roped", false)])
 	return out
 
 
@@ -1306,6 +1475,8 @@ func _sync(holder: int, states: Array) -> void:
 			fish[i]["misses"] = int(s[9])
 		if bool(s[5]):
 			_stuck(i)
+		if s.size() > 10:
+			fish[i]["roped"] = bool(s[10])
 
 
 # ------------------------------------------------------------------ odds and ends
@@ -1396,13 +1567,18 @@ func _make_door() -> Node3D:
 	frame.position = Vector3(0.0, 0.0, 0.06)
 	frame.material_override = _flat(Color(0.32, 0.33, 0.32))
 	root.add_child(frame)
+	# (the panel on a hinge down its side: it swings in for a fish coming through)
+	var hinge := Node3D.new()
+	hinge.name = "Hinge"
+	hinge.position = Vector3(-0.33, 0.0, 0.05)
+	root.add_child(hinge)
 	var panel := MeshInstance3D.new()
 	var pm := BoxMesh.new()
 	pm.size = Vector3(0.66, 0.56, 0.02)
 	panel.mesh = pm
-	panel.position = Vector3(0.0, 0.0, 0.05)
+	panel.position = Vector3(0.33, 0.0, 0.0)
 	panel.material_override = _flat(Color(0.7, 0.71, 0.66))
-	root.add_child(panel)
+	hinge.add_child(panel)
 	return root
 
 
