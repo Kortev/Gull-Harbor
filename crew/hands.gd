@@ -58,6 +58,8 @@ var player: Node3D            # crew/player.gd
 ## What you've picked (Kit.ITEMS, "" empty-handed), and whether there's chum in your scoop.
 var item := ""
 var scoop_full := false
+## A scoop of ice in the scoop, off the bin on the float (sea/places.gd), for her fish box.
+var scoop_ice := false
 ## The mackerel in your fist with `item` "bait": "live" or "dead" ("" none), and whether you're hooking it onto a rod
 ## right now (rods/rig.gd has it then: your view of it's put away).
 var bait := ""
@@ -132,8 +134,8 @@ func carry(kind: String) -> void:
 		Sfx.play_point(self, player.global_position + Vector3.UP, "dock.slap", 0.3, 2.0)
 
 
-## Your hands are full of something bigger (a rod, the harpoon, the wheel), you're in the sea or up a ladder, or
-## you're ashore: the kit's put away.
+## Your hands are full of something bigger (a rod, the harpoon, the wheel), or you're in the sea or up a ladder:
+## the kit's put away.
 func stowed() -> bool:
 	var sea: Node = _sea()
 	if sea == null:
@@ -141,11 +143,9 @@ func stowed() -> bool:
 	var id := str(player.name).to_int()
 	var rods: Node = sea.get("rods")
 	var landing: Node = sea.get("landing")
-	var hold: Node = sea.get("fish_hold")
 	return bool(player.get("steering")) or int(player.get("mode")) != 0 \
 			or (rods != null and rods.call("held_by", id) != null) \
-			or (landing != null and int(landing.get("harpoon_holder")) == id) \
-			or (hold != null and bool(hold.get("docked")))
+			or (landing != null and int(landing.get("harpoon_holder")) == id)
 
 
 func pick(which: String) -> void:
@@ -293,8 +293,7 @@ func _process(delta: float) -> void:
 
 
 func _hold_docked() -> bool:
-	var hold: Node = _sea().get("fish_hold") if _sea() else null
-	return hold != null and bool(hold.get("docked"))
+	return false        # (the kit's yours at the dock too: the scoop for the ice)
 
 
 ## How you're moving, for the bob: your steps over her deck (a dip each step, a sway each stride), your look turning

@@ -305,6 +305,7 @@ func _grades() -> void:
 	hold._host_changed()
 	await _frames(2)
 	hold.head_in()
+	hold.host_sell_all()
 	var lines: Array = hold.sale["lines"]
 	_check(lines.size() == 3, "three on the slip")
 	var g: Array = lines[0]

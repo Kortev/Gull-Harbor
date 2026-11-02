@@ -9,6 +9,8 @@ extends Node3D
 
 const Landmarks := preload("res://sea/landmarks.gd")
 const Kinds := preload("res://boat/kinds.gd")
+const Quay := preload("res://sea/quay.gd")
+const Lines := preload("res://boat/lines.gd")
 
 ## The fish pier: its middle line's x, how far it runs out from the quay face (m), its width, its deck's height.
 const PIER_X := 60.0
@@ -29,12 +31,21 @@ var _lamps: Array[Node3D] = []
 var _t := 0.0
 var lights_on := false
 var _lit := true          # (what the lamps were last set to: so they're only touched when it changes)
+## What's walked on (sea/quay.gd: the quay, the pier, the floats), and where the shops' fronts are (name -> the middle
+## of the front at the sidewalk, world).
+var quay: Quay
+var shop_fronts := {}
 
 
 func _ready() -> void:
+	quay = Quay.new()
+	quay.name = "Quay"
+	quay.harbour = self
+	add_child(quay)
 	var st := _st()
 	_quay(st)
 	_pier(st, PIER_X, PIER_OUT, PIER_W, DECK_Y, true)
+	_floats(st)
 	_pier(st, FINGER_X, FINGER_OUT, FINGER_W, DECK_Y - 0.6, false)
 	_shed(st)
 	_clutter(st)
@@ -80,17 +91,19 @@ func blocked(p: Vector2, room := 0.0) -> bool:
 	return false
 
 
-## Her berth: alongside the fish pier's west side, bow out to sea, `half_beam` m from her middle to her side, `length`
-## m long. (world x, z of her middle)
+## Her berth: alongside the float on the fish pier's west side, bow out to sea, her side on its fenders, `half_beam`
+## m from her middle to her side, `length` m long. (world x, z of her middle)
 func berth(half_beam: float, length: float) -> Vector2:
 	var face := _shore(PIER_X) - 2.0
-	return Vector2(PIER_X - PIER_W * 0.5 - 0.7 - half_beam, face - 12.0 - length * 0.5)
+	return Vector2(PIER_X - PIER_W * 0.5 - Quay.FLOAT_GAP - Quay.FLOAT_W - Lines.OFF - half_beam,
+			face - 12.0 - length * 0.5)
 
 
 func _keep_out() -> Array:
 	var a := _shore(PIER_X) - 2.0
 	var b := _shore(FINGER_X) - 2.0
-	return [Rect2(PIER_X - PIER_W * 0.5 - 0.3, a - PIER_OUT - 0.5, PIER_W + 0.6, PIER_OUT + 3.0),
+	var hw := PIER_W * 0.5 + Quay.FLOAT_GAP + Quay.FLOAT_W + 0.05
+	return [Rect2(PIER_X - hw, a - PIER_OUT - 0.5, hw * 2.0, PIER_OUT + 3.0),
 			Rect2(FINGER_X - FINGER_W * 0.5 - 6.0, b - FINGER_OUT - 3.0, FINGER_W + 12.0, FINGER_OUT + 5.0)]
 
 
@@ -193,6 +206,80 @@ func _pier(st: SurfaceTool, px: float, out: float, w: float, y: float, lamps: bo
 func _bollard(st: SurfaceTool, at: Vector3) -> void:
 	_cyl(st, at, 0.55, 0.22, 0.18, 8, Color(0.15, 0.16, 0.17))
 	_cyl(st, at + Vector3(0, 0.55, 0), 0.08, 0.3, 0.3, 8, Color(0.15, 0.16, 0.17))
+
+
+## The floats either side of the fish pier (sea/quay.gd has where): a timber deck on its pontoons, a rub rail and
+## its fenders along the outer edge, guide piles it rides on, cleats; the gangway down to each (its handrails, the
+## landing across to the pier's deck), the boarding steps on the edges, and a ramp up the pier's last metres to the
+## quay.
+func _floats(st: SurfaceTool) -> void:
+	var wood := Color(0.42, 0.36, 0.28)
+	var dark := Color(0.2, 0.18, 0.16)
+	var face := _shore(PIER_X) - 2.0
+	for fl: Array in quay.floats:
+		var r: Rect2 = fl[0]
+		var out := float(fl[1])
+		var s := float(fl[2])
+		var cx := r.position.x + r.size.x * 0.5
+		var cz := r.position.y + r.size.y * 0.5
+		_kind = PLANKS
+		_box(st, Vector3(cx, Quay.FLOAT_Y - 0.06, cz), Vector3(r.size.x, 0.12, r.size.y), wood, 0.0)
+		_kind = PLAIN
+		_box(st, Vector3(cx, Quay.FLOAT_Y - 0.4, cz), Vector3(r.size.x - 0.1, 0.56, r.size.y - 0.1),
+				Color(0.62, 0.62, 0.6), 0.0)
+		_kind = TIMBER
+		_box(st, Vector3(out + s * 0.04, Quay.FLOAT_Y - 0.16, cz), Vector3(0.1, 0.28, r.size.y), wood.darkened(0.25), 0.0)
+		# the guide piles it rides up and down on, every 12 m along the outer edge
+		var z := r.position.y + 3.0
+		var k := 0
+		while z < r.end.y:
+			_cyl(st, Vector3(out - s * 0.15, -5.0, z), 5.0 + Quay.FLOAT_Y + 2.2, 0.18, 0.16, 8,
+					Color(0.36, 0.3, 0.24).lerp(Color(0.42, 0.36, 0.28), _hash(k)))
+			_kind = PLAIN
+			_cyl(st, Vector3(out - s * 0.15, Quay.FLOAT_Y + 2.2, z), 0.06, 0.19, 0.12, 8, Color(0.14, 0.13, 0.12))
+			_kind = TIMBER
+			z += 12.0
+			k += 1
+		_kind = PLAIN
+		# fenders, white, hung over the edge between the piles
+		z = r.position.y + 1.5
+		while z < r.end.y:
+			_cyl(st, Vector3(out + s * 0.12, Quay.FLOAT_Y - 0.55, z), 0.5, 0.11, 0.11, 6, Color(0.9, 0.9, 0.88))
+			z += 2.0
+	for c: Vector3 in quay.cleats:
+		_cleat(st, c)
+	# the boarding steps: two treads up to STEP_Y on the outer edge
+	for p: Vector3 in quay.steps:
+		var s := 1.0 if p.x > PIER_X else -1.0
+		var outer := p.x + s * 0.4
+		_kind = PLANKS
+		_box(st, Vector3(outer - s * 0.2, (Quay.FLOAT_Y + Quay.STEP_Y) * 0.5, p.z), Vector3(0.4, Quay.STEP_Y - Quay.FLOAT_Y, 1.0),
+				wood.lightened(0.08), 0.0)
+		_box(st, Vector3(outer - s * 0.6, Quay.FLOAT_Y + (Quay.STEP_Y - Quay.FLOAT_Y) * 0.25, p.z),
+				Vector3(0.4, (Quay.STEP_Y - Quay.FLOAT_Y) * 0.5, 1.0), wood.lightened(0.08), 0.0)
+		_kind = PLAIN
+	# the gangways: a sloping plank walk with cleats across it, a handrail on its open side, the landing at its top
+	for g: Array in quay.gangways:
+		var foot: Vector3 = g[0]
+		var top: Vector3 = g[1]
+		var s := 1.0 if foot.x > PIER_X else -1.0
+		_kind = PLANKS
+		_beam(st, foot + Vector3(0, 0.06, 0), top + Vector3(0, 0.0, -0.5), Vector3.UP, 0.1, 0.98, wood.lightened(0.05))
+		var landing_x := (foot.x + (PIER_X - s * PIER_W * 0.5)) * 0.5
+		_box(st, Vector3(landing_x, DECK_Y - 0.05, top.z), Vector3(absf(foot.x - (PIER_X - s * PIER_W * 0.5)) + 0.5, 0.1, 1.0),
+				wood, 0.0)
+		_kind = PLAIN
+		var rail_x := foot.x - s * 0.5
+		var steel := Color(0.6, 0.62, 0.6)
+		_beam(st, Vector3(rail_x, foot.y + 1.0, foot.z), Vector3(rail_x, top.y + 1.0, top.z + 0.5), Vector3.UP, 0.05, 0.05, steel)
+		for t: float in [0.0, 0.33, 0.66, 1.0]:
+			var at := Vector3(rail_x, lerpf(foot.y, top.y, t), lerpf(foot.z, top.z + 0.5, t))
+			_box(st, at + Vector3(0, 0.5, 0), Vector3(0.05, 1.0, 0.05), steel, 0.0)
+	# the ramp up the pier's last 3 m onto the quay
+	_kind = PLANKS
+	_beam(st, Vector3(PIER_X, DECK_Y + 0.0, face - 3.0), Vector3(PIER_X, QUAY_Y - 0.03, face), Vector3.UP, 0.06, PIER_W - 0.3,
+			wood.lightened(0.1))
+	_kind = PLAIN
 
 
 ## A horn cleat, galvanised: its foot bolted to the deck, the horns out fore and aft.
@@ -459,6 +546,7 @@ func _front(st: SurfaceTool) -> void:
 		var c := Vector3(cx, ground, _shore(cx) + d)
 		if shop_at.has(lot[0]):
 			_store(st, c, w, shop_at[lot[0]])
+			shop_fronts[str((shop_at[lot[0]] as Array)[1])] = Vector3(cx, QUAY_Y + 0.16, _shore(cx) + 39.0)
 		else:
 			_house(st, c, w, lot[0], front)
 			if front and d > 40.0:

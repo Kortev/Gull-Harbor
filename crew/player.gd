@@ -1325,9 +1325,10 @@ func _vault_at(wish: Vector3, pre: Vector3) -> void:
 		return
 
 
-## Standing up on her gunwale (or her transom): the way out over it (her space, flat), else zero.
+## Standing up on her gunwale (or her transom): the way out over it (her space, flat), else zero. (Never ashore: the
+## quay's edges are just edges.)
 func on_rail() -> Vector3:
-	if mode != DECK or boat == null or aloft or seated or not body.is_on_floor() \
+	if mode != DECK or boat == null or ashore() or aloft or seated or not body.is_on_floor() \
 			or body.position.y < float(boat.get("deck")) + 0.3:
 		return Vector3.ZERO
 	for out: Vector3 in [Vector3.RIGHT, Vector3.LEFT, Vector3.BACK]:
@@ -1678,6 +1679,8 @@ func _swim(delta: float) -> void:
 ## `at` (world) moved out of any boat's hull, SWIMMER m off her side, her transom or her bow.
 func _clear_hulls(at: Vector3) -> Vector3:
 	for b: Node3D in _boats():
+		if b.is_in_group("quay"):
+			continue          # (the quay's faces are its own collider's: sea/quay.gd)
 		var x := b.global_transform
 		var l := x.affine_inverse() * at
 		var half := float(b.get("length")) * 0.5
@@ -1951,11 +1954,16 @@ func _ocean() -> Node:
 	return sea.get("ocean") if sea else null
 
 
-## The sea's drawn round the boat you're on (her hull keeps the crests out of her deck).
+## The sea's drawn round the boat you're on (her hull keeps the crests out of her deck). Ashore it stays with yours.
 func _follow_me() -> void:
 	var ocean := _ocean()
 	if is_multiplayer_authority() and ocean != null and boat != null:
-		ocean.set("follow", boat)
+		ocean.set("follow", boat if not ashore() else home)
+
+
+## On the quay, the pier or a float (sea/quay.gd), not a boat.
+func ashore() -> bool:
+	return boat != null and boat.is_in_group("quay") and mode == DECK
 
 
 # ------------------------------------------------------------------ the shove
@@ -2350,14 +2358,12 @@ func _lurch(delta: float) -> void:
 		gesture("stumble")
 
 
-## At the dock (boat/fish_hold.gd): the dock screen's up, and a click on it mustn't put you back on deck.
+## At a counter on the quay (sea/places.gd): its card's up, and a click on it mustn't put you back on your feet.
 func _at_dock() -> bool:
 	var sea: Node = boat.get("sea") if boat else null
-	var hold: Node = sea.get("fish_hold") if sea else null
-	var vs: Node = sea.get("vs") if sea else null        # (the sea's, or a VS side's: vs/side.gd)
-	if vs != null and bool(vs.get("on")):
-		return false        # (rivals: no shop at the dock, walk about while the countdown runs)
-	return hold != null and bool(hold.get("docked"))
+	var real: Node = sea.get("sea") if sea != null and sea.get("sea") != null else sea
+	var places: Node = real.get("places") if real else null
+	return places != null and bool(places.call("serving"))
 
 
 ## What you're looking at that you could press E on (null: nothing): tuna/landing.gd checks you're still on the

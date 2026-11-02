@@ -23,6 +23,8 @@ const Tower := preload("res://boat/tower.gd")
 const GreenWater := preload("res://boat/green_water.gd")
 const Cooler := preload("res://boat/cooler.gd")
 const LiveWell := preload("res://boat/live_well.gd")
+const Lines := preload("res://boat/lines.gd")
+const PixFont := preload("res://ui/pixfont.gd")
 
 ## Under way: her bow up (rad) flat out ahead, and how far her stern digs in (rad, m down) backing down flat out.
 const SQUAT := 0.07
@@ -115,6 +117,48 @@ func _ready() -> void:
 	green.name = "GreenWater"
 	green.boat = self
 	add_child(green)
+	# her dock lines (boat/lines.gd), and the fuel gauge on her dash
+	lines = Lines.new()
+	lines.name = "Lines"
+	lines.boat = self
+	add_child(lines)
+	_gauge()
+
+
+## Her fuel gauge, by the wheel: FUEL and a bar of blocks, lit from behind (boat/fish_hold.gd's fuel).
+func _gauge() -> void:
+	if is_instance_valid(_fuel_label):
+		_fuel_label.queue_free()
+	_fuel_label = Label3D.new()
+	_fuel_label.name = "FuelGauge"
+	_fuel_label.font = PixFont.font()
+	_fuel_label.font_size = 24
+	_fuel_label.pixel_size = 0.0022
+	_fuel_label.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	_fuel_label.modulate = Color(1.0, 0.78, 0.34)
+	_fuel_label.outline_size = 0
+	_fuel_label.no_depth_test = false
+	var at := (wheel.position if wheel else helm_spot.origin + Vector3(0, 1.0, -0.5)) + Vector3(0.32, 0.16, 0.02)
+	_fuel_label.position = at
+	add_child(_fuel_label)
+
+
+var _fuel_label: Label3D
+var lines: Node3D
+
+
+func _show_fuel() -> void:
+	if not is_instance_valid(_fuel_label) or sea == null:
+		return
+	var hold: Node = sea.get("fish_hold")
+	if hold == null:
+		return
+	var f := float(hold.get("fuel"))
+	var n := clampi(ceili(f * 8.0), 0, 8)
+	var text := "FUEL " + "#".repeat(n) + ".".repeat(8 - n)
+	if _fuel_label.text != text:
+		_fuel_label.text = text
+		_fuel_label.modulate = Color(1.0, 0.45, 0.3) if f < 0.15 else Color(1.0, 0.78, 0.34)
 
 
 ## The skipper picks her (the dock, ui/menu.gd): the host tells everyone, and every peer rebuilds her.
@@ -135,6 +179,9 @@ func _use_kind(k: String) -> void:
 	if helm.captain != 0:
 		helm._set_captain(0, helm.heading)      # (off the old wheel: there's a new one)
 	_build()
+	if lines:
+		lines.call("rebuilt")
+	_gauge()
 	rebuilt.emit()
 
 
@@ -406,6 +453,7 @@ func set_lights(on: bool, night := on) -> void:
 
 ## Every frame (the ocean's clock moves per frame, so the pose does too; the crew ride it smoothly).
 func _process(delta: float) -> void:
+	_show_fuel()
 	if _radar and ocean:
 		# (in step with the screen's sweep, tuna/radar.gd: clockwise from above, on the sea clock)
 		_radar.rotation.y = -fposmod(float(ocean.wave_time) * 2.6, TAU)

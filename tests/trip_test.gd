@@ -223,6 +223,7 @@ func _ready() -> void:
 			float(hold_fish[0]["kg"]), sea.fish_hold.worth()])
 	# head in and sell
 	sea.fish_hold.head_in()
+	sea.fish_hold.host_sell_all()       # (the buyer's hoist and scale: tests/harbour_walk_test.tscn)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	await _wait(1.5)
 	_check(sea.fish_hold.docked and not sea.fish_hold.sale.is_empty(),

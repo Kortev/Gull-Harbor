@@ -47,6 +47,10 @@ var speed := 0.0
 ## and a turn (rad/s), both dying away.
 var drift := Vector2.ZERO
 var spin := 0.0
+## Under tow (sea/tow.gd, the host's): the launch has her and moves her; her wheel's no use till it lets her go.
+var towed_by: Node = null
+## Her tank's dry (the host says, boat/fish_hold.gd's fuel): her engines won't run.
+var dry := false
 var _net_heading := 0.0
 var _net_at := Vector2.ZERO
 var _net_speed := 0.0
@@ -111,7 +115,7 @@ func _ask(take: bool) -> void:
 	# (VS: the other crew's wheel isn't yours to take, even standing at it)
 	var vs: Node = boat.get("sea").get("vs")
 	var theirs: bool = vs != null and bool(vs.get("on")) and vs.call("boat_of", who) != boat
-	if take and captain == 0 and hands_free and not theirs:
+	if take and captain == 0 and hands_free and not theirs and towed_by == null:
 		_host_set(who)
 	elif not take and captain == who:
 		_host_set(0)
@@ -218,6 +222,8 @@ func _unhandled_input(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	# whoever's at the wheel moves her; with nobody there, the host lets her coast to a stop
 	var driving := is_mine() or (captain == 0 and Net.is_host())
+	var hold := _hold()
+	dry = hold != null and str(hold.get("prep")) != "off" and float(hold.get("fuel")) <= 0.0
 	if is_mine():
 		var me: Node = _crew_member(captain)
 		var live := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or (me != null and bool(me.get("force_input")))
@@ -229,14 +235,33 @@ func _process(delta: float) -> void:
 			want_gas = clampf(want_gas + pulled, -1.0, 1.0)
 		steer = move_toward(steer, want_steer, delta * 2.5)
 		throttle = move_toward(throttle, want_gas, delta * 1.5)
-		if held():
+		if held() or dry:
 			throttle = 0.0
 		if not held():
-			heading = wrapf(heading + steer * turn * delta, -PI, PI)
+			# (the rudder bites with her way on; twin screws turn her on the spot, with the engines running)
+			var bite := 1.0 if not dry else clampf(absf(speed) / 2.0, 0.0, 1.0)
+			heading = wrapf(heading + steer * turn * bite * delta, -PI, PI)
 	elif captain == 0:
 		steer = move_toward(steer, 0.0, delta * 2.5)
 		throttle = 0.0
+	if towed_by != null and is_instance_valid(towed_by):
+		# under tow: where the launch has her (the host moves the launch and her both, and tells everyone)
+		if Net.is_host():
+			towed_by.call("carry", self, delta)
+			_send_in -= delta
+			if Net.in_session() and _send_in <= 0.0:
+				_send_in = SEND
+				_state.rpc(heading, 0.0, 0.0, at, speed)
+		else:
+			_net_age += delta
+			heading = heading + wrapf(_net_heading - heading, -PI, PI) * minf(delta * 10.0, 1.0)
+			at = at.lerp(_net_at + ahead_of(_net_heading) * _net_speed * _net_age, minf(delta * 6.0, 1.0))
+			speed = _net_speed
+		_show_helm()
+		return
 	if driving:
+		if Net.is_host() and _hold() != null:
+			_hold().call("burn", throttle, delta)
 		speed = next_speed(speed, throttle, delta)
 		var was := at
 		at += ahead_of(heading) * speed * delta
@@ -248,6 +273,10 @@ func _process(delta: float) -> void:
 			if drift.length() < 0.02 and absf(spin) < 0.002:
 				drift = Vector2.ZERO
 				spin = 0.0
+		# her dock lines' pull and the floats' fenders (boat/lines.gd)
+		var lines: Node = boat.get("lines")
+		if lines != null:
+			lines.call("tug", self, delta)
 		# (VS: the other boat's as solid as the shore, and a bump shoves you both apart: vs/contact.gd)
 		var vs: Node = boat.get("sea").get("vs") if boat.get("sea") != null else null
 		if vs != null and bool(vs.get("on")):
@@ -298,6 +327,11 @@ func _show_helm() -> void:
 		return
 	_showing = true
 	hud.call("helm", absf(speed) * 1.944, throttle)
+
+
+func _hold() -> Node:
+	var sea: Node = boat.get("sea") if boat else null
+	return sea.get("fish_hold") if sea else null
 
 
 func _crew_member(id: int) -> Node:

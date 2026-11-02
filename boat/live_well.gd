@@ -78,6 +78,13 @@ func setup(on: Node3D) -> void:
 	_act.position = centre + Vector3(0.0, 0.08, 0.0)
 	_act.use = func(p: Node) -> void:
 		var hold := _hold()
+		var places := _places()
+		if places != null and p != null and bool(places.call("carrying", p)):
+			# a tote of mackerel off the bait shop's counter tipped in (sea/places.gd)
+			places.call("ask_tote", false)
+			p.call("gesture", "reach")
+			Sfx.play_point(self, global_position, "dock.slap", 0.6, 1.2)
+			return
 		if hold == null or bool(hold.get("docked")):
 			return
 		if not bool(hold.get("well_open")):
@@ -100,8 +107,12 @@ func setup(on: Node3D) -> void:
 			hold.call("request_well_lid", false)
 	_act.prompt = func() -> String:
 		var hold := _hold()
+		var places := _places()
+		var carrier: Node = boat.get("sea").get("crew").get("me") if boat.get("sea") else null
+		if places != null and carrier != null and bool(places.call("carrying", carrier)):
+			return "Tip the mackerel in (%d in her well)" % int(hold.get("well"))
 		if hold == null or bool(hold.get("docked")):
-			return ""
+			return "Live well: %d mackerel" % int(hold.get("well")) if hold != null else ""
 		var live := int(hold.get("well"))
 		var dead := int(hold.get("dead"))
 		if not bool(hold.get("well_open")):
@@ -169,3 +180,9 @@ func _process(delta: float) -> void:
 		if d.visible:
 			d.position = Vector3((-0.6 + 0.3 * i) * _half.x, 0.012, _half.y * 0.7)
 			d.basis = Basis(Vector3.UP, 0.3 * i) * Basis(Vector3.FORWARD, PI * 0.5)
+
+
+func _places() -> Node:
+	var sea: Node = boat.get("sea") if boat else null
+	var real: Node = sea.get("sea") if sea != null and sea.get("sea") != null else sea
+	return real.get("places") if real else null

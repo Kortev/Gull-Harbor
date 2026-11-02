@@ -1,7 +1,9 @@
 extends CanvasLayer
-## The menu, shown whenever the mouse is free (the title, ui/title.gd, comes before it and hosts or joins a crew).
+## The menu, shown whenever the mouse is free (the title, ui/title.gd, comes before it and hosts or joins a crew), but
+## not while you're being served at a counter on the quay (sea/places.gd: its own card).
 ##
-## At the dock (boat/fish_hold.gd's `docked`: a run starts there, and heading in brings you back), the harbour board:
+## At the dock the harbour is the menu: you walk to the chandlery, the bait shop, the broker's board, the buyer's and
+## the harbor master's (sea/places.gd). The pause card there has THE HARBOUR BOARD as well, the old board, in case:
 ## one screen, nothing to scroll. Along the top the harbour, the day and the bank. Left, the quota (a bar, what's
 ## left to make and by when) and the last trip's slip (each fish, the costs, the trip). Right, the boats side by side
 ## (a line each, take her, buy her or charter her) and the chandlery's gear, a row each. Along the bottom one big
@@ -68,6 +70,9 @@ var _held_at := -1
 var _wipe := false
 ## Up last frame (the board, the pause card, the manual or the settings).
 var _open := false
+## The harbour board open from the pause card at the dock.
+var _boarding := false
+var _board_button: Button
 
 
 func _ready() -> void:
@@ -90,6 +95,8 @@ func _ready() -> void:
 	_status = _label("", SMALL, DIM)
 	col.add_child(_status)
 	col.add_child(_button("BACK TO THE DECK", _resume, true))
+	_board_button = _button("THE HARBOUR BOARD", func() -> void: _boarding = true)
+	col.add_child(_board_button)
 	col.add_child(_button("THE OWNER'S MANUAL", func() -> void: _reading = true))
 	col.add_child(_button("SETTINGS", open_settings))
 	col.add_child(_button("ACHIEVEMENTS", open_achievements))
@@ -250,9 +257,11 @@ func _process(_delta: float) -> void:
 	var title := get_parent().get("title") as Node
 	var vs := get_parent().get("vs") as Node
 	# (Rivals' results card, vs/card.gd, has the mouse while it's up: the menu waits)
+	var places := get_parent().get("places") as Node
 	var open := Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not _headless_shot() \
 			and (title == null or not bool(title.call("busy"))) \
-			and (vs == null or not bool((vs.get("card") as Node).call("up")))
+			and (vs == null or not bool((vs.get("card") as Node).call("up"))) \
+			and (places == null or not bool(places.call("serving")))
 	_reading = _reading and open
 	_wipe = _wipe and open
 	if _tuning and not open:
@@ -264,7 +273,9 @@ func _process(_delta: float) -> void:
 	var hold := _fish_hold()
 	var docked: bool = hold != null and bool(hold.get("docked"))
 	var vs_on := vs != null and bool(vs.get("on"))
-	_panel = _board if docked and not vs_on else _pause
+	_boarding = _boarding and open and docked and not vs_on
+	_board_button.visible = docked and not vs_on
+	_panel = _board if _boarding else _pause
 	var away := _reading or _tuning or _proud         # (a page up in the card's place)
 	_board.visible = open and not away and _panel == _board
 	_pause.visible = open and not away and _panel == _pause
@@ -272,7 +283,7 @@ func _process(_delta: float) -> void:
 	_dim.visible = _reading
 	(get_node("CloseManual") as Control).visible = _reading
 	_open = open
-	_hold_world(open and _panel == _pause and not vs_on)
+	_hold_world(open and not vs_on)
 	if not open:
 		return
 	if Settings.pad and not _tuning and not _proud:
@@ -288,7 +299,8 @@ func _process(_delta: float) -> void:
 	_status.visible = not _status.text.is_empty()
 	var now := [docked, Net.is_host(), (hold.get("sale") as Dictionary).duplicate(true), hold.get("bank"),
 			hold.get("kind"), (hold.get("owned") as Array).duplicate(), (hold.get("gear") as Array).duplicate(),
-			hold.get("quota"), hold.get("earned"), hold.get("day"), Net.in_session_or_hosting(), _wipe] if hold else []
+			hold.get("quota"), hold.get("earned"), hold.get("day"), Net.in_session_or_hosting(), _wipe, hold.get("prep"),
+			roundi(float(hold.get("fuel")) * 20.0), hold.get("ice"), hold.get("well")] if hold else []
 	if now != _dock_of:
 		_dock_of = now
 		_fill_board(hold, docked)
@@ -359,6 +371,8 @@ func _unhandled_input(e: InputEvent) -> void:
 		return
 	if _reading:
 		_reading = false
+	elif _boarding:
+		_boarding = false
 	elif _panel == _pause:
 		_resume()
 	else:
@@ -428,7 +442,10 @@ func _fill_board(hold: Node, docked: bool) -> void:
 	# the last trip's slip
 	var slip := _section(left, "" if sold.is_empty() else "THE LAST TRIP")
 	if sold.is_empty():
-		slip.add_child(_label("FIRST LIGHT. FUELLED, BAITED, READY.", SMALL, DIM))
+		var prep := str(hold.get("prep"))
+		slip.add_child(_label("FIRST LIGHT. %s" % ("SHE GOES OUT FUELLED, ICED AND BAITED." if prep == "off"
+				else "FUEL %d%%  ICE %d  BAIT %d: TOP HER UP AT THE FLOAT." % [roundi(float(hold.get("fuel")) * 100.0),
+				int(hold.get("ice")), int(hold.get("well"))]), SMALL, DIM))
 	else:
 		var lines: Array = sold.get("lines", [])
 		if bool(sold.get("late", false)):
@@ -507,24 +524,18 @@ func _fill_board(hold: Node, docked: bool) -> void:
 	well.add_child(_label("ABOARD", SMALL, GOOD))
 	shop.add_child(well)
 	# the way out
-	if skipper:
-		_dock.add_child(_button("CAST OFF", func() -> void:
-			hold.call("head_out")
-			_resume()
-			# (to the wheel, to take her out through the harbour mouth yourself: a step in to it if it's a clear stride
-			# or two away, seen as the board goes; else nothing moves you, and you're told where it is)
-			var boat: Node = get_parent().get("boat")
-			var me: Node = (get_parent().get("crew") as Node).get("me")
-			if boat == null or me == null or int(boat.get("helm").get("captain")) != 0:
-				return
-			var spot: Transform3D = boat.get("helm_spot")
-			if bool(me.call("can_step_to", spot.origin + Vector3(0, 0.05, 0))):
-				boat.get("helm").call("request", true)
-			else:
-				var hud: Node = (get_parent().get("crew") as Node).get("hud")
-				hud.call("notify", "Cast off! E at the wheel to take her out"), true))
-	else:
-		_dock.add_child(_label("WAITING FOR THE SKIPPER TO CAST OFF", BODY, DIM, HORIZONTAL_ALIGNMENT_CENTER))
+	# the way out: by hand, her lines let go (no button for it); and the dock prep, the skipper's to change
+	var prep := str(hold.get("prep"))
+	var way := HBoxContainer.new()
+	way.add_theme_constant_override("separation", 12)
+	way.alignment = BoxContainer.ALIGNMENT_CENTER
+	_dock.add_child(way)
+	way.add_child(_label("TO CAST OFF, LET GO HER BOW AND STERN LINES (E AT HER CLEATS) AND TAKE HER OUT", BODY, CREAM,
+			HORIZONTAL_ALIGNMENT_CENTER))
+	var prep_b := _button("DOCK PREP: %s" % prep.to_upper(), func() -> void: Settings.next_prep("career"))
+	prep_b.disabled = not skipper
+	way.add_child(prep_b)
+	_dock.add_child(_button("BACK", func() -> void: _boarding = false, true))
 	var links := HBoxContainer.new()
 	links.alignment = BoxContainer.ALIGNMENT_CENTER
 	links.add_theme_constant_override("separation", 10)

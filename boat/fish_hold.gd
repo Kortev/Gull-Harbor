@@ -3,8 +3,9 @@ extends Node
 ##
 ## A game starts at the dock (ui/menu.gd shows it): the bank, which boat (the skiff's yours; the sportfisher can be
 ## bought, or chartered for the day), gear for sale, and Head out. Out there the day runs from dawn (DAWN_H) to dusk
-## (DUSK_H) in DAY seconds, then it's night; head in whenever you like (Esc) and the catch is sold, the fuel and any
-## charter taken off, and you're back at the dock.
+## (DUSK_H) in DAY seconds, then it's night. You bring her home yourself and tie her up alongside the float with her
+## lines (boat/lines.gd): the trip's over, the fuel and any charter are taken off, and the catch is still aboard. Each
+## fish is hoisted out of her onto the buyer's scale by hand (sea/places.gd's hoist) and sold there, one at a time.
 ##
 ## A fish hauled aboard (tuna/landing.gd) slides off the door onto the deck, alive, and you work it there with your
 ## own hands (tuna/handling.gd has the spots, the numbers and the grade): the knife's point into its brain (spike it:
@@ -14,8 +15,13 @@ extends Node
 ## open fish box (her kind's `box`, a hatch in her sole; E on its lid): it drops in, and the scoop on the open box
 ## packs ice over it. What you're on says itself under your sight; how it went shows in the fish (a shiver, a flop,
 ## the blood running, the ice heaping up). A live fish loose on deck thrashes its meat to mush, so the sooner and
-## cleaner the better. Heading in (the Esc menu) sells the lot by the kilo at its grade, #1, #2 or #3, with why on the
-## slip; one still on deck sells as it is, warm. The money goes in the bank and she heads back out with an empty hold.
+## cleaner the better. The buyer pays by the kilo at its grade, #1, #2 or #3, with why on the slip (a line a fish, as
+## each comes off the scale); one still on deck sells as it is, warm. The money goes in the bank as each is sold.
+##
+## Dock prep (core/settings.gd's prep, the host's for the mode: career "full", Rivals "off"): with it on, what she goes
+## out with is what you put aboard: her tank (`fuel`, 0..1: the pump on the float, paid as it runs, burned as she runs:
+## burn()), scoops of ice in her box (`ice`: the ice bin on the float, a scoop at a time) and live mackerel in her
+## well (the bait shop's totes, carried aboard). Off, she's fuelled, iced and baited as she casts off.
 ##
 ## The career (the bank, the boats and gear, the run, the bests) is kept between games on the host's machine, in
 ## user://career.cfg (VERSION in it; missing, unreadable or from a newer game: a fresh start). Written after a sale,
@@ -64,6 +70,13 @@ const GEAR := {
 const WELL_START := 4
 const WELL_MAX := 8
 const CHUM := 24
+## Dock prep: a tote of live mackerel (how many, what it costs), a scoop of ice (what it costs; how many her box
+## takes for each fish it holds), a tank's burn (of a full tank, each second flat out).
+const TOTE := 4
+const TOTE_PRICE := 30
+const ICE_PRICE := 4
+const ICE_PER_FISH := 2
+const BURN := 1.0 / 900.0
 ## Where fish lie on deck comes from the boat's kind (boat/kinds.gd's spots: x, y, z, and 1 across her or 0 along
 ## her), in turn; more than that and they're piled on top. Her fish box takes her kind's `hold` iced.
 
@@ -94,12 +107,17 @@ var best_run := 0
 var well := 0
 var dead := 0
 var chum := 0
+## Her tank (0..1) and the scoops of ice in her box; the dock prep in force ("full", "quick", "off": the host's).
+var fuel := 0.6
+var ice := 0
+var prep := "full"
 var _dusk_noted := 0
 ## The last sale, shown till she heads back out: {lines: [[kg, grade, dollars]], total, bank, best}; empty: none.
 var sale := {}
 var _next_id := 1
 var _deck := {}               # fish id -> its Tuna on deck
-var _sold_noted := false
+var _sold_noted := -1
+var _met_noted := false
 ## In or out as this peer last saw it (the dock screen, the fade in): the host's head_in() and head_out() change
 ## `docked` before their word comes back round, so it's this, not `docked`, the word's checked against.
 var _docked_seen := true
@@ -177,11 +195,11 @@ func _ready() -> void:
 		# (no ducking a quota by quitting before the last day's sale: the day counts, the fuel's owed, nothing sold)
 		_abandoned = false
 		docked = false
+		fish = []
 		head_in()
 		sale["abandoned"] = true
 		_host_changed()
-	if docked:
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE     # (a game starts at the dock: its screen's up)
+
 	_achieve_career()
 
 
@@ -207,6 +225,14 @@ func _process(delta: float) -> void:
 	_throes(delta)
 	if Net.is_host() and not docked:
 		_host_life(delta)
+	if Net.is_host() and docked and not _borrowed:
+		# (the host's dock prep for the game being played; only ever changed at the dock, never mid-trip)
+		var real: Node = sea.get("sea") if sea.get("sea") != null else sea
+		var vs: Node = real.get("vs")
+		var want := Settings.prep_for("rivals" if vs != null and bool(vs.get("on")) else "career")
+		if want != prep:
+			prep = want
+			_host_changed()
 	# the light going: once at dusk, once at dark
 	if docked:
 		return
@@ -355,11 +381,18 @@ func _ask_act(id: int, act: String, a: float, b: float) -> void:
 ## off the artery), gut, pump, pin (a 1 on, 0 off), pack (a scoop of ice over the newest in the box not packed).
 func _act_on(who: int, id: int, act: String, a: float, b: float) -> void:
 	var now := _now()
+	if act == "ice_in":
+		host_ice_in()
+		return
 	if act == "pack":
+		if prep != "off" and ice <= 0:
+			return
 		for k in range(fish.size() - 1, -1, -1):
 			var g: Dictionary = fish[k]
 			if float(g["iced_s"]) >= 0.0 and float(g.get("packed", 1.0)) < 1.0:
 				g["packed"] = minf(float(g["packed"]) + Handling.PACK, 1.0)
+				if prep != "off":
+					ice -= 1
 				if float(g["packed"]) >= 1.0:
 					g["packed_s"] = now - float(g["aboard_t"])
 				_host_changed()
@@ -485,44 +518,82 @@ func capacity() -> int:
 	return int(((sea.get("boat") as Node).get("spec") as Dictionary).get("hold", 12))
 
 
-## Host: heads in and sells the catch, the fuel and any charter taken off; back at the dock with the slip up.
-## `late`: she missed the race home at dusk (sea/sea.gd) and was towed in: the buyers have gone, the cannery pays half.
+## Host: the trip's over, she's tied up (boat/lines.gd both fast: sea/sea.gd hears it) or towed in; the fuel (with
+## no dock prep: it was paid at the pump) and any charter taken off. The catch stays aboard to be hoisted onto the
+## buyer's scale and sold a fish at a time (host_sell). `late`: she missed the race home at dusk and was towed in:
+## the buyers have gone, the cannery pays half.
 func head_in(late := false) -> void:
 	if not Net.is_host() or docked:
 		return
-	var lines := []
-	var total := 0
-	for f: Dictionary in fish:
-		var q := _quality_of(f)
-		var dollars := price(float(f["kg"]), q) / (2 if late else 1)
-		lines.append([float(f["kg"]), grade(q), dollars, Handling.reasons(f, _now())])
-		total += dollars
 	var costs := []
 	var spec: Dictionary = Kinds.spec(kind)
-	costs.append(["Fuel", int(spec.get("fuel", 0))])
+	if prep == "off":
+		costs.append(["Fuel", int(spec.get("fuel", 0))])
 	if not owned.has(kind):
 		costs.append(["Charter, %s" % str(spec.get("name", "her")), CHARTER])
+	var total := 0
 	for c: Array in costs:
 		total -= int(c[1])
-	(sea.get("rods") as Node).call("host_clear")
-	(sea.get("landing") as Node).call("host_clear")
-	var gross := 0
-	for l: Array in lines:
-		gross += int(l[2])
-		run_fish += 1
-		run_biggest = maxf(run_biggest, float(l[0]))
 	bank += total
-	best = maxi(best, total)
-	earned += gross
-	sale = {"lines": lines, "costs": costs, "total": total, "bank": bank, "best": best,
-			"quota": [quota_n, earned, quota, day], "verdict": "", "late": late}
-	fish = []
+	sale = {"lines": [], "costs": costs, "total": total, "bank": bank, "best": best,
+			"quota": [quota_n, earned, quota, day], "verdict": "", "late": late, "settled": false}
 	docked = true
-	_settle()
+	if fish.is_empty():
+		_settle_day()
 	_save()
-	if sea.has_method("moor"):
-		sea.call("moor")      # (VS: each side's own hold has no pier to tie up at)
 	_host_changed()
+
+
+## Host: fish `f` (taken off her by the hoist: host_unship) sold on the buyer's scale: its line on the slip, the money
+## in the bank. The last of the catch sold, the day's settled.
+func host_sell(f: Dictionary) -> Array:
+	var q := _quality_of(f)
+	var dollars := price(float(f["kg"]), q) / (2 if bool(sale.get("late", false)) else 1)
+	var line := [float(f["kg"]), grade(q), dollars, Handling.reasons(f, _now())]
+	if sale.is_empty():
+		sale = {"lines": [], "costs": [], "total": 0, "bank": bank, "best": best,
+				"quota": [quota_n, earned, quota, day], "verdict": "", "late": false, "settled": true}
+	(sale["lines"] as Array).append(line)
+	sale["total"] = int(sale["total"]) + dollars
+	bank += dollars
+	earned += dollars
+	run_fish += 1
+	run_biggest = maxf(run_biggest, float(f["kg"]))
+	sale["bank"] = bank
+	sale["quota"] = [quota_n, earned, quota, day]
+	if fish.is_empty():
+		_settle_day()
+	_save()
+	_host_changed()
+	return line
+
+
+## Host: fish `id` off her (onto the hoist's hook): out of the books aboard, its record handed over ({} if none).
+func host_unship(id: int) -> Dictionary:
+	for k in fish.size():
+		if int(fish[k]["id"]) == id:
+			var f: Dictionary = fish[k]
+			fish.remove_at(k)
+			_host_changed()
+			return f
+	return {}
+
+
+## Host: dev and tests: every fish aboard sold where it lies, as the scale would.
+func host_sell_all() -> void:
+	while not fish.is_empty():
+		host_sell(host_unship(int(fish[0]["id"])))
+
+
+## Host: the day's done with (the catch sold, or she's casting off with some still aboard): the quota's day counted.
+func _settle_day() -> void:
+	if sale.is_empty() or bool(sale.get("settled", true)):
+		return
+	sale["settled"] = true
+	best = maxi(best, int(sale.get("total", 0)))
+	sale["best"] = best
+	_settle()
+	sale["bank"] = bank
 
 
 ## Host, after a sale: the quota's last day done, it's made (a bigger one, three more days) or the bank takes the boat
@@ -578,16 +649,94 @@ func head_out(k := "") -> void:
 		return
 	if not k.is_empty():
 		kind = k
+	_settle_day()
 	sale = {}
 	docked = false
 	trip_t0 = _now()
-	well = WELL_START
+	if prep == "off":
+		well = WELL_START
+		fuel = 1.0
+		ice = ice_room()
 	dead = 0
 	chum = CHUM
 	(sea.get("boat") as Node).call("use_kind", kind)
 	_save()
 	_host_changed()
-	(sea.get("rods") as Node).call("host_baits_out")
+	(sea.get("rods") as Node).call("host_baits_out", prep == "off")
+
+
+## How many scoops of ice her box takes.
+func ice_room() -> int:
+	return capacity() * ICE_PER_FISH
+
+
+## How long a hold at the dock takes (the pump, a scoop): quicker with the "quick" prep.
+func prep_rate() -> float:
+	return 3.0 if prep == "quick" else 1.0
+
+
+## Host: running her engines `throttle` (-1..1) for `delta` s burns her tank (not with no dock prep: she's never short).
+## False: it's dry.
+func burn(throttle: float, delta: float) -> bool:
+	if prep == "off":
+		return true
+	if fuel <= 0.0:
+		return false
+	var was := fuel
+	fuel = maxf(fuel - BURN * pow(absf(throttle), 1.5) * delta, 0.0)
+	if floori(was * 50.0) != floori(fuel * 50.0) or fuel <= 0.0:
+		_host_changed()
+	return fuel > 0.0
+
+
+## Host, the pump on the float: `amount` of a tank in (0..1), paid for as it goes (her kind's fuel price a tank). The
+## amount it took.
+func host_fill(amount: float) -> float:
+	var price_tank := float(Kinds.spec(kind).get("fuel", 60))
+	var room := 1.0 - fuel
+	var afford := float(bank) / maxf(price_tank, 1.0)
+	var took := clampf(minf(amount, room), 0.0, maxf(afford, 0.0))
+	if took <= 0.0:
+		return 0.0
+	_fuel_owed += took * price_tank
+	fuel += took
+	var whole := floori(_fuel_owed)
+	if whole > 0:
+		bank -= whole
+		_fuel_owed -= whole
+	if floori((fuel - took) * 50.0) != floori(fuel * 50.0) or fuel >= 1.0:
+		_host_changed()
+	return took
+
+
+var _fuel_owed := 0.0
+
+
+## Host: a scoop of ice into her box (the bin on the float, ICE_PRICE). False: the box is full, or the bank's empty.
+func host_ice_in() -> bool:
+	if ice >= ice_room() or bank < ICE_PRICE:
+		return false
+	ice += 1
+	bank -= ICE_PRICE
+	_host_changed()
+	return true
+
+
+## Host: a tote of mackerel off the bait shop's counter (TOTE_PRICE). False: no money.
+func host_buy_tote() -> bool:
+	if bank < TOTE_PRICE:
+		return false
+	bank -= TOTE_PRICE
+	Sfx.play("ui.buy")
+	_save()
+	_host_changed()
+	return true
+
+
+## Host: a tote tipped into her well: its mackerel in (as many as there's room for).
+func host_tote_in() -> void:
+	well = mini(well + TOTE, WELL_MAX)
+	_host_changed()
 
 
 ## Host, at the dock: the boat she'll take.
@@ -682,6 +831,7 @@ func _host_changed() -> void:
 
 func _state() -> Dictionary:
 	return {"fish": fish, "bank": bank, "best": best, "sale": sale, "next": _next_id, "docked": docked, "box": box_open, "well_open": well_open,
+			"fuel": fuel, "ice": ice, "prep": prep,
 			"trip_t0": trip_t0, "kind": kind, "owned": owned, "gear": gear, "well": well, "dead": dead, "chum": chum,
 			"quota_n": quota_n, "quota": quota, "earned": earned, "day": day, "run_fish": run_fish,
 			"run_biggest": run_biggest, "best_run": best_run}
@@ -701,8 +851,9 @@ func _sync(state: Dictionary) -> void:
 	_hear_work()
 	docked = bool(state.get("docked", docked))
 	_docked_seen = docked
-	if docked and not was and sea.has_method("arrive") and sea.get_parent() == get_tree().root:
-		sea.call("arrive")
+	fuel = float(state.get("fuel", fuel))
+	ice = int(state.get("ice", ice))
+	prep = str(state.get("prep", prep))
 	box_open = bool(state.get("box", box_open))
 	well_open = bool(state.get("well_open", well_open))
 	trip_t0 = float(state.get("trip_t0", trip_t0))
@@ -723,13 +874,20 @@ func _sync(state: Dictionary) -> void:
 	if docked != was:
 		_dock_changed(docked)
 	_achieve(first)
-	if sale.is_empty():
-		_sold_noted = false
-	elif not _sold_noted:
-		_sold_noted = true
-		Sfx.play("kit.coins")
+	var sold_n := (sale.get("lines", []) as Array).size() if not sale.is_empty() else -1
+	if sold_n < 0:
+		_sold_noted = -1
+	elif sold_n > maxi(_sold_noted, 0) or (str(sale.get("verdict", "")) == "met" and not _met_noted):
+		if sold_n > maxi(_sold_noted, 0):
+			Sfx.play("kit.coins")
+		var from := maxi(_sold_noted, 0)
+		_sold_noted = sold_n
 		if not first:
-			_achieve_sale()
+			_achieve_sale(from)
+	else:
+		_sold_noted = maxi(_sold_noted, sold_n)
+	if sale.is_empty():
+		_met_noted = false
 
 
 ## What's newly done to each fish since last time, seen and heard by everyone (before the deck's rebuilt, while an
@@ -791,24 +949,15 @@ func _on_deck(at: Vector3) -> Vector3:
 	return boat.global_transform * local
 
 
-## In to the dock, or out to the grounds: the dock screen comes up (the mouse freed for it), or goes and you're
-## aboard; the dusk notes start over.
+## In to the dock, or out to the grounds: the dusk notes start over; tied up after a trip, said so (only the boat
+## you're on: in Rivals the other boat tying up is nothing to you). Nothing else changes: you're where you are.
 func _dock_changed(now_docked: bool) -> void:
 	_dusk_noted = 0
-	# (only the boat you're on: in Rivals the other boat tying up is nothing to you; and Rivals has no dock screen at
-	# all, the weigh-in and the countdown show over the game)
 	var real: Node = sea.get("sea") if sea.get("sea") != null else sea
-	var vs: Node = real.get("vs")
-	if real.get("fish_hold") != self or (vs != null and bool(vs.get("on"))):
+	if real.get("fish_hold") != self:
 		return
-	var left := float(real.call("berthing_left")) if now_docked and real.has_method("berthing_left") else 0.0
-	if left > 0.0:
-		# brought in alongside: see her come in onto her berth first, then the dock screen (still in, then)
+	if now_docked and not sale.is_empty() and _mine():
 		_note("Tied up at the fish pier")
-		await get_tree().create_timer(left + 0.8).timeout
-		if not docked:
-			return
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if now_docked else Input.MOUSE_MODE_CAPTURED
 
 
 # ------------------------------------------------------------------ on deck
@@ -1394,8 +1543,6 @@ func _attach_box() -> void:
 
 
 func _lid_prompt() -> String:
-	if docked:
-		return ""
 	if box_open and _unpacked() >= 0:
 		var hands: Node = ((sea.get("crew") as Node).get("me") as Node).get("hands") \
 				if (sea.get("crew") as Node).get("me") else null
@@ -1416,9 +1563,15 @@ func _unpacked() -> int:
 ## The scoop on the open box: a scoop of ice out of the box tipped over the newest fish in (the host's told). Not with
 ## chum in it.
 func _scoop_ice(p: Node, item: String, pressed: bool) -> bool:
+	var hands: Node = p.get("hands")
+	if item == "scoop" and pressed and box_open and hands != null and bool(hands.get("scoop_ice")):
+		# (a scoop of ice off the bin on the float, tipped into her box: sea/places.gd)
+		hands.set("scoop_ice", false)
+		_send_act(-1, "ice_in")
+		p.call("gesture", "scoop")
+		return true
 	if item != "scoop" or not pressed or not box_open or _unpacked() < 0:
 		return false
-	var hands: Node = p.get("hands")
 	if hands != null and bool(hands.get("scoop_full")):
 		return false
 	_send_act(-1, "pack")
@@ -1471,7 +1624,7 @@ func _show_box(delta: float) -> void:
 func hint() -> String:
 	for f: Dictionary in fish:
 		if float(f["iced_s"]) < 0.0 and iced() >= capacity():
-			return "Fish box full   Esc to sell"
+			return "Fish box full: bring her home to the buyer"
 	return ""
 
 
@@ -1554,17 +1707,19 @@ func _achieve(first: bool) -> void:
 
 
 ## Everyone, a sale on your boat: a #1, the kilos toward A Ton Ashore, a quota made.
-func _achieve_sale() -> void:
+func _achieve_sale(from := 0) -> void:
 	if not _mine():
 		return
 	var a := Net.achievements
 	var kg := 0.0
-	for l: Array in sale.get("lines", []):
+	for l: Array in (sale.get("lines", []) as Array).slice(from):
 		kg += float(l[0])
 		if str(l[1]) == "#1":
 			a.unlock("GRADE_ONE")
-	a.add_sold(kg)
-	if str(sale.get("verdict", "")) == "met":
+	if kg > 0.0:
+		a.add_sold(kg)
+	if str(sale.get("verdict", "")) == "met" and not _met_noted:
+		_met_noted = true
 		a.unlock("QUOTA")
 		if quota_n - 1 >= 3:
 			a.unlock("THREE_QUOTAS")
@@ -1635,6 +1790,9 @@ func _load() -> void:
 		run_fish = int(_number(cfg, "run", "run_fish", 0))
 		run_biggest = float(_number(cfg, "run", "run_biggest", 0.0))
 	# (else a save from before the quota: its bank, boats and gear; the first quota starts now)
+	fuel = clampf(float(_number(cfg, "boat", "fuel", fuel)), 0.0, 1.0)
+	ice = maxi(int(_number(cfg, "boat", "ice", 0)), 0)
+	well = clampi(int(_number(cfg, "boat", "well", 0)), 0, WELL_MAX)
 	var at_sea: Variant = cfg.get_value("run", "at_sea", false)
 	if at_sea is bool and at_sea:
 		_abandoned = true
@@ -1665,6 +1823,9 @@ func _save() -> void:
 	cfg.set_value("run", "run_biggest", run_biggest)
 	cfg.set_value("run", "best_run", best_run)
 	cfg.set_value("run", "at_sea", not docked)
+	cfg.set_value("boat", "fuel", fuel)
+	cfg.set_value("boat", "ice", ice)
+	cfg.set_value("boat", "well", well)
 	if cfg.save(save_path) != OK:
 		push_warning("Career: couldn't write %s" % save_path)
 
@@ -1709,8 +1870,6 @@ func new_career() -> void:
 	sale = {}
 	_abandoned = false
 	(sea.get("boat") as Node).call("use_kind", kind)
-	if sea.has_method("moor"):
-		sea.call("moor")
 	_save()
 	_host_changed()
 

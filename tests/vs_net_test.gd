@@ -35,9 +35,9 @@ func _ready() -> void:
 	await get_tree().create_timer(0.3).timeout
 	sea.schools.set("_next", 9999.0)
 	if _host:
-		Net.host(PORT)
+		Net.host(_port())
 	else:
-		Net.join("127.0.0.1", PORT)
+		Net.join("127.0.0.1", _port())
 	if _host:
 		await _as_host()
 	else:
@@ -257,7 +257,8 @@ func _as_friend() -> void:
 		black = maxf(black, card.dark())
 		await get_tree().process_frame
 	await get_tree().create_timer(0.3).timeout
-	_check(black > 0.9 and vs.wins == [0, 1] and vs.count_end > 0.0, "they pressed: a fade, the next day's countdown")
+	_check(black < 0.01 and vs.wins == [0, 1] and vs.count_end > 0.0,
+			"they pressed: no fade, the next day's countdown from where we lie")
 	_check((b_boat.get("helm").get("at") as Vector2).distance_to(vs._berth(1)) < 1.0, "B back at her berth")
 	# day 2: the match's card, REMATCH
 	await _until(func() -> bool: return card.up() and bool(card.data.get("decided", false)), 60.0)
@@ -289,3 +290,11 @@ func _check(ok: bool, what: String) -> void:
 	print(("ok   " if ok else "FAIL ") + what)
 	if not ok:
 		fails.append(what)
+
+
+## The port: PORT, or --port=N (another, to run beside something already on it).
+static func _port() -> int:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--port="):
+			return int(a.trim_prefix("--port="))
+	return PORT

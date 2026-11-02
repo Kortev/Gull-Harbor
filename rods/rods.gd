@@ -1122,19 +1122,19 @@ func host_clear() -> void:
 			_host_line(r.index, true)
 
 
-## Host, heading out: every line in and a bare hook on each; a mackerel for every hook in the well on top of its own
-## (boat/fish_hold.gd), for the crew to bait up and send out.
-func host_baits_out() -> void:
+## Host, heading out: a bare hook on every rod whose line's in (yesterday's mackerel off it; a line left out stays
+## out, for someone to wind in); with `stock` (no dock prep: boat/fish_hold.gd) a mackerel for every hook in the well
+## on top of its own, for the crew to bait up and send out.
+func host_baits_out(stock := true) -> void:
 	for r in rods:
-		if r.hooked:
+		if r.hooked or not r.bait_in:
 			continue
-		_host_line(r.index, true)
 		if Net.in_session():
 			_unbaited.rpc(r.index)
 		else:
 			_unbaited(r.index)
 	var hold: Node = sea.get("fish_hold")
-	if hold != null:
+	if hold != null and stock:
 		hold.call("host_stock", rods.size())
 
 

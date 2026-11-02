@@ -150,9 +150,11 @@ func _ready() -> void:
 	var worth := hold.worth()
 	_check(worth > 0, "it's worth $%d" % worth)
 	hold.head_in()
+	_check(hold.fish.size() == 1, "tied up: nothing sold by it, the fish still aboard")
+	hold.host_sell_all()       # (the buyer's hoist and scale: tests/harbour_walk_test.tscn)
 	var fuel := int(sea.boat.spec["fuel"])
 	_check(hold.fish.is_empty() and int(hold.sale["total"]) == worth - fuel and hold.bank == worth - fuel,
-			"headed in: sold for $%d less $%d fuel, banked ($%d)" % [worth, fuel, hold.bank])
+			"on the scale: sold for $%d less $%d fuel, banked ($%d)" % [worth, fuel, hold.bank])
 	var lines: Array = hold.sale["lines"]
 	_check(lines.size() == 1 and str(lines[0][1]).begins_with("#"), "the slip: %s" % str(lines))
 	_check(hold.docked, "and back at the dock")
@@ -195,6 +197,7 @@ func _skiff(sea: Sea) -> void:
 	var hold := sea.fish_hold
 	var me := sea.crew.me
 	hold.head_in()
+	hold.host_sell_all()
 	await get_tree().process_frame
 	hold.head_out("skiff")
 	await get_tree().create_timer(0.3).timeout

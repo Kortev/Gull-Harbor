@@ -197,6 +197,15 @@ func _go(page: String) -> void:
 				_items.append(["BOAT: " + str(Kinds.KINDS[kind]["name"]).trim_prefix("the ").to_upper(),
 						"BOTH CREWS GET THE SAME KIND. ENTER TO CHANGE." if _mode == "rivals" else "ENTER TO CHANGE.",
 						_next_boat])
+				# the match settings (core/settings.gd), each with its default for the mode
+				var m := "rivals" if _mode == "rivals" else "career"
+				_items.append(["DOCK PREP: " + Settings.prep_for(m).to_upper(), {"full": "FUEL, ICE AND BAIT BY HAND AT THE "
+						+ "DOCK BEFORE CASTING OFF.", "quick": "THE SAME, QUICKER.", "off": "BOTH BOATS GO OUT FUELLED, ICED AND "
+						+ "BAITED."}[Settings.prep_for(m)] + " ENTER TO CHANGE.", func() -> void:
+					Settings.next_prep(m)
+					var keep := _pick
+					_go("lobby")
+					_pick = keep])
 			else:
 				if _mode == "rivals" or bool((sea.get("vs") as Node).get("on")):
 					_items.append(["SWAP BOATS", "PUT YOURSELF ON THE OTHER BOAT.", _swap])
@@ -428,10 +437,7 @@ func _process(delta: float) -> void:
 			if to != null:
 				to.make_current()
 			_view.visible = false
-			var hold := sea.get("fish_hold") as Node
-			var vs := sea.get("vs") as Node
-			if hold == null or not bool(hold.get("docked")) or (vs != null and bool(vs.get("on"))):
-				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED      # (on your feet at the dock: walk to what you want)
 
 
 ## The intro's lines, big, low in the middle, fading in and out with each leg.

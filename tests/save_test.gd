@@ -23,6 +23,7 @@ func _ready() -> void:
 	hold.host_add(220.0, 40.0)
 	hold.host_add(180.0, 40.0)
 	hold.head_in()
+	hold.host_sell_all()
 	var bank := hold.bank
 	_check(bank > FishHold.START_CASH + 3000, "a good day sold (bank $%d)" % bank)
 	_check(hold.buy("reel"), "bought the two-speed reel")

@@ -2,9 +2,11 @@ extends Node
 ## The QA playthrough: the game itself from its title (the sea at the tree's root, as it boots), driven by a bot with
 ## real keys and clicks where a player would use them, a screenshot at every step (docs/shots/play/<part>_NN_*.png)
 ## and a line for each. Parts (-- --part=):
-##   menus    the title's every page, the settings' tabs, FISH, the intro, the harbour board, its manual and settings
-##   trip     FISH, CAST OFF, out the harbour mouth at the wheel, the birds, the troll, the bite, the fight, the harpoon,
-##            the haul, bleeding and icing, the pause card, home through the mouth, alongside, the sale, day two
+##   menus    the title's every page, the settings' tabs, FISH, the intro, on the dock, the pause card's harbour board,
+##            its manual and settings
+##   trip     FISH, her lines let go, out the harbour mouth at the wheel, the birds, the troll, the bite, the fight, the
+##            harpoon, the haul, bleeding and icing, the pause card, home through the mouth, alongside the float, her
+##            lines thrown and made fast, the hoist and the buyer's scale, the slip, day two
 ##   host / join   co-op on one machine: two windows, the host's boat and a friend aboard her, through a catch
 ## The bank's a test file, never yours. Run (needs a window):
 ##   godot --path . --resolution 1600x900 res://tests/play_shot.tscn -- --part=trip [--fast] [--out=<dir>]
@@ -107,6 +109,12 @@ func _menus() -> void:
 	await _key(KEY_ESCAPE)
 	await _shot("settings_closed")
 	await _fish()
+	await _shot("on_the_dock")
+	live = false
+	await _key(KEY_ESCAPE)
+	await _wait(0.3)
+	await _shot("dock_pause")
+	await _click_text("THE HARBOUR BOARD")
 	await _shot("board")
 	await _click_text("THE OWNER'S MANUAL")
 	await _shot("board_manual")
@@ -143,16 +151,10 @@ func _fish() -> void:
 
 func _trip() -> void:
 	await _fish()
-	await _shot("board")
+	await _shot("on_the_dock")
 	var hold := sea.fish_hold
-	_check(hold.docked, "at the dock, the board up")
-	await _click_text("CAST OFF")
-	await _shot("cast_off_step_1")
-	await _wait(0.4)
-	await _shot("cast_off_step_2")
-	await _wait(1.1)
-	_check(not hold.docked, "cast off")
-	print("QA after CAST OFF: at the wheel %s; the note: %s" % [sea.boat.helm.is_mine(), sea.crew.hud._note.text])
+	_check(hold.docked and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED, "on your feet at the dock, no board")
+	await _cast_off()
 	await _shot("cast_off")
 	await _wait(1.0)
 	await _shot("at_the_wheel")
@@ -160,6 +162,7 @@ func _trip() -> void:
 	var mouth: float = sea.harbour.call("_shore", 0.0) - 210.0
 	await _drive([Vector2(sea.boat.helm.at.x - 6.0, sea.boat.helm.at.y - 40.0), Vector2(0.0, mouth + 60.0),
 			Vector2(0.0, mouth - 120.0)], 0.7, "leaving")
+	_check(not hold.docked, "her lines aboard and off the floats: the day's begun")
 	await _shot("the_mouth")
 	await _drive([Vector2(0.0, mouth - 700.0)], 1.0, "")
 	await _shot("open_sea")
@@ -186,8 +189,8 @@ func _trip() -> void:
 	await _shot("pause_resumed")
 	await _catch()
 	await _home(mouth)
-	await _shot("sold_board")
-	_check(hold.docked and not hold.sale.is_empty(), "sold: %s" % str(hold.sale.get("lines", [])))
+	await _sell()
+	_check(hold.docked and not (hold.sale.get("lines", []) as Array).is_empty(), "sold: %s" % str(hold.sale.get("lines", [])))
 	var bank := int(hold.bank)
 	var day := int(hold.day)
 	# the career: written at the sale; read back it's the same books
@@ -196,7 +199,11 @@ func _trip() -> void:
 	# back to the title: the scene's reloaded, the books read again
 	print("QA bank $%d, day %d: back to the title" % [bank, day])
 	var old := sea
+	live = false
+	await _key(KEY_ESCAPE)
+	await _wait(0.3)
 	await _click_text("BACK TO THE TITLE")
+	live = true
 	var t := 0.0
 	while (get_tree().current_scene == old or get_tree().current_scene == null) and t < 10.0:
 		await _wait(0.1)
@@ -222,9 +229,9 @@ func _after_title() -> void:
 	print("QA after the title: bank $%d day %d" % [hold.bank, hold.day])
 	_check(not was.is_empty(), "the save's there")
 	await _fish()
-	await _shot("board_day2")
+	await _shot("dock_day2")
 	_check(hold.docked, "at the dock again")
-	await _click_text("CAST OFF")
+	await _cast_off()
 	await _wait(2.0)
 	await _shot("day2_cast_off")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE))
@@ -420,17 +427,66 @@ func _home(mouth: float) -> void:
 	_hold("move_forward", false)
 	_hold("move_back", false)
 	_steer_to(Vector2.INF)
-	_check(sea.fish_hold.docked, "brought her alongside and tied up (%.0f s)" % t)
-	if not sea.fish_hold.docked:
-		await _shot("berth_failed")
-		sea.fish_hold.head_in()
-	await _shot("tied_up_easing_1")
-	_check(Input.mouse_mode == Input.MOUSE_MODE_CAPTURED, "tied up: her coming in onto her berth first, no board yet")
-	await _wait(1.3)
-	await _shot("tied_up_easing_2")
-	await _wait(2.5)
-	_check(Input.mouse_mode != Input.MOUSE_MODE_CAPTURED, "then the board, the sale on it")
+	await _shot("alongside")
+	# her lines: thrown to the float's cleats (E at her cleats, the bot's shortcut) and made fast, hauled in on them
+	var lines: Node = sea.boat.get("lines")
+	var pier := Vector3(float(sea.harbour.PIER_X), 0.0, sea.boat.global_position.z)
+	var side := 1.0 if sea.boat.to_local(pier).x > 0.0 else -1.0
+	for i in 2:
+		lines.call("request", i, "throw", side)
+	await _wait(1.0)
+	await _shot("lines_thrown")
+	for i in 2:
+		lines.call("request", i, "make_fast")
+	for k in 8:
+		await _wait(0.4)
+		for i in 2:
+			lines.call("request", i, "haul")
+	t = 0.0
+	while not sea.fish_hold.docked and t < 10.0:
+		await _wait(0.2)
+		t += 0.2
+	_check(sea.fish_hold.docked and bool(lines.call("tied")), "brought her alongside and tied up on her lines")
+	_check(Input.mouse_mode == Input.MOUSE_MODE_CAPTURED, "tied up: still on your feet, no board")
 	await _shot("tied_up")
+
+
+## The sale: her fish box open, the hoist's crank held (the bot's shortcut for E held on it) till her catch is up on
+## the buyer's scale and sold, a fish at a time; the slip at the shed.
+func _sell() -> void:
+	var hold := sea.fish_hold
+	hold.call("_ask_lid", true)
+	var t := 0.0
+	var shots := 0
+	while (not hold.fish.is_empty() or not sea.places.h_fish.is_empty()) and t < 120.0:
+		sea.places.host_crank()
+		await get_tree().process_frame
+		t += get_process_delta_time()
+		if shots < 4 and sea.places.h_t > 0.4 + shots * 0.8:
+			await _shot("hoist_%d" % shots)
+			shots += 1
+		if sea.places.h_grade > 1.6 and shots < 6:
+			await _shot("scale_called")
+			shots = 6
+	await _wait(1.0)
+	sea.places.open("SLIP")
+	await _wait(0.4)
+	await _shot("slip")
+	sea.places.close()
+
+
+## Casting off by hand: her lines let go (E at her cleats: the bot's shortcut), the wheel taken.
+func _cast_off() -> void:
+	var lines: Node = sea.boat.get("lines")
+	for i in 2:
+		lines.call("request", i, "let_go")
+	await _wait(0.4)
+	await _shot("lines_going")
+	await _wait(1.0)
+	_check(bool(lines.call("all_aboard")), "her lines let go and back aboard")
+	sea.boat.helm.request(true)
+	await _wait(1.5)
+	print("QA cast off: at the wheel %s" % sea.boat.helm.is_mine())
 
 
 # ---- co-op -------------------------------------------------------------------------------------------------------
@@ -455,10 +511,9 @@ func _host() -> void:
 	while title.busy():
 		await get_tree().process_frame
 	await _wait(1.0)
-	await _shot("host_board")
+	await _shot("host_dock")
 	await _wait(2.0)
-	await _click_text("CAST OFF")
-	await _wait(1.5)
+	await _cast_off()
 	await _shot("host_cast_off")
 	var mouth: float = sea.harbour.call("_shore", 0.0) - 210.0
 	await _drive([Vector2(sea.boat.helm.at.x - 6.0, sea.boat.helm.at.y - 40.0), Vector2(0.0, mouth + 60.0),
