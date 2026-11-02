@@ -1,27 +1,29 @@
 extends RefCounted
-## A test angler for tuna/fight.gd: reads only what's on the screen (Fight.cues(): the needle, whether he's running or
-## jumping) and plays it, the way a person watching the bar would. Used by fight_test, strike_test and trip_test.
+## A test angler for tuna/fight.gd: reads only what a player gets (Fight.cues(): the rod's bend, the reel screaming
+## or grinding, the spool, the drag lever under their thumb, the line going slack, him jumping) and plays it, the way a
+## person with a rod would. Used by fight_test, fight_sim, strike_test and trip_test.
 ##
-## Styles: "good" (keeps the needle in the green: reels while it's low, lets go as it rises past the middle of the
-## green, and whenever he runs or jumps), "reeler" (reels all the time except on runs: ignores the needle),
-## "cranker" (reels through everything), "statue" (does nothing), "jump_reeler" (good, but reels through his jumps).
-## "sloppy" (a first-timer: sees the bar a third of a second late, overshoots both ways, lets go of a run or a jump
-## only once it's well under way). "distracted" (sloppy, and every fifteen seconds or so looks away for a second or
-## two, hand doing whatever it was doing). ("no_side" and "high_tip", the old styles, are "good" and "jump_reeler".)
+## Styles:
+## - "good": pumps (lifts slow, drops winding), hands off the crank and the rod up while he runs, the tip dropped when
+##   he jumps, winds like mad on a slack line; works the drag: strike to start, backed off as the spool empties or the
+##   bend gets heavy and at the leader, pushed up to lift a fish that's sulking close.
+## - "sloppy" (a first-timer: sees it all a third of a second late, pumps out of rhythm, only touches the drag when
+##   it's screaming at them), "distracted" (sloppy, and every fifteen seconds or so looks away for a second or two).
+## - The wrong ways, one each: "cranker" (winds through everything, never pumps or touches the drag), "statue" (does
+##   nothing), "jump_reeler" (good, but keeps it tight through his jumps), "heavy" (good, the drag shoved to full and
+##   left there), "light" (good, the drag barely on), "no_pump" (good, but only ever cranks).
 ##
 ## And the rest of the boat (`crew`, for a headless Fight): with a crew, someone at the wheel keeps her stern to him a
-## second or so late, and when the angler's arms go, the captain comes off the wheel and takes the rod (nobody steers
-## for the walk), the tired one going to the wheel; alone, the rod goes in its holder when he's gone wide or your arms
-## are spent, you walk to the wheel and swing her, rest, and walk back.
+## second or so late and backs down on him when he's taken a lot of line, and when the angler's arms go the captain
+## takes the rod (fresh arms, nobody steering for the walk); alone, the rod goes in its holder when he's gone wide,
+## spooling you or your arms are spent, you walk to the wheel, swing her and back down, and walk back.
+
+const Fight := preload("res://tuna/fight.gd")
+
 
 ## -> {crank 0..1, pitch, side, drag}. `mem` keeps the angler's state between calls (start with {}).
-static func act(c: Dictionary, _dt: float, style: String, mem: Dictionary) -> Dictionary:
-	var t := float(c["tension"])
-	var on := bool(mem.get("on", true))
-	var crank := 0.0
+static func act(c: Dictionary, dt: float, style: String, mem: Dictionary) -> Dictionary:
 	if style == "distracted":
-		# a first-timer who now and then looks away (the plotter, a crewmate, the other lines) and keeps doing
-		# whatever their hand was doing for a second or so
 		var rng: RandomNumberGenerator = mem.get("rng", null)
 		if rng == null:
 			rng = RandomNumberGenerator.new()
@@ -29,51 +31,131 @@ static func act(c: Dictionary, _dt: float, style: String, mem: Dictionary) -> Di
 			mem["rng"] = rng
 		var away := float(mem.get("away", 0.0))
 		if away > 0.0:
-			mem["away"] = away - _dt
+			# (looking away: the hand keeps doing what it was, the rod sags under him)
+			mem["away"] = away - dt
 			mem["seen"] = []
-			return {"crank": float(mem.get("last", 0.0)), "pitch": 0.8, "side": 0.0, "drag": 0.72}
-		if rng.randf() < _dt / 15.0:
+			mem["pitch"] = maxf(float(mem.get("pitch", 0.7)) - 0.25 * float(c["tension"]) * dt, 0.3)
+			return {"crank": float(mem.get("last", 0.0)), "pitch": mem["pitch"], "side": 0.0,
+					"drag": float(mem.get("drag", Fight.STRIKE_DRAG))}
+		if rng.randf() < dt / 15.0:
 			mem["away"] = rng.randf_range(0.8, 2.0)
-		var out := act(c, _dt, "sloppy", mem)
+		var out := act(c, dt, "sloppy", mem)
 		mem["last"] = out["crank"]
 		return out
+	var see := c
 	if style == "sloppy":
 		# what it showed a moment ago
 		var seen: Array = mem.get("seen", [])
-		seen.append([t, bool(c["slipping"]), bool(c["jumping"])])
-		var late := int(0.35 / maxf(_dt, 0.001))
-		while seen.size() > late:
+		seen.append(c)
+		while seen.size() > maxi(int(0.35 / maxf(dt, 0.001)), 1):
 			seen.pop_front()
 		mem["seen"] = seen
-		var then: Array = seen[0]
-		var tl := float(then[0])
-		if on and tl > 0.74:
-			on = false
-		elif not on and tl < 0.3:
-			on = true
-		crank = 1.0 if on and not bool(then[1]) and not bool(then[2]) else 0.0
-		mem["on"] = on
-		return {"crank": crank, "pitch": 0.8, "side": 0.0, "drag": 0.72}
+		see = seen[0]
+	var t := float(see["tension"])
+	var pitch := float(mem.get("pitch", 0.7))
+	var lever := float(mem.get("drag", Fight.STRIKE_DRAG))
+	var crank := 0.0
+	var phase := str(mem.get("phase", "lift"))
+	var slipping := bool(see["slipping"])
+	var out := float(see["line_out"])
+	var spool := float(see["spool"])
+	mem["calm"] = float(mem.get("calm", 0.0)) + dt if not slipping else 0.0
+	# the drag
+	var want := lever
+	match style:
+		"heavy":
+			want = 1.0
+		"light":
+			want = 0.3
+		"cranker", "statue":
+			want = Fight.STRIKE_DRAG
+		"sloppy":
+			# a first-timer only backs it off when it's screaming at them or it's nearly all gone; and when he won't
+			# come, shoves it up, and forgets it's there
+			if t > 0.6 or spool > 0.7:
+				want = lever - 0.1
+			elif float(mem["calm"]) > 8.0 and out < 200.0:
+				want = 0.7
+		_:
+			# keep the bend off the edge (back it off as the spool empties and its drag climbs), more on him when
+			# he's taking it too easily with the spool going, more to lift him when he's sulking close, less at the
+			# leader (no give in a short line)
+			want = (Fight.STRIKE_DRAG if spool < 0.4 else 0.5) if not slipping else lever
+			if slipping and t < 0.3 and spool > 0.45:
+				want = minf(lever + 0.1, 0.8)
+			elif float(mem["calm"]) > 3.0 and out < 120.0:
+				want = 0.7
+			if out < Fight.LEADER + 10.0:
+				want = minf(want, 0.5)
+			# (the line he's dragging through the water on a long fast run pulls at his end too: keep it lighter)
+			if t > (0.36 if slipping and spool > 0.4 else 0.45):
+				want = minf(want, lever - 0.1)
+	var notch := float(mem.get("notch", 0.0)) - dt
+	if notch <= 0.0 and absf(want - lever) > 0.05:
+		lever = clampf(lever + signf(want - lever) * Fight.STEP, 0.0, 1.0)
+		notch = 1.0 if style == "sloppy" else 0.3
+	mem["notch"] = notch
+	mem["drag"] = lever
+	# the rod and the reel
 	match style:
 		"statue":
-			crank = 0.0
+			return {"crank": 0.0, "pitch": 0.7, "side": 0.0, "drag": lever}
 		"cranker":
+			return {"crank": 1.0, "pitch": 0.8, "side": 0.0, "drag": lever}
+	var jumping := bool(see["jumping"]) or bool(see["airborne"])
+	if jumping and style == "jump_reeler":
+		pitch = move_toward(pitch, 1.3, 1.0 * dt)         # (the rod held up and wound: tight on him in the air)
+		crank = 1.0
+	elif jumping:
+		pitch = move_toward(pitch, 0.25, 2.5 * dt)        # (bow to him: the tip down)
+		crank = 0.0
+		phase = "drop"
+	elif bool(see["slack"]) or bool(see["charging"]):
+		crank = 1.0                    # (wind like mad)
+		pitch = move_toward(pitch, 0.9, 1.0 * dt)
+		phase = "lift"
+	elif bool(see["thrash"]) and style == "good" and t > 0.15:
+		crank = 0.0                    # (his head going: ease off him, don't horse him, but don't give slack)
+		pitch = move_toward(pitch, 0.7, 0.6 * dt)
+	elif slipping:
+		crank = 0.0                    # (hands off the crank: he's taking it)
+		pitch = move_toward(pitch, 0.9, 1.0 * dt)
+		phase = "lift"
+	elif style == "no_pump":
+		crank = 1.0
+		pitch = move_toward(pitch, 0.8, 1.0 * dt)
+	else:
+		# pump: lift slow, drop winding
+		var top := 1.25 if style != "sloppy" else 1.1
+		var lift_rate := 0.75 if style != "sloppy" else 0.55
+		var was_t := float(mem.get("was_t", t))
+		mem["t_rate"] = lerpf(float(mem.get("t_rate", 0.0)), (t - was_t) / maxf(dt, 1e-4), minf(1.0, 4.0 * dt))
+		mem["was_t"] = t
+		if phase == "lift":
+			pitch += lift_rate * dt
+			crank = 0.0
+			if pitch >= top or t > float(see["drag_now"]) * 0.97:
+				phase = "drop"
+		elif phase == "drop":
+			pitch -= (1.2 if style != "sloppy" else 1.9) * dt      # (a first-timer drops it faster than he can wind: slack)
 			crank = 1.0
-		"reeler":
-			crank = 0.0 if bool(c["slipping"]) else 1.0
-		_:
-			# reel up into the green, let it settle back, reel again: a hand on the button watching the bar
-			if on and t > 0.6:
-				on = false
-			elif not on and t < 0.45:
-				on = true
-			crank = 1.0 if on else 0.0
-			if bool(c["slipping"]):
-				crank = 0.0
-			if bool(c["jumping"]):
-				crank = 1.0 if style in ["jump_reeler", "high_tip"] else 0.0
-	mem["on"] = on
-	return {"crank": crank, "pitch": 0.8, "side": 0.0, "drag": 0.72}
+			if pitch <= 0.45:
+				phase = "wait"
+				mem["wait"] = 0.0
+		else:
+			# at the bottom, winding to keep it tight, waiting for his tired moment: the bend easing off (a
+			# first-timer just goes again)
+			crank = 1.0
+			mem["wait"] = float(mem.get("wait", 0.0)) + dt
+			var easing := float(mem["t_rate"]) < -0.02 or t < 0.12
+			if style == "sloppy" or easing or float(mem["wait"]) > 2.5:
+				phase = "lift"
+		if style == "jump_reeler":
+			crank = maxf(crank, 1.0 if jumping else 0.0)
+	pitch = clampf(pitch, 0.15, 1.35)
+	mem["pitch"] = pitch
+	mem["phase"] = phase
+	return {"crank": crank, "pitch": pitch, "side": 0.0, "drag": lever}
 
 
 ## The boat round a headless fight, a tick on: the captain, swapping on the rod, the holder. `n` is how many aboard
@@ -90,6 +172,7 @@ static func crew(f: Object, dt: float, n: int, mem: Dictionary, careless := fals
 	var t := float(mem.get("t", 0.0)) + dt
 	mem["t"] = t
 	var arms := float(f.get("arms"))
+	var spool := float(f.get("line_out")) / Fight.CAPACITY
 	var steering := false
 	if n >= 2:
 		# the others' arms come back while they're off the rod
@@ -116,13 +199,16 @@ static func crew(f: Object, dt: float, n: int, mem: Dictionary, careless := fals
 				f.set("in_holder", false)
 				f.call("carry_on", str(f.get("move")), float(f.get("stretch")), float(f.call("turn_sign")),
 						float(f.get("hold")))
-		elif not resting and (float(f.call("angle_k")) < 0.4 or arms < 0.12) and not bool(f.get("slipping")):
+		elif not resting and ((float(f.call("angle_k")) < 0.4 and float(f.get("line_out")) > 40.0) or arms < 0.12
+				or (spool > 0.35 and bool(f.get("slipping"))) or spool > 0.8):
 			resting = true
 			walk = WALK
 			f.set("in_holder", true)
-		elif resting and absf(b) < 0.3 and float(f.get("arms")) > 0.7:
-			resting = false
+		elif resting and absf(b) < 0.4 and float(f.get("arms")) > 0.5 and not bool(f.get("slipping")) \
+				and (float(f.get("stretch")) < -1.0 or float(mem.get("helm_t", 0.0)) > 10.0):
+			resting = false         # (she's backed down on him, or long enough: back to the rod, wind up the slack)
 			walk = WALK
+		mem["helm_t"] = float(mem.get("helm_t", 0.0)) + dt if resting else 0.0
 		mem["walk"] = walk
 		mem["resting"] = resting
 		steering = resting and walk <= 0.0
@@ -147,4 +233,17 @@ static func crew(f: Object, dt: float, n: int, mem: Dictionary, careless := fals
 		f.set("bearing", float(f.get("bearing")) - signf(b) * minf(TURN * dt, absf(b)))
 	else:
 		mem["swinging"] = false
-	f.set("throttle", 0.0)
+	# backing down on him when he's taken a lot (never with him under her or close in)
+	var backing := bool(mem.get("backing", false))
+	var late_s := float(mem.get("spool_seen", 0.0))
+	late_s = late_s + dt if spool > 0.3 else 0.0
+	mem["spool_seen"] = late_s
+	var tight := bool(f.get("slipping")) or float(f.get("strain")) > 0.12
+	if steering and late_s > (3.0 if careless else 1.0) and absf(b) < 0.6 and tight and not bool(mem.get("no_back", false)):
+		backing = true
+	if not tight and float(f.get("stretch")) < (-2.0 if careless else -0.2):
+		backing = false          # (she's run up the slack: hold her while the angler winds it)
+	if not steering or spool < 0.12 or absf(b) > 0.9 or float(f.get("line_out")) < 40.0:
+		backing = false
+	mem["backing"] = backing
+	f.set("throttle", -1.0 if backing else 0.0)

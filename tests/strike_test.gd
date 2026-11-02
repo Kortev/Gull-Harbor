@@ -1,7 +1,7 @@
 extends Node
 ## Hooking up and the fight: a feeding school crosses the spread and a bait gets eaten; the line pours off with the
-## drag screaming; grab the rod and fight it right (let it run, pump it up when it sounds, crank otherwise, ease off
-## as a spiralling fish goes under her) till it's up alongside for the harpoon, with a captain (the test's stand-in,
+## drag screaming and the rod loaded against its strike drag; grab the rod and fight it right (hands off while it runs,
+## pump it, the drag worked a notch at a time) till it's up alongside for the harpoon, with a captain (the test's stand-in,
 ## swinging her heading) keeping the stern on it and a crewmate taking the rod when the angler's arms go (fresh arms).
 ## The fight runs at TIME_SCALE (it's the real game, in real time). Run: godot --headless --path . res://tests/strike_test.tscn
 
@@ -50,7 +50,8 @@ func _ready() -> void:
 	await get_tree().create_timer(2.0).timeout
 	_check(rod.line_out > out0 + 8.0, "the fish runs: %.0f m of line gone in 2 s" % (rod.line_out - out0))
 	_check(rod._scream.playing, "the drag screams")
-	_check(rod.strain > 0.65, "the rod's bent double (strain %.2f)" % rod.strain)
+	_check(rod.strain > 0.12 and is_equal_approx(rod.drag, sea.rods.Fight.STRIKE_DRAG),
+			"the rod's loaded hard against the drag at strike (tension %.2f, lever %.1f)" % [rod.strain, rod.drag])
 	# like a player: clear the other lines first (E on each), so the running fish can't tangle them
 	for r in sea.rods.rods:
 		if r.index != hooked and not r.bait_in:
@@ -60,6 +61,7 @@ func _ready() -> void:
 	_check(rod.holder == 1, "grabbed it")
 	var w := 0.0
 	var moves := {}
+	var drags := {}
 	var helm: Node = sea.boat.get("helm")
 	var mem := {}
 	Engine.time_scale = TIME_SCALE
@@ -76,11 +78,14 @@ func _ready() -> void:
 		if rod.fight != null:
 			var act := FightBot.act(rod.fight.cues(), dt, "good", mem)
 			sea.rods.bot_aim = Vector3(float(act["pitch"]), float(act["side"]), 0.0)
+			sea.rods.set_drag(rod, float(act["drag"]))        # (the scroll wheel, a notch at a time)
+			drags[rod.drag] = true
 			_hold("use_primary", float(act["crank"]) > 0.5)
 	_hold("use_primary", false)
 	Engine.time_scale = 1.0
 	sea.rods.bot_aim = Vector3(NAN, 0.0, 0.0)
 	_check(moves.has("run") and moves.size() >= 3, "it fought: %s" % ", ".join(moves.keys()))
+	_check(drags.size() >= 2, "the drag was worked through the fight: %s" % str(drags.keys()))
 	_check(rod.alongside and sea.landing.fish.has(rod.index),
 			"fought it to the boat, up alongside for the harpoon (%.0f s): %s" % [w, sea.crew.hud._note.text])
 	_done()

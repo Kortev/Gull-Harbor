@@ -49,6 +49,8 @@ var phrase := ""
 var sting := ""
 ## Tests: >0 holds the duck on this many s more, as if the radio were on.
 var duck_test := 0.0
+## A fish just lost (rods.gd): the music all but gone for this many s more, then back slowly.
+var hushed := 0.0
 var _layers := {}           # name -> {player, gain, target}
 var _phrases := {}          # calm name -> AudioStream
 var _stings := {}
@@ -241,7 +243,13 @@ func _stem(i: int, want: float, delta: float) -> void:
 	_race_gain[i] = move_toward(_race_gain[i], want, delta * 0.25)
 
 
-## Down a little while the radio or a voice is on, back up slowly once they stop.
+## Down a little while the radio or a voice is on, back up slowly once they stop; all but gone for a moment after a
+## fish is lost (hush).
+## A fish lost: the music drops away at once for `seconds`, the silence after the line goes.
+func hush(seconds: float) -> void:
+	hushed = maxf(hushed, seconds)
+
+
 func _ducking(delta: float) -> void:
 	var on := duck_test > 0.0
 	duck_test = maxf(duck_test - delta, 0.0)
@@ -252,9 +260,12 @@ func _ducking(delta: float) -> void:
 			on = true
 	_duck_for = DUCK_HOLD if on else maxf(_duck_for - delta, 0.0)
 	var want := DUCK if _duck_for > 0.0 else 1.0
+	if hushed > 0.0:
+		hushed = maxf(hushed - delta, 0.0)
+		want = minf(want, 0.06)
 	if get_tree().paused:
 		want = minf(want, PAUSED)         # (the world held still under the pause card: the music on, quieter)
-	_duck = move_toward(_duck, want, delta * (1.6 if want < _duck else 0.4))
+	_duck = move_toward(_duck, want, delta * ((6.0 if hushed > 0.0 else 1.6) if want < _duck else 0.4))
 
 
 func _fade(n: String, delta: float) -> void:

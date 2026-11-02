@@ -1,6 +1,8 @@
 extends Node
 ## Two of you in the skiff over the network (docs/COOP_DESIGN.md), two processes on this machine: the host and a friend.
-## A fish comes up alongside on rod 0. The friend grabs the rod and holds it: on both machines it lies quiet a whole
+## First a fish on rod 1, fought by the friend: the host sees it from their word, the drag lever they eased, the line
+## going out, and hears the crew shout as it passes half the spool, the same as them; then the line goes and both see
+## the rod spring back. Then a fish comes up alongside on rod 0. The friend grabs the rod and holds it: on both machines it lies quiet a whole
 ## cycle, and the friend's HUD says to hold it there. The friend puts the rod back: on both it kicks off and down.
 ## The host sticks it between kicks (the friend sees it stuck), the friend ropes its tail as it swings in (the host
 ## sees it roped), and both haul it in together, twice as fast as alone. On deck the friend pins it down while the
@@ -55,6 +57,28 @@ func _as_host() -> void:
 	for r in sea.rods.rods:
 		sea.rods.host_cast(r.index)
 	await get_tree().create_timer(0.5).timeout
+	var friend := 0
+	for id: int in sea.crew.slots:
+		if id != 1:
+			friend = id
+	# a fish on rod 1, the friend on it: drawn here from their word
+	var r1 = sea.rods.rods[1]
+	sea.rods.strike(1, KG)
+	await _until(func() -> bool: return r1.holder == friend, 10.0)
+	_check(r1.holder == friend and r1.hooked, "the friend's fighting rod 1's fish")
+	await _until(func() -> bool: return absf(float(r1.drag) - 0.4) < 0.01, 10.0)
+	_check(absf(float(r1.drag) - 0.4) < 0.01, "here, their drag lever's where they eased it (%.1f)" % float(r1.drag))
+	var shouts := int(sea.rods.calls.count)
+	await _until(func() -> bool: return float(r1.line_out) > 255.0, 15.0)
+	await get_tree().create_timer(0.5).timeout
+	_check(float(r1.line_out) > 255.0 and float(r1.strain) > 0.05,
+			"his run, here: %.0f m out, the rod bent (%.2f)" % [float(r1.line_out), float(r1.strain)])
+	_check(int(sea.rods.calls.count) > shouts and str(sea.rods.calls.last).contains("SPOOL"),
+			"and the crew's shout here as he passed half the spool (%s)" % sea.rods.calls.last)
+	sea.rods.host_off(1, sea.rods.WHY["broke"])          # (the line goes)
+	await get_tree().create_timer(0.3).timeout
+	_check(not r1.hooked and float(r1.get("_recoil")) > 0.0, "the line gone: the rod springs back here")
+	await _until(func() -> bool: return r1.holder == 0, 10.0)
 	sea.rods.strike(0, KG)
 	await get_tree().create_timer(0.3).timeout
 	var rod = sea.rods.rods[0]
@@ -62,10 +86,6 @@ func _as_host() -> void:
 	landing.host_alongside(0, KG, float(rod.bearing), float(rod.hook_t))
 	landing.hold_clock(0, true)      # (slow under load, it'd outlast HOOK_HOLDS and the hook would pull)
 	# the friend takes the rod: quiet here too
-	var friend := 0
-	for id: int in sea.crew.slots:
-		if id != 1:
-			friend = id
 	await _until(func() -> bool: return rod.holder == friend, 10.0)
 	_check(rod.holder == friend, "the friend's on the rod")
 	var most := await _watch(Landing.SHEER_EVERY + 0.5)
@@ -109,6 +129,26 @@ func _as_host() -> void:
 
 func _as_friend() -> void:
 	var landing := sea.landing
+	# rod 1's fish: on it, the drag eased two notches, and he runs out past half the spool
+	# (her rods are made again when she heads out: the rod's the one there once he's on)
+	await _until(func() -> bool: return sea.rods.rods.size() > 1 and bool(sea.rods.rods[1].hooked), 30.0)
+	var r1 = sea.rods.rods[1]
+	sea.rods.request_grab(1)
+	await _until(func() -> bool: return r1.holder == Net.my_id() and r1.fight != null, 5.0)
+	_check(r1.holder == Net.my_id() and r1.fight != null, "on rod 1: the fight runs here, on my machine")
+	sea.rods.set_drag(r1, 0.5)
+	sea.rods.set_drag(r1, 0.4)
+	await get_tree().create_timer(1.0).timeout
+	var shouts := int(sea.rods.calls.count)
+	if r1.fight != null:
+		r1.fight.set("grace", 999.0)
+		r1.fight.call("carry_on", "run", float(r1.fight.get("stretch")), 1.0, 1.0)
+		r1.fight.set("line_out", 262.0)
+	await _until(func() -> bool: return not r1.hooked, 20.0)
+	_check(int(sea.rods.calls.count) > shouts and str(sea.rods.calls.last).contains("SPOOL"),
+			"the crew shouted it here too (%s)" % sea.rods.calls.last)
+	_check(not r1.hooked and float(r1.get("_recoil")) > 0.0, "the host says the line's gone: it springs back here")
+	sea.rods.request_return(1)
 	await _until(func() -> bool: return landing.fish.has(0), 30.0)
 	_check(landing.fish.has(0), "a fish up alongside")
 	var rod = sea.rods.rods[0]

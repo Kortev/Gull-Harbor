@@ -1,9 +1,8 @@
 extends Node
-## The first fish's lesson (ui/fight_tutor.gd), headless: off in tests unless turned on; on, the fish takes and the
-## fight holds still (he doesn't move, nothing's lost, only the needle answers your hand) while it asks you to reel
-## into the green, waits till you do, then waits for you to read why and press on; then the run (let go); and the
-## landing step by step (rod back, harpoon, aboard), its hook clock held meanwhile. Three steps, nothing more.
-## Run: godot --headless --path . res://tests/tutor_test.tscn
+## The first fish, taught in the moment (ui/fight_tutor.gd, ui/tips.gd, rods/fight_calls.gd), headless: the fight is
+## never held still behind a card, he keeps fighting while Dale says what to do on the VHF the first time each thing
+## comes up (the bend, the drag slipping, half the spool gone, the leader); and the landing, step by step (rod back,
+## harpoon, aboard), its hook clock held meanwhile. Run: godot --headless --path . res://tests/tutor_test.tscn
 
 const Sea := preload("res://sea/sea.gd")
 const Fight := preload("res://tuna/fight.gd")
@@ -24,89 +23,43 @@ func _ready() -> void:
 	var me: Node = sea.crew.me
 	me.force_input = true
 	sea.schools.set("_next", 9999.0)
-	# a fish on, the rod in your hands
+	# a fish on, the rod in your hands: no card, no freeze; he's off and the line's going
 	rods.host_cast(0)
 	rods.strike(0, 120.0)
 	rods.request_grab(0)
 	await _frames(3)
 	var r: Node = rods.rods[0]
 	var f := r.get("fight") as Fight
-	_check(f != null and tutor.busy() and str(tutor.get("_id")) == "reel", "fish on: the first lesson's up (%s)"
-			% tutor.get("_id"))
-	_check(f != null and f.paused, "and the fight holds still")
-	var out := f.line_out
-	var energy := f.energy
-	var hold := f.hold
-	await _wait(2.0)
-	_check(is_equal_approx(f.line_out, out) and is_equal_approx(f.energy, energy) and is_equal_approx(f.hold, hold)
-			and not f.done, "two seconds paused: he hasn't moved, nothing's lost")
-	# REEL: it waits till you do it, the bar glowing; the needle answers your hand even paused
-	_check(str(tutor.get("_phase")) == "do" and bool(tutor.highlight()), "it waits for you to reel, the bar lit")
-	var low := f.strain
-	Input.action_press("use_primary")
-	await _wait(1.6)
-	_check(f.strain >= Fight.GREEN_LO and f.strain <= Fight.GREEN_HI, "held left mouse: the needle up into the green (%.2f -> %.2f)"
-			% [low, f.strain])
-	Input.action_release("use_primary")
-	_check(str(tutor.get("_phase")) == "why", "in the green: done, and why")
-	await _wait(1.0)
-	_check(f.paused, "still paused while you read")
-	await _next()
-	await _frames(2)
-	_check(bool(tutor.taught("reel")) and (not f.paused or str(tutor.get("_id")) == "run"),
-			"SPACE: taught, and the fight runs on (straight into his run, if he's running)")
-	# the run: as soon as the drag slips
-	for k in 300:
-		if str(tutor.get("_id")) == "run":
-			break
-		await get_tree().process_frame
-	_check(str(tutor.get("_id")) == "run" and f.paused, "he runs, the drag slips: let go (%s)" % tutor.get("_id"))
-	await _wait(1.3)
-	_check(str(tutor.get("_phase")) == "why", "hands off the mouse: done")
-	await _next()
-	await _frames(2)
-	_check(not f.paused and bool(tutor.taught("run")), "on again")
-	# he goes off to the side: alone, the card says the rod goes in its holder while you steer; it only wants reading
-	var wide_up := false
-	var waited := 0.0
-	while waited < 6.0:
-		f.carry_on("dog", f.stretch, 1.0, 1.0)
-		f.bearing = 1.7
-		f.depth = 5.0
-		if str(tutor.get("_id")) == "wide":
-			wide_up = true
-			break
-		await get_tree().process_frame
-		waited += get_process_delta_time()
-	var said: Array = tutor.call("_steps", "wide")
-	_check(wide_up and f.paused and str(said[0][0]).contains("HOLDER"),
-			"he's gone wide: the card, alone (%s)" % str(said[0][0]))
+	var out := f.line_out if f != null else 0.0
 	await _wait(1.5)
-	_check(str(tutor.get("_phase")) == "why", "read: and why")
-	await _next()
-	await _frames(2)
-	_check(bool(tutor.taught("wide")) and not f.paused, "taught: wide, and on again")
-	# his arms go: the card says rest them in the holder
-	f.bearing = 0.0
-	var arms_up := false
-	waited = 0.0
-	while waited < 6.0:
-		f.carry_on("dog", f.stretch, 1.0, 1.0)
-		f.bearing = 0.0
-		f.arms = 0.2
-		sea.rods.arms = 0.2
-		if str(tutor.get("_id")) == "arms":
-			arms_up = true
-			break
+	_check(f != null and not tutor.busy() and not f.done and f.line_out > out + 3.0,
+			"fish on: no card, nothing held still, he's running (%.0f -> %.0f m)" % [out, f.line_out if f else 0.0])
+	_check(sea.tips.get("_seen").has("fight"), "Dale on the VHF, in the moment: the bend, the pump, hands off on a run")
+	_check(not sea.tips.get("_seen").has("leader") and not sea.tips.get("_seen").has("spool"),
+			"and nothing he hasn't come to yet")
+	# the drag slipping in your hands a while: Dale's line on the drag lever
+	var slipped := 0.0
+	f.carry_on("run", f.stretch, 1.0, 1.0)
+	f.grace = 999.0
+	while slipped < 6.0 and not sea.tips.get("_seen").has("drag"):
+		if f.move != "run":
+			f.carry_on("run", f.stretch, 1.0, 1.0)
+			f.grace = 999.0
 		await get_tree().process_frame
-		waited += get_process_delta_time()
-	_check(arms_up and f.paused, "arms tiring: the card")
-	await _wait(1.5)
-	await _next()
+		slipped += get_process_delta_time()
+	_check(sea.tips.get("_seen").has("drag"), "the drag slipping a while: Dale on the lever (%.1f s)" % slipped)
+	# half the spool gone: the tip for it, and nobody was frozen for any of it
+	f.line_out = Fight.CAPACITY * 0.55
+	await _frames(4)
+	_check(sea.tips.get("_seen").has("spool"), "half the spool gone: Dale says back her down")
+	f.line_out = Fight.LEADER - 2.0
+	f.energy = 0.1
+	await _frames(4)
+	_check(sea.tips.get("_seen").has("leader") and str(rods.calls.last).contains("LEADER"),
+			"the leader up: Dale, and the shout (%s)" % rods.calls.last)
+	_check(not tutor.busy(), "and still no card: it was all said while he fought")
+	rods._host_off(0, "")
 	await _frames(2)
-	_check(bool(tutor.taught("arms")) and not f.paused, "taught: arms, and on again")
-	for id: String in ["reel", "run", "wide", "arms"]:
-		_check(bool(tutor.taught(id)), "taught: %s" % id)
 	# the landing
 	sea.landing.host_alongside(0, 120.0, float(r.get("bearing")), float(r.get("hook_t")))
 	await _frames(3)
@@ -128,8 +81,8 @@ func _ready() -> void:
 	await _frames(2)
 	_check(bool(tutor.taught("land")) and not tutor.busy(), "landed: taught")
 	_check(not sea.landing.get("_clock_held").has(0), "the hook clock let go")
-	# the radio needn't say it all over again
-	_check(bool(tutor.covers("fight")) and bool(tutor.covers("alongside")), "Dale's radio tips for these stand down")
+	# the radio needn't say the landing all over again (the fight's his to say)
+	_check(not bool(tutor.covers("fight")) and bool(tutor.covers("alongside")), "Dale's landing tip stands down; the fight's is his")
 
 	for f2 in fails:
 		print("FAIL: ", f2)
