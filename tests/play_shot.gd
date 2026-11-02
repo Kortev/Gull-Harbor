@@ -456,6 +456,15 @@ func _home(mouth: float) -> void:
 func _sell() -> void:
 	var hold := sea.fish_hold
 	hold.call("_ask_lid", true)
+	# (off the wheel, looking up at the buyer's hoist on the float)
+	if sea.boat.helm.is_mine():
+		sea.boat.helm.request(false)
+		await _wait(0.5)
+	var me: Node3D = sea.crew.me
+	var davit: Vector3 = sea.places.stations[0].davit
+	var d := sea.boat.global_basis.inverse() * (davit - me.global_position)
+	me.set("_yaw", atan2(-d.x, -d.z))
+	me.set("_pitch", 0.25)
 	var t := 0.0
 	var shots := 0
 	while (not hold.fish.is_empty() or not sea.places.stations[0].h_fish.is_empty()) and t < 120.0:
@@ -469,10 +478,7 @@ func _sell() -> void:
 			await _shot("scale_called")
 			shots = 6
 	await _wait(1.0)
-	sea.places.open("SLIP")
-	await _wait(0.4)
-	await _shot("slip")
-	sea.places.close()
+	await _shot("sold")
 
 
 ## Casting off by hand: her lines let go (E at her cleats: the bot's shortcut), the wheel taken.
@@ -629,6 +635,9 @@ func _cast_all() -> void:
 			continue
 		me.set("_yaw", PI + (0.35 if r.index % 2 == 0 else -0.35))
 		me.set("_pitch", 0.1)
+		if not r.baited:
+			sea.rods.request_bait(r.index, "live", 1.0)      # (a mackerel out of the well on the hook: the bot's shortcut)
+			await _wait(0.3)
 		sea.rods.request_grab(r.index)
 		await _wait(0.4)
 		_hold("use_primary", true)
