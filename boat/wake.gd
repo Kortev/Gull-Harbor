@@ -80,7 +80,10 @@ func _process(delta: float) -> void:
 	# (the sea paints one trail: VS, the boat you're on; two boats' points in one trail would streak between them)
 	var follow: Variant = ocean.get("follow")
 	if follow == null or follow == boat:
-		ocean.call("wake_at", stern, clampf(going / 8.0, 0.0, 1.0))
+		# (the sea paints it on the water where it'd lie on still water, and the waves carry it to and fro from there,
+		# as they carry her: so it's laid off where the helm has her, and the churn rides along under her transom)
+		var carried: Vector3 = boat.get("carried")
+		ocean.call("wake_at", stern - carried, clampf(going / 8.0, 0.0, 1.0))
 	# the screws biting: white water boiling up astern of her
 	_wash.global_position = stern + boat.global_basis.z * 0.6
 	_wash.emitting = work > 0.15

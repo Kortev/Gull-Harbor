@@ -451,7 +451,8 @@ func _card(sea: Sea, vs: Vs, a_boat: Node3D, b_boat: Node3D, a_hold: Node, b_hol
 	vs._host_ready(77)
 	var a_was: Vector2 = a_boat.get("helm").get("at")
 	var b_was: Vector2 = b_boat.get("helm").get("at")
-	var me_was: Vector3 = sea.crew.me.global_position
+	# (where you stand on her: she's carried to and fro on the sea's orbits meanwhile, boat/boat.gd's carried)
+	var me_was: Vector3 = a_boat.to_local(sea.crew.me.global_position)
 	var black := 0.0
 	while card.up():
 		await get_tree().process_frame
@@ -461,7 +462,8 @@ func _card(sea: Sea, vs: Vs, a_boat: Node3D, b_boat: Node3D, a_hold: Node, b_hol
 	_check(vs.result.is_empty() and vs.wins == [0, 1], "the next day: the match goes on (%s)" % [vs.wins])
 	_check((a_boat.get("helm").get("at") as Vector2).distance_to(a_was) < 0.5
 			and (b_boat.get("helm").get("at") as Vector2).distance_to(b_was) < 0.5, "both boats lying where they tied up")
-	_check(sea.crew.me.global_position.distance_to(me_was) < 0.5, "and you where you were: nobody put anywhere")
+	_check(a_boat.to_local(sea.crew.me.global_position).distance_to(me_was) < 0.5,
+			"and you where you were: nobody put anywhere")
 	_check(vs.count_end > 0.0 and sea.crew.me.boat == a_boat, "the countdown again, you aboard your own")
 	# day 2, to B again: the match
 	sea.fish_hold.call("head_out", "sportfisher")

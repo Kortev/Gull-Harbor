@@ -69,6 +69,11 @@ static func hull(boat: Node3D) -> Array:
 	var r := float(boat.get("beam")) * 0.5 - SKIN
 	var half := maxf(float(boat.get("length")) * 0.5 - SKIN - r, 0.0)
 	var at: Vector2 = h.get("at")
+	# (where she is on the water: the helm's word and where the sea's orbits have carried her, boat/boat.gd's carried;
+	# side by side the two are carried nearly alike, but not quite)
+	var c: Variant = boat.get("carried")
+	if c is Vector3:
+		at += Vector2((c as Vector3).x, (c as Vector3).z)
 	return [at + ahead * half, at - ahead * half, r]
 
 

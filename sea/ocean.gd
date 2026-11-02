@@ -230,6 +230,9 @@ func _process(delta: float) -> void:
 			var at := cam.global_position
 			if follow != null and follow.global_position.distance_to(at) < 60.0:
 				at = follow.global_position
+				# (where she'd be on still water: the sea carrying her to and fro mustn't drag the mesh over the waves)
+				if "carried" in follow:
+					at -= follow.get("carried") as Vector3
 			global_position = Vector3(at.x, global_position.y, at.z)
 	var o := _origin()
 	_mat.set_shader_parameter("origin", o)
@@ -330,6 +333,88 @@ func height_at(at: Vector3, ahead := 0.0, slack := 0.0) -> float:
 	if memo:
 		_memo[at] = h
 	return h
+
+
+## How the water carries a hull floating at world point `at` (where she'd be on still water), heading `heading`
+## (boat/helm.gd's: her bow toward -Z turned by it), `length` by `beam` m: the waves' orbits move the water sideways
+## as well as up and down (the same rolling waves height_at rides), and what floats on it goes round with it. A long
+## hull averages the water under her: each wave's push is its mean over her plan (sinc of its wavelength against her
+## length along, her beam across), so the long swells carry her nearly all the way and the short chop hardly at all.
+## And where the water under her bow goes one way across her while under her stern it goes the other, she slews a
+## little (the slope of that across her length, least squares; YAW_FOLLOW of it, her keel resisting the rest).
+## Returns [dx, dz (world m: where she's carried to, off `at`), yaw (rad, round +Y), and how fast each is changing:
+## vx, vz (m/s), yaw rate (rad/s)]. Each wave goes round and back: nothing adds up, she's never carried away. A pure
+## function of the wave clock and `at`: every peer works out the same.
+const YAW_FOLLOW := 0.5
+
+
+func carry(at: Vector3, heading: float, length: float, beam: float) -> PackedFloat64Array:
+	var out := PackedFloat64Array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+	if _lod.is_empty():
+		return out
+	var p := to_local(at)
+	var q := Vector2(p.x, p.z)
+	var fade := 1.0 - smoothstep(FADE.x, FADE.y, q.length())
+	if fade <= 0.0:
+		return out
+	var t := wave_time
+	var w := q + _origin()
+	var mods := _mods(w, t, _group_drift)
+	var scale := fade * _calm_at(w)
+	var bow := Vector2(-sin(heading), -cos(heading))
+	var side := Vector2(cos(heading), -sin(heading))
+	var hl := length * 0.5
+	var hb := beam * 0.5
+	var kx := _lod[0]
+	var kz := _lod[1]
+	var am := _lod[2]
+	var om := _lod[3]
+	var ph := _lod[4]
+	var qx := _lod[5]
+	var qz := _lod[6]
+	var sl := _lod[7]
+	var dx := 0.0
+	var dz := 0.0
+	var vx := 0.0
+	var vz := 0.0
+	var m := 0.0
+	var mv := 0.0
+	for i in kx.size():
+		var a := am[i] * (mods.y if sl[i] > 0.5 else mods.x)
+		var ka := kx[i] * bow.x + kz[i] * bow.y
+		var kc := kx[i] * side.x + kz[i] * side.y
+		var across := _sinc(kc * hb) * a
+		var f := _sinc(ka * hl) * across
+		var th := kx[i] * w.x + kz[i] * w.y - om[i] * t + ph[i]
+		var c := cos(th)
+		var s := sin(th)
+		dx += qx[i] * f * c
+		dz += qz[i] * f * c
+		vx += qx[i] * f * om[i] * s
+		vz += qz[i] * f * om[i] * s
+		# the across push's slope along her: (12 / L^3) * integral of s cos(th + ka s) over her length
+		var u := ka * hl
+		var g := ka if absf(u) < 0.01 else 3.0 * (sin(u) - u * cos(u)) / (ka * ka * hl * hl * hl)
+		var qc := (qx[i] * side.x + qz[i] * side.y) * across * g
+		m -= qc * s
+		mv += qc * om[i] * c
+	# the surf rolling in on the coast (its z push), averaged over her the same way
+	var surf := _surf_at(w, t, mods.z)
+	var surf_was := _surf_at(w, t - 0.05, mods.z)
+	var sf := _sinc(SURF_K * bow.y * hl) * _sinc(SURF_K * side.y * hb)
+	dz += surf.z * sf
+	vz += (surf.z - surf_was.z) / 0.05 * sf
+	out[0] = dx * scale
+	out[1] = dz * scale
+	out[2] = -m * scale * YAW_FOLLOW
+	out[3] = vx * scale
+	out[4] = vz * scale
+	out[5] = -mv * scale * YAW_FOLLOW
+	return out
+
+
+static func _sinc(x: float) -> float:
+	return 1.0 - x * x / 6.0 if absf(x) < 0.01 else sin(x) / x
 
 
 ## Where this node is over the world (x, z): what the shader adds to the mesh's x, z to find the waves there.

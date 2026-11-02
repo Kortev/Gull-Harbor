@@ -82,6 +82,13 @@ var _built: Array[Node] = []
 ## Her pose the frame before, and that frame's length (s): how any spot of her is going (point_velocity).
 var _was := Transform3D.IDENTITY
 var _was_dt := 0.0
+## How much the water's orbits carry her (pose): 1, all of it; 0 she sits where the helm has her (a test's before).
+var carry := 1.0
+## Where the water's carried her off where the helm has her (world m, y 0), her slew from it (rad), and how fast
+## they're going (x, z m/s; y the slew, rad/s). Every peer works it out from the sea clock: it's never sent.
+var carried := Vector3.ZERO
+var carried_yaw := 0.0
+var carried_rate := Vector3.ZERO
 
 
 func _ready() -> void:
@@ -478,9 +485,19 @@ func _process(delta: float) -> void:
 ## Where the hull sits on the swell right now: a plane fitted to the water under her (five stations along, three
 ## across, turned to her heading, where she is), the waterline at its middle, its slopes her pitch and roll, and the
 ## lift of her bow under way. A pure function of the wave clock and the helm's word, so every peer agrees.
+## And the water carries her (ocean.gd's carry): its orbits take her to and fro, surging and swaying, slewing a little,
+## round and back with each wave, on top of where the helm has her. So she goes with the water round her instead of
+## the sea sliding past a hull pinned to the spot.
 func pose() -> Transform3D:
-	var turn := Basis(Vector3.UP, helm.heading if helm else 0.0)
+	var heading: float = helm.heading if helm else 0.0
 	var mid := Vector3(helm.at.x, 0.0, helm.at.y) if helm else Vector3.ZERO
+	var c := ocean.carry(mid, heading, length, beam) if carry > 0.0 else PackedFloat64Array([0, 0, 0, 0, 0, 0])
+	var give := _fendered(mid, heading, c[0] * carry)
+	carried = Vector3(c[0] * give, 0.0, c[1]) * carry
+	carried_yaw = c[2] * carry
+	carried_rate = Vector3(c[3], c[5], c[4]) * carry
+	mid += carried
+	var turn := Basis(Vector3.UP, heading + carried_yaw)
 	var sum := 0.0
 	var sx := 0.0
 	var sz := 0.0
@@ -509,13 +526,46 @@ func pose() -> Transform3D:
 	return Transform3D(turn * Basis.from_euler(Vector3(pitch, 0.0, roll)), Vector3(mid.x, y, mid.z))
 
 
+## Alongside a float (sea/quay.gd's floats, their edges running along z), her fenders on its edge: the water carrying
+## her in toward it squeezes them only a little (FENDER_GIVE m past where she lies on them, softly), where the lines
+## and the fenders (boat/lines.gd) can't keep her helm's word from it; off it, or carried away from it, all of it.
+## What share of the carry `cx` (world x, m) she takes, for her at `mid` heading `heading`.
+const FENDER_GIVE := 0.1
+
+
+func _fendered(mid: Vector3, heading: float, cx: float) -> float:
+	if absf(cx) < 0.0005 or sea == null:
+		return 1.0
+	var real: Node = sea.get("sea") if sea.get("sea") != null else sea
+	var h: Node = real.get("harbour") if real else null
+	var q: Node = h.get("quay") if h else null
+	if q == null or not q.has_method("float_near"):
+		return 1.0
+	var turn := Basis(Vector3.UP, heading)
+	var lim := cx
+	for z: float in [-0.35, 0.0, 0.38]:
+		for side: float in [-1.0, 1.0]:
+			var w := mid + turn * Vector3(side * beam * 0.5, 0.0, z * length)
+			var fl: Array = q.call("float_near", Vector2(w.x, w.z), 3.0)
+			if fl.is_empty():
+				continue
+			var way := float(fl[2])
+			var toward := -way * lim
+			if toward <= 0.0:
+				continue
+			# (how far her side may come in from where it is before it's FENDER_GIVE past lying on its fenders)
+			var room := maxf((w.x - float(fl[1])) * way - Lines.OFF + FENDER_GIVE, 0.0)
+			lim = -way * (room * tanh(toward / room) if room > 0.0005 else 0.0)
+	return lim / cx
+
+
 ## How the spot `local` of her (boat-local) is going through the world (m/s): her way, her turn, her heave, her
 ## pitch and roll there, all of it (what you take with you leaping off her rail, and what a deck you come down on is
 ## doing under you). Over her last frame; before she's had one, just the helm's word.
 func point_velocity(local: Vector3) -> Vector3:
 	if _was_dt <= 0.0:
 		var v := Helm.ahead_of(helm.heading) * helm.speed + helm.drift if helm else Vector2.ZERO
-		return Vector3(v.x, 0.0, v.y)
+		return Vector3(v.x + carried_rate.x, 0.0, v.y + carried_rate.z)
 	return (global_transform * local - _was * local) / _was_dt
 
 

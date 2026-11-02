@@ -48,6 +48,11 @@ func _board() -> void:
 		h.set("drift", Vector2.ZERO)
 		h.set("spin", 0.0)
 		h.set("heading", 0.0)
+	# (the leap's what's tested, from a gap that holds: the sea's orbits carrying the two of them, boat/boat.gd's carry,
+	# open and close a gap between hulls lying a few metres apart by most of a metre in a heavy sea, so a scripted
+	# leap timed for 2 m falls short now and then; that's the sea's, not the leap's)
+	for bt: Node3D in [a_boat, b_boat]:
+		bt.set("carry", 0.0)
 	for sea_is: String in ["calm", "heavy"]:
 		sea.set_condition(sea_is)
 		await get_tree().create_timer(0.5).timeout

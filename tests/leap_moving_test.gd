@@ -63,6 +63,11 @@ func _run() -> void:
 	var me := sea.crew.me
 	me.force_input = true
 	await get_tree().create_timer(0.3).timeout
+	# (the leap's what's tested, from a gap that holds: the sea's orbits carrying the two of them, boat/boat.gd's carry,
+	# open and close a gap between hulls lying a few metres apart by most of a metre in a heavy sea, so a scripted
+	# leap timed for 2 m falls short now and then; that's the sea's, not the leap's)
+	for bt: Node3D in [a_boat, b_boat]:
+		bt.set("carry", 0.0)
 	_ha = a_boat.get("helm")
 	_hb = b_boat.get("helm")
 	_hb.set("at", SPOT)

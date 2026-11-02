@@ -3,6 +3,9 @@ extends Node
 ##   --mode=wake   flat out, a camera riding over her stern looking aft: a still, then a run of frames at 30 fps
 ##   --mode=still  a still eye at her deck's height beside her, fixed in the world: the water heaving round it, frames
 ##   --mode=swim   the same at a swimmer's eye, just over the water
+##   --mode=aboard stopped, an eye on her deck riding her (as yours does) looking over her rail at the water beside her
+##   --mode=beside stopped, a still eye fixed in the world off her quarter, looking at her and the water round her
+## --carry=0 pins her where the helm has her (no carrying on the water's orbits, boat/boat.gd's carry: the before).
 ## --cond=sunny|storm|... the weather (pinned). --frames=N, --every=<s> between frames.
 ## Run (needs a window):
 ##   godot --path . --resolution 1280x720 --fixed-fps 30 res://tests/wake_shot.tscn -- --mode=wake --out=<dir>
@@ -15,6 +18,7 @@ var mode := "wake"
 var cond := "sunny"
 var frames := 10
 var every := 0.0
+var carry := 1.0
 var _cam: Camera3D
 var _rig := Vector3.ZERO
 var _look := Vector3.ZERO
@@ -37,6 +41,7 @@ func _ready() -> void:
 			"cond": cond = kv[1]
 			"frames": frames = int(kv[1])
 			"every": every = float(kv[1])
+			"carry": carry = float(kv[1])
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(out))
 	sea = (load("res://sea/sea.tscn") as PackedScene).instantiate() as Sea
 	add_child(sea)
@@ -46,6 +51,7 @@ func _ready() -> void:
 	sea.fish_hold.trip_t0 -= sea.fish_hold.DAY * 0.3
 	sea.set_condition(cond)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	sea.boat.set("carry", carry)
 	var helm: Node = sea.boat.get("helm")
 	var me := sea.crew.me
 	me.force_input = true
@@ -72,6 +78,32 @@ func _ready() -> void:
 		await get_tree().create_timer(0.3).timeout
 		await _run("wake_side_f")
 		Input.action_release("move_forward")
+	elif mode == "aboard":
+		# an eye standing in her cockpit, riding her, looking out over her starboard rail and down at the water
+		await get_tree().create_timer(4.0).timeout
+		_still = Camera3D.new()
+		_still.fov = 70.0
+		sea.boat.add_child(_still)
+		var d := float(sea.boat.get("deck"))
+		# (at her starboard quarter, leaning out over her rail: her topsides and the water along them, forward)
+		var eye := Vector3(1.9, d + 1.9, 5.2)
+		_still.transform = Transform3D(Basis.looking_at(Vector3(4.2, -0.6, -2.0) - eye, Vector3.UP), eye)
+		_still.current = true
+		await get_tree().create_timer(1.0).timeout
+		await _shot("%s_%s" % [mode, cond])
+		await _run("%s_%s_f" % [mode, cond])
+	elif mode == "beside":
+		await get_tree().create_timer(4.0).timeout
+		_still = Camera3D.new()
+		_still.fov = 60.0
+		add_child(_still)
+		_still.current = true
+		var b: Vector3 = sea.boat.global_position
+		_still.global_position = Vector3(b.x + 13.0, 4.0, b.z + 9.0)
+		_still.look_at(Vector3(b.x, 0.3, b.z + 1.0), Vector3.UP)
+		await get_tree().create_timer(1.0).timeout
+		await _shot("%s_%s" % [mode, cond])
+		await _run("%s_%s_f" % [mode, cond])
 	else:
 		# a still eye beside her, fixed in the world (not riding her): from her deck's height ("still") or a swimmer's
 		# ("swim", just over the water): the water heaving round it, frame by frame
