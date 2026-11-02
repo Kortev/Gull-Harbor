@@ -142,7 +142,7 @@ func _rail(kind: String) -> void:
 	var t := 0.0
 	while me.mode == Player.DECK and t < 2.0:
 		await get_tree().physics_frame
-		t += 1.0 / 30.0
+		t += get_process_delta_time()
 		if absf(me.local_position().x) > float(boat.beam) * 0.5 - 0.75 and not Input.is_action_pressed("jump"):
 			Input.action_press("jump")
 		stood = stood or (me.on_rail() != Vector3.ZERO and me.get("_vault_t") <= 0.0)
@@ -200,7 +200,7 @@ func _press_watch(actions: Array, done: Callable, s: float, hold := INF) -> floa
 		var here: Vector3 = sea.boat.global_transform.affine_inverse() * me.global_position
 		step = maxf(step, here.distance_to(prev))
 		prev = here
-		t += 1.0 / 30.0
+		t += get_process_delta_time()
 	for a: String in actions:
 		Input.action_release(a)
 	await get_tree().process_frame
@@ -215,7 +215,7 @@ func _until(ok: Callable, s: float) -> void:
 	var t := 0.0
 	while not ok.call() and t < s:
 		await get_tree().physics_frame
-		t += 1.0 / 30.0
+		t += get_process_delta_time()
 
 
 func _done() -> void:

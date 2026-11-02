@@ -458,14 +458,14 @@ func _sell() -> void:
 	hold.call("_ask_lid", true)
 	var t := 0.0
 	var shots := 0
-	while (not hold.fish.is_empty() or not sea.places.h_fish.is_empty()) and t < 120.0:
-		sea.places.host_crank()
+	while (not hold.fish.is_empty() or not sea.places.stations[0].h_fish.is_empty()) and t < 120.0:
+		sea.places.stations[0].host_crank()
 		await get_tree().process_frame
 		t += get_process_delta_time()
-		if shots < 4 and sea.places.h_t > 0.4 + shots * 0.8:
+		if shots < 4 and sea.places.stations[0].h_t > 0.4 + shots * 0.8:
 			await _shot("hoist_%d" % shots)
 			shots += 1
-		if sea.places.h_grade > 1.6 and shots < 6:
+		if sea.places.stations[0].h_grade > 1.6 and shots < 6:
 			await _shot("scale_called")
 			shots = 6
 	await _wait(1.0)

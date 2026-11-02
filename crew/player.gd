@@ -217,6 +217,10 @@ const VAULT_HIGH := 1.05
 const VAULT_CLEAR := 0.14
 const VAULT_OVER := 0.5
 const VAULT_TIME := 0.7
+## How long a press of jump waits for your feet to be under you (s).
+const JUMP_KEEP := 0.18
+## Where past an edge you've met to look for a top to get up onto (m in from where you touched it).
+const VAULT_PROBE := [0.05, 0.2, 0.35, 0.5, 0.65]
 const VAULT_PULL := 9.0
 const VAULT_FEET := 0.45
 ## Up on her gunwale: you're there when this far out past you (m) there's nothing of her under it; a lurch has to be
@@ -300,6 +304,7 @@ var force_climb := false
 ## and whether it's straight on over; s left finding your feet up there.
 var _jump_y := 0.0
 var _jump_t := INF
+var _jump_press := INF
 var _vault_t := 0.0
 var _vault_to := Vector3.ZERO
 var _vault_top := 0.0
@@ -1142,9 +1147,15 @@ func _walk(delta: float) -> void:
 				flat = Vector3.ZERO
 	v.x = flat.x
 	v.z = flat.z
+	# (a press of jump is kept a moment: pressed a tick before your feet are under you, it's still a jump; the same
+	# however many frames that is)
+	_jump_press += delta
+	if live and Input.is_action_just_pressed("jump"):
+		_jump_press = 0.0
 	if body.is_on_floor() and v.y <= 0.0:
 		v.y = 0.0
-		if live and _knock <= 0.0 and Input.is_action_just_pressed("jump"):
+		if live and _knock <= 0.0 and _jump_press <= JUMP_KEEP:
+			_jump_press = INF
 			# a jump, pushing off the way you're going
 			v.y = JUMP
 			var push := Vector3(leg.x - v.x, 0.0, leg.z - v.z).limit_length(JUMP_PUSH)
@@ -1153,6 +1164,7 @@ func _walk(delta: float) -> void:
 			_jump_y = body.position.y
 			_jump_t = 0.0
 			_feet_t = 0.0
+			_vault_t = 0.0        # (a fresh jump off what you've got up on: the climb up it's done with)
 	else:
 		v.y -= GRAVITY * delta
 	body.velocity = v
@@ -1302,14 +1314,23 @@ func _vault_at(wish: Vector3, pre: Vector3) -> void:
 		var knocked := _knock > 0.0 and pre.dot(into) > OVER_SPEED
 		if going < WALK * 0.5 and not knocked:
 			continue
-		var at := c.get_position() + into * 0.05
+		# the top of what you're going at: just past the edge you've met, or a stride on past a gap behind it (a
+		# liner's lip, then the gutter, then her cap: the first top a step up from where you are that you'd fit on)
 		var hi := _jump_y + VAULT_HIGH
-		var hit := _ray(space, Vector3(at.x, hi + 0.05, at.z), Vector3(at.x, body.position.y - 0.05, at.z))
-		if hit.is_empty() or (hit["normal"] as Vector3).y < 0.7:
-			continue
-		var top := float((hit["position"] as Vector3).y)
-		var stand := Vector3(at.x, top + 0.03, at.z)
-		if top <= body.position.y + 0.02 or not _fits(space, stand + Vector3(0.0, 0.1, 0.0)):
+		var top := -INF
+		var stand := Vector3.ZERO
+		for reach: float in VAULT_PROBE:
+			var at := c.get_position() + into * reach
+			var hit := _ray(space, Vector3(at.x, hi + 0.05, at.z), Vector3(at.x, body.position.y - 0.05, at.z))
+			if hit.is_empty() or (hit["normal"] as Vector3).y < 0.7:
+				continue
+			var y := float((hit["position"] as Vector3).y)
+			var p := Vector3(at.x, y + 0.03, at.z)
+			if y > body.position.y + 0.02 and _fits(space, p + Vector3(0.0, 0.1, 0.0)):
+				top = y
+				stand = p
+				break
+		if top == -INF:
 			continue
 		_vault_over = knocked or wish.length() > WALK + 0.3
 		var speed := maxf(maxf(going, pre.dot(into)), WALK if knocked else 0.0)
@@ -1766,7 +1787,8 @@ func _climbing(delta: float) -> void:
 	_climb_t = clampf(_climb_t, minf(was, foot), total)
 	if _climb_t != was:
 		# (facing her, the way you'll go over her transom)
-		_yaw = lerp_angle(_yaw, 0.0, 1.0 - exp(-4.0 * delta))
+		var face: Variant = _ladder.get("face")         # (a pier's ladder faces its own way: sea/pier_ladder.gd)
+		_yaw = lerp_angle(_yaw, float(face) if face != null else 0.0, 1.0 - exp(-4.0 * delta))
 	_local = _climb_at(_climb_t)
 	if _climb_t >= total and _climb_way > 0:
 		# aboard
@@ -2177,6 +2199,11 @@ func _strokes(delta: float, ocean: Node) -> void:
 ## Every frame: your spot (smoothed between physics ticks) carried by its frame as it is right now: the boat, or the
 ## world in the sea.
 func _process(delta: float) -> void:
+	# (a press of jump seen every drawn frame, not only on a physics tick: a quick tap between two ticks is still a
+	# jump, at any frame rate; _walk takes it from here)
+	var live := force_input or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+	if is_multiplayer_authority() and live and Input.is_action_just_pressed("jump"):
+		_jump_press = 0.0
 	var f := Engine.get_physics_interpolation_fraction()
 	if _hop_settle:
 		_hop_settled()        # (someone else, gone into another frame by their word)
@@ -2407,7 +2434,7 @@ func _ladder_near() -> Node3D:
 				near = d
 				best = ladder
 		return best
-	if mode == DECK and boat != null and not steering and not seated and not aloft:
+	if mode == DECK and boat != null and not ashore() and not steering and not seated and not aloft:
 		var ladder: Node3D = boat.get("ladder")
 		if ladder == null:
 			return null

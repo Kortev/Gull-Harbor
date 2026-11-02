@@ -280,6 +280,21 @@ func _process(delta: float) -> void:
 		var chum := _view.find_child("Chum", true, false) as Node3D
 		if chum:
 			chum.visible = scoop_full
+			# a scoop of ice off the bin on the float (sea/station.gd): the same heap in the scoop, ice-white
+			var ice := chum.get_parent().get_node_or_null("Ice") as Node3D
+			if ice == null and scoop_ice:
+				ice = chum.duplicate() as Node3D
+				ice.name = "Ice"
+				var white := StandardMaterial3D.new()
+				white.albedo_color = Color(0.86, 0.93, 0.96)
+				white.roughness = 0.3
+				for mi: Node in [ice] + ice.find_children("*", "MeshInstance3D", true, false):
+					if mi is MeshInstance3D:
+						(mi as MeshInstance3D).material_override = white
+				chum.get_parent().add_child(ice)
+				ice.transform = chum.transform
+			if ice != null:
+				ice.visible = scoop_ice
 	if _glove:
 		var chum := _glove.find_child("Chum", true, false) as Node3D
 		if chum:
