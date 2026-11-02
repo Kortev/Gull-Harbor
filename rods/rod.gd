@@ -510,6 +510,10 @@ func _draw_line() -> void:
 		_sag_line(via, b, (0.05 + 0.3 * slack) * tight, true)
 	else:
 		_sag_line(a, b, (0.04 + 0.3 * slack) * tight, false)
+	# and on under the water, straight down to him (seen from below the top, or as he comes up close)
+	if fighting and is_instance_valid(fish_node) and fish_node.visible:
+		_line_mesh.surface_set_color(Color(LineLook.MONO, 0.6))
+		_line_mesh.surface_add_vertex(fish_node.global_position)
 	_line_mesh.surface_end()
 	_draw_rigger()
 	_draw_cut(from, b)
