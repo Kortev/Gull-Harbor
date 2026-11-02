@@ -87,7 +87,11 @@ static func _particles(drops := false) -> GPUParticles3D:
 	ft.gradient = fade
 	pm.color_ramp = ft
 	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	# (lit, from either side: white water's bright in the sun and grey at dusk, not glowing in the dark)
+	mat.backlight_enabled = true
+	mat.backlight = Color(0.8, 0.8, 0.8)
+	mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	mat.roughness = 1.0
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.vertex_color_use_as_albedo = true
 	mat.albedo_texture = PUFF

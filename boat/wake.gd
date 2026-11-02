@@ -88,11 +88,15 @@ func _process(delta: float) -> void:
 	_wash.global_position = stern + boat.global_basis.z * 0.6
 	_wash.emitting = work > 0.15
 	_wash.amount_ratio = clampf(work, 0.2, 1.0)
-	# her bow throwing spray, flat out
+	# her bow throwing spray, flat out; at trolling speed just a little curl of white off her stem, low and short
 	var top := float(helm.get("ahead"))
+	var push := clampf((v - top * 0.2) / (top * 0.6), 0.0, 1.0)
 	for s in _spray:
-		s.emitting = v > top * 0.45
-		s.amount_ratio = clampf((v - top * 0.45) / (top * 0.4), 0.2, 1.0)
+		s.emitting = v > top * 0.2
+		s.amount_ratio = lerpf(0.15, 1.0, push)
+		var pm := s.process_material as ParticleProcessMaterial
+		pm.initial_velocity_min = lerpf(0.7, 2.0, push)
+		pm.initial_velocity_max = lerpf(1.2, 3.6, push)
 	# backing down hard: the sea slops in over the transom now and then, with a slap
 	_over_in -= delta
 	if gas < -0.6 and v < -float(helm.get("astern")) * 0.5 and _over_in <= 0.0:
@@ -127,7 +131,11 @@ func _particles(amount: int, life: float, upright: bool, dir: Vector3, spread: f
 	ft.gradient = fade
 	pm.color_ramp = ft
 	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	# (lit, from either side: white water's bright in the sun and grey at dusk, not glowing in the dark)
+	mat.backlight_enabled = true
+	mat.backlight = Color(0.8, 0.8, 0.8)
+	mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	mat.roughness = 1.0
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.vertex_color_use_as_albedo = true
 	mat.albedo_texture = PUFF

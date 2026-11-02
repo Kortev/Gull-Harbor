@@ -650,6 +650,10 @@ func _apply_look() -> void:
 	var top := day_top.lerp(Color(0.015, 0.02, 0.025), dark)
 	var hor := day_hor.lerp(Color(0.05, 0.06, 0.07), dark)
 	var fog := day_hor.lerp(Color(0.3, 0.33, 0.36), 0.4 * w).lerp(Color(0.045, 0.055, 0.065), dark)
+	# (in a fog there's no horizon: the sea goes into the same grey the sky comes down to, no ruled line between)
+	var fogged := _share("fog")
+	hor = hor.lerp(fog, fogged)
+	env.fog_sky_affect = lerpf(0.55, 1.0, fogged)
 	sky_mat.set_shader_parameter("sky_top", top)
 	sky_mat.set_shader_parameter("sky_horizon", hor)
 	sky_mat.set_shader_parameter("ground_horizon", fog)
@@ -770,7 +774,11 @@ func _build_world() -> void:
 	env.glow_intensity = 0.6
 	env.glow_strength = 1.1
 	env.glow_bloom = 0.08
-	env.glow_hdr_threshold = 0.85
+	env.glow_hdr_threshold = 0.95
+	# (tight: the sun's glints on the water are points with a little halo, not big blurred discs)
+	env.set_glow_level(1, 0.5)
+	env.set_glow_level(2, 1.0)
+	env.set_glow_level(4, 0.35)
 	env.ssao_enabled = true
 	env.ssao_radius = 1.2
 	env.ssao_intensity = 1.6

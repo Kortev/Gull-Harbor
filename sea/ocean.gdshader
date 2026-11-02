@@ -439,6 +439,13 @@ void fragment() {
 		float left = smoothstep(edge - 0.02, edge + 0.4, crest_was + (grain - 0.5) * 0.8)
 				* smoothstep(0.3, 0.6, tear + 0.35 * smoothstep(edge, edge + 0.6, crest_was));
 		foam = max(foam, left * 0.7 * caps * (1.0 - far * 0.6));
+		// (on a fair day a whitecap's a small broken burst on a crest, not a white blanket over it: torn into scraps
+		// by finer noise, and only the thick of it survives; in a blow they join up)
+		float fair = 1.0 - smoothstep(0.3, 0.8, whitecaps);
+		// (two sizes: lacy up close, patchy further off)
+		float scraps = texture(noise, qk * 0.61 + vec2(0.13, 0.71)).g * 0.4 + texture(noise, qk * 0.23 + vec2(0.57, 0.29)).r * 0.3
+				+ grain * 0.3;
+		foam *= mix(1.0, smoothstep(0.5, 0.72, scraps + 0.3 * foam), fair);
 	}
 	// in a blow, streaks of foam laid along the wind
 	vec2 wd = normalize(wind);
@@ -525,6 +532,8 @@ void fragment() {
 		foam = max(foam, max(ring * 0.8, patch_) * life * smoothstep(0.3, 0.6, grain + 0.25));
 	}
 	float wash = smoothstep(16.0, 2.0, sd + (grain - 0.5) * 8.0 + sin(wave_time * 0.9 + q.x * 0.05) * 3.0);
+	// (not inside the harbour's breakwaters: still water lapping at a quay wall doesn't foam)
+	wash *= smoothstep(0.75, 1.05, length((q - vec2(0.0, 2170.0)) / vec2(300.0, 150.0)));
 	foam = max(foam, wash * 0.85 * smoothstep(-2.0, 1.0, sd));
 	// the shallows: the bottom showing through, sandy green, over the last stretch to the shore
 	col = mix(col, vec3(0.16, 0.42, 0.38), smoothstep(160.0, 15.0, sd) * smoothstep(-5.0, 5.0, sd) * 0.55);

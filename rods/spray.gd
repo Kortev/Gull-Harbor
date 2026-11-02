@@ -27,7 +27,11 @@ func _ready() -> void:
 	var q := QuadMesh.new()
 	q.size = Vector2.ONE
 	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	# (lit, from either side: drops bright in the sun, dim at night unless the floods catch them)
+	mat.backlight_enabled = true
+	mat.backlight = Color(0.8, 0.8, 0.8)
+	mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	mat.roughness = 1.0
 	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	mat.billboard_keep_scale = true
 	mat.vertex_color_use_as_albedo = true

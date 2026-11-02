@@ -73,6 +73,8 @@ var _radar: Node3D
 var deck_space: SubViewport
 var deck_root: Node3D
 var _lights_on := false
+## Her lamps' glass (the model's "lamp" faces): lit only while the floods are on, dark glass by day.
+var _lamps: Array[BaseMaterial3D] = []
 var _night := false
 var _cabin: OmniLight3D
 var _wheel_turn := 0.0
@@ -355,6 +357,7 @@ const VINYL := Color(2.4, 2.6, 3.0)
 
 
 func _upholster(visual: Node3D) -> void:
+	_lamps.clear()
 	for mi: Node in visual.find_children("*", "MeshInstance3D", true, false):
 		var m := mi as MeshInstance3D
 		for i in m.mesh.get_surface_count():
@@ -363,6 +366,19 @@ func _upholster(visual: Node3D) -> void:
 				var v := sm.duplicate() as BaseMaterial3D
 				v.albedo_color = sm.albedo_color * VINYL
 				m.set_surface_override_material(i, v)
+			elif sm != null and sm.resource_name.begins_with("lamp"):
+				# (a floodlight switched off by day is grey glass, not a glowing panel)
+				var v := sm.duplicate() as BaseMaterial3D
+				v.set_meta("glow", v.emission_energy_multiplier)
+				m.set_surface_override_material(i, v)
+				_lamps.append(v)
+	_show_lamps()
+
+
+func _show_lamps() -> void:
+	for v in _lamps:
+		v.emission_energy_multiplier = float(v.get_meta("glow", 1.0)) if _lights_on else 0.0
+		v.albedo_color = Color(1, 1, 1) if _lights_on else Color(0.55, 0.56, 0.55)
 
 
 ## The radar's bar on a little pedestal (a boat whose model hasn't one: the skiff's T-top).
@@ -454,6 +470,7 @@ func set_lights(on: bool, night := on) -> void:
 	_night = night
 	for l in floods:
 		l.visible = on
+	_show_lamps()
 	if is_instance_valid(_cabin):
 		_cabin.visible = night
 
