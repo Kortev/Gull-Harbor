@@ -57,6 +57,8 @@ func _as_host() -> void:
 	var b_boat := sea.vs.sides[1].get("boat") as Node3D
 	var ha: Node = a_boat.get("helm")
 	var hb: Node = b_boat.get("helm")
+	for bt: Node3D in [a_boat, b_boat]:
+		bt.set("carry", 0.0)       # (the shove's what's tested, not the sea's orbits nudging the two apart: boat/boat.gd)
 	# the friend at B's wheel, lying at SPOT
 	while int(hb.get("captain")) == 0 or (hb.get("at") as Vector2).distance_to(SPOT) > 1.0:
 		await get_tree().create_timer(0.2).timeout
@@ -163,6 +165,8 @@ func _as_friend() -> void:
 	_check(vs.sides.size() == 2 and vs.my_team == 1, "VS came on: I'm on boat B")
 	var b_boat := vs.sides[1].get("boat") as Node3D
 	var a_boat := vs.sides[0].get("boat") as Node3D
+	for bt: Node3D in [a_boat, b_boat]:
+		bt.set("carry", 0.0)       # (as the host's: the shove, not the orbits)
 	_check(sea.boat == b_boat and sea.crew.me != null and sea.crew.me.boat == b_boat, "aboard B, B's my sea's boat")
 	_check(sea.crew.get_player(1) != null and sea.crew.get_player(1).boat == a_boat, "the skipper's on A")
 	while bool(sea.fish_hold.get("docked")):
