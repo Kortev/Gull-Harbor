@@ -257,7 +257,8 @@ func _as_friend() -> void:
 		black = maxf(black, card.dark())
 		await get_tree().process_frame
 	await get_tree().create_timer(0.3).timeout
-	_check(black > 0.9 and vs.wins == [0, 1] and vs.count_end > 0.0, "they pressed: a fade, the next day's countdown")
+	_check(black < 0.01 and vs.wins == [0, 1] and vs.count_end > 0.0,
+			"they pressed: no fade, the next day's countdown from where we lie")
 	_check((b_boat.get("helm").get("at") as Vector2).distance_to(vs._berth(1)) < 1.0, "B back at her berth")
 	# day 2: the match's card, REMATCH
 	await _until(func() -> bool: return card.up() and bool(card.data.get("decided", false)), 60.0)

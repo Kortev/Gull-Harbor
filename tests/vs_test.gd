@@ -58,6 +58,12 @@ func _ready() -> void:
 	var bx := (b_boat.get("helm").get("at") as Vector2).x
 	_check(ax < sea.harbour.PIER_X and bx > sea.harbour.PIER_X,
 			"they set out from their own berths, either side of the fish pier (%.0f, %.0f)" % [ax, bx])
+	var spot: Transform3D = a_boat.get("helm_spot")
+	_check(int(a_boat.get("helm").get("captain")) == 0 and sea.crew.me.local_position().distance_to(spot.origin) > 0.8,
+			"you're aboard on your feet, off her wheel: the crew decides who drives")
+	for i in 2:
+		var l: Node = vs.sides[i].get("boat").get("lines")
+		_check(bool(l.call("tied")), "boat %s lies on her lines at the float" % "AB"[i])
 	for boat: Node3D in [a_boat, b_boat]:
 		var at: Vector2 = boat.get("helm").get("at")
 		_check(at.y > sea.landmarks.shore_z(at.x) - 300.0 and not sea.landmarks.blocked(at),

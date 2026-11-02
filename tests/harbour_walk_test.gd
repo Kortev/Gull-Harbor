@@ -8,6 +8,7 @@ extends Node
 ## well. Late, out in the harbour: the launch comes out, takes her in alongside and ties her up, the cannery's half.
 ## And nothing teleports the whole way: her, or you.
 ## Run: godot --headless --fixed-fps 30 --path . res://tests/harbour_walk_test.tscn
+## (in a window, -- --shots=<dir>: a screenshot at each stage)
 
 const Sea := preload("res://sea/sea.gd")
 const Player := preload("res://crew/player.gd")
@@ -103,6 +104,7 @@ func _run() -> void:
 	_check(me.boat == q and me.mode == Player.DECK, "over her rail and down on the float (%s, %s)" % [me.boat.name,
 			["deck", "sea", "ladder", "air"][me.mode]])
 	_check(absf(me.global_position.y - Quay.FLOAT_Y) < 0.2, "on the float's deck (y %.2f)" % me.global_position.y)
+	await _snap("on_the_float")
 	# along the float, up the gangway, along the pier, onto the quay, to the broker's board
 	var gx: float = (q.gangways[0][0] as Vector3).x
 	var foot: Vector3 = q.gangways[0][0]
@@ -116,6 +118,10 @@ func _run() -> void:
 			+ "board (%s)" % me.global_position)
 	sea.places.open("BROKER")
 	_check(sea.places.serving(), "the broker's board: its card")
+	await _snap("broker_card")
+	sea.places.close()
+	sea.places.open("BAIT & TACKLE") if sea.places.counters.has("BAIT & TACKLE") else null
+	await _snap("bait_counter")
 	sea.places.close()
 	_check(not sea.places.serving(), "and walked off it")
 	# back down to the float, to the boarding step abeam her cockpit, and a jump aboard
@@ -163,6 +169,7 @@ func _run() -> void:
 	lines.request(0, "throw", 1.0)
 	lines.request(1, "throw", 1.0)
 	await get_tree().create_timer(0.3).timeout
+	await _snap("lines_thrown")
 	_check(int(lines.lines[0][0]) == Lines.OUT and int(lines.lines[1][0]) == Lines.OUT, "both lines thrown over the float's cleats")
 	var bank := hold.bank
 	lines.request(0, "make_fast")
@@ -185,6 +192,10 @@ func _run() -> void:
 	while (hold.sale.get("lines", []) as Array).size() < 2 and t < 60.0:
 		sea.places.host_crank()
 		seen_hung = seen_hung or sea.places.h_grade >= 0.0
+		if sea.places.h_grade > 1.8 and not _snapped.has("scale"):
+			await _snap("scale")
+		if sea.places.h_t > 1.6 and sea.places.h_t < 2.0 and not _snapped.has("hoist"):
+			await _snap("hoist")
 		await get_tree().process_frame
 		t += 1.0 / 30.0
 	var sold: Array = hold.sale.get("lines", [])
@@ -231,6 +242,12 @@ func _run() -> void:
 	var under_tow := false
 	while not hold.docked and t < 240.0:
 		under_tow = under_tow or helm.towed_by != null
+		if under_tow and not _snapped.has("tow"):
+			sea.cam.make_current()
+			sea.cam.global_position = boat.global_position + Vector3(-14.0, 7.0, -10.0)
+			sea.cam.look_at(boat.global_position)
+			await _snap("tow")
+			me.cam.make_current()
 		await get_tree().process_frame
 		t += 1.0 / 30.0
 	_check(under_tow, "the launch came out and took her in tow")
@@ -239,6 +256,23 @@ func _run() -> void:
 	_check(_jump < STEP, "towed in the whole way, nothing put anywhere (%.3f m a frame at most)" % _jump)
 	await get_tree().create_timer(1.0).timeout
 	_check(helm.towed_by == null, "and the launch let her go")
+
+
+var _snapped := {}
+
+
+## A screenshot of now, in a window with --shots=<dir>.
+func _snap(what: String) -> void:
+	_snapped[what] = true
+	var dir := ""
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--shots="):
+			dir = a.trim_prefix("--shots=")
+	if dir.is_empty() or DisplayServer.get_name() == "headless":
+		return
+	await get_tree().process_frame
+	await get_tree().process_frame
+	get_viewport().get_texture().get_image().save_png(dir + "/walk_" + what + ".png")
 
 
 ## Waits (frames) till `ok` says so, or `secs` (game time) have gone.
@@ -269,7 +303,7 @@ func _walk(me: Player, points: Array) -> void:
 func _step_near(q: Quay, boat: Node3D) -> Vector3:
 	var best := Vector3.ZERO
 	var d := INF
-	var cockpit := boat.to_global(Vector3(0.0, 0.0, boat.length * 0.25))
+	var cockpit := boat.to_global(Vector3(0.0, 0.0, boat.length * 0.3))
 	for s: Vector3 in q.steps:
 		var e := Vector2(s.x - cockpit.x, s.z - cockpit.z).length()
 		if e < d:
