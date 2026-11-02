@@ -190,7 +190,8 @@ func _ready() -> void:
 		landing._request_harpoon(true)
 		landing._ask_throw_as(Net.my_id(), hooked)
 	_check(landing.fish.has(hooked) and bool(landing.fish[hooked]["stuck"]), "stuck it")
-	# the haul
+	# the tail rope (thrown for real: tests/landing_test.tscn), the haul
+	landing.host_rope(hooked)
 	t = 0.0
 	var hauled_shot := false
 	while landing.fish.has(hooked) and t < 40.0:

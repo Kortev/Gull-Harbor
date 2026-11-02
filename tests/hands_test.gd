@@ -6,6 +6,7 @@ extends Node
 const Sea := preload("res://sea/sea.gd")
 const Jig := preload("res://boat/jig.gd")
 const FishHold := preload("res://boat/fish_hold.gd")
+const Handling := preload("res://tuna/handling.gd")
 
 var fails: Array[String] = []
 var sea: Sea
@@ -155,11 +156,16 @@ func _catch() -> void:
 	handle.call("use_item", me, "knife", false)
 	await get_tree().create_timer(0.3).timeout
 	_check(float(hold.fish[0]["bled_s"]) < 0.0, "a tap of the knife doesn't bleed it")
-	_check(str(handle.call("interact_prompt")).begins_with("HOLD LMB|BLEED"), "the fish says: hold the knife on it")
+	_check(str(handle.call("interact_prompt")).begins_with("HOLD LMB|SPIKE"), "the fish says: hold the knife on it, where")
+	# the knife into the cut under its fin, held to the mark (the rest: tests/handling_test.tscn)
+	hold._kick_in[id] = 999.0
+	await _aim_at(fish, Handling.CUT_AT)
+	_check(str(handle.call("interact_prompt")).begins_with("HOLD LMB|CUT"), "under the fin: %s" % handle.call("interact_prompt"))
 	_check(handle.call("use_item", me, "knife", true), "the knife held on it...")
-	await get_tree().create_timer(hold.BLEED_HOLD + 0.4).timeout
-	_check(float(hold.fish[0]["bled_s"]) >= 0.0, "...bleeds it")
+	await get_tree().create_timer(Handling.CUT_FULL * 0.6).timeout
 	handle.call("use_item", me, "knife", false)
+	await _frames(2)
+	_check(float(hold.fish[0]["bled_s"]) >= 0.0, "...bleeds it")
 	# the lid
 	var lid: Node = hold._lid.get_node("Lid")
 	lid.call("interact", me)
@@ -200,6 +206,28 @@ func _catch() -> void:
 	await _frames(2)
 	_check(float(g["iced_s"]) < 0.0 and g.has("at") and hold._deck.has(id2), "the lid shut: it lies where you left it")
 	me.hands.pick("")
+
+
+## Stand ahead of fish `t` and put the crosshair on it at `u` along it (snout -0.5 .. tail 0.5), nudging it on.
+func _aim_at(t: Node3D, u: float) -> void:
+	var hold := sea.fish_hold
+	var boat := sea.boat as Node3D
+	var id := int(str(t.name).trim_prefix("OnDeck"))
+	var local := boat.global_transform.affine_inverse() * hold._on_fish(t, u)
+	me.place(Vector3(local.x, float(boat.spec["deck"]) + 0.05, local.z - 1.2), PI)
+	var goal := u
+	for k in 6:
+		var at: Vector3 = hold._on_fish(t, goal)
+		for j in 2:
+			await get_tree().process_frame
+			var cam: Camera3D = me.get("cam")
+			var d := boat.global_basis.inverse() * (at - cam.global_position)
+			me.set("_yaw", atan2(-d.x, -d.z))
+			me.set("_pitch", atan2(d.y, Vector2(d.x, d.z).length()))
+		await get_tree().process_frame
+		var now := hold.aim_u(id, me)
+		if not is_nan(now):
+			goal += (u - now) * 0.8
 
 
 func _chum() -> void:

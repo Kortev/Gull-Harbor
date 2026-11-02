@@ -13,7 +13,12 @@ extends Node3D
 ## own: the jig rod jigs (boat/jig.gd), a full scoop winds up while you hold it and throws when you let go
 ## (boat/chum.gd). A trolling rod, the harpoon or the wheel in your hands, and the kit's put away.
 ##
-## In your own view each thing moves the way the job goes: the knife's stroke in and out while you bleed a fish, the
+## Empty-handed, left mouse is your bare hands on what you look at (a fish's tail to pump it, its body to pin it down):
+## your gloves come up into view to do it.
+##
+## In your own view each thing moves the way the job goes (a fish on deck says what you're doing to it in your player's
+## "work" meta: tuna/handling.gd): the knife's point pushed down into the brain and twisted, the blade sinking into the
+## cut as deep as you hold it, drawn along the belly; your gloves pressing a fish down, shoving its tail over; the
 ## gaff's swing and its hook dug in as you drag, the jig rod snatched up and let fall (and jerked down by a knock),
 ## the jig swinging off its tip till you let it go, the scoop dipped, drawn back and flung, the mackerel kicking in
 ## your fist. It all bobs with your steps, lags your look a touch and rides the boat's lurches, and changing it is a
@@ -34,6 +39,7 @@ const HOLDS := {
 	"scoop": [Vector3(0.0, -0.02, 0.1), Vector3(-0.12, 0.32, 0.0)],
 	"bait": [Vector3(-0.1, 0.09, -0.12), Vector3(0.12, 1.3, 0.05)],
 	"dead": [Vector3(-0.1, 0.09, -0.12), Vector3(0.12, 1.3, 0.05)],
+	"bare": [Vector3(-0.08, -0.04, -0.1), Vector3(-0.5, 0.15, 0.0)],
 }
 const TWO_HANDED: Array[String] = ["gaff", "scoop"]
 const LEFT_ROLL := {"gaff": -1.2, "scoop": -0.9}
@@ -180,7 +186,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			at = wrapi(at + step, 0, Kit.ITEMS.size() + 1)      # (a bait's netted out of the well, not picked)
 		pick("" if at == 0 else Kit.ITEMS[at - 1])
 		return
-	if stowed() or item.is_empty() or rigging:
+	if stowed() or rigging:          # (empty-handed too: your bare hands on a fish)
 		return
 	if event.is_action_pressed("use_primary"):
 		press(true)
@@ -203,7 +209,8 @@ func press(down: bool) -> void:
 	var t: Node = player.call("looking_at")
 	if t != null and t.has_method("use_item") and bool(t.call("use_item", player, item, true)):
 		_target = t
-		_move(item)
+		if not item.is_empty():
+			_move(item)
 		return
 	match item:
 		"jig":
@@ -241,8 +248,15 @@ func _release() -> void:
 		wind = 0.0
 
 
+## What a fish on deck says you're doing to it with your hands ({kind, k}: tuna/handling.gd's acts; empty: nothing).
+func _work() -> Dictionary:
+	return player.get_meta("work", {}) if player.has_meta("work") else {}
+
+
 func _process(delta: float) -> void:
 	var want := "" if stowed() else shown_item()
+	if want.is_empty() and player.is_multiplayer_authority() and str(_work().get("kind", "")) in ["pin", "pump"]:
+		want = "bare"          # (your gloves up to do it)
 	# (in your own view the change is a move: down with the old, up with the new; the others see it in the glove)
 	if want != _shown:
 		if not player.is_multiplayer_authority() or _view == null or _shown == "-":
@@ -334,9 +348,24 @@ func _goal() -> Transform3D:
 	at += _sway + Vector3(_lag.y * -0.25, _lag.x * 0.25, 0.0)
 	rot += _lag
 	var working := is_instance_valid(_target) and _swing <= 0.0
+	var work := _work()
+	var wk := clampf(float(work.get("k", 0.0)), 0.0, 1.0)
 	match _shown:
 		"knife":
-			if working:
+			if str(work.get("kind", "")) == "spike":
+				# the point brought down onto his head and pushed in, a twist at the end
+				var push := smoothstep(0.0, 1.0, wk)
+				at += Vector3(0.02, 0.02 - 0.09 * push, -0.12 - 0.05 * push)
+				rot += Vector3(-1.25, 0.1, 0.3 + 0.7 * smoothstep(0.75, 1.0, wk))
+			elif str(work.get("kind", "")) == "cut":
+				# the blade in under the fin, sinking as deep as you hold it, sawing a little
+				at += Vector3(-0.02, 0.0 - 0.1 * wk, -0.12 - 0.05 * wk) + Vector3(sin(t * 15.0), 0.0, 0.0) * 0.006
+				rot += Vector3(-0.95 - 0.25 * wk, 0.45, 0.9)
+			elif str(work.get("kind", "")) == "gut":
+				# drawn along the belly, tip down, from his head toward his tail
+				at += Vector3(0.12 - 0.26 * wk, -0.07, -0.14)
+				rot += Vector3(-1.0, 1.1, 0.6)
+			elif working:
 				# down at the fish, the blade worked in and drawn out, again and again
 				var k := fmod(t, 0.4) / 0.4
 				var stab := smoothstep(0.0, 0.25, k) * (1.0 - smoothstep(0.5, 1.0, k))
@@ -359,6 +388,16 @@ func _goal() -> Transform3D:
 			at += Vector3(0.0, 0.04 * lift, 0.05 * maxf(lift, 0.0))
 			if jig and float(jig.get("_held")) > 0.28 and str(jig.get("state")) != "up":
 				at += Vector3(sin(t * 24.0), cos(t * 31.0), 0.0) * 0.003      # (winding in: the rod shivers)
+		"bare":
+			if str(work.get("kind", "")) == "pin":
+				# both hands flat on him, leaning your weight on, holding against his kicks
+				at += Vector3(0.0, -0.08, -0.08) + Vector3(sin(t * 9.0), cos(t * 7.0), 0.0) * 0.004
+				rot += Vector3(-0.35, 0.0, 0.0)
+			else:
+				# a shove of his tail over, and let go
+				var shove := sin(wk * PI)
+				at += Vector3(-0.12 * shove, -0.04 - 0.05 * shove, -0.1)
+				rot += Vector3(-0.2, 0.3 * shove, 0.0)
 		"scoop":
 			# wound up: drawn back and up over your shoulder
 			var w := smoothstep(0.0, 1.0, wind)
@@ -477,6 +516,22 @@ func _show(which: String) -> void:
 	_glove = null
 	_rigs.clear()
 	if which.is_empty():
+		return
+	if player.is_multiplayer_authority() and which == "bare":
+		# just your gloves, side by side, palms down
+		_view = Node3D.new()
+		_view.name = "Held"
+		(player.get("hand") as Node3D).add_child(_view)
+		var r := Kit.glove("r")
+		r.rotation = Vector3(0.0, 0.0, 1.3)
+		_view.add_child(r)
+		var l := Kit.glove("l")
+		l.position = Vector3(-0.26, 0.0, 0.02)
+		l.rotation = Vector3(0.0, 0.0, -1.3)
+		_view.add_child(l)
+		_view.transform = _goal()
+		for mi in _view.find_children("*", "MeshInstance3D", true, false):
+			(mi as MeshInstance3D).layers = 1 << 18
 		return
 	if player.is_multiplayer_authority():
 		_view = Kit.make(which)

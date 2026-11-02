@@ -368,6 +368,7 @@ func _catch() -> void:
 		landing._ask_throw_as(Net.my_id(), hooked)
 	_check(landing.fish.has(hooked) and bool(landing.fish[hooked]["stuck"]), "stuck it")
 	await _shot("stuck")
+	landing.host_rope(hooked)        # (its tail roped: tests/landing_test.tscn throws it)
 	t = 0.0
 	var mid := false
 	while landing.fish.has(hooked) and t < 40.0:

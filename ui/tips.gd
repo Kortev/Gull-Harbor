@@ -24,7 +24,7 @@ const TIPS := {
 	"alone": "Alone? Rod in the holder, Q. Steer, then grab it again.",
 	"captain": "Captain: stern to the fish. S backs down. Under the boat? Hands off the throttle.",
 	"lines": "Get the other lines in before they tangle. Pick each rod up and wind.",
-	"deck": "Bleed it, ice it. Quick. A cold fish pays double.",
+	"deck": "Spike it, bleed it, ice it. Quick. A clean, cold fish pays double.",
 	"spiral": "Colour! He's beat. Keep reeling, keep it in the green.",
 	"stale": "That mackerel's tired out. Wind it in, net a fresh one out of the well, hook it on.",
 	"well": "Well's empty. Stop her, jig rod (3) over the rail. Let it down till the green line's going, then work it.",
