@@ -87,6 +87,7 @@ func _as_host() -> void:
 	# B's baits out; A runs across her stern
 	var b_rods: Node = sea.vs.sides[1].get("rods")
 	for i in (b_rods.get("rods") as Array).size():
+		b_rods.rpc("_baited", i, b_rods.call("_now"), true)     # (the hooks go out bare: baited by hand first)
 		b_rods.call("host_cast", i)
 	await get_tree().create_timer(3.0).timeout
 	ha.set("at", (hb.get("at") as Vector2) + Vector2(-45.0, 25.0))
