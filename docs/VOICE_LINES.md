@@ -28,10 +28,17 @@ a bit nervous about his money: a car salesman who's been put in charge of a fish
 | `flock` | first flock you look at | Diving birds, white water? Bluefin. Go. Birds sitting? Wait for them. |
 | `fast` | running up on birds too fast | Ease her down to troll: nothing bites at speed. Get out ahead of them, drag your baits across their nose. |
 | `bite` | first bite, rod in its holder | That's a reel screaming. Grab the rod! |
-| `fight` | your first fight | Reel screaming? Hands off. Grinding? Pump: lift slow, wind as you drop. He jumps, drop the tip. |
-| `spiral` | first death spiral | Colour! Wind while he comes up, ease off while he goes under. |
-| `alone` | fighting with nobody else aboard | Alone? Rod in the holder, Q. Steer, then grab it again. |
-| `captain` | at the wheel with a fish on | Captain: stern to the fish. S backs down. Under the boat? Hands off the throttle. |
+| `fight` | your first fish, the rod in your hands | Feel that bend? That's him. Lift him slow, wind as you drop. Reel screaming? Hands off the crank. |
+| `drag` | the drag slipping a while in your hands | That's your drag slipping. Scroll's the lever, strike's the click. He's taking it all? More. Bent double? Ease it. |
+| `pump` | cranking against a fish that's pulling | You can't crank a fish that's pulling. Pump him: lift slow, then wind on the way down. |
+| `spool` | half the spool gone | Half your line's gone! Back her down on him, S. Alone? Rod in the holder, get on the wheel. |
+| `jump` | your first fish jumping | He jumps, drop the tip. A tight line in the air throws the hook. |
+| `heavy` | leaning on him too hard | Easy! Lean on him that hard and the hook tears out. Back the drag off. |
+| `leader` | the leader up at the rod tip | Leader's up! He'll go once more. Ease the drag off, let him. |
+| `tired` | your arms going | Arms going? Swap on the rod. Alone, the holder: Q. He'll fight on the drag while you rest. |
+| `spiral` | first death spiral | Colour! He's beat. Wind as he comes up, hold him as he goes under her. Keep him off the hull. |
+| `alone` | fighting with nobody else aboard | Alone? In its holder he fights the drag. Q puts it back, get on the wheel, chase him, grab it again. |
+| `captain` | at the wheel with a fish on | Captain: stern to the fish. He's taken line? Back her down on him, S. Under the boat? Hands off the throttle. |
 | `lines` | other baits still out in a fight | Reel the other lines in before they tangle. |
 | `alongside` | first fish alongside, the skiff | Harpoon off the port rack, then haul it in. Ninety seconds. |
 | `alongside_wire` | first fish alongside, the sportfisher | Wire it at the door, harpoon it off the port rack, haul. Ninety seconds. |

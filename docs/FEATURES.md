@@ -29,7 +29,7 @@ bigger. Miss it and the bank takes the boat, and the run's over.
 | 1-5, mouse wheel | what's in your hands: the knife, the gaff, the jig rod, the scoop, a bait (the same key again: empty hands) |
 | Left mouse | with a rod: hold to wind up a cast, let go to cast; hold to wind the line in; with a fish on, crank. With the kit: use it (below). The harpoon: throw |
 | Mouse, with a fish on | the rod: up and down lifts and drops it, sideways lays it over |
-| Right mouse | raise the rod |
+| Right mouse | raise the rod (with a fish on: heave it up, a pump) |
 | Scroll, with a fish on | the drag, a notch at a time |
 | Q | put the rod (or the harpoon) back |
 | F | shove whoever's in front of you |
@@ -202,67 +202,64 @@ bar, the rod tip's knock. Gap: nothing says the kit is on 1-5 but the hotbar its
 
 ## The hookup and the fight
 
-- The reel screams and the line pours off: **anyone grabs the rod** (E). Q puts it back in the holder.
-- **A rod in its holder fights on its drag:** the fish takes line on its runs and tires doing it, but nobody wins
-  any back. Solo, you drop it in the holder to run to the wheel, then grab it again: the same fight carries on.
-- **The mouse is the rod** with a fish on (docs/FIGHT_DESIGN.md: the brainstorm's "Loaded Rod", built 2026-10-30):
-  mouse up and down lifts and drops it, side to side lays it over off the line; the camera follows the rod part of
-  the way so the line and the water stay in view (push past the rod's stop and the rest turns your look). **Left
-  mouse** cranks, **right mouse** raises the rod too, **scroll** steps the drag (free, light, strike, full; a fish
-  comes on at strike).
-- **One spring between you and the fish, no text:** the line's tension is everything (the rod's bend). The fish
-  swimming away, you raising the rod and you winding stretch it; the fish coming at you, you dropping the rod and the
-  boat closing on it slacken it. Past the drag the drag slips and pays out line (**the reel screams**); full tension
-  for half a second, or a jolt past it, **parts the line**.
-  - **Cranking only wins line while the rod isn't loaded:** against a heavy fish the reel **grinds** and wins
-    nothing. So you **pump**: lift slow (it hauls the fish toward you), drop and wind the slack.
-  - **Hauling it toward you is what tires it**; a slack line lets it get its breath back.
-  - **Lay the rod over against the way it's swinging** and it turns slower and gives line; hold it hard and it turns
-    its head, comes at you and sulks.
-  - **The hook:** jolts (a head shake on a stiff rod, a jump landing on a tight line) and slack while it thrashes
-    work it loose. **When it jumps, drop the tip** (a rod held high and cranking throws it).
-  - It **runs, sounds, sulks deep, shakes its head, circles, surges, jumps** (the small ones), and beaten, close in,
-    goes into its **death spiral** under the boat.
-  - A lost fish says how in a few words: "Line parted.", "Hook pulled.", "Thrown on the jump.", "Spooled.",
-    "Chafed through on the hull.", "Cut on the props."
-- Fought well (the headless test anglers, tests/fight_bot.gd, with a bot captain a second late): a schoolie about
-  **1.5 min**, a 150 kg fish about **3 min**, a 300 kg giant about **5 min** with a captain swapping on the rod, about
-  **8 alone**; a first-timer's giant with a crew about **10 min**. tests/fight_sim.tscn prints how often each kind of
-  player loses one, and why.
-- **The angle (2026-10-30):** he swims where he likes round her (his runs and circles swing him wide) and she
-  doesn't follow by herself. Dead astern you lift him; off to the side you win less line and tire him less, abeam
-  next to nothing, under her none ("HE'S OFF TO STARBOARD: CAPTAIN, SWING HER"). The fight HUD has her from above
-  beside the bar (green arc astern, red forward of her beam, him a square) and ANGLE GOOD / POOR / NONE.
-- **He charges the boat:** turns and comes at her, under her: the line goes light (reel hard: "HE'S CHARGING THE
-  BOAT! REEL, REEL!"), then he's under her and it's the captain's.
-- **Arms (2026-10-30, back):** the ARMS bar drains while you reel (faster on a big fish and with him leaning on it)
-  and while you heave the rod up; hands off with the line easy it comes back. Holding a running fish is no rest.
-  Spent, you reel slow and he barely tires, and a fish nobody's working gets his breath back. With a crew, **swap**:
-  a crewmate E on your rod takes it with fresh arms, you take the wheel. Alone, **rest it in the holder** (Q): he
-  takes line on the drag and gets his breath back meanwhile. A giant spends a fresh pair before he's beaten.
-- **The captain** (E on the wheel; A/D steer, W/S throttle): the tuna swings round the boat.
-  - **Keep the stern on it.** Off the stern the angler can't win line (the angle); forward of her beam the line
-    lies along her side, and over her house or bow, and **the line rubs** and wears through ("Swing her stern to it", or the angler takes it to that **corner**). Over the
-    open cockpit, or off your own corner going away from her, it never rubs. It's the real line against her real
-    hull (ray-cast against her shape): it rubs only where it truly lies over her console, house or bow, so fight
-    from the stern, not up by the console. The line's drawn straight from the rod tip toward the fish, going in
-    where that line meets the water.
-  - **Backing down** (S) on the fish wins line back fast and eases the strain.
-  - **Under the boat:** if the fish goes under her, **no throttle**: steer her stern round with A/D only. Touch W
-    or S while it's under her and the props cut the line after **1.5 s** ("OUT OF GEAR!").
-  - The captain gets a plotter of where each fish is (red where its line's on the hull), and at the wheel always
-    her knots over a throttle bar (green ahead, amber astern, from the middle).
-- **Other lines:** while a fish is on, everyone's told **REEL THE OTHER LINES IN!**; E on each other rod reels it in
-  ("Reel in"). Heading for one still out, the warning turns red and names it ("HE'S HEADING FOR THE PORT LINE!");
-  across it for 3 s it **tangles**, every time, and saws his line through in 20 s unless someone winds that line in
-  (starting to wind frees it). Alone: rod in the holder, then E on the other.
-- **How you lose one:** the line parted (too much strain), pulled the hook (slack in a headshake), spooled (it took
-  all 500 m: don't crank against a run; back down on it), chafed through on the hull, cut by the props, sawed
-  through in a tangle. Each loss says why, in a few words ("Line parted: too much strain").
-- A big fish alone takes about 8 minutes fought right; with a captain and swaps about 5.
+Rebuilt 2026-11-01 on how big-game tackle really works (tuna/fight.gd): it's tense every time because several things
+press at once, and every one of them is read off the rod, the reel and the line, not a meter.
 
-**Teach it:** the word and its colour, the ring, the meter, the captain's word and plotter, loss reasons, Dale's
-fight tip. Gap: "anyone can grab it / hand it off" is only in the manual.
+- **The strike:** the reel screams and the line pours off; the rod's slammed over in its holder, a hit-stop, the
+  white water. **Anyone grabs the rod** (E); Q puts it back in its holder.
+- **The rod's bend is the line's tension.** A strike drag is already a deep bend; past that it's the **creak** of the
+  blank, the **line singing** higher and the **tip shivering** that say how near it is to going, and the screen's
+  edges pulse red right at the edge. Slack, the rod springs straight and the line droops on the water.
+- **The drag is a lever you set by hand:** scroll (pad: the bumpers), a notch at a time; it clicks, the strike
+  detent clunks, the red-knobbed lever on the reel moves, and the little reel in the corner shows it on its quadrant
+  (free, strike, full). A fish comes on at strike.
+  - Too light and he takes everything. Too heavy and the hook tears out (hold him hard too long) or a kick of his
+    tail parts the line (it sticks before it slips, and a short line has no stretch to soften it).
+  - **It climbs by itself as the spool empties** (the line coming off a smaller spool), and a long fast run drags
+    line through the water that pulls at his end too: on a long run, ease it off. At the leader, ease it off.
+- **Line capacity:** 500 m. On a run the spool visibly empties (the line, then the white backing past half, then
+  the bare metal arbor), the clicker ticks faster and the reel's note climbs. The crew shout "HALF THE SPOOL'S GONE!",
+  "HE'S SPOOLING US! BACK DOWN!". The skipper has to **chase** (back down on him, S) or he spools you.
+- **Pump and wind:** the reel can't wind against a fish that's pulling (it grinds). **Lift the rod slow** (mouse up,
+  or right mouse) and he comes toward you, then **drop it winding** (left mouse) and the reel spins on the light line.
+  Lift on **his tired moments** (the bend eases off, he's stopped pulling) and you move him; lift into his run and
+  the drag just slips. **Winding against a run** gains nothing and **twists the line**: it parts later on a hard pull.
+- **His nature and his phases:** a runner, a sounder (deep, long, the line going straight down), a bulldog (heavy,
+  head-shaking) or a jumper (schoolies). The **first run** off the strike is blistering (a giant's takes a good part
+  of the spool). Fresh, he runs, sounds, dogs and shakes his head; tiring, he circles deep, then close in his **death
+  spiral** under the boat (wind as he comes up, hold as he goes down; kept tight, his laps come round off the stern);
+  near the boat **sudden surges**; and when the **leader** comes up to the rod tip ("LEADER!"), **one last run**.
+- **The hook:** held too hard too long it tears out; a **head shake on a slack line** shakes it out (never give him
+  slack: wind when he comes at you, when she backs down on him); **tight while he jumps** throws it (drop the tip).
+- **Hit and moment:** every time he takes off again, a beat of hit-stop, the rod slammed over, your view kicked
+  (harder close in); the spray off the line where it slices the water, the line hissing; the fish rolling up on his
+  side close in ("COLOUR!"). Lost: the line cracks (parted) or just goes light (the hook out), the reel goes dead
+  quiet, the rod springs straight, the line falls slack, and the music drops away.
+- **Your arms:** winding against a load, lifting and just holding a heavy fish take them; going, the rod **shakes in
+  your hands** and you wind and lift slow. A giant spends a fresh pair: **swap on the rod** (E on a mate's rod takes
+  it, fresh arms). Alone, **rest it in the holder** (Q): it fights on its drag as you left the lever, and nobody
+  winds or wins line back.
+- **The captain** (E on the wheel; A/D steer, W/S throttle) has a real job:
+  - **Back down on him** when he's taken line (S): she closes on him, the line goes light and the angler winds like
+    mad (back down too hard and it's slack: a head shake and he's off).
+  - **Keep the stern on him.** Off the stern your pressure's sideways and moves him less; forward of her beam the line
+    lies along her side and over her house or bow and **chafes through** (worn line is weaker, and parts on the next
+    pull: "Line parted on the rail."). Swing her stern to him, or the angler walks the rod round to that corner.
+  - **Under the boat:** out of gear. Touch W or S while he's under her and the props cut the line in 2.5 s.
+  - The captain's plotter shows where each fish is (red where its line's on the hull).
+- **Other lines:** while a fish is on, REEL THE OTHER LINES IN!; heading for one still out the warning names it;
+  across it 3 s it tangles and saws his line through in 20 s unless someone winds that line in.
+- **Taught in the moment, never frozen:** no cards over the fight. Dale on the VHF says each thing the first time it
+  comes up (the bend, the drag slipping, cranking against him, half the spool gone, a jump, holding him too hard, the
+  leader, tired arms), and the crew shout what's happening as it happens (rods/fight_calls.gd: every peer works it
+  out from the rods' synced state, so everyone aboard hears it). A loss says why and what would have saved it.
+- **How long, and how often you lose one** (tests/fight_sim.tscn, headless test anglers that read only the rod, the
+  reel and the line; see its output for the full table): fought well with a captain who backs down and swaps on the
+  rod, a schoolie about 1.5 min, 150 kg about 4, 300 kg about 8, 400 kg about 9 and nearly all landed; alone a giant
+  takes 12+ min and you lose a fair share of the biggest.
+
+**Teach it:** the rod, the reel and the line; Dale's lines and the crew's shouts in the moment; the loss reasons with
+what would have saved each; the field guide's section 6.
 
 ## Boatside
 

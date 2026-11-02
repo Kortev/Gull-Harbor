@@ -9,14 +9,24 @@ const Bot := preload("res://tests/fight_bot.gd")
 const Rods := preload("res://rods/rods.gd")
 const DT := 1.0 / 30.0
 const N := 20
+const KGS := [35.0, 150.0, 300.0, 400.0]
 ## The other baits in the spread (bearings off her stern, m out), as the sportfisher trolls them (boat/kinds.gd).
 const SPREAD := [[-0.27, 56.0], [-0.14, 39.0], [0.27, 56.0]]
 
 
 func _ready() -> void:
-	for style: String in ["good", "sloppy", "distracted"]:
-		for n: int in [1, 2]:
-			for kg: float in [35.0, 150.0, 300.0]:
+	var only := ""
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--style="):
+			only = a.substr(8)
+	var styles := ["good", "sloppy", "distracted"]
+	if not only.is_empty() and not only in styles:
+		styles = [only]
+	for style: String in styles:
+		if not only.is_empty() and style != only:
+			continue
+		for n: int in ([1] if "--solo" in OS.get_cmdline_user_args() else [1, 2]):
+			for kg: float in KGS:
 				var ends := {}
 				var times: Array[float] = []
 				var wide := 0.0
@@ -30,7 +40,7 @@ func _ready() -> void:
 					total += float(r[1])
 				times.sort()
 				var med := times[times.size() / 2] if not times.is_empty() else 0.0
-				print("SIM %-6s %s %3d kg: landed %2d/%d, median %3.0f s, off the stern %2.0f%% of the time  %s"
+				print("SIM %-10s %s %3d kg: landed %2d/%d, median %3.0f s, off the stern %2.0f%% of the time  %s"
 						% [style, "alone" if n == 1 else "crew ", kg, times.size(), N, med, 100.0 * wide / total, ends])
 	# and a crew that never reels the other lines in: his runs across them
 	for kg: float in [35.0, 150.0, 300.0]:

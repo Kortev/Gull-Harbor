@@ -156,6 +156,7 @@ func _ready() -> void:
 		if rod.fight != null:
 			var act := FightBot.act(rod.fight.cues(), get_process_delta_time(), "good", mem)
 			sea.rods.bot_aim = Vector3(float(act["pitch"]), float(act["side"]), 0.0)
+			sea.rods.set_drag(rod, float(act["drag"]))
 			_hold("use_primary", float(act["crank"]) > 0.5)
 		if str(rod.move) in ["run", "spiral", "sound"] and not fight_shots.has(rod.move) and w > 3.0:
 			fight_shots[rod.move] = true

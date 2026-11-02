@@ -1,8 +1,9 @@
 extends AudioStreamPlayer3D
 ## A rod's fight noises, synthesized as they go (rods/rod.gd feeds it): the reel's clicker, a ratchet tick for every
-## few cm of line off the spool, so its rate is the run's speed (a strike, a screaming blur); the blank creaking under
-## a heavy load, a slow stick-slip groan; and the line hissing as it slices through the water. Only plays while a fish
-## is on.
+## few cm of line off the spool, so its rate is the run's speed (a strike, a screaming blur), its ping higher the
+## emptier the spool (`arbor`: the smaller it is, the faster it spins); the blank creaking under a heavy load, a slow
+## stick-slip groan; and the line hissing as it slices through the water. Only plays while a fish is on. And the line
+## going (snap): a crack and a ringing twang when it parts, a dry little flick when the hook comes out, then nothing.
 
 const RATE := 22050.0
 
@@ -10,7 +11,14 @@ const RATE := 22050.0
 var clicks := 0.0
 var strain := 0.0
 var hiss := 0.0
-const CREAK := 0.7
+## How empty the spool is (0 full .. 1 the arbor showing): the clicker's ping climbs with it.
+var arbor := 0.0
+const CREAK := 0.42
+## The snap: s left of it (0: none), and whether it was the line parting (a crack) or the hook coming out (a flick).
+var _snap := 0.0
+var _snap_hard := false
+var _snap_ring := 0.0
+var _snap_v := 0.0
 var _click_ph := 0.0
 var _ring := 0.0         # the click's ping (a decaying resonance)
 var _ring_v := 0.0
@@ -37,8 +45,19 @@ func _init() -> void:
 	position = Vector3(0, 0.1, 0.37)
 
 
+## The line's gone: a crack (parted) or a flick (the hook out), over everything else, which stops.
+func snap(parted: bool) -> void:
+	_snap = 0.45 if parted else 0.12
+	_snap_hard = parted
+	_snap_ring = 0.0
+	_snap_v = 1.4 if parted else 0.5
+	clicks = 0.0
+	hiss = 0.0
+	strain = 0.0
+
+
 func _process(_delta: float) -> void:
-	var on := clicks > 0.5 or hiss > 0.02 or strain > CREAK
+	var on := clicks > 0.5 or hiss > 0.02 or strain > CREAK or _snap > 0.0
 	if not on:
 		if playing:
 			stop()
@@ -59,7 +78,7 @@ func _process(_delta: float) -> void:
 	var rate := minf(clicks, 160.0)
 	var creak_k := clampf((strain - CREAK) / (1.0 - CREAK), 0.0, 1.0)
 	# the click: a hard tick into a ~3 kHz ping that dies in a couple of ms
-	var w := TAU * 3100.0 * dt
+	var w := TAU * 3100.0 * (1.0 + 0.6 * arbor) * dt
 	var damp := exp(-dt / 0.0018)
 	# the blank: a ~210 Hz body excited by the stick-slip pulses
 	var bw := TAU * 210.0 * dt
@@ -103,6 +122,15 @@ func _process(_delta: float) -> void:
 			_body_v = (_body_v - bw * _body) * bdamp
 			_body += bw * _body_v
 			out += _body * 0.9
+		if _snap > 0.0:
+			# the crack: a burst of noise into a ringing twang (the line's own note, falling as it flies back)
+			_snap -= dt
+			var age := (0.45 if _snap_hard else 0.12) - _snap
+			var burst := randf_range(-1.0, 1.0) * exp(-age / (0.012 if _snap_hard else 0.006))
+			var sw := TAU * (1450.0 - 900.0 * age) * dt
+			_snap_v = (_snap_v - sw * _snap_ring) * exp(-dt / (0.12 if _snap_hard else 0.02))
+			_snap_ring += sw * _snap_v
+			out = burst * (0.9 if _snap_hard else 0.35) + _snap_ring * (0.5 if _snap_hard else 0.15)
 		out = clampf(out, -0.95, 0.95)
 		buf[i] = Vector2(out, out)
 	pb.push_buffer(buf)

@@ -14,6 +14,10 @@ const LENGTH := 1.76
 ## Line one turn of the crank brings in (m: a big two-speed lever drag, in high), and the spool's own radius full (m).
 const PER_TURN := 0.9
 const SPOOL_R := 0.05
+## Past this tension the tip shivers, and past SING the line sings, higher the nearer it is to going (the hook tears
+## past tuna/fight.gd's HOOK_T, the line parts at 1).
+const QUIVER := 0.5
+const SING := 0.55
 ## Where your elbows are, from your eyes (m: crew/hands.gd's), for your sleeves.
 const ELBOWS := {"r": Vector3(0.42, -0.72, 0.06), "l": Vector3(-0.42, -0.72, 0.02)}
 
@@ -44,11 +48,13 @@ var move := ""
 ## How far the holder has heaved the rod up, 0..1 (a pump; how the angler's arms are drawn).
 var lift := 0.0
 ## With a fish on, the rod as the angler holds it: its elevation (0.15 tip at the water .. 1.35 near upright) and how
-## far it's laid over off the line (rad, + to the left), the drag lever (fight.gd's DETENTS), the spring's stretch (m;
-## below 0 slack), how well the hook's holding (1 .. 0).
+## far it's laid over off the line (rad, + to the left), the drag lever (tuna/fight.gd: 0 free .. STRIKE_DRAG the
+## strike detent .. 1 full; the lever on the reel shows it), the line's stretch (m; below 0 slack), how well the hook's
+## holding (1 .. 0), and how twisted the line is from winding against the drag (0 .. 1).
 var aim_pitch := 0.6
 var aim_side := 0.0
-var drag := 0.72
+var drag := 0.6
+var twist := 0.0
 var stretch := 0.0
 var hold := 1.0
 ## Cranking with the rod loaded: the reel grinds and wins nothing (the angler's machine: pump instead).
@@ -149,6 +155,9 @@ var _sing: AudioStreamPlayer3D
 var _last_out := 0.0
 var _paying := 0.0
 var _blank: MeshInstance3D
+## The drag lever on the reel's side plate (forward: tighter), and the rod springing back straight when he's gone.
+var _lever: Node3D
+var _recoil := 0.0
 var _handle: Node3D
 var _tip_local := Vector3(0, 0, LENGTH)
 var _bend := Vector2.ZERO
@@ -201,6 +210,31 @@ func _ready() -> void:
 	_spool_mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	_spool.material_override = _spool_mat
 	add_child(_spool)
+	# the drag lever: a red-knobbed arm on the reel's side plate, swung forward to tighten it
+	_lever = Node3D.new()
+	_lever.position = Vector3(0.048, 0.1, 0.37)
+	var arm := MeshInstance3D.new()
+	var am := BoxMesh.new()
+	am.size = Vector3(0.008, 0.055, 0.012)
+	arm.mesh = am
+	arm.position = Vector3(0.0, 0.03, 0.0)
+	var steel := StandardMaterial3D.new()
+	steel.albedo_color = Color(0.62, 0.64, 0.66)
+	steel.metallic = 0.6
+	steel.roughness = 0.4
+	arm.material_override = steel
+	_lever.add_child(arm)
+	var knob := MeshInstance3D.new()
+	var km := BoxMesh.new()
+	km.size = Vector3(0.016, 0.018, 0.02)
+	knob.mesh = km
+	knob.position = Vector3(0.002, 0.062, 0.0)
+	var red := StandardMaterial3D.new()
+	red.albedo_color = Color(0.78, 0.12, 0.08)
+	red.roughness = 0.5
+	knob.material_override = red
+	_lever.add_child(knob)
+	add_child(_lever)
 	# your gloves on it (only in your own view: the others see crew/player.gd's arms)
 	_glove_r = Kit.glove("r")
 	_glove_l = Kit.glove("l")
@@ -289,11 +323,18 @@ func _process(delta: float) -> void:
 	# bend toward the line: the pull's direction seen from the rod, scaled by how hard it pulls
 	var pull := (_via() if clip_k > 0.01 else line_end) - global_position
 	var local := global_transform.basis.inverse() * pull.normalized()
-	var want := Vector2(local.x, local.y) * (0.05 + 0.55 * strain + 0.5 * slam) * LENGTH * 0.45
+	# (a big rod loads up hard early, a strike drag's already a deep bend, and only creeps further toward parting:
+	# past that it's the creak, the line singing and the tip shivering that say how near it is)
+	var bend := 0.05 + 0.85 * (1.0 - exp(-maxf(strain, 0.0) * 3.2))
+	var want := Vector2(local.x, local.y) * (bend + 0.5 * slam) * LENGTH * 0.45
+	if _recoil > 0.0:
+		# (he's gone: the blank springs back up past straight and shivers still)
+		_recoil = maxf(_recoil - delta * 1.4, 0.0)
+		want += Vector2(0.0, 0.09 * _recoil * cos((1.0 - _recoil) * 18.0))
 	# near the limit the tip quivers: the line's about to go
-	if strain > 0.85:
+	if strain > QUIVER:
 		var t := Time.get_ticks_msec() * 0.001
-		want += Vector2(sin(t * 23.0), sin(t * 17.0 + 1.3)) * (0.02 * (strain - 0.85) / 0.15 + 0.005)
+		want += Vector2(sin(t * 23.0), sin(t * 17.0 + 1.3)) * (0.02 * (strain - QUIVER) / 0.3 + 0.005)
 	# (a strike throws it over hard: it gets there in a few frames, not a quarter second)
 	_bend = _bend.lerp(want, minf(1.0, delta * (12.0 + 40.0 * absf(slam))))
 	# (a rod in your hands mustn't catch your own look; a crewmate's with a fish on, you can take over)
@@ -307,6 +348,8 @@ func _process(delta: float) -> void:
 	_last_len = line_len
 	_len_v = lerpf(_len_v, dl / maxf(delta, 1e-4), minf(delta * 8.0, 1.0))
 	var left_k := clampf(1.0 - (line_out if hooked else 0.0) / 500.0, 0.0, 1.0)
+	# (the drag lever: back for free spool, the strike detent upright, forward to full)
+	_lever.rotation.x = lerp_angle(_lever.rotation.x, lerpf(0.9, -0.9, clampf(drag, 0.0, 1.0)), minf(1.0, delta * 14.0))
 	spool_turn += dl / (SPOOL_R * (0.4 + 0.6 * left_k))
 	if reeling > 0.05:
 		crank += reeling / PER_TURN * TAU * delta
@@ -329,7 +372,10 @@ func _process(delta: float) -> void:
 		cutting = 0.0
 	_last_cut = rel if hooked else Vector3.INF
 	# the clicker ticks for every few cm off the spool (a run's a blur of them); the hiss is the line in the water
-	noise.clicks = (maxf(paying, 0.0) * 14.0 + 140.0 * maxf(slam, 0.0)) if hooked \
+	# (and a smaller spool turns more for each metre: the emptier it gets the faster it ticks and the higher it goes)
+	var small := 1.0 / (0.45 + 0.55 * left_k)
+	noise.arbor = clampf((small - 1.0) / 1.2, 0.0, 1.0) if hooked else 0.0
+	noise.clicks = (maxf(paying, 0.0) * 14.0 * small + 140.0 * maxf(slam, 0.0)) if hooked \
 			else (maxf(_len_v, 0.0) * 14.0 if letting else 0.0)     # (a bait let back: the clicker on)
 	noise.strain = strain + 0.3 * maxf(slam, 0.0) if hooked else 0.0
 	var hiss_k := clampf((maxf(paying, 0.0) + cutting) / 9.0, 0.0, 1.0) * clampf(strain * 1.4, 0.3, 1.0)
@@ -337,7 +383,7 @@ func _process(delta: float) -> void:
 	if hooked and paying > 0.6:
 		if not _scream.playing:
 			_scream.play()
-		_scream.pitch_scale = clampf(0.75 + paying / 14.0, 0.75, 1.5)
+		_scream.pitch_scale = clampf((0.75 + paying / 14.0) * lerpf(1.0, 1.6, noise.arbor), 0.75, 2.2)
 		_scream.volume_db = lerpf(-6.0, 6.0, clampf(paying / 10.0, 0.0, 1.0))
 	elif _scream.playing:
 		_scream.stop()
@@ -351,17 +397,18 @@ func _process(delta: float) -> void:
 	elif not grind and _grind.playing:
 		_grind.stop()
 	# the creak: only right at the edge, higher the worse it gets (your one warning before the line goes)
-	var singing := hooked and strain >= 0.92
+	var singing := hooked and strain >= SING
 	if singing and not _sing.playing:
 		_sing.play()
 	elif not singing and _sing.playing:
 		_sing.stop()
 	if _sing.playing:
-		_sing.pitch_scale = 0.55 + 2.5 * (strain - 0.92)
+		_sing.pitch_scale = 0.55 + 1.6 * (strain - SING)
 	var k := 0.4 + 0.6 * left_k
 	_spool.basis = Basis(Vector3.RIGHT, spool_turn) * Basis(Vector3.BACK, PI * 0.5) * Basis.from_scale(Vector3(k, 1.0, k))
 	var gone := line_out if hooked else 0.0
-	_spool_mat.albedo_color = Color(0.85, 0.86, 0.78) if gone <= 400.0 else (Color(0.97, 0.97, 0.95) if gone <= 425.0
+	# (the line on top, then the white backing under it past half the spool, and near the end the bare metal arbor)
+	_spool_mat.albedo_color = Color(0.85, 0.86, 0.78) if gone <= 250.0 else (Color(0.97, 0.97, 0.95) if gone <= 430.0
 			else Color(0.55, 0.57, 0.6))
 	_draw_line()
 
@@ -394,6 +441,15 @@ func _hands(_delta: float) -> void:
 			if absf((elbow - from).normalized().dot(up)) > 0.98:
 				up = cam.global_basis.z
 			sleeve.look_at(elbow, up)
+
+
+## He's gone (rods.gd's _off, on every peer): everything on the reel stops at once, the rod springs back up straight,
+## and the line goes: a crack if it parted, nothing but the sudden ease of it if the hook came out.
+func lost_it(parted: bool) -> void:
+	for a: AudioStreamPlayer3D in [_scream, _whir, _sing, _grind]:
+		a.stop()
+	noise.snap(parted)
+	_recoil = 1.0
 
 
 func _looped(src: AudioStreamWAV, db: float) -> AudioStreamPlayer3D:

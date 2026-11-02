@@ -7,12 +7,15 @@ extends Node3D
 ##   the slam into it); your view kicked if it's your boat (player.kick); and an explosion of white water where the
 ##   line goes in.
 ## - The fight: drips shaken off the line when it's bar-tight, a spray thrown where it slices into the water while he
-##   runs or swings.
+##   runs or swings. Every time he takes off again (a run, a surge: the move changing, every peer sees it) the same hit
+##   on a smaller scale (jolt): a beat of hit-stop, the rod slammed over, your view kicked; and when the leader comes up
+##   to the rod tip, a kick and a moment (the crew's shout is rods/fight_calls.gd's).
 ## - Late, close and tiring (under CLOSE m of line, energy under TIRED): now and then he shows himself, coming up
 ##   under the top and rolling over on his side (a flash of his flank), his tail thrashing white water, throwing it
 ##   onto her deck if he's close in.
 
 const Spray := preload("res://rods/spray.gd")
+const Fight := preload("res://tuna/fight.gd")
 const HITSTOP := 0.13
 ## The flecks' time at the very hit (then eased back to 1 over HITSTOP).
 const HIT_SLOW := 0.06
@@ -37,6 +40,14 @@ var _struck := {}
 var _shows := {}
 var _drip_acc := {}
 var _kicking := false
+## rod index -> [s since he took off again, how hard (0..1)]; and the move each rod was last seen making.
+var _jolts := {}
+var _was_move := {}
+var _leader := {}
+const JOLT_SLOW := 0.3
+## How hard he snatches her stern round toward him as he takes off (rad/s, dying away).
+const LURCH := 0.06
+const JOLT_STOP := 0.07
 
 
 func _ready() -> void:
@@ -93,7 +104,21 @@ func slow() -> float:
 	for t: float in _struck.values():
 		if t < HITSTOP:
 			s = minf(s, lerpf(HIT_SLOW, 1.0, ease(t / HITSTOP, 2.4)))
+	for j: Array in _jolts.values():
+		if float(j[0]) < JOLT_STOP:
+			s = minf(s, lerpf(lerpf(1.0, JOLT_SLOW, float(j[1])), 1.0, ease(float(j[0]) / JOLT_STOP, 2.4)))
 	return s
+
+
+## He's off again on rod r (a run or a surge after the strike's), `k` how hard (0..1): and she lurches, her stern
+## snatched round toward him (on the machine that's driving her: boat/helm.gd's spin, dying away, sent with her heading).
+func jolt(r: Node3D, k: float) -> void:
+	_jolts[r.get("index")] = [0.0, clampf(k, 0.0, 1.0)]
+	var boat: Node = (spread.get("sea") as Node).get("boat")
+	var helm: Node = boat.get("helm") if boat != null else null
+	if helm != null and (bool(helm.call("is_mine")) or (int(helm.get("captain")) == 0 and Net.is_host())):
+		var b := wrapf(float(r.get("bearing")), -PI, PI)
+		helm.set("spin", float(helm.get("spin")) + LURCH * k * signf(b) * clampf(absf(b) * 3.0, 0.0, 1.0))
 
 
 ## The slam's shape over time: over in three frames, held through the hit-stop, then a damped spring back (a touch
@@ -142,6 +167,34 @@ func _process(delta: float) -> void:
 		if t > 2.0:
 			r.set("slam", 0.0)
 			_struck.erase(i)
+	# his runs and surges, and the leader: the same hit, smaller
+	for r: Node3D in rods:
+		var i: int = r.get("index")
+		var m := str(r.get("move")) if bool(r.get("hooked")) and not bool(r.get("alongside")) else ""
+		if m != str(_was_move.get(i, "")) and m in ["run", "surge"] and not _struck.has(i):
+			var close := 1.0 - clampf(float(r.get("line_out")) / 150.0, 0.0, 1.0)
+			jolt(r, 0.45 + 0.55 * close)
+		_was_move[i] = m
+		var up := m != "" and float(r.get("line_out")) < Fight.LEADER
+		if up and not _leader.get(i, false):
+			jolt(r, 0.8)
+		_leader[i] = up
+	for i: int in _jolts.keys():
+		var j: Array = _jolts[i]
+		j[0] = float(j[0]) + delta
+		if i >= rods.size() or float(j[0]) > 1.2:
+			_jolts.erase(i)
+			if i < rods.size() and not _struck.has(i):
+				(rods[i] as Node3D).set("slam", 0.0)
+			continue
+		var r: Node3D = rods[i]
+		if not _struck.has(i) and bool(r.get("hooked")):
+			r.set("slam", 0.45 * float(j[1]) * slam_at(float(j[0])))
+		if me != null and me.get("frame") == boat:
+			var d := me.global_position.distance_to(r.global_position)
+			var mine := int(r.get("holder")) == Net.my_id()
+			kick = maxf(kick, kick_at(float(j[0])) * float(j[1]) * (0.7 if mine else 0.35)
+					* clampf(1.0 - (d - 5.0) / 20.0, 0.0, 1.0))
 	if me != null and (kick > 0.0 or _kicking):
 		me.set("kick", kick)
 		_kicking = kick > 0.0
