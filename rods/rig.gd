@@ -64,10 +64,7 @@ func _ready() -> void:
 	lm.mesh = _leader
 	lm.top_level = true
 	lm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = Color(0.85, 0.86, 0.78)
-	lm.material_override = mat
+	lm.material_override = preload("res://rods/line_look.gd").material()
 	add_child(lm)
 
 
@@ -185,6 +182,7 @@ func _process(delta: float) -> void:
 	_aim_sleeve(me)
 	# its leader, from the rod tip down to the hook's eye
 	_leader.surface_begin(Mesh.PRIMITIVE_LINES)
+	_leader.surface_set_color(preload("res://rods/line_look.gd").MONO)
 	_leader.surface_add_vertex(tip)
 	_leader.surface_add_vertex(_hook.global_position + _hook.global_basis.y * 0.03)
 	_leader.surface_end()

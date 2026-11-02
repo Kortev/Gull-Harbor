@@ -48,9 +48,11 @@ func _ready() -> void:
 	mi.mesh = _mesh
 	mi.top_level = true
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# (lit like everything else: a rope doesn't glow at dusk; matt, no shine)
 	_mat = StandardMaterial3D.new()
-	_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_mat.albedo_color = ROPE
+	_mat.roughness = 1.0
+	_mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 	_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mi.material_override = _mat
 	add_child(mi)
@@ -503,6 +505,8 @@ func _rope(a: Vector3, b: Vector3, sag: float, eye: Vector3) -> void:
 		var p := a.lerp(b, t) + Vector3.DOWN * sag * 4.0 * t * (1.0 - t)
 		var along := (p - prev).normalized()
 		var side := along.cross((eye - p).normalized()).normalized() * 0.012
+		# (lit as a round rope's upper side would be: toward the sky and the eye)
+		_mesh.surface_set_normal((Vector3.UP + (eye - p).normalized()).normalized())
 		_mesh.surface_add_vertex(prev - side)
 		_mesh.surface_add_vertex(prev + side)
 		_mesh.surface_add_vertex(p + side)

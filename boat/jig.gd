@@ -100,10 +100,8 @@ func _ready() -> void:
 	mi.mesh = _lines
 	mi.top_level = true
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	var lm := StandardMaterial3D.new()
-	lm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	lm.vertex_color_use_as_albedo = true
-	mi.material_override = lm
+	# (the metered braid in its colours, fading with distance like any line: rods/line_look.gd)
+	mi.material_override = preload("res://rods/line_look.gd").material(0.35, 4.0, 0.95)
 	add_child(mi)
 	(sea.get("boat") as Node).connect("rebuilt", func() -> void: _reset())
 

@@ -82,6 +82,8 @@ var stern := Vector3(0.0, 0.0, 7.05)
 ## and it falls to come straight from the rod (rod.gd's clip_k: down in a moment, not in a frame); a cast, a wind-in or
 ## someone picking the rod up takes it out too, and once the bait's back out wide astern it's clipped up again.
 var clips := {}
+## Rod -> its outrigger pole's foot and tip (boat-local; her kind's "rigger_poles"): the clip's halyard (rod.gd).
+var poles := {}
 ## Her outline for the line rubbing (tuna/fight.gd's rub): half her beam, her transom, her house's aft face and her
 ## bow (z, her frame).
 var _half_beam := 2.4
@@ -173,6 +175,7 @@ func _lay_out() -> void:
 		names.append(str(n))
 	stern = spec["stern"]
 	clips = (spec.get("outriggers", {}) as Dictionary).duplicate()
+	poles = (spec.get("rigger_poles", {}) as Dictionary).duplicate()
 	_half_beam = float(spec["beam"]) * 0.5
 	_aft = (spec.get("transom", stern) as Vector3).z
 	_fore = _aft - float(spec["length"])
@@ -1910,6 +1913,12 @@ func _outrigger(r: Rod, boat: Node3D, tangled_in: bool, delta: float) -> void:
 			and not flying(r.index) and r.bait_p != Vector3.INF
 	if c != Vector3.INF:
 		r.clip = boat.global_transform * c
+		var pole: Array = poles.get(r.index, [])
+		if pole.size() == 2:
+			r.pole = [boat.global_transform * (pole[0] as Vector3), boat.global_transform * (pole[1] as Vector3)]
+	elif r.clip_k <= 0.0:
+		r.clip = Vector3.INF         # (her kind's changed: no outrigger for it now)
+		r.pole = []
 	if r.clip_on and not clipped and r.hooked:
 		Sfx.play_point(self, r.clip, "collar.pop", 0.9)
 	r.clip_on = clipped

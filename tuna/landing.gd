@@ -164,7 +164,7 @@ func _ready() -> void:
 	_line.name = "HarpoonLine"
 	_line_mesh = ImmediateMesh.new()
 	_line.mesh = _line_mesh
-	_line.material_override = _unshaded(Color(0.86, 0.83, 0.7))
+	_line.material_override = preload("res://rods/line_look.gd").material(0.35, 6.0, 0.95)    # (a rope: fades far off)
 	_line.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_line)
 	_arc = _make_arc()
@@ -173,7 +173,7 @@ func _ready() -> void:
 	_ropes.name = "TailRopes"
 	_ropes_mesh = ImmediateMesh.new()
 	_ropes.mesh = _ropes_mesh
-	_ropes.material_override = _unshaded(Color(0.9, 0.85, 0.62))
+	_ropes.material_override = preload("res://rods/line_look.gd").material(0.4, 6.0, 0.95)
 	_ropes.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_ropes)
 	_attach()
@@ -549,6 +549,7 @@ func _draw_line(boat: Node3D, local: Transform3D) -> void:
 	var a := boat.global_transform * (rack_at() + Vector3(0.0, 0.05, 0.25))
 	var b := boat.global_transform * (local * Vector3(0.0, 0.0, 0.55))
 	_line_mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
+	_line_mesh.surface_set_color(Color(0.86, 0.83, 0.7))
 	var sag := 0.08 * a.distance_to(b) * (0.4 if float(_flight.get("end", 0.0)) < 0.0 else 1.0)
 	for k in 13:
 		var f := k / 12.0
@@ -1310,6 +1311,7 @@ func _draw_ropes(delta: float) -> void:
 		if a.distance_to(b) < 0.01:
 			continue
 		_ropes_mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
+		_ropes_mesh.surface_set_color(Color(0.9, 0.85, 0.62))
 		for k in 11:
 			var f := k / 10.0
 			_ropes_mesh.surface_add_vertex(a.lerp(b, f) + Vector3.DOWN * float(l[2]) * 4.0 * f * (1.0 - f))

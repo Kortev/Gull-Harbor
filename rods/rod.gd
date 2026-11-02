@@ -22,6 +22,7 @@ const SING := 0.55
 const ELBOWS := {"r": Vector3(0.42, -0.72, 0.06), "l": Vector3(-0.42, -0.72, 0.02)}
 
 const Kit := preload("res://crew/kit.gd")
+const LineLook := preload("res://rods/line_look.gd")
 
 static var _materials := {}
 
@@ -126,6 +127,8 @@ var bait_v := Vector3.ZERO
 ## The outrigger's release clip its line can run through (world; INF: it hasn't one), whether it's in it (rods.gd's
 ## _outrigger), and how far the line's up to it as drawn (0 straight from the tip .. 1 through the clip).
 var clip := Vector3.INF
+## Its outrigger pole's foot and tip (world; rods.gd's _outrigger): the clip rides a halyard between them.
+var pole: Array = []
 var clip_on := false
 var clip_k := 0.0
 var slack := 0.0
@@ -163,6 +166,11 @@ var _tip_local := Vector3(0, 0, LENGTH)
 var _bend := Vector2.ZERO
 var _line: MeshInstance3D
 var _line_mesh: ImmediateMesh
+var _line_mat: ShaderMaterial
+var _clip_mesh: MeshInstance3D
+var _cut_t := 0.0
+var _cut_v := Vector3.ZERO
+var _last_end := Vector3.INF
 var _grab: Area3D
 
 
@@ -246,11 +254,23 @@ func _ready() -> void:
 	_line.mesh = _line_mesh
 	_line.top_level = true
 	_line.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	var lm := StandardMaterial3D.new()
-	lm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	lm.albedo_color = Color(0.85, 0.86, 0.78)
-	_line.material_override = lm
+	# (thin mono: clear close to, a faint thread far off: rods/line_look.gd)
+	_line_mat = LineLook.material()
+	_line.material_override = _line_mat
 	add_child(_line)
+	# the outrigger's release clip, on its halyard out along the pole: a little red pinch clip the line runs through
+	_clip_mesh = MeshInstance3D.new()
+	var cb := BoxMesh.new()
+	cb.size = Vector3(0.035, 0.07, 0.03)
+	_clip_mesh.mesh = cb
+	var cm := StandardMaterial3D.new()
+	cm.albedo_color = Color(0.7, 0.16, 0.1)
+	cm.roughness = 0.7
+	_clip_mesh.material_override = cm
+	_clip_mesh.top_level = true
+	_clip_mesh.visible = false
+	_clip_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_clip_mesh)
 	# the bait on the end of it: a live mackerel, hooked through the lips
 	_lure = Kit._mackerel()
 	_lure.top_level = true
@@ -471,19 +491,28 @@ func _draw_line() -> void:
 	var a := tip_position()
 	var b := line_end
 	_line_mesh.clear_surfaces()
+	# a fish on: the line bar-tight and catching the light, and the fighter needs to see its angle into the water
+	var fighting := hooked and not alongside
+	_line_mat.set_shader_parameter("floor_alpha", lerpf(0.2, 0.45, clampf(strain * 1.5, 0.0, 1.0)) if fighting else 0.03)
+	_line_mat.set_shader_parameter("clear_to", 10.0 if fighting else 3.0)
 	_line_mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
-	# a line always droops a little; a slack one (she's stopped) a lot, down onto the water; a fish on pulls it
-	# straight
+	_line_mesh.surface_set_color(LineLook.MONO)
+	# a line always hangs in a belly between where it's held (the tip, the clip) and where it goes in; a slack one
+	# (she's stopped, a fish come at you) a lot, down onto the water; a fish pulling draws it straight
+	var tight := 1.0 - 0.9 * clampf(strain, 0.0, 1.0)
 	var from := a
 	if clip_k > 0.01:
-		# up to the outrigger's clip (or falling from it), then out from there to the bait
+		# up to the outrigger's clip (or falling from it), then out from there to the bait: up there it's light, just
+		# its own weight between the two, so it sags a good deal
 		var via := _via()
-		_sag_line(a, via, 0.02 * (1.0 - 0.85 * strain), false)
+		_sag_line(a, via, 0.06 * tight, false)
 		from = via
-		_sag_line(via, b, (0.02 + 0.3 * slack) * (1.0 - 0.85 * strain), true)
+		_sag_line(via, b, (0.05 + 0.3 * slack) * tight, true)
 	else:
-		_sag_line(a, b, (0.02 + 0.3 * slack) * (1.0 - 0.85 * strain), false)
+		_sag_line(a, b, (0.04 + 0.3 * slack) * tight, false)
 	_line_mesh.surface_end()
+	_draw_rigger()
+	_draw_cut(from, b)
 	a = from
 	# the mackerel, nose toward the rod, swimming just under the top; or hanging off the tip by its lips with the line
 	# in, kicking, or flying. Tiring, it kicks slower and goes pale.
@@ -511,6 +540,62 @@ func _draw_line() -> void:
 		_lure_back.albedo_color = Color(1, 1, 1).lerp(pale, (1.0 - fresh) * 0.8 if live else 0.85)
 
 
+## The outrigger's clip and its halyard: up the pole from its foot to the clip and on to the pulley at its tip (the
+## clip stays out there after a strike pops the line out of it).
+func _draw_rigger() -> void:
+	var has := clip != Vector3.INF and pole.size() == 2
+	_clip_mesh.visible = has
+	if not has:
+		return
+	var foot: Vector3 = pole[0]
+	var top: Vector3 = pole[1]
+	var along := (top - foot).normalized()
+	# (the clip hangs under the halyard, swinging a touch with the boat)
+	_clip_mesh.global_transform = Transform3D(Basis.looking_at(along, Vector3.UP), clip + Vector3(0.0, -0.04, 0.0))
+	_line_mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
+	_line_mesh.surface_set_color(Color(0.86, 0.86, 0.82, 0.8))
+	# (a halyard runs a hand under the pole, so it reads as its own line, not part of the steel)
+	var drop := Vector3(0.0, -0.12, 0.0)
+	_line_mesh.surface_add_vertex(foot + drop * 0.5)
+	_line_mesh.surface_add_vertex(clip)
+	_line_mesh.surface_add_vertex(top + drop * 0.3)
+	_line_mesh.surface_end()
+
+
+## Where the line goes in: at speed, a little V of spray thrown back off it, and a feather of white up its back,
+## flickering. A bait towed at trolling speed makes one; a running fish dragging it through the water makes more.
+func _draw_cut(from: Vector3, b: Vector3) -> void:
+	var v := Vector3.ZERO
+	if hooked and not alongside:
+		v = (b - _last_end) / maxf(get_process_delta_time(), 1e-4) if _last_end != Vector3.INF else Vector3.ZERO
+	elif bait_p != Vector3.INF and not bait_in:
+		v = bait_v
+	_last_end = b
+	v.y = 0.0
+	var speed := v.length() if v.length() < 30.0 else 0.0
+	_cut_v = _cut_v.lerp(v, minf(get_process_delta_time() * 4.0, 1.0)) if speed > 0.0 else _cut_v * 0.9
+	var k := clampf((_cut_v.length() - 1.0) / 4.0, 0.0, 1.0)
+	if k <= 0.02 or tangled >= 0 or (spread != null and bool(spread.call("flying", index))):
+		return
+	_cut_t += get_process_delta_time() * (9.0 + 3.0 * index)
+	var back := -_cut_v.normalized()       # (the water streams past it astern of where it's going)
+	var side := back.cross(Vector3.UP)
+	var reach := (0.35 + 0.8 * k) * (0.85 + 0.15 * sin(_cut_t))
+	var at := b + Vector3(0.0, 0.03, 0.0)
+	_line_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
+	_line_mesh.surface_set_color(Color(1.0, 1.0, 1.0, 0.5 + 0.4 * k))
+	for s: float in [-1.0, 1.0]:
+		var spread_k := 0.35 + 0.08 * sin(_cut_t * 1.3 + s)
+		_line_mesh.surface_add_vertex(at)
+		_line_mesh.surface_add_vertex(at + (back + side * s * spread_k).normalized() * reach)
+	# (the feather: up the line's back a little, falling away astern)
+	var up := (from - b).normalized()
+	var h := (0.08 + 0.18 * k) * (0.7 + 0.3 * sin(_cut_t * 1.7))
+	_line_mesh.surface_add_vertex(at)
+	_line_mesh.surface_add_vertex(at + up * h * 0.6 + back * h * 0.8 + Vector3(0.0, h * 0.5, 0.0))
+	_line_mesh.surface_end()
+
+
 ## Where the line bends: at the outrigger's clip, or on its way down from it to the straight line (clip_k).
 func _via() -> Vector3:
 	var straight := tip_position().lerp(line_end, 0.25)
@@ -518,8 +603,12 @@ func _via() -> Vector3:
 
 
 ## A drooping stretch of line from a to b (`droop`: how far it sags, for its length), into the strip being drawn.
+## Going down to the water it's held from above and pulled from below: it falls away steeply under the tip and lays
+## in at a shallow angle, its lowest point where it goes in (no belly lying along the top), unless it's gone slack.
 func _sag_line(a: Vector3, b: Vector3, droop: float, skip_first: bool) -> void:
 	var sag := droop * a.distance_to(b)
+	if a.y > b.y:
+		sag = lerpf(minf(sag, (a.y - b.y) * 0.22), sag, slack)
 	for i in range(1 if skip_first else 0, 17):
 		var f := i / 16.0
 		var p := a.lerp(b, f)
