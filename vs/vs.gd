@@ -95,6 +95,9 @@ var count_end := -1.0
 var home_by := -1.0
 var home := [false, false]
 var _alongside_for := [0.0, 0.0]
+## This trip: each boat's had her lines aboard (been away from the floats), and the launch has gone for her.
+var _away := [false, false]
+var _late := [false, false]
 ## s since the weigh-in was read off (-1: it hasn't been): the card comes up CARD_IN after it.
 var _weighed_for := -1.0
 ## The results card (vs/card.gd).
@@ -297,48 +300,47 @@ func _process(delta: float) -> void:
 			_homeward.rpc(_now() + HOME, [false, false])
 		else:
 			_homeward(_now() + HOME, [false, false])
-	# a boat alongside her own berth, slow, a moment: tied up, her catch sold there
+	# a boat tied up at the floats (both her lines fast: boat/lines.gd), having been away from them: in, her catch
+	# still aboard for the weigh-in; in time, she's home
 	for i in 2:
 		if docked[i]:
 			continue
-		var helm: Node = (sides[i].get("boat") as Node).get("helm")
-		var near := (helm.get("at") as Vector2).distance_to(_berth(i)) < 9.0 and absf(float(helm.get("speed"))) < 0.8
-		_alongside_for[i] = float(_alongside_for[i]) + delta if near else 0.0
-		if float(_alongside_for[i]) > TIE:
-			_alongside_for[i] = 0.0
+		var lines: Node = (sides[i].get("boat") as Node).get("lines")
+		_away[i] = bool(_away[i]) or bool(lines.call("all_aboard"))
+		if bool(_away[i]) and bool(lines.call("tied")):
 			var now_home := home.duplicate()
-			now_home[i] = true
+			now_home[i] = not bool(_late[i]) and _now() < home_by
 			if Net.in_session():
 				_homeward.rpc(home_by, now_home)
 			else:
 				_homeward(home_by, now_home)
 			Sfx.play_point(sides[i].get("boat"), (sides[i].get("boat") as Node3D).global_position, "kit.thud", 0.6, 0.6)
-			holds[i].call("head_in")
+			holds[i].call("head_in", not bool(now_home[i]))
 			docked[i] = true
-	if not (docked[0] and docked[1]) and _now() < home_by:
+	# time's up: the harbour launch goes out for any boat still out (sea/tow.gd), and brings her in
+	if _now() >= home_by:
+		for i in 2:
+			if not docked[i] and not bool(_late[i]):
+				_late[i] = true
+				sea.call("send_tow", sides[i].get("boat"))
+	if not (docked[0] and docked[1]):
 		return
-	# the trip's over: both in (or time's up, and the late one's towed in), and the weigh-in
+	# the trip's over: both in (the late one towed in), and the weigh-in: what each had aboard, then sold
 	_out = false
 	var fish := [[], []]
 	var day := [{}, {}]
 	for i in 2:
-		# (a boat home in time sold hers at her berth: they're on her slip)
-		var kgs: Array = ((holds[i].get("sale") as Dictionary).get("lines", []) as Array).map(
-				func(l: Array) -> float: return float(l[0])) if docked[i] \
-				else (holds[i].get("fish") as Array).map(func(f: Dictionary) -> float: return float(f["kg"]))
+		var kgs: Array = (holds[i].get("fish") as Array).map(func(f: Dictionary) -> float: return float(f["kg"]))
 		var late := not bool(home[i])
 		fish[i] = kgs.map(func(kg: float) -> float: return kg * LB_PER_KG * (0.5 if late else 1.0))
-		if late:
-			_last[i] = _pounds(holds[i]) * 0.5 if not docked[i] else float(_last[i]) * 0.5
-			if not docked[i]:
-				holds[i].call("head_in", true)
+		_last[i] = _pounds(holds[i]) * (0.5 if late else 1.0)
+		holds[i].call("host_sell_all")
 		var sum := 0.0
 		for k: float in kgs:
 			sum += k
 		day[i] = {"fish": kgs.size(), "kg": sum, "big": kgs.max() if not kgs.is_empty() else 0.0,
 				"money": int((holds[i].get("sale") as Dictionary).get("total", 0)),
 				"late": sum * LB_PER_KG * 0.5 if late else 0.0, "lb": float(_last[i])}
-	_moor(home)
 	if Net.in_session():
 		_homeward.rpc(-1.0, home)
 	else:
@@ -416,8 +418,10 @@ func run_out(i: int) -> float:
 	return maxf(b.y - corner.y, 0.0) + corner.distance_to(_mouth())
 
 
-## Host: both alongside the fish pier (sea/harbour.gd), A at her berth on its west side, B on its east, bows out;
-## but not a boat that's already come in herself (`keep`: true for each one that has).
+## Host, as a match is set up (the lobby, the start) and in tests: both alongside the floats either side of the fish
+## pier (sea/harbour.gd), A at her berth on its west side, B on its east, bows out, their lines made fast where they
+## lie; but not a boat that's already come in herself (`keep`: true for each one that has). Never mid-match: after a
+## day they're wherever they tied up, or the launch tied them up.
 func _moor(keep := [false, false]) -> void:
 	var harbour: Node = sea.get("harbour")
 	if harbour == null:
@@ -436,6 +440,10 @@ func _moor(keep := [false, false]) -> void:
 		helm.set("spin", 0.0)
 		if Net.in_session():
 			helm.rpc("_sync", int(helm.get("captain")), 0.0, at, 0.0)
+		(boat as Node3D).global_transform = boat.call("pose")
+		var lines: Node = boat.get("lines")
+		if lines != null:
+			lines.call("host_make_fast_here")
 
 
 ## Host, both at the dock: once the title's down and everyone's pressed on from the last weigh-in's card, the
@@ -447,20 +455,14 @@ func _host_count(holds: Array, delta: float) -> void:
 		if (title != null and bool(title.call("busy"))) or weighing:
 			return
 		if result.size() == 2:
-			# the card, a moment after the weigh-in; once everyone's pressed on, a fade to black, and the next
+			# the card, a moment after the weigh-in; once everyone's pressed on, the next day from where they lie
 			_weighed_for = maxf(_weighed_for, 0.0) + delta
 			if not card.up():
 				if _weighed_for >= CARD_IN and not _pending.is_empty():
 					_say(&"_card_open", [_pending])
 					_send_states()
 				return
-			if _fading_for < 0.0:
-				if _all_ready():
-					_fading_for = 0.0
-					_say(&"_fading", [])
-				return
-			_fading_for += delta
-			if _fading_for >= Card.FADE + 0.3:
+			if _all_ready():
 				_next()
 			return
 		_weighed_for = -1.0
@@ -556,8 +558,8 @@ func _fading() -> void:
 	card.fade_out()
 
 
-## Host, under the black: the next day (or a fresh match, the last one won): both boats back at their berths, everyone
-## home aboard their own, new weather for the day, and the countdown follows.
+## Host, everyone pressed on: the next day (or a fresh match, the last one won): both boats lying where they tied up,
+## everyone where they are (they walk aboard their own), new weather for the day, and the countdown follows.
 func _next() -> void:
 	if int(wins.max()) >= MATCH:
 		wins = [0, 0]
@@ -573,7 +575,6 @@ func _next() -> void:
 		sea.call("_weather_seed", s, "")
 		if Net.in_session():
 			sea.rpc("_weather_seed", s, "")
-	_moor()
 	_say(&"_fresh", [wins])
 
 
@@ -586,10 +587,6 @@ func _fresh(won: Array) -> void:
 	_clear_board()
 	_verdict.visible = false
 	card.close()
-	card.fade_in()
-	var crew := sea.get("crew") as Node
-	for id: int in crew.get("slots").keys():
-		crew.call("reseat", id, true)
 	var title: Node = sea.get("title")
 	if title == null or not bool(title.call("busy")):
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -617,6 +614,8 @@ func _host_set_out(holds: Array, first: int) -> void:
 	_anchor = 0
 	holds[1 - first].call("head_out", str(holds[first].get("kind")))
 	_alongside_for = [0.0, 0.0]
+	_away = [false, false]
+	_late = [false, false]
 	if Net.in_session():
 		_homeward.rpc(-1.0, [false, false])
 	else:
@@ -723,6 +722,7 @@ func host_bring_home() -> void:
 	_moor()
 	for side: Node in sides:
 		(side.get("fish_hold") as Node).call("head_in")
+	_away = [true, true]
 
 
 ## Whether boat `t` brought herself home this trip (so there's no cut to black for her crew).
@@ -1035,8 +1035,6 @@ func _radio(line: String, seconds: float) -> void:
 
 ## Both in alongside the fish pier: the screen fades up on them, and the fish are read off, A's then B's.
 func _weigh_in() -> void:
-	if sea.has_method("arrive"):
-		sea.call("arrive")
 	_steps = []
 	for t in 2:
 		var fish: Array = catches[t] if catches.size() == 2 else []

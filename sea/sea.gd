@@ -38,6 +38,8 @@ const Landmarks := preload("res://sea/landmarks.gd")
 const Harbour := preload("res://sea/harbour.gd")
 const Sfx := preload("res://audio/sfx.gd")
 const Vs := preload("res://vs/vs.gd")
+const Tow := preload("res://sea/tow.gd")
+const Places := preload("res://sea/places.gd")
 
 ## How rough the sea is (ocean.gd: 0 calm, 0.5 rain, 1 storm), the sun, how thick the fog, and how far you can see
 ## the land and the rig (far, m: sea/landmarks.gd's haze).
@@ -86,6 +88,13 @@ var plotter: Plotter
 var tips: Tips
 ## Two boats racing for the same birds (vs/vs.gd); off, it's the one boat.
 var vs: Vs
+## The harbour launches (sea/tow.gd): one goes out for a boat not home in time, or dry.
+var tows: Array[Tow] = []
+## The places on the quay (sea/places.gd): the hoist and the buyer's scale, the pump, the ice, the counters.
+var places: Places
+## Whether her lines say when the trip starts and ends (cast off and gone from the floats: out; tied up: in). The
+## game itself; a test that's testing it sets it.
+var lines_rule := false
 ## The title (ui/title.gd) while the game's starting up; null in tests and screenshots.
 var title: Title
 var _args := {}
@@ -156,6 +165,18 @@ func _ready() -> void:
 	vs.name = "Vs"
 	vs.sea = self
 	add_child(vs)
+	for i in 2:
+		var t := Tow.new()
+		t.name = "Tow%d" % i
+		t.sea = self
+		t.index = i
+		add_child(t)
+		tows.append(t)
+	places = Places.new()
+	places.name = "Places"
+	places.sea = self
+	add_child(places)
+	lines_rule = get_parent() == get_tree().root
 	var sonar := Sonar.new()
 	sonar.name = "Sonar"
 	sonar.schools = schools
@@ -254,67 +275,33 @@ func _ready() -> void:
 				(found as CanvasLayer).visible = false
 
 
-## Host: her alongside the fish pier at her berth (sea/harbour.gd), bow out, still. Only in the game itself (tests
-## and VS keep where they put her).
+## Host, as the game starts: her alongside the float at her berth (sea/harbour.gd), bow out, her lines fast where she
+## lies (the start of the game: nothing's moved her, she's just there). Once she's lying on her lines, a boat picked
+## at the dock (another kind, rebuilt in place) only has her lines made fast again at their new lengths. Only in the
+## game itself (tests and VS keep where they put her).
 func moor() -> void:
 	if not Net.is_host() or get_parent() != get_tree().root or harbour == null or (vs != null and vs.on):
 		return
+	var lines: Node = boat.get("lines")
+	if lines != null and _moored_once:
+		if bool(lines.call("tied")):
+			lines.call("host_make_fast_here")
+		return
+	_moored_once = true
 	var helm := boat.helm
 	var at: Vector2 = harbour.berth(float(boat.beam) * 0.5, float(boat.length))
-	if _came_alongside:
-		# (brought in alongside: eased the last few metres onto her berth, every peer, no jump)
-		if Net.in_session():
-			_ease_berth.rpc(helm.at, helm.heading, at)
-		else:
-			_ease_berth(helm.at, helm.heading, at)
-		return
 	helm.at = at
 	helm.heading = 0.0
 	helm.speed = 0.0
 	helm.throttle = 0.0
 	if Net.in_session():
 		helm.rpc("_sync", helm.captain, 0.0, at, 0.0)
+	boat.global_transform = boat.pose()
+	if lines != null:
+		lines.call("host_make_fast_here")
 
 
-## Everyone: she's tied up where she lies alongside; the last metres onto her berth and round to it, eased (BERTH s).
-## (And no fade to black for it on anyone's screen: arrive().)
-@rpc("authority", "call_local", "reliable")
-func _ease_berth(from: Vector2, from_heading: float, to: Vector2) -> void:
-	_came_alongside = true
-	_berth_t = 0.0
-	_berth_from = from
-	_berth_heading = from_heading
-	_berth_to = to
-
-
-var _berth_t := -1.0
-var _berth_from := Vector2.ZERO
-var _berth_heading := 0.0
-var _berth_to := Vector2.ZERO
-const BERTH := 2.5
-
-
-## How long the ease onto her berth has still to run (s; 0: none running).
-func berthing_left() -> float:
-	return BERTH - _berth_t if _berth_t >= 0.0 else 0.0
-
-
-func _berthing(delta: float) -> void:
-	if _berth_t < 0.0:
-		return
-	_berth_t += delta
-	var k := smoothstep(0.0, 1.0, _berth_t / BERTH)
-	var helm := boat.helm
-	helm.at = _berth_from.lerp(_berth_to, k)
-	helm.heading = lerp_angle(_berth_heading, 0.0, k)
-	helm.speed = 0.0
-	helm.throttle = 0.0
-	helm.set("_net_at", helm.at)
-	helm.set("_net_heading", helm.heading)
-	helm.set("_net_speed", 0.0)
-	helm.set("_net_age", 0.0)
-	if k >= 1.0:
-		_berth_t = -1.0
+var _moored_once := false
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -345,50 +332,25 @@ func _unhandled_key_input(e: InputEvent) -> void:
 			return
 
 
-## Coming in: the screen cuts to black and fades up on her alongside the pier (every peer, as the trip ends); not
-## when you brought her in alongside yourself.
-func arrive() -> void:
-	if _came_alongside:
-		_came_alongside = false
-		return
-	if vs != null and vs.on and vs.came_home(vs.my_team):
-		return
-	if _fade == null:
-		_fade = CanvasLayer.new()
-		_fade.layer = 20
-		var black := ColorRect.new()
-		black.color = Color.BLACK
-		black.set_anchors_preset(Control.PRESET_FULL_RECT)
-		black.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_fade.add_child(black)
-		add_child(_fade)
-	var black := _fade.get_child(0) as ColorRect
-	black.modulate.a = 1.0
-	var t := create_tween()
-	t.tween_interval(0.5)
-	t.tween_property(black, "modulate:a", 0.0, 1.8).set_trans(Tween.TRANS_SINE)
-
-
-var _fade: CanvasLayer
-var _came_alongside := false
 ## The race home at dusk (solo and co-op; Rivals runs its own, vs/vs.gd): when time's up (the sea clock; -1 before
-## dusk). Brought in alongside the fish pier before it (_tie_up) she sells as ever; after it she's towed in and the
-## cannery pays half (fish_hold.gd's head_in(late)). HOME s, the same as Rivals.
+## dusk). Tied up alongside the floats before it (_dock_lines) she sells as ever; after it (or her tank run dry) the
+## harbour launch goes out for her (sea/tow.gd) and brings her in, and the cannery pays half (fish_hold.gd's
+## head_in(late)). HOME s, the same as Rivals.
 var home_by := -1.0
 const HOME := 360.0
 var _home_ui: Control
-var _alongside_for := 0.0
-var _been_out := false        # (this trip she's been out past the breakwaters: coming back in alongside ties her up)
-## Brought in alongside her berth this slow for this long (s), she's tied up and the catch is sold there.
-const TIE_UP := 2.0
+## This trip the launch has gone for her (she's late, or dry): tied up, the cannery pays half.
+var towed := false
+## How far she has to be from every cleat on the floats, her lines aboard, to have cast off (m).
+const LEFT := 30.0
 
 
-## Host: dusk starts the race home; time up and she's not in, she's towed in and sells at half. (Not in Rivals, not in
-## tests: vs/vs.gd and the test drive their own.)
+## Host: dusk starts the race home; time up and she's not in, the launch goes for her. Her tank dry, the same.
+## (Not in Rivals, not in tests: vs/vs.gd and the test drive their own.)
 func _race_home() -> void:
 	if _home_ui != null:
 		_home_ui.queue_redraw()
-	if not Net.is_host() or get_parent() != get_tree().root or (vs != null and vs.on):
+	if not Net.is_host() or not lines_rule or (vs != null and vs.on):
 		return
 	if fish_hold.docked:
 		if home_by >= 0.0:
@@ -397,8 +359,63 @@ func _race_home() -> void:
 	var now := float(ocean.get("wave_time"))
 	if home_by < 0.0 and float(fish_hold.day_fraction()) >= 1.0:
 		_set_home.rpc(now + HOME) if Net.in_session() else _set_home(now + HOME)
-	elif home_by > 0.0 and now >= home_by:
-		fish_hold.head_in(true)
+	elif (home_by > 0.0 and now >= home_by) or boat.helm.dry:
+		send_tow(boat)
+
+
+## Host: the launch goes out for boat `b` (late home, or dry): the first one lying idle.
+func send_tow(b: Node3D) -> void:
+	for t: Tow in tows:
+		if t.target == b:
+			return
+	if b == boat:
+		towed = true
+	for t: Tow in tows:
+		if not t.busy():
+			t.host_send(b)
+			return
+
+
+## Whether a launch is out for boat `b`, or has her.
+func tow_for(b: Node3D) -> Tow:
+	for t: Tow in tows:
+		if t.target == b:
+			return t
+	return null
+
+
+## Host: her lines say when a trip starts and ends. At the dock, her lines aboard and her LEFT m off the floats, she's
+## cast off: the day starts (fish_hold.gd's head_out). Out there, both her lines fast on the floats' cleats, she's tied
+## up: the trip's over (head_in), late if the launch had to go for her or time's up.
+func _dock_lines() -> void:
+	if not Net.is_host() or not lines_rule or (vs != null and vs.on):
+		return
+	var lines: Node = boat.get("lines")
+	if lines == null:
+		return
+	if fish_hold.docked:
+		_away = false
+		if bool(lines.call("all_aboard")) and _off_floats(boat) > LEFT:
+			fish_hold.head_out()
+			towed = false
+		return
+	_away = _away or bool(lines.call("all_aboard"))
+	if _away and bool(lines.call("tied")):
+		var late := towed or (home_by > 0.0 and float(ocean.get("wave_time")) >= home_by)
+		Sfx.play_point(boat, boat.global_position, "kit.thud", 0.6, 0.6)
+		fish_hold.head_in(late)
+		towed = false
+
+
+var _away := false
+
+
+## How far boat `b` is from the nearest of the floats' cleats (m).
+func _off_floats(b: Node3D) -> float:
+	var q: Node = harbour.get("quay") if harbour else null
+	if q == null:
+		return INF
+	return float((q.call("nearest_cleat", b.global_position) as Array)[1])
 
 
 @rpc("authority", "call_local", "reliable")
@@ -421,39 +438,22 @@ func _draw_home() -> void:
 		return
 	var left := maxi(ceili(home_by - float(ocean.get("wave_time"))), 0)
 	var text := "DUSK: BRING HER HOME  %d:%02d" % [left / 60, left % 60]
-	var col := Color(1.0, 0.78, 0.34) if left > 60 else Color(1.0, 0.45, 0.3)
+	var t := tow_for(boat)
+	if t != null:
+		text = "UNDER TOW" if boat.helm.towed_by != null else "THE HARBOR LAUNCH IS COMING OUT FOR HER"
+	var col := Color(1.0, 0.78, 0.34) if left > 60 and t == null else Color(1.0, 0.45, 0.3)
 	var at := Vector2((_home_ui.size.x - PixFont.width(text, 4)) * 0.5, 40.0)
 	PixFont.draw(_home_ui, at + Vector2(3, 3), text, Color(0, 0, 0, 0.8), 4)
 	PixFont.draw(_home_ui, at, text, col, 4)
-	var sub := "ALONGSIDE THE FISH PIER, SLOW. LATE: THE CANNERY PAYS HALF."
+	var sub := "TIE HER UP AT THE FISH PIER: BOW AND STERN LINES. LATE: THE CANNERY PAYS HALF."
 	var sa := Vector2((_home_ui.size.x - PixFont.width(sub, 2)) * 0.5, 72.0)
 	PixFont.draw(_home_ui, sa + Vector2(2, 2), sub, Color(0, 0, 0, 0.8), 2)
 	PixFont.draw(_home_ui, sa, sub, Color(0.9, 0.93, 0.96), 2)
 
 
-## Host: she's been brought in alongside the fish pier and stopped: tie her up, sell.
-func _tie_up(delta: float) -> void:
-	if not Net.is_host() or fish_hold.docked or get_parent() != get_tree().root or (vs != null and vs.on):
-		_alongside_for = 0.0
-		_been_out = false
-		return
-	var berth: Vector2 = harbour.berth(float(boat.beam) * 0.5, float(boat.length))
-	_been_out = _been_out or boat.helm.at.distance_to(berth) > 400.0
-	if not _been_out:
-		return
-	var near := boat.helm.at.distance_to(berth) < 9.0 and absf(boat.helm.speed) < 0.8
-	_alongside_for = _alongside_for + delta if near else 0.0
-	if _alongside_for > TIE_UP:
-		_alongside_for = 0.0
-		_came_alongside = true
-		Sfx.play_point(boat, boat.global_position, "kit.thud", 0.6, 0.6)
-		fish_hold.head_in()
-
-
 func _process(_delta: float) -> void:
 	_frames += 1
-	_tie_up(_delta)
-	_berthing(_delta)
+	_dock_lines()
 	var goal := _dark_goal()
 	_dark_eased = goal if _dark_eased < 0.0 or _args.has("noon") or _args.has("night") else 			move_toward(_dark_eased, goal, _delta / LIGHT_EASE)
 	_race_home()
@@ -813,6 +813,7 @@ func _build_world() -> void:
 	harbour.marks = landmarks
 	landmarks.harbour = harbour
 	add_child(harbour)
+	harbour.quay.sea = self
 	boat = Boat.new()
 	boat.name = "Boat"
 	boat.ocean = ocean

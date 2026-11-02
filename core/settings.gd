@@ -70,6 +70,11 @@ var pad_invert_y := false
 var rumble := true
 ## The pad's what was last touched (not the keys or the mouse).
 var pad := false
+## The match settings, each a default per mode (the host's are the ones that count, shown in the lobby and on the
+## board): the dock prep before casting off ("full": fuel, ice and bait by hand; "quick": the same, quicker; "off":
+## she goes out fuelled, iced and baited), "career" (FISH, solo and co-op) and "rivals".
+var prep := {"career": "full", "rivals": "off"}
+const PREPS := ["full", "quick", "off"]
 ## The last rumble asked for: [weak, strong, seconds] (tests read it: there's no pad to feel it).
 var last_rumble: Array = []
 var _sprint_latch := false
@@ -96,6 +101,7 @@ func _ready() -> void:
 		path = ""
 		window = "windowed"           # (screenshots keep the project's own window)
 		window_size = Vector2i(1152, 648)
+		prep = {"career": "off", "rivals": "off"}     # (tests stock her as she casts off, unless one's testing the prep)
 	else:
 		load_file()
 	if _cmd_size != Vector2i.ZERO:
@@ -225,6 +231,23 @@ func set_pad_sensitivity(v: float) -> void:
 func set_pad_invert_y(on: bool) -> void:
 	pad_invert_y = on
 	changed.emit()
+
+
+## The dock prep for a mode ("career" or "rivals").
+func prep_for(mode: String) -> String:
+	return str(prep.get(mode, "full"))
+
+
+func set_prep(mode: String, v: String) -> void:
+	if PREPS.has(v) and prep.has(mode):
+		prep[mode] = v
+		changed.emit()
+
+
+## The next one along (the lobby's and the board's ENTER TO CHANGE).
+func next_prep(mode: String) -> void:
+	set_prep(mode, PREPS[(PREPS.find(prep_for(mode)) + 1) % PREPS.size()])
+	save_file()
 
 
 func set_rumble(on: bool) -> void:
@@ -429,6 +452,8 @@ func save_file() -> Error:
 	c.set_value("display", "vsync", vsync)
 	c.set_value("display", "max_fps", max_fps)
 	c.set_value("display", "ui_size", ui_size)
+	for m: String in prep:
+		c.set_value("match", "prep_" + m, prep[m])
 	for a: Array in REBINDABLE:
 		var codes := PackedStringArray()
 		for e in InputMap.action_get_events(a[0]):
@@ -468,6 +493,10 @@ func load_file() -> Error:
 	ui_size = str(c.get_value("display", "ui_size", ui_size))
 	if not UI_SIZES.has(ui_size):
 		ui_size = "crisp"
+	for m: String in prep.keys():
+		var v := str(c.get_value("match", "prep_" + m, prep[m]))
+		if PREPS.has(v):
+			prep[m] = v
 	for a: Array in REBINDABLE:
 		var codes: Variant = c.get_value("keys", a[0], PackedStringArray())
 		if not (codes is PackedStringArray or codes is Array):
