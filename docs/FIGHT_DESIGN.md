@@ -642,3 +642,14 @@ All 33 points were reviewed.
    *Recommended:* yes. Dale's tutor carries the first three fights, and the Shout wheel is taught on the first strike.
 6. **Is about 16-18 min for a 300 kg fish (good crew) right, with the full 30 minutes reserved for 600 kg shelf fish?**
    *Recommended:* yes. The 30-minute fight is the trophy, everyday fish stay a bit over 15 min, and nothing passes 45.
+
+---
+
+## Decisions (the user, 2026-11-03)
+
+1. **Crew pay:** none. The whole crew shares one wallet: the boat's money. No per-player shares or wages. (This replaces both the 12% share and the wages idea.)
+2. **Skiff bilge:** hand pump only. No automatic pump.
+3. **Rivals 1v1:** yes, as proposed. An inshore ledge, 120–200 kg fish, 20-minute rounds, scored on weight plus how beaten your hooked fish is at the horn.
+4. **Rivals boats:** any team may choose a bigger boat, but every boat has a player cap. A team of 4 can't take a two-person boat. (The skiff's exact cap, 2 or 3, is still to confirm.)
+5. **Fight calls:** the Shout key only, plus Dale's tips. No automatic crew shouts.
+6. **Fight length:** about 16–18 min for a 300 kg fish, and about 30 min for rare 600 kg trophies.
