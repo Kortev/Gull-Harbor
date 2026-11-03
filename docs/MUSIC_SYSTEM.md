@@ -6,6 +6,32 @@ screen anyway, so it tells you nothing the sea doesn't). Written 2026-11-02 agai
 
 ## As built (2026-11-02)
 
+**Bluefin's theme (Kortev: "at least one really recognisable tune that's beautiful").** `THEME` in tools/music.py
+is sixteen bars in D at 112. It opens on a rising A–D–F♯, climbs to its high B in bar 13, and comes home. It's
+woven through everything:
+- the title plays it whole (whistle, then concertina and drums);
+- at sea, its two halves are passages (`sea_t1`, always followed by `sea_t2`);
+- the hunt's bells ring its first three notes;
+- the leader is its second half, soaring;
+- the afterglow when he's landed is its first half coming home;
+- the Rivals win sting is its opening.
+
+**And then:**
+- **Her speed:** a `run` stem at sea (drums' eighths, the bass pushing) rises from 25% to 80% of her top speed.
+- **His size:** a `heavy` stem in the fight (the bow an octave down, the biggest drum, the sub) comes in from 120 to
+  320 kg.
+- **The sea:** twelve passages now (four more), plus a drum-fill stem locked to each passage's last two beats. It
+  opens into the next passage 20–50% of the time (more when running).
+- **The race home** is rewritten in the sea's bar (a jig in E dorian, 12/8 at 112), so the sea goes into it on the
+  bar.
+- **The deck tin whistle** (slot 6, `crew/hands.gd`): hold left mouse and look up or down. Every note is one of the
+  band's current chord (each section's chords are in audio/music_cues.gd; `Music.whistle_note()`), and it starts on
+  the music's next eighth (`Music.next_tick()`). Everyone aboard hears it. The third-person arm doesn't yet raise to
+  the lips (that's the player's arm poses, crew/player.gd); the whistle tips up toward the face instead.
+- **A real game's recording can be checked:** run with `-- --music-log=<file>` and tools/music_check.py reads what
+  played, and when it was meant to be still, beside the movie maker's audio.
+
+
 **Changed after a playtest (Kortev): music always, an endless soundtrack in sync with the game.** The quiet at sea
 (a phrase now and then, long silences) is gone, along with its one-shot phrases (calm, fog, rain, storm, night,
 dawn). Principle 1 ("silence is the default") no longer holds. In its place:
