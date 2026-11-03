@@ -168,6 +168,9 @@ var _mat: ShaderMaterial
 var _hull := Transform3D.IDENTITY
 var _hull_on := false
 var _hull_size := Vector2(14.0, 4.8)
+var _hull_deck := Vector2(0.55, 0.0)
+## (the sea mesh's points round each ring, _build_mesh)
+const RING_SEG := 320
 var _dirty := true
 var _planet: Node
 var _clock: Node
@@ -206,7 +209,7 @@ func _ready() -> void:
 	_mat.set_shader_parameter("curve_radius", CURVE_RADIUS)
 	_mat.set_shader_parameter("rain", rain)
 	if _hull_on:
-		set_hull(global_transform * _hull, _hull_size.x, _hull_size.y)
+		set_hull(global_transform * _hull, _hull_size.x, _hull_size.y, _hull_deck.x, _hull_deck.y)
 	var sea := MeshInstance3D.new()
 	sea.name = "Sea"
 	sea.mesh = _build_mesh()
@@ -475,30 +478,39 @@ func normal_at(at: Vector3) -> Vector3:
 ## A deck over the sea (Fathom's wave deck, fathom_hazards.gd): inside this box the sea isn't drawn over `top`, so a
 ## crest never shows through its grating. Its middle (x, z), half sizes along `axis` (x, z) and across it, the height:
 ## all in this node's space. A zero `half` turns it off.
-## The boat, where she is right now (her global transform): the sea is drawn pushed down inside her hull, so a
-## crest never shows through her deck (ocean.gdshader). Only the drawing: height_at is the open sea.
-## Keeps the sea out of her: where she is, her length and her beam (m; art/boat.py's hull shape, stretched to fit).
-func set_hull(boat: Transform3D, length := 14.0, beam := 4.8) -> void:
+## The boat, where she is right now (her global transform, carried and all): the sea meets her hull as water would,
+## left as it is outside her (heaped a little along her at speed), held under her deck inside her, so a crest never
+## shows through it (ocean.gdshader's hull_water). Only the drawing: height_at is the open sea.
+## Where she is, her length and her beam (m; art/boat.py's hull shape, stretched to fit), her cockpit sole (m over
+## her origin) and her way through the water (m/s).
+func set_hull(boat: Transform3D, length := 14.0, beam := 4.8, deck := 0.55, speed := 0.0) -> void:
 	_hull_on = true
 	_hull_size = Vector2(length, beam)
+	_hull_deck = Vector2(deck, speed)
 	_hull = global_transform.affine_inverse() * boat
 	if _mat != null:
 		_mat.set_shader_parameter("hull_on", true)
 		_mat.set_shader_parameter("hull_length", length)
 		_mat.set_shader_parameter("hull_beam", beam / 4.3)
+		_mat.set_shader_parameter("hull_deck", deck)
+		_mat.set_shader_parameter("hull_speed", speed)
+		_mat.set_shader_parameter("hull_pad", _gap_at(Vector2(_hull.origin.x, _hull.origin.z).length() + length * 0.5))
 		_mat.set_shader_parameter("hull_xf", Projection(_hull))
 		_mat.set_shader_parameter("hull_inv", Projection(_hull.affine_inverse()))
 
 
-## The other boat (Rivals): the sea's cut away inside her too, so her deck stays dry to look at; null lets it be.
-func set_other_hull(boat: Transform3D, length := 14.0, beam := 4.8, on := true) -> void:
+## The other boat (Rivals): the sea meets her the same, so her deck stays dry to look at; `on` false lets it be.
+func set_other_hull(boat: Transform3D, length := 14.0, beam := 4.8, on := true, deck := 0.55, speed := 0.0) -> void:
 	if _mat == null:
 		return
 	_mat.set_shader_parameter("hull2_on", on)
 	if on:
 		_mat.set_shader_parameter("hull2_length", length)
 		_mat.set_shader_parameter("hull2_beam", beam / 4.3)
+		_mat.set_shader_parameter("hull2_deck", deck)
+		_mat.set_shader_parameter("hull2_speed", speed)
 		var xf := global_transform.affine_inverse() * boat
+		_mat.set_shader_parameter("hull2_pad", _gap_at(Vector2(xf.origin.x, xf.origin.z).length() + length * 0.5))
 		_mat.set_shader_parameter("hull2_xf", Projection(xf))
 		_mat.set_shader_parameter("hull2_inv", Projection(xf.affine_inverse()))
 
@@ -863,19 +875,38 @@ static func _wave(length: float, amplitude: float, angle: float, phase: float) -
 	return PackedFloat32Array([cos(angle), sin(angle), k, amplitude, sqrt(G * k) * PACE, phase])
 
 
+## How much coarser than her topsides are thick the sea's mesh is out at `r` (m from its middle, _build_mesh's rings
+## and spokes): a hull out there has the water held down that much further out round her, or a triangle from open
+## water could reach in over her deck (0 for a hull in the fine middle).
+func _gap_at(r: float) -> float:
+	var step := 0.15
+	var at := 0.0
+	while at < r and at < reach:
+		at += step
+		if at > 10.0:
+			step = maxf(step, 0.3)
+		if at > 14.0:
+			step *= 1.08 if step < 1.2 else 1.035
+	return maxf(maxf(step, TAU * r / RING_SEG) - 0.18, 0.0)
+
+
 ## Rings round the middle, close together near it and further apart out to the horizon, with as
 ## many points round each ring: no seams to crack open when the waves move it.
 func _build_mesh() -> ArrayMesh:
 	var radii := PackedFloat32Array([0.0])
-	# fine round the boat (so the sea meets her hull cleanly), coarser and coarser out to the horizon
-	var step := 0.3
+	# fine round the boat (so the sea meets her hull cleanly: rings closer than her topsides are thick, out past her
+	# ends however the water's carried her, so no triangle reaches from open water into her cockpit), coarser and
+	# coarser out to the horizon
+	var step := 0.15
 	var r := 0.0
 	while r < reach:
 		r += step
 		radii.append(r)
+		if r > 10.0:
+			step = maxf(step, 0.3)
 		if r > 14.0:
 			step *= 1.08 if step < 1.2 else 1.035
-	var seg := 320
+	var seg := RING_SEG
 	var verts := PackedVector3Array([Vector3.ZERO])
 	for i in range(1, radii.size()):
 		for j in seg:
