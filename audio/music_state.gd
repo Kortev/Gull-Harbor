@@ -72,7 +72,9 @@ const HUSH := 6.0
 const LANDED_WAIT := 1.2
 ## The weather there's no waltz in, tied up: the sea's song in its storm instead.
 const STORMY := ["storm", "heavy"]
-## Birds: in at this near, out under this.
+## Birds: in at this near, out under this; once in, the hunt holds at least this long (s: four bars at 112), so birds
+## at the edge of sight don't flicker it.
+const HUNT_HOLD := 8.6
 const BIRDS_IN := 0.12
 const BIRDS_OUT := 0.05
 ## The race home's length (s: sea.gd's and vs.gd's HOME), and the last chance (s left, trailing).
@@ -302,7 +304,7 @@ func _section(w: Dictionary, f: Dictionary) -> String:
 	if bool(w.get("docked", false)):
 		return "sea" if str(w.get("condition", "calm")) in STORMY else "harbour"
 	var birds := float(w.get("birds", 0.0))
-	if birds >= BIRDS_IN or (section == "hunt" and birds >= BIRDS_OUT):
+	if birds >= BIRDS_IN or (section == "hunt" and (birds >= BIRDS_OUT or _section_t < HUNT_HOLD)):
 		return "hunt"
 	return "sea"
 

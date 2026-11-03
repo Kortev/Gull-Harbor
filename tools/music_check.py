@@ -8,7 +8,9 @@ audio/music.gd played when) and checks the music did what it says:
     ever does;
   - the line about to part thins it, him in the air all but stops it;
   - a fish lost: silence.
-Run: python tools/music_check.py <dir with f.wav and f.json>   (tools/music_check.sh renders and runs it)"""
+Run: python tools/music_check.py <dir with f.wav and f.json>   (tools/music_check.sh renders and runs it)
+     python tools/music_check.py --real <dir>   (a real game's: the movie maker's audio as f.wav, the game run with
+     -- --music-log=<dir>/f.json; the grid, clicks and never-quiet checks only)"""
 import json
 import os
 import sys
@@ -25,6 +27,7 @@ sys.path.insert(0, HERE)
 # How far into a section it's lined up (s): past the longest fade in (four beats at 112) and the strike's tail.
 INTO = 4.0
 # Stems not up in the rendered scene (calm, day, a fresh fish): left out of what a switch is lined up against.
+REAL = False
 EXTRAS = {"rain", "storm", "night", "click", "tension_hi", "tune"}
 
 
@@ -81,6 +84,9 @@ def main(d):
         # (all of it inside this clip's own time: the next one's crossfade isn't it)
         if kind == "clip":
             life = min([c for c in clips if c > at + 0.01] + [len(mono) / sr]) - at - 0.3
+            if life < 2.7:
+                print("     %s at %.3f s: too short to line up (%.1f s, its fade in)" % (what, at, life + 0.3))
+                continue
             span = max(min(span, int(life * sr)), int(0.5 * sr))
             into = max(min(into, int(life * sr) - span), 0)
         ref = sum(load(f, sr)[skip + into:skip + into + span] for f in files)
@@ -134,21 +140,24 @@ def main(d):
             worst, wat = float(w.max()), t
     check(worst <= max(floor * 3.0, 0.0015), "no clicks round %d switches, stings and seams (worst %.4f at %.2f s; the "
           "music's own 99.9%% %.4f)" % (len(marks), worst, wat, floor))
-    # 3. the line about to part (24 s on), him in the air (27 s), against his first run (12 s)
     def win(a, b):
         return mono[int(a * sr):int(b * sr)]
-    before = rms_db(win(12.0, 16.0))
-    part = rms_db(win(24.4, 26.9))
-    air = rms_db(win(27.2, 28.5))
-    check(part < before - 3.0, "the line about to part: thinner (%.1f dB, before %.1f)" % (part, before))
-    check(air < before - 10.0, "him in the air: all but silence (%.1f dB)" % air)
-    # 4. lost (96 s): silence, but for the strike's tail that went before it
-    lost = rms_db(win(96.3, 101.5))
-    check(lost < -60.0, "a fish lost: silence (%.1f dBFS)" % lost)
-    # 5. never quiet but where it should be: him in the air (27-28.6 s), the harpoon flying (56-57), the hush after
-    # the loss (96-102.5)
-    hush = [(26.9, 28.9), (55.9, 57.3), (95.9, 102.6)]
-    # (a log with its own "still" marks, as the game writes it: those are the quiet times, and the half second after)
+    # (a real game's recording, --real: only what holds for any of it, the quiet times from its own "still" marks)
+    hush = []
+    if not REAL:
+        # 3. the line about to part (24 s on), him in the air (27 s), against his first run (12 s)
+        before = rms_db(win(12.0, 16.0))
+        part = rms_db(win(24.4, 26.9))
+        air = rms_db(win(27.2, 28.5))
+        check(part < before - 3.0, "the line about to part: thinner (%.1f dB, before %.1f)" % (part, before))
+        check(air < before - 10.0, "him in the air: all but silence (%.1f dB)" % air)
+        # 4. lost (96 s): silence, but for the strike's tail that went before it
+        lost = rms_db(win(96.3, 101.5))
+        check(lost < -60.0, "a fish lost: silence (%.1f dBFS)" % lost)
+        # 5. never quiet but where it should be: him in the air (27-28.6 s), the harpoon flying (56-57), the hush
+        # after the loss (96-102.5)
+        hush = [(26.9, 28.9), (55.9, 57.3), (95.9, 102.6)]
+    # (a log with its own "still" marks, as the game writes it: those are the quiet times, and the few s after)
     stills = [float(p[0]) for p in played if p[1] in ("still:on", "still:off")]
     if stills:
         marks_on = [float(p[0]) for p in played if p[1] == "still:on"]
@@ -164,12 +173,15 @@ def main(d):
             gaps.append(round(t, 1))
         t += 0.5
     check(not gaps, "never quiet anywhere else (quiet at: %s)" % gaps[:10])
-    for a, b, what in [(0.5, 3, "sea"), (110, 135, "sea after"), (4, 10, "hunt"), (12, 16, "fight"), (37, 40, "tired"), (42, 50, "leader"), (51, 55, "gaff"),
-                       (58, 70, "afterglow")]:
+    scenes = [] if REAL else [(0.5, 3, "sea"), (110, 135, "sea after"), (4, 10, "hunt"), (12, 16, "fight"),
+                              (37, 40, "tired"), (42, 50, "leader"), (51, 55, "gaff"), (58, 70, "afterglow")]
+    for a, b, what in scenes:
         print("     %-9s %.1f dBFS" % (what, rms_db(win(a, b))))
     print("MUSIC CHECK", "PASSED" if not fails else "FAILED")
     return 1 if fails else 0
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else "."))
+    REAL = "--real" in sys.argv
+    args = [a for a in sys.argv[1:] if a != "--real"]
+    sys.exit(main(args[0] if args else "."))
