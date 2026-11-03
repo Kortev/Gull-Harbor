@@ -119,8 +119,8 @@ const BEATEN := 0.25
 const QUIET := 22.0
 ## How long a fish takes to beat: GOAL_BASE + GOAL_PER_KG x kg seconds of steady pressure (PRESSURE of his pull), and
 ## how fast he gets his breath back with nobody on him (x that, under EASY of his pull).
-const GOAL_BASE := 30.0
-const GOAL_PER_KG := 0.28
+const GOAL_BASE := 15.0
+const GOAL_PER_KG := 0.14
 const PRESSURE := 0.55
 const RECOVER := 0.3
 const EASY := 0.15
@@ -175,7 +175,7 @@ const TOW := 0.01
 ## A beaten fish kept tight is led round off the stern this fast (rad/s, at full pressure).
 const LEAD := 0.35
 ## A rod left in its holder: how much faster he takes line on a run, with nobody on it.
-const HOLDER_RUN := 1.8
+const HOLDER_RUN := 2.0
 
 var kg := 150.0
 var nature := "runner"

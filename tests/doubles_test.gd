@@ -1,6 +1,6 @@
 extends Node
 ## A double header: with a fish on out of a feeding school, a second bait across the same school still gets eaten (a
-## quarter of the usual rate: tuna/schools.gd's DOUBLE), while a stray loner hardly ever takes one (LONE). Then two
+## twelfth of the usual rate: tuna/schools.gd's DOUBLE), while a stray loner hardly ever takes one (LONE). Then two
 ## fights at once, as the game has them: one rod in your hands (your fight, your reel on the HUD), the other fighting
 ## on its drag in its holder (the host's), both fish drawn, the crew's shouts and the captain's plotter keeping both,
 ## both up alongside for the harpoon one after the other.
@@ -14,7 +14,7 @@ var fails: Array[String] = []
 
 
 func _ready() -> void:
-	_check(is_equal_approx(Schools.DOUBLE, 0.25) and is_equal_approx(Schools.LONE, 0.015),
+	_check(is_equal_approx(Schools.DOUBLE, 0.08) and is_equal_approx(Schools.LONE, 0.015),
 			"a second fish while one's on: %.2f of the usual in among the school, %.3f for a stray" % [Schools.DOUBLE,
 			Schools.LONE])
 	var sea := (load("res://sea/sea.tscn") as PackedScene).instantiate() as Sea
