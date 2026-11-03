@@ -163,6 +163,8 @@ static func act(c: Dictionary, dt: float, style: String, mem: Dictionary) -> Dic
 const TURN := 0.45
 const WALK := 2.5          # s from the rod to the wheel and back
 const LATE := 1.0          # s a captain's slow to see he's gone wide
+const ROD_MIN := 4.0       # s alone back on the rod, winding, before the next go at the wheel
+const CHASE := 0.7         # alone, the spool this empty with him still running: to the wheel to chase him
 
 
 ## `careless`: the captain's two seconds late, and now and then looks away for a few. mem["busy"] true: the captain's
@@ -193,22 +195,30 @@ static func crew(f: Object, dt: float, n: int, mem: Dictionary, careless := fals
 	else:
 		var resting := bool(mem.get("resting", false))
 		var walk := float(mem.get("walk", 0.0))
+		# (the rod in its holder only between his runs, mostly: on a run a rod nobody's on gives him line twice as
+		# fast. To the wheel to swing her stern to him or back down and make slack; back to the rod to wind it up, and
+		# a while on it winding before the next go at the wheel. Only with the spool nearly gone, mid-run.)
+		var slipping := bool(f.get("slipping"))
+		var on_rod := float(mem.get("rod_t", 99.0))
 		if walk > 0.0:
 			walk -= dt
 			if walk <= 0.0 and not resting:
 				f.set("in_holder", false)
 				f.call("carry_on", str(f.get("move")), float(f.get("stretch")), float(f.call("turn_sign")),
 						float(f.get("hold")))
-		elif not resting and ((float(f.call("angle_k")) < 0.4 and float(f.get("line_out")) > 40.0) or arms < 0.12
-				or (spool > 0.35 and bool(f.get("slipping"))) or spool > 0.8):
+				mem["rod_t"] = 0.0
+		elif not resting and ((on_rod > ROD_MIN and not slipping and float(f.call("angle_k")) < 0.4
+				and float(f.get("line_out")) > 12.0) or arms < 0.12 or (spool > CHASE and slipping)):
 			resting = true
 			walk = WALK
 			f.set("in_holder", true)
-		elif resting and absf(b) < 0.4 and float(f.get("arms")) > 0.5 and not bool(f.get("slipping")) \
-				and (float(f.get("stretch")) < -1.0 or float(mem.get("helm_t", 0.0)) > 10.0):
+		elif resting and absf(b) < 0.4 and float(f.get("arms")) > 0.5 and (spool < CHASE or not slipping) \
+				and (float(f.get("stretch")) < -2.0 or float(mem.get("helm_t", 0.0)) > 6.0):
 			resting = false         # (she's backed down on him, or long enough: back to the rod, wind up the slack)
 			walk = WALK
 		mem["helm_t"] = float(mem.get("helm_t", 0.0)) + dt if resting else 0.0
+		if not resting and walk <= 0.0:
+			mem["rod_t"] = on_rod + dt
 		mem["walk"] = walk
 		mem["resting"] = resting
 		steering = resting and walk <= 0.0
@@ -241,7 +251,9 @@ static func crew(f: Object, dt: float, n: int, mem: Dictionary, careless := fals
 	var tight := bool(f.get("slipping")) or float(f.get("strain")) > 0.12
 	if steering and late_s > (3.0 if careless else 1.0) and absf(b) < 0.6 and tight and not bool(mem.get("no_back", false)):
 		backing = true
-	if not tight and float(f.get("stretch")) < (-2.0 if careless else -0.2):
+	if n == 1 and steering and late_s > (3.0 if careless else 1.0) and absf(b) < 0.6 and not bool(mem.get("no_back", false)):
+		backing = float(f.get("stretch")) > -4.0      # (alone: back down on him for a belly of slack to go and wind)
+	elif not tight and float(f.get("stretch")) < (-2.0 if careless else -0.2):
 		backing = false          # (she's run up the slack: hold her while the angler winds it)
 	if not steering or spool < 0.12 or absf(b) > 0.9 or float(f.get("line_out")) < 40.0:
 		backing = false

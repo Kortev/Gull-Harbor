@@ -1,5 +1,6 @@
 extends Node3D
-## The spread: the boat's rods in their holders (boat/kinds.gd: the skiff's two aft corners, the sportfisher's four),
+## The spread: the boat's rods in their holders (boat/kinds.gd: the skiff's two aft corners, the sportfisher's five:
+## two corners, two wide off the outriggers, and the shotgun way back down the middle off a clip high on her tower),
 ## each with its bait out astern. Who holds which rod is the host's call: E on a rod asks it (request_grab), Q puts the one you
 ## hold back (request_return); the answer comes to every peer (_set_holder). A rod in someone's hands rides on
 ## them, its butt in their belt and the blank up ahead of them.
@@ -1907,8 +1908,10 @@ func _end_mine(r: Rod, how: String) -> void:
 ## astern on the outrigger's side and nothing on; a strike pops it out (the clip's snap, everyone hears it).
 func _outrigger(r: Rod, boat: Node3D, tangled_in: bool, delta: float) -> void:
 	var c: Vector3 = clips.get(r.index, Vector3.INF)
-	var wide := c != Vector3.INF and r.spot.z > stern.z * 0.5 and signf(r.spot.x) == signf(c.x) \
-			and absf(r.spot.x) > 2.0
+	# (a wide bait out on its outrigger's side; the shotgun's, up the middle of her tower, way back astern)
+	var centre := absf(c.x) < 0.5
+	var wide := c != Vector3.INF and r.spot.z > stern.z * (4.0 if centre else 0.5) and (absf(r.spot.x) < 4.0
+			if centre else signf(r.spot.x) == signf(c.x) and absf(r.spot.x) > 2.0)
 	var clipped := wide and r.holder == 0 and not r.hooked and not r.bait_in and not tangled_in and r.auto_in == 0 \
 			and not flying(r.index) and r.bait_p != Vector3.INF
 	if c != Vector3.INF:

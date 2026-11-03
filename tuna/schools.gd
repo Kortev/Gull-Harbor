@@ -44,6 +44,9 @@ const BITE_SPEED := 6.0
 ## A stray: the chance a second that a bait out on the grounds, no school near, gets taken by a loner (about one in
 ## twenty minutes a bait: one every ten minutes or so trolling two).
 const STRAY := 1.0 / 1200.0
+## With a fish already on: how keen the rest of a school is on another bait across it (x its usual), and a stray (x).
+const DOUBLE := 0.25
+const LONE := 0.015
 ## Where a travelling school eats: from AHEAD.x m behind its middle to AHEAD.y m ahead of its edge, within SIDE m of its
 ## edge to either side. Working a slick (not going anywhere) it eats all round.
 const AHEAD := Vector2(0.0, 45.0)
@@ -202,11 +205,15 @@ func _strikes(delta: float) -> void:
 	if spread == null or absf(boat_speed()) > BITE_SPEED or _docked():
 		return
 	var t := now()
-	# a second fish while one's on happens, but rarely: a double is a story, not the routine
+	# a second fish while one's on: in among the school that took the first, its mates are still feeding, and a bait
+	# across them goes (DOUBLE of the usual: a double header, both lines screaming); a loner off on its own while
+	# you're hooked up, hardly ever (LONE)
 	var on := 0
+	var on_from := {}          # (the schools the fish on came out of)
 	for r: Node3D in spread.get("rods"):
-		on += 1 if bool(r.get("hooked")) else 0
-	var chance := 0.3 * (1.0 if on == 0 else 0.015)
+		if bool(r.get("hooked")):
+			on += 1
+			on_from[int(r.get_meta("school", -1))] = true
 	var stray_ok := not _in_close()
 	for r: Node3D in spread.get("rods"):
 		if bool(r.get("hooked")) or bool(r.get("bait_in")):
@@ -228,11 +235,14 @@ func _strikes(delta: float) -> void:
 				best = k
 				by = s
 		if by != null:
+			var chance := 0.3 * (1.0 if on == 0 else (DOUBLE if on_from.has(by.id) else LONE))
 			if randf() < delta * chance * best * bite:
 				spread.call("strike", int(r.get("index")), clampf(by.kg * randf_range(0.8, 1.2), Tuna.MIN_KG,
 						Tuna.MAX_KG))
-		elif stray_ok and randf() < delta * STRAY * bite * (1.0 if on == 0 else 0.015):
+				r.set_meta("school", by.id)       # (a double comes out of the same school, host's note)
+		elif stray_ok and randf() < delta * STRAY * bite * (1.0 if on == 0 else LONE):
 			spread.call("strike", int(r.get("index")), randf_range(Tuna.MIN_KG + 5.0, 110.0))
+			r.set_meta("school", -1)
 
 
 ## Host: a scoop of chum went in (boat/chum.gd); the slick's heart is back among the baits, at `at` (world x, z).
