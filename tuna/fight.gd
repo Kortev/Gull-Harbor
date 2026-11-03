@@ -206,8 +206,9 @@ var boat_vel := Vector2.ZERO
 var moving := false
 ## Without `moving` (the headless tests): how fast she closes on him backing down hard (m/s: her kind's "astern").
 var back_speed := BACK_SPEED
-## The sea throwing her about (m/s a rod tip over her transom is thrown up and forward, - down and aft: rods.gd, x how much reaches the
-## line in her, boat/kinds.gd's "lively"): a small boat thrown up a big sea snatches the line tight, then drops it.
+## The sea throwing her about (m/s a rod tip over her transom is thrown up and forward, - down and aft: rods.gd, x
+## how much reaches the line in her, boat/kinds.gd's "lively"): a small boat thrown up a big sea snatches the line
+## tight, then drops it.
 var heave := 0.0
 ## Her outline from above, in her frame (x across, z astern: her bow's -z): half her beam, her transom, the aft face of
 ## her house, her bow, and the spot the fish's bearing is measured from (rods.gd sets them from her spec).
