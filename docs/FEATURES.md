@@ -44,12 +44,13 @@ binoculars and the pump are only in hints.
 ## The run (the boat payment)
 
 - The bank wants the **boat payment** every **3 days** (3 trips), the **same every time** for the boat you own
-  (the biggest you've bought; a charter doesn't count): **$6,000** for the skiff, **$10,000** once you own the
+  (the biggest you've bought; a charter doesn't count): **$7,000** for the skiff, **$10,000** once you own the
   sportfisher (`boat/kinds.gd`'s "payment"). It never rises on its own: it only goes up when you buy a bigger boat,
   and then from the next payment on, so an upgrade always pays its way (she catches more). The same however many are
   aboard.
-- Sized from `tests/trip_sim` (about $6,900 a 3-day period alone in the skiff: alone, it's barely made; about
-  $17,600 two aboard the sportfisher and $14,700 four after shares: comfortable).
+- Sized from `tests/trip_sim` (24 days each, after shares and fuel, a 3-day period): the skiff alone about $8,200
+  (barely made, a lost fish and it's missed), two aboard the sportfisher about $15,500 and four about $14,600
+  (comfortable, and about the same).
 - Every fish sold counts toward the payment **and** goes in the bank to spend.
 - **Crew shares:** each crewmate aboard **past the second** takes **12% of the gross** of every fish sold, a
   "Share, <name>" line on the slip (the third and fourth aboard, by when they came aboard). Two keep it all; four

@@ -14,7 +14,7 @@ var fails: Array[String] = []
 func _ready() -> void:
 	var skiff := FishHold.quota_for(["skiff"])
 	var sport := FishHold.quota_for(["skiff", "sportfisher"])
-	_check(skiff == 6000 and sport == 10000, "the boat payments: $%d the skiff, $%d once the sportfisher's yours"
+	_check(skiff == 7000 and sport == 10000, "the boat payments: $%d the skiff, $%d once the sportfisher's yours"
 			% [skiff, sport])
 	var sea := (load("res://sea/sea.tscn") as PackedScene).instantiate() as Sea
 	add_child(sea)

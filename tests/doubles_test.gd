@@ -77,6 +77,8 @@ func _ready() -> void:
 		drawn = drawn and is_instance_valid(mine.fish_node) and is_instance_valid(other.fish_node)
 		if said.is_empty():
 			said = str(rods.crew_says(false, 0.0))
+		if said.is_empty():
+			said = str(rods.calls.line())          # (or the crew's shouts about either fish)
 	rods.bot_aim = Vector3(NAN, 0.0, 0.0)
 	_check(mine.hooked and other.hooked and mine.holder == 1 and other.holder == 0,
 			"two fish on: one in your hands, one in its holder")

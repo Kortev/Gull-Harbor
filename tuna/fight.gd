@@ -120,10 +120,10 @@ const QUIET := 22.0
 ## How long a fish takes to beat: GOAL_BASE + GOAL_PER_KG x kg seconds of steady pressure (PRESSURE of his pull), and
 ## how fast he gets his breath back with nobody on him (x that, under EASY of his pull).
 const GOAL_BASE := 15.0
-const GOAL_PER_KG := 0.14
+const GOAL_PER_KG := 0.12
 const PRESSURE := 0.55
 const RECOVER := 0.3
-const EASY := 0.15
+const EASY := 0.2
 ## How fast he comes to you with the line pulling him harder than he's pulling (m/s at a full unit over his pull).
 const V_PULL := 4.0
 ## The strike: for BURST s he bolts harder and faster than he'll ever go again. Taking off again, his first strokes
