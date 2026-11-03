@@ -146,6 +146,10 @@ var _streams := {}          # sting name -> AudioStream
 var _seas: Array = []       # the sea's passages (sea_a ...)
 var _rng := RandomNumberGenerator.new()
 var _sea_was := ""
+var _song := ""             # the weather's song playing ("" none: a fight, a jump, the title)
+var _form_i := -1           # where in its form
+var _passes := {}           # passage -> times played in this song (the arrangement changes with each)
+var _arr := {}              # passage -> its arrangement this time through: {stem: share, "^stem": floor}
 var _fill := 0.0            # the sounding passage's fill stem, opened for its last bar
 var _jump := ""             # on the bar: "leader" (its fill, the theme), "landed" (its hit, the theme), "theme",
                             # "fight" (the strike: into the fight's own, its break)
@@ -770,9 +774,81 @@ func _listen() -> void:
 		q["at"] = float(q["at"]) + e
 
 
-## The sea's next passage: by how bright the weather and the hour want it (the state's `bright`), never the one
-## playing nor the one before.
+## The song's next passage. Out of a fight, the weather's song (its form, part by part: intro, verses, choruses, a
+## bridge, the outro; then the next, the weather's by then: if it's turned, the band heads for this song's outro
+## first, so the weather changes as one song ends and the next begins). In a fight (and the race home), the fight's
+## own passages. The theme's first half, jumped to: its second.
 func _pick_sea() -> String:
+	var fighting: bool = state.section in ["fight", "tired", "gaff", "race"] or _jump == "fight"
+	var forms: Dictionary = Cues.CUES.get("songs", {}).get("forms", {})
+	if fighting or forms.is_empty():
+		_song = ""
+		return _pick_weighted()
+	var form: Array = forms.get(_song, [])
+	var at := _song != "" and _form_i >= 0 and _form_i < form.size() and str(form[_form_i]) == sounding
+	if sounding == "sea_t1" and not at:
+		return "sea_t2"
+	var want := str(MOOD_SONG.get(state.mood, "fair"))
+	if not forms.has(want):
+		want = "fair"
+	if not at:
+		# into a song: the weather's, from its top (back from a fight or the theme, from its first verse)
+		var back := sounding.begins_with("sea_") and (bool(Cues.CUES.get(sounding, {}).get("fight", false))
+				or sounding in ["sea_t1", "sea_t2"])
+		_start_song(want, 1 if back else 0)
+	elif want != _song and str(Cues.CUES.get(sounding, {}).get("role", "")) != "outro":
+		_form_i = form.size() - 1          # (the weather's turned: to the outro)
+	else:
+		_form_i += 1
+		if _form_i >= form.size():
+			_start_song(want, 0 if want != _song else 1)
+	form = forms[_song]
+	var next := str(form[_form_i])
+	_arrange(next, form)
+	return next
+
+
+func _start_song(song: String, from: int) -> void:
+	_song = song
+	_form_i = from
+	_passes.clear()
+
+
+## A part's arrangement this time through (by its role, how many times it's come round, and a little luck): the intro
+## sparse; a verse's tune the first time, its counter-melody the next (now and then an instrumental, or the guitar
+## out); the chorus with the counter-melody under it and, the last time, the lead up high; the bridge the counter-
+## melody alone over a lighter guitar; the outro winding down.
+func _arrange(n: String, form: Array) -> void:
+	var role := str(Cues.CUES.get(n, {}).get("role", "chorus" if n in ["sea_t1", "sea_t2"] else ""))
+	var k := int(_passes.get(n, 0))
+	_passes[n] = k + 1
+	var a := {"alt": 0.0}
+	var last_chorus := role == "chorus" and _form_i + 1 < form.size() and str(Cues.CUES.get(str(form[_form_i + 1]),
+			{}).get("role", "")) == "outro"
+	match role:
+		"intro":
+			a = {"lead": 0.0, "alt": 0.0, "high": 0.0, "bass": 0.6}
+		"verse":
+			a = {"alt": 0.0} if k % 2 == 0 else {"lead": 0.35, "alt": 1.0}
+			if _rng.randf() < 0.25:
+				a["pick"] = 0.3
+			if k > 0 and _rng.randf() < 0.15:
+				a["lead"] = 0.0
+				a["alt"] = 0.0
+		"chorus":
+			a = {"alt": 0.5}
+			if last_chorus or (n == "sea_t2" and _form_i + 1 < form.size() and str(form[_form_i + 1]).ends_with("out")):
+				a["^high"] = 0.7
+		"bridge":
+			a = {"pick": 0.4, "lead": 0.0, "alt": 1.0}
+		"outro":
+			a = {"alt": 0.0, "lead": 0.7}
+	_arr[n] = a
+
+
+## The old way, for a fight and the race home: by how bright the weather and the hour want it (the state's `bright`),
+## never the one playing nor the one before.
+func _pick_weighted() -> String:
 	var pick: Array = []
 	var weights: Array[float] = []
 	var total := 0.0
@@ -789,7 +865,7 @@ func _pick_sea() -> String:
 			if state.mood != "storm":
 				continue                 # (the storm's own: only in one)
 			w *= STORM_K
-		var fighting: bool = state.section in ["fight", "tired"] or _jump == "fight"
+		var fighting: bool = state.section in ["fight", "tired", "gaff", "race"] or _jump == "fight"
 		if bool(Cues.CUES[n].get("fight", false)):
 			if not fighting:
 				continue                 # (the fight's own: only in one)
@@ -809,6 +885,8 @@ func _pick_sea() -> String:
 
 ## The theme's first half at sea, against any other passage (its second always follows it).
 const THEME_K := 1.2
+## The weather's own song (audio/music_cues.gd's "songs": each one's form, intro to outro).
+const MOOD_SONG := {"calm": "fair", "fog": "fog", "rain": "rain", "storm": "storm", "night": "night"}
 ## A drum fill into the next passage: this often (more under way), never into or out of the theme's halves.
 const FILL := Vector2(0.2, 0.5)
 
@@ -885,6 +963,11 @@ func _set_volumes(n: String, fresh: bool) -> void:
 			g = 1.0
 		elif s == "fill":
 			g = _fill if n == sounding else 0.0      # (the passage going out has it; the one coming in, not yet)
+		if _arr.has(n) and s != "mark":
+			var arr: Dictionary = _arr[n]
+			g *= float(arr.get(s, 1.0))
+			if arr.has("^" + s):
+				g = maxf(g, float(arr["^" + s]) * state.level("lead"))
 		if s != "mark":
 			g *= _quiet
 		sync.set_sync_stream_volume(k, linear_to_db(maxf(g, 0.0001)))

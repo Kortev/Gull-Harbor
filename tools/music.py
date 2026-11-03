@@ -424,7 +424,8 @@ def master(tr, wet=0.22, rt=1.8, wow=0.0012, lp=8000.0, drive=1.6, norm=0.0, pea
 # A sting's (and the leader's fill's) silent pre-roll (s): audio/music.gd starts it a frame early, this far into the
 # silence that its hit lands on the beat.
 PRE = 0.06
-STINGS = {"strike", "fight_in", "thunder", "leader_in", "landed", "their_on", "lead_up", "lead_down", "countdown", "win", "lose", "tie",
+STINGS = {"strike", "fight_in", "thunder", "leader_in", "landed", "their_on", "lead_up", "lead_down", "countdown",
+          "win", "lose", "tie",
           "hunt_in", "race_in", "away_in", "boatside_end", "race_end", "title_end"}
 
 
@@ -525,8 +526,22 @@ def stems(name, tracks, bpm, bar_beats, bars, level=0.85, kind="bed", chords=Non
         CUES[name]["chord_beats"] = chord_beats or bar_beats
 
 
+class Stems(dict):
+    """A passage's tracks: a layer it hasn't got takes what's put in it and drops it."""
+    class _Nothing:
+        def add(self, *a, **k):
+            pass
+
+        def strum(self, *a, **k):
+            pass
+
+    def __missing__(self, key):
+        return Stems._Nothing()
+
+
 def write_cues():
     """audio/music_cues.gd: a script (it goes in the export as it is) holding CUES."""
+    CUES["songs"] = {"kind": "songs", "files": [], "forms": {k: ["sea_" + n for n in v] for k, v in SONGS.items()}}
     import json
     body = json.dumps(CUES, indent=1, sort_keys=True).replace("\n", "\n\t")
     with open(GD, "w", encoding="utf-8", newline="\n") as f:
@@ -570,9 +585,11 @@ def melody(tr, notes, t0, step, inst, pan=0.1, gain=1.0, legato=0.95, octave=0):
 # Everything at sea is one song at 112, in D and its B minor (sea()); the title's the theme in the same time and key.
 
 FIGHT_BPM = 112.0
-ROOT = {"Bm": 35, "G": 31, "Em": 28, "F#": 30, "D": 38, "A": 33, "C": 36, "F": 29}
+ROOT = {"Bm": 35, "G": 31, "Em": 28, "F#": 30, "D": 38, "A": 33, "C": 36, "F": 29, "Dsus": 38, "Gadd9": 31,
+        "Asus": 33}
 # over each chord, the note the tremolo worries at (a ninth, or the flat ninth over F#)
-TENSE = {"Bm": 73, "G": 69, "Em": 66, "F#": 67, "D": 76, "A": 71, "C": 73, "F": 66}
+TENSE = {"Bm": 73, "G": 69, "Em": 66, "F#": 67, "D": 76, "A": 71, "C": 73, "F": 66, "Dsus": 76, "Gadd9": 69,
+         "Asus": 71}
 
 
 def _runs(prog):
@@ -839,27 +856,28 @@ def handoffs():
 SEA_STEMS = ("pad", "bass", "pick", "lead", "high", "rain", "storm", "night", "run", "fill", "pulse", "glint",
              "beat", "drive", "tension", "deep", "heavy", "gale", "pound")
 SEA = {
-    # name: (chords, two bars each), the lead's instrument, the lead [(midi, eighths)], bright
-    "a": (["D", "A", "Bm", "G"], "whistle", [(None, 4), (74, 4), (76, 2), (78, 6), (None, 2), (76, 4), (73, 4), (76, 6),
+    # name: (chords: four, two bars each, or eight, a bar each), the lead's instrument, the lead [(midi, eighths)],
+    # bright. The weather's songs are made of them (SONGS: their forms; PARTS: each part's song, role and sound)
+    "fair_v1": (["D", "A", "Bm", "G"], "whistle", [(None, 4), (74, 4), (76, 2), (78, 6), (None, 2), (76, 4), (73, 4), (76, 6),
                                              (None, 4), (74, 4), (73, 2), (71, 6), (None, 2), (74, 4), (71, 2), (67, 8)],
           True),
-    "b": (["G", "D", "A", "D"], "whistle", [(None, 4), (71, 4), (74, 8), (None, 2), (78, 4), (76, 2), (74, 8),
+    "fair_out": (["G", "D", "A", "D"], "whistle", [(None, 4), (71, 4), (74, 8), (None, 2), (78, 4), (76, 2), (74, 8),
                                              (None, 4), (73, 4), (76, 4), (73, 4), (74, 10), (None, 6)], True),
-    "c": (["Bm", "G", "Em", "F#"], "reed", [(None, 6), (66, 2), (71, 8), (None, 4), (67, 4), (71, 4), (74, 4),
+    "fair_br": (["Bm", "G", "Em", "F#"], "reed", [(None, 6), (66, 2), (71, 8), (None, 4), (67, 4), (71, 4), (74, 4),
                                             (None, 4), (71, 4), (67, 8), (None, 2), (66, 4), (64, 2), (61, 8)], False),
-    "d": (["Bm", "Bm", "G", "A"], "reed", [(None, 8), (66, 4), (69, 4), (71, 12), (None, 4), (None, 4), (67, 4),
+    "rain_in": (["Bm", "Bm", "G", "A"], "reed", [(None, 8), (66, 4), (69, 4), (71, 12), (None, 4), (None, 4), (67, 4),
                                            (66, 4), (64, 4), (61, 8), (None, 8)], False),
-    "e": (["Em", "G", "D", "A"], "whistle", [(None, 4), (67, 4), (71, 8), (None, 2), (74, 6), (71, 8), (None, 4),
+    "fair_v2": (["Em", "G", "D", "A"], "whistle", [(None, 4), (67, 4), (71, 8), (None, 2), (74, 6), (71, 8), (None, 4),
                                               (78, 4), (76, 4), (74, 4), (73, 12), (None, 4)], True),
-    "f": (["G", "Em", "Bm", "F#"], "reed", [(None, 4), (71, 4), (74, 4), (71, 4), (67, 12), (None, 4), (None, 4),
+    "rain_v": (["G", "Em", "Bm", "F#"], "reed", [(None, 4), (71, 4), (74, 4), (71, 4), (67, 12), (None, 4), (None, 4),
                                             (66, 4), (71, 4), (73, 4), (70, 12), (None, 4)], False),
-    "g": (["D", "Bm", "G", "A"], "whistle", [(None, 4), (78, 4), (76, 4), (74, 4), (71, 8), (None, 8), (None, 4),
+    "fair_in": (["D", "Bm", "G", "A"], "whistle", [(None, 4), (78, 4), (76, 4), (74, 4), (71, 8), (None, 8), (None, 4),
                                               (74, 4), (79, 4), (78, 4), (76, 12), (None, 4)], True),
-    "h": (["Em", "Bm", "G", "F#"], "reed", [(None, 8), (71, 4), (67, 4), (66, 12), (None, 4), (None, 4), (71, 4),
+    "rain_br": (["Em", "Bm", "G", "F#"], "reed", [(None, 8), (71, 4), (67, 4), (66, 12), (None, 4), (None, 4), (71, 4),
                                             (74, 4), (73, 4), (70, 12), (None, 4)], False),
-    "i": (["G", "A", "D", "D"], "whistle", [(None, 4), (74, 4), (76, 4), (79, 4), (78, 8), (76, 8), (None, 4),
+    "rain_out": (["G", "A", "D", "D"], "whistle", [(None, 4), (74, 4), (76, 4), (79, 4), (78, 8), (76, 8), (None, 4),
                                              (73, 4), (74, 4), (76, 4), (74, 12), (None, 4)], True),
-    "j": (["Bm", "F#", "Em", "Bm"], "reed", [(None, 6), (73, 2), (74, 8), (None, 4), (73, 4), (70, 8), (None, 4),
+    "rain_ch": (["Bm", "F#", "Em", "Bm"], "reed", [(None, 6), (73, 2), (74, 8), (None, 4), (73, 4), (70, 8), (None, 4),
                                              (67, 4), (71, 4), (74, 4), (73, 4), (71, 8), (None, 4)], False),
     # the storm's own: dark, the flat second and the flat ninth grinding (audio/music.gd plays them in a storm)
     "s1": (["Bm", "C", "Bm", "F#"], "reed", [(None, 8), (66, 4), (67, 4), (66, 12), (None, 4), (None, 8), (62, 4),
@@ -880,9 +898,103 @@ SEA = {
     "f3": (["Bm", "G", "Em", "F#", "Bm", "G", "C", "F#"], "reed", [(None, 8), (74, 4), (73, 4), (71, 8), (67, 8),
                                                                   (None, 4), (71, 4), (72, 4), (71, 4), (70, 16)],
            False),
+    # fog: suspended, far, almost still (a far whistle, bells for a guitar)
+    "fog_in": (["D", "D", "Gadd9", "Gadd9", "D", "D", "Asus", "Asus"], "whistle", None, True),
+    "fog_v": (["Bm", "Bm", "Gadd9", "Gadd9", "D", "D", "Asus", "A"], "whistle", None, False),
+    "fog_br": (["Em", "Em", "G", "G", "D", "D", "A", "A"], "whistle", None, False),
+    "fog_out": (["Gadd9", "Gadd9", "D", "D", "Asus", "Asus", "D", "D"], "whistle", None, True),
+    # night: a lullaby, the bells singing, a harp of high plucks
+    "night_in": (["Dsus", "Dsus", "D", "D", "Gadd9", "Gadd9", "D", "D"], "bell", None, True),
+    "night_v": (["D", "Bm", "G", "A", "D", "Bm", "Gadd9", "Asus"], "bell", None, True),
+    "night_ch": (["G", "D", "Em", "A", "G", "D", "Asus", "D"], "bell", None, True),
+    "night_br": (["Bm", "G", "Bm", "G", "Em", "Em", "Asus", "A"], "bell", None, False),
+    "night_out": (["Gadd9", "D", "Gadd9", "D", "Asus", "Asus", "D", "D"], "bell", None, True),
+    # the storm's way in and out
+    "storm_in": (["Bm", "Bm", "C", "C", "Bm", "Bm", "F#", "F#"], "reed", None, False),
+    "storm_out": (["Em", "Em", "C", "C", "Bm", "Bm", "F#", "Bm"], "reed", None, False),
     "t1": (THEME_CHORDS[:8], "whistle", theme_bars(0, 8), True),
     "t2": (THEME_CHORDS[8:], "whistle", theme_bars(8, 16), True),
 }
+
+
+# The weather's songs, each played through in its form, then the next (audio/music.gd: the weather turning, the band
+# heads for the song's outro and the next song's the new weather's). All in D and its B minor at 112, so a strike
+# can turn any of them into the fight on the beat.
+SONGS = {
+    "fair": ["fair_in", "fair_v1", "fair_v2", "t1", "t2", "fair_v1", "fair_br", "t1", "t2", "fair_out"],
+    "rain": ["rain_in", "rain_v", "rain_v", "rain_ch", "rain_v", "rain_br", "rain_ch", "rain_ch", "rain_out"],
+    "fog": ["fog_in", "fog_v", "fog_v", "fog_br", "fog_v", "fog_out"],
+    "night": ["night_in", "night_v", "night_ch", "night_v", "night_br", "night_ch", "night_out"],
+    "storm": ["storm_in", "s1", "s2", "s3", "s1", "s2", "storm_out"],
+}
+# Each song's sound: how the guitar's played ("arp" picked, "muted" in the rain, "bells" in the fog, "harp" at night),
+# the second melody's instrument, and the weather's own layers it carries (the rest of the song's layers it has
+# all: the pad, the bass, the guitar, the lead and its counter-melody, the climax, her speed's drums, the fill, the
+# birds'). The theme's halves, the storm's middle and the fight's passages have every layer.
+STYLE = {
+    "fair": ("arp", "reed", []),
+    "rain": ("muted", "whistle", ["rain"]),
+    "fog": ("bells", "bell", ["night"]),
+    "night": ("harp", "whistle", ["night"]),
+    "storm": ("arp", "reed", ["rain", "storm", "gale", "pound", "tension", "deep"]),
+}
+SONG_STEMS = ("pad", "bass", "pick", "lead", "alt", "high", "run", "fill", "pulse", "glint")
+
+
+def _song_of(name):
+    for song, form in SONGS.items():
+        if name in form and not name.startswith("t") and not (song == "storm" and name in ("s1", "s2", "s3")):
+            return song
+    return ""
+
+
+def _role(name):
+    for r in ("in", "out", "br", "ch"):
+        if name.endswith("_" + r):
+            return {"in": "intro", "out": "outro", "br": "bridge", "ch": "chorus"}[r]
+    return "verse"
+
+
+SCALE = (2, 4, 6, 7, 9, 11, 1)      # D major (and B minor): the notes a tune walks on between chord tones
+
+
+def tune(prog, seed, lo, hi, density=1, rest_first=True):
+    """A melody over `prog` (a chord a bar): chord tones on the strong beats, steps between, a two-bar rhythm said and
+    answered, home on the last chord's root. density 0 sparse (long notes, rests), 1 a tune, 2 busier. In eighths."""
+    rng = np.random.default_rng(seed)
+    rhythms = {0: [[8], [-4, 4], [6, 2], [-2, 6], [4, -4]],
+               1: [[2, 2, 4], [3, 1, 4], [-2, 2, 2, 2], [4, 2, 2], [2, 6], [-4, 2, 2]],
+               2: [[1, 1, 2, 2, 2], [2, 1, 1, 4], [2, 2, 2, 2], [3, 1, 2, 2], [1, 1, 1, 1, 4]]}[density]
+    motif = [rhythms[rng.integers(len(rhythms))], rhythms[rng.integers(len(rhythms))]]
+    out = []
+    prev = (lo + hi) // 2
+    for b, c in enumerate(prog):
+        tones = sorted({m % 12 for m in CH[c]})
+        if b == len(prog) - 1:
+            pattern = [8]
+        elif b in (0, 1, 4, 5):
+            pattern = motif[b % 2]
+        else:
+            pattern = rhythms[rng.integers(len(rhythms))]
+        if b == 0 and rest_first and pattern[0] > 0:
+            pattern = [-pattern[0]] + pattern[1:]
+        for k, ln in enumerate(pattern):
+            if ln < 0:
+                out.append((None, -ln))
+                continue
+            strong = k == 0 or b == len(prog) - 1
+            pool = tones if strong else SCALE
+            if b == len(prog) - 1:
+                pool = [ROOT[c] % 12]
+            cands = [m for m in range(lo, hi + 1) if m % 12 in pool]
+            if not cands:
+                cands = [prev]
+            step = int(rng.integers(-3, 4))
+            target = prev + step
+            m = min(cands, key=lambda x: (abs(x - target), rng.random()))
+            out.append((m, ln))
+            prev = m
+    return out
 
 
 def sea():
@@ -891,15 +1003,37 @@ def sea():
     arp = [0, 2, 3, 4, 3, 2, 3, 2]
     for name, (chords, lead_inst, lead, bright) in SEA.items():
         prog = chords if len(chords) == 8 else [c for c in chords for _ in (0, 1)]
-        T = {k: Track(len(prog) * bar, True) for k in SEA_STEMS}
+        song = _song_of(name)
+        style, alt_inst, colors = STYLE.get(song, ("arp", "reed", []))
+        has = SEA_STEMS if not song else SONG_STEMS + tuple(colors)
+        T = Stems({k: Track(len(prog) * bar, True) for k in has})
+        seed = sum(ord(ch) for ch in name)
+        if lead is None:
+            lo, hi = (69, 86) if lead_inst != "reed" else (62, 79)
+            lead = tune(prog, seed, lo, hi, density=0 if song == "fog" or _role(name) in ("intro", "outro") else 1)
         for b, c in enumerate(prog):
             t = b * bar
             v = CH[c]
             root = ROOT[c] + 12
-            # pick: the guitar, eighths, leaning on 1 and 3 (a slow sway)
-            for i, j in enumerate(arp):
-                T["pick"].add(pluck(v[min(j, len(v) - 1)], 1.4, bright=0.35, decay=1.3, var=i % 3), t + i * e,
-                              -0.25, 0.28 if i in (0, 4) else 0.2)
+            # pick: the guitar, eighths, leaning on 1 and 3 (a slow sway); muted in the rain; bells in the fog; a harp
+            # of high plucks at night
+            if style == "muted":
+                for i, j in enumerate(arp):
+                    T["pick"].add(pluck(v[min(j, len(v) - 1)], 0.5, bright=0.2, decay=0.8, mute=0.45, var=i % 3),
+                                  t + i * e, -0.25, 0.3 if i in (0, 4) else 0.22)
+            elif style == "bells":
+                for k, at in ((0, 0.0), (1, 2.0)):
+                    tone = v[-1 - (b + k) % 3]
+                    T["pick"].add(bell(tone + 12 if tone + 12 < 90 else tone, 3.5), t + at * q, 0.3 - 0.6 * k, 0.16)
+            elif style == "harp":
+                for i, j in enumerate((0, 2, 3, 4)):
+                    tone = v[min(j, len(v) - 1)] + 12
+                    T["pick"].add(pluck(tone, 2.2, bright=0.25, pos=0.15, decay=2.0, var=i % 3), t + i * q, -0.2,
+                                  0.22 if i == 0 else 0.16)
+            else:
+                for i, j in enumerate(arp):
+                    T["pick"].add(pluck(v[min(j, len(v) - 1)], 1.4, bright=0.35, decay=1.3, var=i % 3), t + i * e,
+                                  -0.25, 0.28 if i in (0, 4) else 0.2)
             # bass: the root long on 1, the fifth on the and of 3; in the fight's own, a riff driving the eighths
             if name.startswith("f"):
                 for i, iv in enumerate((0, 0, 12, 0, 7, 0, 12, 7)):
@@ -933,7 +1067,14 @@ def sea():
             T["pad"].add(pad(PAD[c], d, attack=1.2, release=1.6, bright=0.25, seed=110 + b0), t, 0.0, 0.24)
             T["storm"].add(bowed(ROOT[c] + 12, d * 0.97, attack=1.0, release=1.0, bright=0.2, seed=b0), t, -0.1, 0.3)
             T["storm"].add(sub_swell(d, ROOT[c] if ROOT[c] < 36 else ROOT[c] - 12, 1.0), t, 0.0, 0.3)
-        melody(T["lead"], lead, 0.0, e, whistle if lead_inst == "whistle" else reed, 0.1, 0.32, legato=0.94)
+        lead_play = {"whistle": whistle, "reed": reed, "bell": lambda m, d: bell(m, max(d * 1.6, 1.2))}[lead_inst]
+        melody(T["lead"], lead, 0.0, e, lead_play, 0.1, 0.32 if lead_inst != "bell" else 0.2,
+               legato=0.94, octave=1 if lead_inst == "bell" and lead and max(m or 0 for m, ln in lead) < 80 else 0)
+        # alt: a second melody (the arrangement trades it with the lead from one time through to the next)
+        alt_play = {"whistle": whistle, "reed": reed, "bell": lambda m, d: bell(m, max(d * 1.6, 1.2))}[alt_inst]
+        alo, ahi = (62, 76) if alt_inst == "reed" else (71, 88)
+        melody(T["alt"], tune(prog, seed + 97, alo, ahi, density=0 if song in ("fog", "night") else 1), 0.0, e,
+               alt_play, -0.15, 0.26 if alt_inst != "bell" else 0.18, legato=0.95)
         # high: the lead an octave up on the whistle, the concertina an octave under it (the climax)
         melody(T["high"], lead, 0.0, e, whistle, 0.15, 0.26, legato=0.92, octave=1 if lead_inst == "reed" else 0)
         melody(T["high"], lead, 0.0, e, reed, -0.2, 0.22, legato=0.96, octave=-1 if lead_inst == "whistle" else 0)
@@ -1010,9 +1151,13 @@ def sea():
         for i in range(8):
             T["fill"].add(frame_drum() if i < 4 else war_drum(low=1.3 - 0.06 * i), t + i * s, 0.15 * (i % 2 - 0.5),
                           0.18 + 0.05 * i)
-        stems("sea_" + name, T, FIGHT_BPM, 4, len(prog), level=0.95, wet=0.26, rt=2.0, chords=prog)
+        stems("sea_" + name, dict(T), FIGHT_BPM, 4, len(prog), level=0.95, wet=0.26 if song != "fog" else 0.36,
+              rt=2.0 if song != "fog" else 2.8, chords=prog)
+        if song:
+            CUES["sea_" + name]["song"] = song
+            CUES["sea_" + name]["role"] = _role(name)
         CUES["sea_" + name]["bright"] = bright
-        if name.startswith("s") and len(name) == 2:
+        if name.startswith("s") and len(name) == 2 or name.startswith("storm_"):
             CUES["sea_" + name]["storm"] = True
         if name.startswith("f"):
             CUES["sea_" + name]["fight"] = True

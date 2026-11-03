@@ -46,10 +46,12 @@ const PARTED := 0.72
 ## Each stem: [attack s (0 to full), release s (full to 0), hold s (once up, it stays at least this long)].
 const SMOOTH := {
 	"pad": [3.0, 4.0, 0.0], "bass": [2.0, 4.0, 0.0], "pick": [2.5, 3.0, 0.0], "lead": [2.5, 3.0, 4.3],
+	"alt": [2.5, 3.0, 4.3],
 	"high": [1.0, 4.0, 8.6], "rain": [4.0, 5.0, 0.0], "storm": [4.0, 6.0, 0.0], "night": [5.0, 5.0, 0.0],
 	"run": [2.0, 4.0, 4.3], "fill": [0.01, 0.01, 0.0], "pulse": [1.5, 3.0, 0.0], "glint": [2.0, 4.0, 0.0],
 	"beat": [0.2, 0.3, 0.0], "drive": [0.25, 3.0, 4.3], "tension": [0.5, 2.5, 4.3], "deep": [1.5, 4.0, 4.3],
-	"heavy": [2.0, 4.0, 0.0], "gale": [4.0, 6.0, 0.0], "pound": [0.25, 3.0, 4.3], "main": [0.01, 0.01, 0.0], "counter": [2.0, 3.0, 0.0], "guitar": [2.0, 3.0, 0.0],
+	"heavy": [2.0, 4.0, 0.0], "gale": [4.0, 6.0, 0.0], "pound": [0.25, 3.0, 4.3], "main": [0.01, 0.01, 0.0],
+	"counter": [2.0, 3.0, 0.0], "guitar": [2.0, 3.0, 0.0],
 	"drums": [2.0, 3.0, 0.0], "low": [3.0, 3.0, 0.0],
 }
 const SMOOTH_ELSE := [1.0, 2.0, 0.0]
@@ -58,13 +60,14 @@ const SMOOTH_ELSE := [1.0, 2.0, 0.0]
 ## bright: audio/music.gd picks each next one by it).
 const SEA := {
 	"calm": {"pad": 0.8, "bass": 0.7, "pick": 1.0, "lead": 0.9},
-	"fog": {"pad": 1.0, "bass": 0.35, "pick": 0.25, "lead": 0.45, "night": 0.3},
+	"fog": {"pad": 1.0, "bass": 0.35, "pick": 0.7, "lead": 0.6, "night": 0.3},
 	"rain": {"pad": 0.8, "bass": 0.8, "pick": 0.6, "lead": 0.35, "rain": 1.0},
 	"storm": {"pad": 1.0, "bass": 1.0, "rain": 0.6, "storm": 1.0, "gale": 1.0, "lead": 0.45, "tension": 0.3,
 			"deep": 0.4, "pound": 0.35},
-	"night": {"pad": 0.75, "bass": 0.45, "pick": 0.5, "lead": 0.3, "night": 1.0},
+	"night": {"pad": 0.75, "bass": 0.45, "pick": 0.8, "lead": 0.7, "night": 1.0},
 }
-const SEA_STEMS := ["pad", "bass", "pick", "lead", "high", "rain", "storm", "night", "run", "fill", "pulse", "glint",
+const SEA_STEMS := ["pad", "bass", "pick", "lead", "alt", "high", "rain", "storm", "night", "run", "fill", "pulse",
+		"glint",
 		"beat", "drive", "tension", "deep", "heavy", "gale", "pound"]
 ## The song's layers that are the weather's (the rest are what's happening).
 const WEATHER := ["rain", "storm", "night", "gale"]
@@ -472,6 +475,8 @@ func _wants(w: Dictionary, f: Dictionary) -> Dictionary:
 			want["pound"] = 0.6 * smoothstep(AFTER * 0.5, AFTER, _after)
 		"race":
 			_race(w, want, run)
+	# (the counter-melody wants what the lead does: audio/music.gd's arrangement trades them pass to pass)
+	want["alt"] = float(want.get("lead", 0.0))
 	return want
 
 
