@@ -122,7 +122,7 @@ var danger := 0.0
 var fight_id := ""
 var parting := false
 ## Meant to be all but silent now: the hush after a loss, him in the air, the harpoon flying, the quiet under Rivals'
-## countdown and card (tools/music_check.py leaves these out of "never quiet").
+## countdown and card, a scenic silence, the pause card (tools/music_check.py leaves these out of "never quiet").
 var still := false
 ## s of the loss's silence left (music.gd drops everything at once while it's on).
 var hush := 0.0
@@ -192,7 +192,7 @@ func step(w: Dictionary, dt: float) -> void:
 	_smooth(wants, dt)
 	_mask(w, f, dt)
 	_scenic(w, dt)
-	still = still or scenic != ""
+	still = still or scenic != "" or bool(w.get("paused", false))
 	_lightning(w)
 	bright = float(BRIGHT.get(mood, 0.5)) * lerpf(1.0, 0.5, smoothstep(DUSK, 1.0, float(w.get("day", 0.0))))
 	if SECTION_BRIGHT.has(section):
