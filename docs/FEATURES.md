@@ -44,9 +44,12 @@ binoculars and the pump are only in hints.
 
 ## The run (the quota)
 
-- The bank wants **$5,000** in the first **3 days**. Each quota made, the next is half as much again: $5,000,
-  $7,500, $11,000, $17,000, $25,500, ...
+- The bank wants **$12,000** in the first **3 days**, a sum sized for **two** aboard (the same alone: no discount;
+  alone it's a stretch). Each quota made, the next is **1.4 times** as much: $12,000, $17,000, $23,500, $33,000, ...
 - Every fish sold counts toward the quota **and** goes in the bank to spend.
+- **Crew shares:** each crewmate aboard **past the second** takes **12% of the gross** of every fish sold, a
+  "Share, <name>" line on the slip (the third and fourth aboard, by when they came aboard). Two keep it all; four
+  catch more, but give a quarter of it away (`boat/fish_hold.gd`'s SHARE).
 - The quota's settled at the **third day's sale**. Made it: the next quota, three more days. Missed it: **the bank
   takes the boat**. The slip tells the run's story (quotas made, fish, the biggest), and a new run starts with the
   skiff and **$1,000**, no gear.
@@ -78,7 +81,7 @@ shelter, the same in the shader and for everything riding the water).
 | | The skiff (28 ft center console) | The sportfisher (46 ft) |
 |---|---|---|
 | Cost | yours | $20,000, or $2,500 a day chartered |
-| Rods | 2 (the aft corners) | 4 |
+| Rods | 2 (the aft corners) | 5: two corners, two off the outriggers, the shotgun way back down the middle off a clip high on the tower |
 | Fish box | 2 iced | 12 iced |
 | Speed / handling | about 21 knots, turns quick, stops short | about 19 knots, slow to turn, carries her way |
 | Landing | over the low gunwale: no wiring | through the tuna door: must be wired first |
@@ -121,13 +124,18 @@ said anywhere in game.
   - Birds circling high: the tuna went down because someone ran over them.
   - Birds lifting and scattering: it's over, they've moved on.
 - Through the binoculars you also get **how far and which way** ("about 1.4 km off the port bow").
+- **The tower spotter** (the sportfisher): from the deck you can tell what a flock's on inside about **700 m**; up
+  the tower, out to about **1.8 km**. And up there, crosshair on birds working over bluefin, you **shout it down**
+  to the crew by the clock off her bow: "**BIRDS WORKING, TWO O'CLOCK!**" (once a flock; everyone aboard that boat
+  hears it, and sees it under the crosshair). Where she goes is the spotter's call: the radar can't tell you.
 - **Picking a flock out** (crosshair on it) puts a **mark on the chart plotter** where it is right then, for everyone
-  aboard. Nothing's said and nothing's on the HUD: the mark's on the dash. (No calling flocks: the user's call.)
+  aboard. The mark's on the dash. (Only the tower spotter calls flocks, above.)
 - **The radar** (every boat: on the dash beside the plotter, a bar going round on her roof; `tuna/radar.gd`). Heading
   up, **2 km** to the edge, **rings every 500 m**, the sweep going round and each part of the screen holding what it
   last painted. Made honest, so reading it is a skill:
   - **Birds in the air** over a flock: a **tight return that holds steady sweep after sweep**, drifting slowly as the
-    flock travels. Gulls over little bait look exactly the same: you still go and look.
+    flock travels. **It shows birds, never what's under them**: gulls over little bait paint exactly like birds over
+    bluefin. You still go and look, or send someone up the tower.
   - Birds **rafted on the water** (tuna down) and the odd **gull raft** with nothing under it: weak, coming and going.
   - **Buoys**: small steady returns that don't drift. **The land, the breakwaters and the rig**: solid. In VS, the
     other boat.
@@ -161,8 +169,10 @@ sitting.
   through its path, run alongside just ahead of it at its pace, or stop in its way and cast, and let it swim into
   them. Setting up the pass is the captain's job.
 - **No bites above about 12 knots** (6 m/s): the baits skip along the top.
-- A feeding bluefin school with a bait at its head eats it now and then (the reel screams). A second fish while one's
-  on is rare (a double header).
+- A feeding bluefin school with a bait at its head eats it now and then (the reel screams). **Double headers:** with
+  a fish on, another bait across the **same feeding school** still goes, at about **a quarter** of the usual rate,
+  till the other lines are in (a stray loner hardly ever: 1.5%). Two fish on at once: one in someone's hands, the
+  other fighting on its drag in its holder till a pair of hands is free for it.
 - Working a chum slick (going nowhere) a school eats all round.
 
 **Teach it:** Dale, as you near birds fast ("Ease her down to troll... drag your baits across their nose"); the manual's "Working a school".
@@ -181,6 +191,11 @@ sitting.
 - **A fish takes the bait.** After a fish (landed or lost) its line comes in with a **bare hook**: nothing bites
   that. **A bait in your hands (key 5), E on a rod** in its holder: its line comes in and a fresh bait goes on (a
   live mackerel while the well has one, else dead); then cast it.
+- **Every bait out is a live mackerel** out of the well (a dead one off the ice when it's empty: a poor bait).
+- **The well's pump** (beside the well, every boat): the well's water goes stale, and **a mackerel dies every 4
+  minutes or so** (onto the ice) unless someone pumps fresh water in: **hold E on the pump**, its handle going up and
+  down, a gush of water into the well each stroke. The water shows it: clear and dark fresh, murky green going
+  stale. A job for the quiet stretches (the run out, the icing).
 - **Baits go off:** a dead bait's washed out after about **5 minutes**, a live one **10**. A washed-out bait gets a
   **quarter** of the bites. You see it: the lure's colour goes. Rebait it as above.
 - **Live bait** (with the live-bait well): **half as many bites again**, and lasts twice as long.
@@ -238,7 +253,8 @@ press at once, and every one of them is read off the rod, the reel and the line,
 - **Your arms:** winding against a load, lifting and just holding a heavy fish take them; going, the rod **shakes in
   your hands** and you wind and lift slow. A giant spends a fresh pair: **swap on the rod** (E on a mate's rod takes
   it, fresh arms). Alone, **rest it in the holder** (Q): it fights on its drag as you left the lever, and nobody
-  winds or wins line back.
+  winds or wins line back; and with nobody on the rod, **on his runs he takes line nearly twice as fast** (the rod
+  just bows to him: `tuna/fight.gd`'s HOLDER_RUN). Put it in between his runs, not during one.
 - **The captain** (E on the wheel; A/D steer, W/S throttle) has a real job:
   - **Back down on him** when he's taken line (S): she closes on him, the line goes light and the angler winds like
     mad (back down too hard and it's slack: a head shake and he's off).
@@ -302,8 +318,11 @@ rules.
 - **Host** (Esc): a join code (no port forwarding: the router's asked to open the port). **Join** with the code.
   **Steam**: a friends-only lobby, join from the friends list or an invite (needs the GodotSteam add-on; each
   player on their own Steam account).
-- Solo works: harder, on purpose (the rod in the holder while you steer). No numbers change with crew size; the
-  difference is what extra hands can do, and the boats (the skiff for one or two, the sportfisher wants a crew).
+- Solo works: harder, on purpose (the rod in the holder while you steer, and he runs faster off a rod nobody's
+  on). No numbers change with crew size; the difference is what extra hands can do, and the boats (the skiff for
+  one or two, the sportfisher wants a crew: five lines to clear, doubles to fight, the well to pump, the tower to
+  spot from), and the shares past the second.
+- **Quiet stretches:** the run out and the icing are rests; only the fight and boatside need everyone.
 - The jobs: captain, angler, line-clearer, spotter (binoculars), wirer, harpooner, haulers, the one who bleeds and
   ices, chum and jig while you wait.
 - **Over the side** (`crew/player.gd`): no mode, just her rail. Walk into it and jump and your legs get you up
@@ -330,7 +349,9 @@ rules.
 ### VS: two boats racing for the same birds (`vs/vs.gd`)
 
 - **Start one:** host a crew (Steam or a join code) and let your friends join. At the dock the skipper presses
-  **Two boats: race for the birds**. Everyone's shared out between **Boat A** and **Boat B** (the skipper on A);
+  **Two boats: race for the birds**. Everyone's shared out between **Boat A** and **Boat B** (the skipper on A).
+  **Always even: 1 v 1 or 2 v 2** (3 v 3 and 4 v 4 later, with bigger boats): the lobby won't START with uneven
+  teams and says why on everyone's screen, the odd one out told to wait (or leave) for a fourth;
   at the dock anyone can press the other boat's button to cross to her. **One boat** goes back to co-op.
   (Dev: `--vs`, and `--team=b` to start on B.)
 - **Head out** and both boats leave from the harbour, side by side inside the breakwaters, bows to sea, in the same
