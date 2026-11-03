@@ -114,7 +114,10 @@ func _leaps(me: Node3D, a_boat: Node3D, b_boat: Node3D, ha: Node, hb: Node, at: 
 				_check(me.boat == to and me.mode == Player.DECK and me.frame == to,
 						"%.0f m gap, %s: the leap lands you on her deck (%s, %.1f s)"
 						% [gap, "B to A" if way > 0 else "A to B", where, float(w["t"])])
-				_check(float(w["step"]) < 0.3 and float(w["handed"]) < 0.3,
+				# (the biggest step's the fall at the end: off the top of the leap, a metre and more over her rail, down
+				# onto a deck in the trough, at 7 m/s with a sprint's way on, 0.3 m a frame and a bit (it was 0.30 before
+				# she floated, 0.32 since); a pop would be twice that)
+				_check(float(w["step"]) < 0.36 and float(w["handed"]) < 0.3,
 						"and into her deck space, nothing jumping (%.2f m a frame at most, %.2f landing)"
 						% [float(w["step"]), float(w["handed"])])
 			else:
