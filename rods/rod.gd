@@ -71,7 +71,7 @@ var turn_sign := 0.0
 ## The arms of whoever's on it (tuna/fight.gd's `arms`, 1 fresh .. 0 gone), from their word: their crew see them go.
 var arms := 1.0
 ## Its line, still out, in the way of another rod's fish (rods.gd's threat, every peer works it out): 0 clear, 0.5
-## he's heading for it, 1 he's across it; and how long he's been across it (s: the host's, FOUL_IN and it's tangled).
+## he's heading for it, 1 they're touching; and how long it's been warned (s: the host's, WARN_T before it can foul).
 var foul := 0.0
 var foul_t := 0.0
 ## Who held it last (a fight that ended as it changed hands still counts: rods.gd's _report_end).

@@ -117,6 +117,9 @@ func _ready() -> void:
 			match keys:
 				"none":
 					_pitch = move_toward(_pitch, 0.9, 0.8 * dt)
+				"wait":
+					_pitch = move_toward(_pitch, 0.9, 0.5 * dt)      # (rod up a little, winding, waiting for him)
+					crank = true
 				"lift":
 					_pitch += 0.7 * dt
 				"wind":
@@ -129,8 +132,6 @@ func _ready() -> void:
 					if _notch <= 0.0:
 						_notch = 1.0
 						sea.rods.set_drag(rod, float(rod.drag) + (Fight.STEP if keys == "drag_up" else -Fight.STEP))
-			if str(coach.get("word")) == "SLACK":
-				crank = true
 			# a first-timer's mistake: winding into his first run (till it's said, in red, and a beat more)
 			if mistakes == 0 and keys == "none":
 				crank = true

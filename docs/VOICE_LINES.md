@@ -28,9 +28,9 @@ a bit nervous about his money: a car salesman who's been put in charge of a fish
 | `flock` | first flock you look at | Diving birds, white water? Bluefin. Go. Birds sitting? Wait for them. |
 | `fast` | running up on birds too fast | Ease her down to troll: nothing bites at speed. Get out ahead of them, drag your baits across their nose. |
 | `bite` | first bite, rod in its holder | That's a reel screaming. Grab the rod! |
-| `fight` | your first fish, the rod in your hands | Feel that bend? That's him. Lift him slow, wind as you drop. Reel screaming? Hands off the crank. |
+| `fight` | your first fish, the rod in your hands | Feel that bend? That's him. Wind and wait. Bend eases, he's tired: lift him, wind as you drop. Reel screaming? Hands off. |
 | `drag` | the drag slipping a while in your hands | That's your drag slipping. Scroll's the lever, strike's the click. He's taking it all? More. Bent double? Ease it. |
-| `pump` | cranking against a fish that's pulling | You can't crank a fish that's pulling. Pump him: lift slow, then wind on the way down. |
+| `pump` | cranking against a fish that's pulling | You can't crank a fish that's pulling. Wait till the bend eases, then lift him, and wind on the way down. |
 | `spool` | half the spool gone | Half your line's gone! Back her down on him, S. Alone? Rod in the holder, get on the wheel. |
 | `jump` | your first fish jumping | He jumps, drop the tip. A tight line in the air throws the hook. |
 | `heavy` | leaning on him too hard | Easy! Lean on him that hard and the hook tears out. Back the drag off. |

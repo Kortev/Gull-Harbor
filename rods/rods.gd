@@ -38,14 +38,24 @@ const PARTED := ["Line parted.", "Line parted on the rail.", "Line parted, twist
 const ROD_WEIGHT := 1.0
 ## Under this much arm left the rod shakes in your hands on top of it.
 const TIRED_SHAKE := 0.15
-## While a fish is on, how often (s) the host looks for its run crossing another line that's still out. Within NEAR
-## rad of a line's bearing (and out past it) he's heading for it: everyone's told; within CROSS he's across it, and
-## FOUL_IN s of that tangles them, every time. Winding the other line in (E on it) frees the fish's line at once.
+## While a fish is on, how often (s) the host looks for his line fouling another that's still out. It's the lines
+## themselves, in 3D (line_gap): his, from his rod tip down to him (steep when he's deep), and the other, from its
+## rod tip or its outrigger's clip out along the top to its bait. Within WARN_GAP m of each other he's heading for it: everyone's told;
+## within GAP they can foul, but only once the warning's been up WARN_T s (time to act), and only as his line sweeps
+## across it: right over to the other side (SWEEP_OVER m or more in a look), it's fouled; otherwise each look
+## TANGLE_CHANCE of a tangle at full sweep (SWEEP_FULL m/s of his line swinging sideways past SWEEP_MIN), less the
+## slower he goes, and none lying still alongside it. Winding the other line
+## in (E on it) frees the fish's line at once.
 const TANGLE_EVERY := 0.25
-const TANGLE_CHANCE := 0.2
-const NEAR := 0.5
-const CROSS := 0.2
-const FOUL_IN := 3.0
+const TANGLE_CHANCE := 0.1
+const GAP := 1.5
+const WARN_GAP := 8.0
+const WARN_T := 3.0
+const SWEEP_FULL := 2.0
+const SWEEP_MIN := 0.3
+const SWEEP_OVER := 2.0
+## The first seconds after the strike, nothing fouls: the crew's time to start getting the other lines in.
+const TANGLE_GRACE := 8.0
 ## Your arms off the rod: s to get them all back (tuna/fight.gd's ARM_HOLDER: nothing on them).
 const ARM_FREE := Fight.ARM_HOLDER
 ## A bait out goes off: washed out, chewed by little fish, swimming tired (s till it's no good); worse than STALE and
@@ -842,24 +852,54 @@ func is_tangled(i: int) -> bool:
 	return false
 
 
-## How much rod b's line, still out, is in the way of a running fish on another rod: 0 clear, 0.5 he's heading for it
-## (within NEAR of its bearing, and out past it), 1 he's across it (within CROSS). Every peer works it out from the
-## fish's synced bearing, for the HUD; the host acts on it.
+## Whether his line, touching another, fouls it this look: swept right over it to the other side (a metre or more
+## of sweep), or by chance the faster it's sweeping (lying still alongside it, never). `roll` 0..1.
+static func _fouls(crossed: bool, sweep: float, roll: float) -> bool:
+	if crossed and sweep * TANGLE_EVERY > SWEEP_OVER:
+		return true
+	return roll < TANGLE_CHANCE * clampf((sweep - SWEEP_MIN) / SWEEP_FULL, 0.0, 1.0)
+
+
+## How close (m) a fish's line comes to another line still out, in her frame from her stern (x across, y up from the
+## water, z astern): his from his rod's tip `tip` to him (`bearing`, `hd` m out flat, `depth` m down), the other from
+## where it leaves her `from` (its rod tip, or its outrigger's clip, high and wide: that's what they're for) down to
+## its bait at `bait` (x, z) on the top, its outer two thirds (nearer in, the lines are held apart on their rods).
+static func line_gap(bearing: float, hd: float, depth: float, bait: Vector2, from := Vector3(0.0, 1.5, 0.0),
+		tip := Vector3(0.0, Fight.TIP_H, 0.0)) -> float:
+	var a1 := Vector3(sin(bearing) * hd, -depth, cos(bearing) * hd)
+	var b1 := Vector3(bait.x, 0.0, bait.y)
+	var best := INF
+	for k in 13:
+		var q := from.lerp(b1, lerpf(0.3, 1.0, k / 12.0))      # (the near third's still up off her, held apart on the rods)
+		best = minf(best, q.distance_to(Geometry3D.get_closest_point_to_segment(q, tip, a1)))
+	return best
+
+
+## Where rod r's line leaves her and its bait, in her frame from her stern (line_gap's): its clip while it's in one,
+## else its rod tip.
+func _line_from(r: Rod) -> Vector3:
+	var boat := sea.get("boat") as Node3D
+	var w: Vector3 = r.clip if r.clip_on and r.clip != Vector3.INF else r.tip_position()
+	return boat.global_transform.affine_inverse() * w - Vector3(stern.x, 0.0, stern.z)      # (her origin's at the water)
+
+
+## How much rod b's line, still out, is in the way of a fish on another rod: 0 clear, 0.5 he's heading for it (his
+## line within WARN_GAP of it), 1 they're touching (within GAP). Every peer works it out from the fish's synced
+## bearing, line and depth, for the HUD; the host acts on it.
 func threat(b: Rod) -> float:
 	if b.hooked or b.bait_in or b.tangled >= 0 or b.auto_in != 0 or flying(b.index):
 		return 0.0
 	var worst := 0.0
+	var bait := b.spot - stern
+	var from := _line_from(b)
 	for a in rods:
 		if a == b or not a.hooked or a.alongside:
 			continue
 		var hd := sqrt(maxf(a.line_out * a.line_out - a.depth * a.depth, 0.0))
-		var bait := b.spot - stern
-		if hd < bait.length() * 0.6:
-			continue
-		var off := absf(wrapf(a.bearing - atan2(bait.x, bait.z), -PI, PI))
-		if off < CROSS:
+		var gap := line_gap(a.bearing, hd, a.depth, Vector2(bait.x, bait.z), from, _line_from(a))
+		if gap < GAP:
 			return 1.0
-		if off < NEAR:
+		if gap < WARN_GAP:
 			worst = 0.5
 	return worst
 
@@ -880,31 +920,42 @@ func lines_out() -> Array:
 	return [n, worst, which]
 
 
-## Host, while a fish is on: its run across a line that's still out for FOUL_IN s tangles them (everyone's warned
-## first: threat).
+## Host, while a fish is on: his line sweeping across another that's still out can foul it (everyone's warned first:
+## threat, and WARN_T s of that before it can happen).
 func _host_lines(delta: float) -> void:
 	_tangle_in -= delta
 	if _tangle_in > 0.0:
 		return
 	_tangle_in = TANGLE_EVERY
 	for b in rods:
-		if b.foul < 1.0:
-			b.foul_t = 0.0
-			continue
-		b.foul_t += TANGLE_EVERY
-		if b.foul_t < FOUL_IN:
-			continue
-		b.foul_t = 0.0
+		b.foul_t = b.foul_t + TANGLE_EVERY if b.foul > 0.0 else 0.0     # (how long it's been warned)
+		var bait := b.spot - stern
+		var bait_b := atan2(bait.x, bait.z)
 		for a in rods:
-			if a != b and a.hooked and not a.alongside:
-				var hd := sqrt(maxf(a.line_out * a.line_out - a.depth * a.depth, 0.0))
-				var bait := b.spot - stern
-				if absf(wrapf(a.bearing - atan2(bait.x, bait.z), -PI, PI)) < CROSS and hd >= bait.length() * 0.6:
-					if Net.in_session():
-						_tangle.rpc(b.index, a.index)
-					else:
-						_tangle(b.index, a.index)
-					break
+			if a == b or not a.hooked or a.alongside:
+				continue
+			# which side of it he's on, and how fast his line's sweeping sideways out there
+			var key := "side_%d" % a.index
+			var side := signf(wrapf(a.bearing - bait_b, -PI, PI))
+			var was_side := float(b.get_meta(key, side))
+			b.set_meta(key, side)
+			if b.foul <= 0.0 or b.foul_t < WARN_T or _now() - a.hook_t < TANGLE_GRACE:
+				continue
+			var hd := sqrt(maxf(a.line_out * a.line_out - a.depth * a.depth, 0.0))
+			var was_b := float(a.get_meta("swept_from", a.bearing))
+			var sweep := absf(wrapf(a.bearing - was_b, -PI, PI)) * minf(hd, bait.length()) / TANGLE_EVERY
+			# (gone right over it since the last look: as close as they'd have come, his line right over its bearing)
+			var crossed := side != was_side and line_gap(bait_b, hd, a.depth, Vector2(bait.x, bait.z), _line_from(b),
+					_line_from(a)) < GAP
+			if (crossed or b.foul >= 1.0) and _fouls(crossed, sweep, randf()):
+				if Net.in_session():
+					_tangle.rpc(b.index, a.index)
+				else:
+					_tangle(b.index, a.index)
+				break
+	for a in rods:
+		if a.hooked:
+			a.set_meta("swept_from", a.bearing)
 
 
 ## Host: rod i's line cut at `at` (world) by something run across it (VS: the other boat, vs/contact.gd): its bait's
@@ -1156,7 +1207,7 @@ func _mark_rods(mine: Rod) -> void:
 		for r in rods:
 			if r == mine or not r.hooked or r.alongside:
 				continue
-			var w := FightCoach.word_of(r.move, r.paying > 0.6, r.stretch < -0.5, r.energy, 1.0, r.depth)
+			var w := FightCoach.word_of(r.move, r.paying > 0.6, r.stretch < -0.5, r.energy, -1.0, r.depth)
 			var who := ""
 			if r.holder != 0:
 				who = str(crew.call("call_sign", r.holder)) if crew.has_method("call_sign") else "SOMEONE"

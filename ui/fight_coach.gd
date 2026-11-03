@@ -4,7 +4,10 @@ extends RefCounted
 ## screaming, the bend, the rod up or down, your hand on the crank), and says the one thing to do now:
 ##
 ##   he's taking line          LET HIM RUN - DON'T WIND             (hands off)
-##   he's stopped              LIFT (MOUSE UP)  >  WIND AS YOU DROP (HOLD LMB)   (the half you're on lit)
+##   he's leaning on it        ROD UP, WIND, WAIT FOR HIM...  >  NOW LIFT          (winding, rod up a little)
+##   his tired moment          NOW LIFT (MOUSE UP)  >  WIND AS YOU DROP (HOLD LMB)  (the half you're on lit)
+##                             (the cue: the bend eases, the line's hum drops, TIRED flares by the reel, a soft
+##                             tick and a tap in a pad's grips; still tired at the bottom, lift again)
 ##   he's jumping              DROP THE TIP (MOUSE DOWN)
 ##   slack, coming at you      WIND! KEEP IT TIGHT (HOLD LMB)
 ##   near parting              TOO TIGHT! EASE THE DRAG (SCROLL DOWN)
@@ -27,8 +30,10 @@ const CRANK_INTO_RUN := 0.5
 const GRIND_T := 1.6
 const IDLE_T := 7.0
 ## The rod's elevation (rods.gd's aim_pitch) at the top of a lift and the bottom of a drop.
-const TOP := 1.05
-const BOTTOM := 0.55
+const TOP := 1.2
+const BOTTOM := 0.5
+## Waiting for his tired moment no longer than this (s): then lift anyway.
+const WAIT_MAX := 3.0
 
 ## Kept in real play (rods.gd sets it from the tutor's `keep`).
 var keep := false
@@ -52,7 +57,13 @@ var word_tone := "hold"
 var drag_note := ""
 var drag_t := 99.0
 
-var _phase := "lift"          # the pump: "lift" or "drop"
+var _phase := "wait"          # the pump: "wait" (for his tired moment), "lift" or "drop"
+var _was_tired := false
+var _lift_from := 0.6
+var _wrong_lift := 0.0
+var _wait_t := 0.0
+## The frame his tired moment starts (ui/fight_hud.gd ticks softly on it): now lift.
+var now_lift := false
 var _drop_wound := 0.0        # s of winding on this drop
 var _drop_t := 0.0
 var _run_t := 0.0             # s into this run
@@ -103,7 +114,8 @@ func begin() -> void:
 	if not _loaded:
 		_load()
 	_fight_t = 0.0
-	_phase = "lift"
+	_phase = "wait"
+	_was_tired = false
 	_run_t = 0.0
 	_run_crank = 0.0
 	_grind = 0.0
@@ -131,21 +143,32 @@ func dragged(drag: float, tighter: bool) -> void:
 ## His state in a word, from what everyone aboard can see of a rod (its move, the reel paying out, the line slack,
 ## how deep): RUNNING or SURGING only while he's really taking line (hands off), TIRED in his tired moments and once
 ## he's beaten (pump him), DEEP or PULLING while he leans on it and the drag holds (pump him).
-static func word_of(move: String, paying: bool, slack: bool, energy: float, lull := 1.0, depth := 30.0) -> Array:
+## `lull` is his pull coming and going (1 pulling .. 0 a tired moment), known only to the angler's own machine: with
+## it, TIRED means right now (lift); without it (-1, a crewmate's rod), TIRED means beaten.
+static func word_of(move: String, paying: bool, slack: bool, energy: float, lull := -1.0, depth := 30.0) -> Array:
+	if move == "jump":
+		return ["JUMPING", "bad"]       # (before slack: in the air, slack's what you want)
 	if slack:
 		return ["SLACK", "bad"]
 	match move:
-		"jump":
-			return ["JUMPING", "bad"]
 		"charge":
 			return ["CHARGING", "bad"]
 	if paying:
 		return ["SURGING" if move == "surge" else "RUNNING", "hold"]
 	if move == "shake":
 		return ["SHAKING", "hold"]
-	if move in ["circle", "spiral"] or energy < Fight.BEATEN or lull < 0.5:
+	if lull >= 0.0:
+		if lull < 0.5 and bool((Fight.MOVES.get(move, {}) as Dictionary).get("lull", false)):
+			return ["TIRED", "do"]
+		return ["DEEP" if depth > 20.0 else "PULLING", "hold"]
+	if move in ["circle", "spiral"] or energy < Fight.BEATEN:
 		return ["TIRED", "do"]
-	return ["DEEP" if depth > 20.0 else "PULLING", "do"]
+	return ["DEEP" if depth > 20.0 else "PULLING", "hold"]
+
+
+## Whether fight `f` is in one of his tired moments (a lull-y move, his pull eased right off): the moment to lift.
+static func tired_now(f: Fight) -> bool:
+	return bool((Fight.MOVES.get(f.move, {}) as Dictionary).get("lull", false)) and f.lull < 0.5
 
 
 ## A frame on, with fight `f` in your hands: `pitch` the rod's elevation, `crank` your hand on the reel.
@@ -180,9 +203,19 @@ func tick(dt: float, f: Fight, pitch: float, crank: bool) -> void:
 		_run_crank = 0.0
 		if _flounder_keys == "none":
 			_flounder = 0.0        # (the run's over: that telling-off is too)
-	# the pump: up to the top, then wound back down
-	if pitch >= TOP and _phase == "lift":
-		_phase = "drop"
+	# the pump, in his rhythm: wait while he leans on it, lift the moment he tires (the bend eases, the hum drops, TIRED
+	# by the reel, a soft tick), wind back down, and lift again if he's still tired, else wait
+	var tired := tired_now(f)
+	now_lift = tired and not _was_tired and not running
+	_was_tired = tired
+	_wait_t = _wait_t + dt if _phase == "wait" and not running else 0.0
+	if _phase == "wait" and (tired or _wait_t > WAIT_MAX):
+		# (his tired moment; or he's been leaning on it a while: lift anyway, he gives a little to a steady lift)
+		now_lift = now_lift or not tired
+		_phase = "lift"
+		_lift_from = pitch
+	elif _phase == "lift" and (pitch >= TOP or (f.lull > 0.85 and pitch - _lift_from > 0.15)):
+		_phase = "drop"          # (at the top, or he's pulling again: as far as this one goes)
 		_drop_wound = 0.0
 		_drop_t = 0.0
 	elif _phase == "lift" and not running and f.strain >= f.drag_now * 0.97 and f.drag_now > 0.05 and dp > 0.0:
@@ -190,17 +223,24 @@ func tick(dt: float, f: Fight, pitch: float, crank: bool) -> void:
 		_drop_wound = 0.0
 		_drop_t = 0.0
 	elif pitch <= BOTTOM and _phase == "drop":
-		_phase = "lift"
+		_phase = "lift" if tired else "wait"
+		_lift_from = pitch
 		if _drop_t > 0.3 and _drop_wound > _drop_t * 0.5:
 			pumps += 1
 			_save()
+	# lifting into him while he's pulling: the drag just gives
+	_wrong_lift = _wrong_lift + dt if _phase == "wait" and dp > 0.004 and pitch > 1.05 and not tired and not running 			else 0.0
+	if _wrong_lift > 0.8:
+		_flounder_at("WAIT! HE'S PULLING. LIFT WHEN HE TIRES", "wait")
+		_wrong_lift = 0.0
 	if _phase == "drop":
 		_drop_t += dt
 		if crank:
 			_drop_wound += dt
 	# floundering in the pump: winding against him without lifting, or sitting there
 	if not running and not slack and f.move != "jump":
-		_grind = _grind + dt if crank and f.grinding and dp < 0.002 else 0.0
+		# (winding while you wait for him is right: it keeps it tight and takes whatever he gives)
+		_grind = _grind + dt if crank and f.grinding and dp < 0.002 and _phase != "wait" else 0.0
 		if _grind > GRIND_T:
 			_flounder_at("WINDING WON'T MOVE HIM. LIFT FIRST (MOUSE UP)", "lift")
 			pumps = maxi(pumps - 2, 0)
@@ -212,13 +252,13 @@ func tick(dt: float, f: Fight, pitch: float, crank: bool) -> void:
 			_idle = 0.0
 	# what to say: the one that can't wait first
 	tone = "do"
-	if slack:
-		say = "SLACK! WIND! KEEP IT TIGHT (HOLD LMB)"
-		keys = "wind"
-		tone = "bad"
-	elif f.move == "jump" or f.airborne:
+	if f.move == "jump" or f.airborne:
 		say = "HE'S JUMPING! DROP THE TIP (MOUSE DOWN)"
 		keys = "drop"
+		tone = "bad"
+	elif slack:
+		say = "SLACK! WIND! KEEP IT TIGHT (HOLD LMB)"
+		keys = "wind"
 		tone = "bad"
 	elif danger > 0.8:
 		say = "TOO TIGHT! EASE THE DRAG (SCROLL DOWN)"
@@ -237,8 +277,15 @@ func tick(dt: float, f: Fight, pitch: float, crank: bool) -> void:
 			say = "HE'S TAKING IT ALL! MORE DRAG (SCROLL UP)"
 			keys = "drag_up"
 			show = 1.0
+	elif _phase == "wait":
+		say = "ROD UP, WIND, WAIT FOR HIM..."
+		then = "NOW LIFT (MOUSE UP)"
+		first = true
+		keys = "wait"
+		tone = "hold"
+		show = 0.0 if pumps >= PUMPS_TO_LEARN else 1.0
 	else:
-		say = "LIFT (MOUSE UP)"
+		say = "NOW LIFT (MOUSE UP)"
 		then = "WIND AS YOU DROP (HOLD LMB)"
 		first = _phase == "lift"
 		keys = "lift" if first else "wind"
