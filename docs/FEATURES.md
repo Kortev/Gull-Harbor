@@ -283,11 +283,20 @@ press at once, and every one of them is read off the rod, the reel and the line,
     pull: "Line parted on the rail."). Swing her stern to him, or the angler walks the rod round to that corner.
   - **Under the boat:** out of gear. Touch W or S while he's under her and the props cut the line in 2.5 s.
   - The captain's plotter shows where each fish is (red where its line's on the hull).
-- **Other lines:** while a fish is on, REEL THE OTHER LINES IN!; heading for one still out the warning names it;
-  across it 3 s it tangles and saws his line through in 20 s unless someone winds that line in.
+- **Other lines:** while a fish is on, REEL THE OTHER LINES IN!. Tangles are the lines themselves, in 3D
+  (rods.gd's line_gap): his from his rod tip down to him (steep when he's deep), the other from its rod tip or its
+  outrigger's clip (high and wide: that's what they're for) out to its bait. Within 8 m of each other the warning
+  names it, on everyone's screen (the angler's too: Q, then E on that rod); only once that's been up 3 s, and never in
+  the strike's first 8 s, can his line foul it, and then only sweeping across it near the top: right over it, it's
+  fouled; brushing along it, a chance the faster it sweeps; deep under it or lying still beside it, never. Fouled, it
+  saws his line through in 20 s unless someone winds that line in. (fight_sim: a crew that leaves the whole spread out
+  loses about half its 300 kg fish to it, few small ones.)
 - **Taught in the moment, never frozen** (ui/fight_coach.gd, drawn by ui/fight_hud.gd): one line over the bottom of
   the screen says the one thing to do now, read off the fight the way you'd read it: **LET HIM RUN - DON'T WIND**
-  while he takes line; **LIFT (MOUSE UP) > WIND AS YOU DROP (HOLD LMB)** when he stops, the half you're on lit;
+  while he takes line; while he leans on it **ROD UP, WIND, WAIT FOR HIM... > NOW LIFT**, and in his tired moment
+  (the bend eases, the line's hum drops, TIRED flares green by the reel, a soft tick and a tap in a pad) **NOW LIFT
+  (MOUSE UP) > WIND AS YOU DROP (HOLD LMB)**, the half you're on lit (still tired at the bottom: again; three seconds
+  and he hasn't eased: lift anyway); lifting into him while he's pulling gets WAIT! in red;
   **DROP THE TIP** when he jumps; **SLACK! WIND!**; **TOO TIGHT! EASE THE DRAG**. It fades once you've shown you've
   got it (two runs let go, four pumps) and comes back in red the moment you flounder (cranking into a run, winding
   against him without lifting, sitting idle). What you've learned is kept on this machine.

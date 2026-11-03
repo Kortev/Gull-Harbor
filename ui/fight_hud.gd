@@ -17,6 +17,7 @@ extends Control
 
 const Fight := preload("res://tuna/fight.gd")
 const FightCoach := preload("res://ui/fight_coach.gd")
+const Sfx := preload("res://audio/sfx.gd")
 const GREEN := Color(0.45, 0.95, 0.55)
 const AMBER := Color(1.0, 0.75, 0.3)
 const RED := Color(1.0, 0.3, 0.25)
@@ -49,6 +50,7 @@ var _banner_text := ""
 var _banner_sub := ""
 var _banner_col := PALE
 var _flash := 0.0
+var _lift_flash := 0.0                # (his tired moment just came: the state word flares)
 var _edge: ColorRect
 var _lesson := ""                     # under a loss: what would have saved it
 ## The rods with a fish on that aren't in your hands, to mark: [{at (world), i, name, word, tone, who, free}].
@@ -116,6 +118,11 @@ func show_fight(s: Dictionary) -> void:
 	var f: Fight = s.get("fight")
 	if f != null:
 		coach.tick(get_process_delta_time(), f, float(s.get("pitch", 0.6)), bool(s.get("crank", false)))
+		if coach.now_lift:
+			# his tired moment: a soft tick and a tap in the hands, the same every time (now lift)
+			Sfx.play("ui.tick", 0.45, 1.5)
+			Settings.buzz(0.0, 0.35, 0.06)
+			_lift_flash = 1.0
 
 
 ## A strike on rod `rod` (from 1, where she carries it: `where`), for everyone aboard: `free` nobody's on it, `mine`
@@ -167,6 +174,7 @@ func _process(delta: float) -> void:
 	_t += delta
 	_banner = maxf(_banner - delta, 0.0)
 	_flash = maxf(_flash - delta * 6.0, 0.0)
+	_lift_flash = maxf(_lift_flash - delta * 2.0, 0.0)
 	_a = move_toward(_a, 1.0 if _on else 0.0, delta * (4.0 if _on else 2.0))
 	_lever_t += delta
 	if _on:
@@ -212,6 +220,9 @@ func _draw_plate(at: Vector2, a: float) -> void:
 	var wcol := _tone_col(coach.word_tone)
 	var ww := _w(font, word, 24)
 	var flick := 1.0 if coach.word != "RUNNING" or fmod(_t, 0.5) < 0.35 else 0.6
+	if _lift_flash > 0.0:
+		# (his tired moment: a green plate flares behind the word)
+		draw_rect(Rect2(at + Vector2(PLATE.x - 18 - ww, 4), Vector2(ww + 12, 34)), Color(GREEN, 0.35 * _lift_flash * a))
 	_text(font, at + Vector2(PLATE.x - 12 - ww, 30), word, 24, Color(wcol, a * flick))
 	# the reel: its side plate, the spool on it, the drag lever on its quadrant
 	var c := (at + Vector2(66, 116)).floor()
@@ -320,7 +331,7 @@ func _draw_caps(at: Vector2, a: float) -> void:
 	for ci in range(caps.size() - 1, -1, -1):
 		var cap: Array = caps[ci]
 		var id := str(cap[0])
-		var lit := want == id or (id == "drag" and want.begins_with("drag")) or (id == "lift" and want == "drop")
+		var lit := want == id or (id == "drag" and want.begins_with("drag")) or (id == "lift" and want == "drop") 				or (id == "wind" and want == "wait")
 		var w := 112.0
 		x -= w + (6.0 if ci < caps.size() - 1 else 0.0)
 		var r := Rect2(Vector2(x, at.y), Vector2(w, 44))
@@ -345,6 +356,8 @@ func _draw_caps(at: Vector2, a: float) -> void:
 		elif id == "wind" and want == "none":
 			label = "HANDS OFF"
 			col = Color(AMBER, a * pulse)
+		elif id == "lift" and want == "wait":
+			label = "WAIT..."
 		_text(font, Vector2(r.position.x + r.size.x - 6 - _w(font, label, 12), r.position.y + 28), label, 12, col)
 
 
@@ -418,7 +431,7 @@ func _draw_coach(a: float) -> void:
 		_text(font, Vector2(x, y), one, px, Color(col, k * pulse))
 		return
 	# the pump's two halves: the one you're on lit, the other waiting
-	var lit := Color(GREEN, k * pulse)
+	var lit := Color(AMBER if coach.keys == "wait" else GREEN, k * pulse)
 	var wait := Color(DIM, k * 0.6)
 	_text(font, Vector2(x, y), one, px, lit if coach.first else wait)
 	var x2 := x + _w(font, one, px)
