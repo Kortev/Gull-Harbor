@@ -25,6 +25,7 @@ const Cooler := preload("res://boat/cooler.gd")
 const LiveWell := preload("res://boat/live_well.gd")
 const Lines := preload("res://boat/lines.gd")
 const PixFont := preload("res://ui/pixfont.gd")
+const Buoyancy := preload("res://boat/buoyancy.gd")
 
 ## Under way: her bow up (rad) flat out ahead, and how far her stern digs in (rad, m down) backing down flat out.
 const SQUAT := 0.07
@@ -44,8 +45,6 @@ var length := 14.0
 var beam := 4.8
 var deck := 0.55          # her sole above the model's origin (its waterline)
 var sink := 0.12          # loaded, she sits a little below her painted waterline
-var pitch_follow := 1.0   # how much of the sea's slope she follows (a long, heavy hull bridges the short chop)
-var roll_follow := 0.85
 var spawns: Array[Transform3D] = []      # boat-local
 var holders: Array[Transform3D] = []     # boat-local; see holder_transform()
 var helm_spot := Transform3D.IDENTITY   # where the captain stands (boat-local)
@@ -91,6 +90,8 @@ var carry := 1.0
 var carried := Vector3.ZERO
 var carried_yaw := 0.0
 var carried_rate := Vector3.ZERO
+## How she floats (boat/buoyancy.gd): her heave, pitch and roll, a body on the water.
+var floating := Buoyancy.new()
 
 
 func _ready() -> void:
@@ -211,8 +212,7 @@ func _build() -> void:
 	beam = float(spec["beam"])
 	deck = float(spec["deck"])
 	sink = float(spec["sink"])
-	pitch_follow = float(spec["pitch_follow"])
-	roll_follow = float(spec["roll_follow"])
+	floating.configure(kind, spec)
 	var src := (load(str(spec["model"])) as PackedScene).instantiate() as Node3D
 	var visual := Node3D.new()
 	visual.name = "Visual"
@@ -496,14 +496,14 @@ func _process(delta: float) -> void:
 	# on; in Rivals the other boat the same)
 	var way: float = helm.speed if helm else 0.0
 	if ocean.follow == self or ocean.follow == null:
-		ocean.set_hull(global_transform, length, beam, deck, way)
+		ocean.set_hull(global_transform, length, beam, deck, way, floating.sheer)
 	else:
-		ocean.set_other_hull(global_transform, length, beam, true, deck, way)
+		ocean.set_other_hull(global_transform, length, beam, true, deck, way, floating.sheer)
 
 
-## Where the hull sits on the swell right now: a plane fitted to the water under her (five stations along, three
-## across, turned to her heading, where she is), the waterline at its middle, its slopes her pitch and roll, and the
-## lift of her bow under way. A pure function of the wave clock and the helm's word, so every peer agrees.
+## Where the hull sits on the swell right now: floating (boat/buoyancy.gd: a body with her mass on the water under
+## her, heaving, pitching and rolling to it, stepped on the shared wave clock from the helm's word, so every peer
+## agrees), turned to her heading, where she is, and the lift of her bow under way.
 ## And the water carries her (ocean.gd's carry): its orbits take her to and fro, surging and swaying, slewing a little,
 ## round and back with each wave, on top of where the helm has her. So she goes with the water round her instead of
 ## the sea sliding past a hull pinned to the spot.
@@ -517,24 +517,11 @@ func pose() -> Transform3D:
 	carried_rate = Vector3(c[3], c[5], c[4]) * carry
 	mid += carried
 	var turn := Basis(Vector3.UP, heading + carried_yaw)
-	var sum := 0.0
-	var sx := 0.0
-	var sz := 0.0
-	var xx := 0.0
-	var zz := 0.0
-	for i in 5:
-		var z := (i - 2) * length * 0.2
-		for j in 3:
-			var x := (j - 1) * beam * 0.4
-			var h := ocean.height_at(mid + turn * Vector3(x, 0.0, z))
-			sum += h
-			sx += x * h
-			sz += z * h
-			xx += x * x
-			zz += z * z
-	var y := sum / 15.0 - sink
-	var pitch := atan(-sz / zz) * pitch_follow
-	var roll := atan(sx / xx) * roll_follow
+	floating.ocean = ocean
+	var f := floating.at(float(ocean.wave_time), Vector2(mid.x, mid.z), heading + carried_yaw)
+	var y := f.x
+	var pitch := f.y
+	var roll := f.z
 	# under way her bow comes up; backing down hard her stern digs into the water
 	var v: float = helm.speed if helm else 0.0
 	var ahead := clampf(v / helm.ahead, 0.0, 1.0) if helm else 0.0
