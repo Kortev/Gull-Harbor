@@ -151,6 +151,21 @@ def main(d):
             marks.append(at + n * c["length"])
             n += 1
     worst, wat = 0.0, 0.0
+    # (a real game's recording is the whole mix: a mark where the Effects bus leaps (the game's bus meters, in the
+    # log) is a sound effect's edge, the harpoon striking home, not the music's)
+    fx = [(float(t), float(b.get("Effects", -200.0))) for t, b in json.load(open(os.path.join(d, "f.json"))).get(
+        "buses", [])]
+    def fx_leap(t):
+        near = [v for u, v in fx if abs(u - t) <= 0.35]
+        before = [v for u, v in fx if t - 1.0 <= u < t - 0.35]
+        return bool(near) and bool(before) and max(near) - max(before) >= 6.0
+    skipped = 0
+    for t in list(marks):
+        if fx and fx_leap(t):
+            marks.remove(t)
+            skipped += 1
+    if skipped:
+        print("     (%d marks left out: a sound effect leaping at the same moment)" % skipped)
     for t in marks:
         i = int(t * sr)
         w = hf[max(i - int(0.05 * sr), 0):i + int(0.05 * sr)]
