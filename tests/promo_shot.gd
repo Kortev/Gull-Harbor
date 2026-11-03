@@ -18,6 +18,8 @@ var _fixed := Vector3.ZERO
 ## --day=<0..1>: the time of day; --peek: a still of each shot at that time, no clip (for picking the light).
 var day := 0.12
 var peek := false
+## --cond=<sunny|calm|fog|rain|heavy|storm>: the weather (pinned).
+var cond := "sunny"
 
 
 func _ready() -> void:
@@ -27,6 +29,8 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--day="):
 			day = float(a.trim_prefix("--day="))
+		if a.begins_with("--cond="):
+			cond = a.trim_prefix("--cond=")
 		peek = peek or a == "--peek"
 	sea = (load("res://sea/sea.tscn") as PackedScene).instantiate() as Sea
 	add_child(sea)
@@ -34,7 +38,7 @@ func _ready() -> void:
 	await get_tree().create_timer(1.0).timeout
 	sea.fish_hold.head_out("sportfisher")
 	sea.fish_hold.trip_t0 -= sea.fish_hold.DAY * day          # (mid-morning: the sun up, the sea blue)
-	sea.set_condition("sunny")
+	sea.set_condition(cond)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	var helm: Node = sea.boat.get("helm")
 	sea.crew.me.force_input = true
@@ -55,7 +59,7 @@ func _ready() -> void:
 			_t = k
 			await get_tree().create_timer(0.2).timeout
 			await RenderingServer.frame_post_draw
-			get_viewport().get_texture().get_image().save_png(OS.get_user_data_dir().path_join("peek_%.2f_%d.png" % [day, int(k)]))
+			get_viewport().get_texture().get_image().save_png(OS.get_user_data_dir().path_join("peek_%s_%.2f_%d.png" % [cond, day, int(k)]))
 		get_tree().quit()
 		return
 	await get_tree().create_timer(LENGTH).timeout
