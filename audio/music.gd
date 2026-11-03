@@ -1,116 +1,288 @@
 extends Node
-## The music (an autoload, `Music`), on the Music bus (core/settings.gd's slider). tools/music.py renders it into
-## res://music/: a lo-fi folk band, plucked strings, a whistle, a concertina, pads, a frame drum. It watches the sea
-## (sea/sea.gd, in the "sea" group) and picks what's wanted:
-## - the title theme while the title's between you and the game (ui/title.gd's busy(): up, its intro, its glide);
-## - calm at sea the rest of the time: a short low phrase now and then, long silences between (CALM_GAP), never the
-##   same phrase twice running;
-## - fish on (rods.gd's fighting()): a tense pulse layered in over it, the calm phrase pushed down under it;
-## - the race home at dusk (sea.gd's home_by; Rivals', vs/vs.gd's): a driving jig, its rhythm first, its tune coming
-##   in and then its urgency as the clock runs down (race_mix());
-## - Rivals: the countdown's sting, started where the countdown's got to so its hit lands on GO, the bed quiet under
-##   it; the results card's (vs/card.gd: win, lose or tie, for your boat) as its stamp lands, and nothing else while
-##   the card's up.
-## Every layer moves to where it's wanted over FADES s (nothing starts, stops or switches at full loudness), and all of
-## it ducks a little (DUCK) while anything's coming over the radio or the voice bus.
+## The music (an autoload, `Music`), on the Music bus (core/settings.gd's slider): a fish-shed folk band that's mostly
+## silent, playing what's happening out there. docs/MUSIC_SYSTEM.md is the design; tools/music.py renders it into
+## res://music/ and writes audio/music_cues.gd (each cue's files, stems and timing).
+##
+## Each frame it reads the sea into a plain picture (world()) and hands it to audio/music_state.gd, which says what's
+## wanted: the section (title, harbour, hunt, the fight's three, gaff, afterglow, the race home, or the quiet at sea),
+## each of its stems' levels, and what just happened (the strike, a fish lost or landed, their fish on, the lead
+## changing, a phrase due). Here's the band playing it:
+## - the sections are clips of one AudioStreamInteractive (the "bed"), each an AudioStreamSynchronized of its stems,
+##   so they're locked to the sample and the switches between them land on the beat or the bar in the mixer itself
+##   (_transitions()). The fight's tired and fresh halves change on a four-bar phrase; into the leader, a two-beat
+##   drum fill (leader_in) over the last two beats of a bar and the leader on its downbeat.
+## - the stems' levels move every frame (the state smooths them); a melodic stem (GATED: the tune) only comes in at
+##   the top of a phrase.
+## - stings over it (the strike, their fish on, the lead, Rivals' countdown and card) start on the next beat or bar of
+##   whatever's playing, on our own clock (a silent player's position: the mixer's time, not the frame's).
+## - the quiet at sea: a short phrase for the mood now and then, long silences between.
+## - a fish lost: everything gone at once (HUSH_FADE), and silence.
+## - the mix: all of it down a little while the radio or a voice is on (DUCK_BUSES), with a dip where voices sit (the
+##   pocket) rather than more of a drop; muffled underwater; quieter and dulled under the pause card; a limiter last.
 
+const State := preload("res://audio/music_state.gd")
+const Cues := preload("res://audio/music_cues.gd")
 const DIR := "res://music/"
 const BUS := &"Music"
-const CALM := ["calm_1", "calm_2", "calm_3", "calm_4"]
-## Silence after a calm phrase before the next (s, a random length between).
-const CALM_GAP := Vector2(30.0, 75.0)
-## Into calm from something else: the first phrase after this long (s, between).
-const CALM_FIRST := Vector2(8.0, 16.0)
-## Under a fight, the calm phrase at this share.
-const UNDER_FISH := 0.3
-## Each layer's fades (s, in and out) and its level (a share).
-const FADES := {"title": Vector2(2.0, 3.5), "calm": Vector2(2.5, 3.0), "fish": Vector2(1.5, 4.0),
-		"race": Vector2(3.0, 4.0), "sting": Vector2(0.05, 1.5)}
-const LEVEL := {"title": 1.0, "calm": 0.85, "fish": 0.8, "race": 1.0, "sting": 1.0}
-## While the radio or a voice is on: everything down to this share; how long it holds after they stop (s); the
-## level (dB) on their bus that counts as on.
-const DUCK := 0.55
-## Under the pause card (the world held still, ui/menu.gd), the music at this share.
-const PAUSED := 0.4
+const SECTIONS := ["title", "harbour", "hunt", "fight", "tired", "leader", "gaff", "afterglow", "race"]
+const FIGHT := ["fight", "tired", "leader"]
+## Stems that only come in at the top of a PHRASE_BARS phrase (and then over GATE_IN s).
+const GATED := ["tune"]
+const PHRASE_BARS := 4
+const GATE_IN := 0.12
+## A switch asked this close (s) to the grid line it'd land on might land on the next one instead: it waits till the
+## line's passed.
+const GRID_SAFE := 0.04
+## The leader's fill: asked this close (s past its length) before the bar it ends on; after FILL_WAIT s of no luck
+## (a slow frame rate), the leader without it.
+const FILL_SLOP := 0.07
+const FILL_WAIT := 6.0
+## The shortest fade in (beats): a loop coming in at full (the strike, the leader).
+const ENTER := 0.1
+## Each section's level (a share).
+const LEVEL := {"title": 1.0, "harbour": 0.7, "hunt": 0.8, "fight": 0.85, "tired": 0.85, "leader": 0.9, "gaff": 0.85,
+		"afterglow": 0.9, "race": 1.0}
+const PHRASE_LEVEL := 0.85
+const STING_LEVEL := {"strike": 1.0, "their_on": 0.7, "lead_up": 0.8, "lead_down": 0.8, "countdown": 1.0, "win": 1.0,
+		"lose": 1.0, "tie": 1.0}
+## The stings that play over the others (on their own player).
+const SMALL := ["their_on", "lead_up", "lead_down"]
+## A fish lost: everything down to nothing over this long (s): quicker than you'd hear as a fade, slow enough not to
+## click.
+const HUSH_FADE := 0.08
+## While the radio or a voice is on: down to these shares (by whose it is), back up DUCK_HOLD s after they stop; the
+## level (dB) on their bus that counts as on; the pocket (dB) cut where voices sit (1 and 3.2 kHz) while they're on,
+## and the duck halved with it.
+const DUCK_BUSES := {&"Radio": 0.56, &"VoiceRadio": 0.56, &"Voice": 0.7}
+const DUCK := 0.56
 const DUCK_HOLD := 0.6
 const DUCK_AT := -42.0
-const DUCK_BUSES := [&"Radio", &"Voice"]
+const POCKET := [-6.0, -4.0]
+## Under the pause card (the world held still, ui/menu.gd): the music at this share, dulled to PAUSED_LP Hz;
+## underwater, muffled to UNDER_LP Hz.
+const PAUSED := 0.4
+const PAUSED_LP := 2500.0
+const UNDER_LP := 600.0
 ## Rivals' countdown (vs/vs.gd's COUNT, s): the sting's hit is this far in.
 const COUNT := 10.0
-## The race home's length (s: sea.gd's and vs.gd's HOME): how far through it the jig's built.
+## The race home's length (s: sea.gd's and vs.gd's HOME).
 const HOME := 360.0
+## The clock: a silent loop this long (s), its position the mixer's time.
+const CLOCK_LEN := 4.0
 
-## What's wanted now: the bed ("title", "calm", "race" or "": quiet), and the fight layered over it.
-var cue := ""
-var fish := false
-## The last calm phrase started ("" none yet).
-var phrase := ""
-## The sting playing ("countdown", "win", "lose", "tie"; "" none).
+## The section wanted now ("rest": quiet), and the one sounding (a switch lands on the grid, a moment later).
+var cue := "rest"
+var sounding := "rest"
+## The state (audio/music_state.gd): its levels, its events.
+var state: State
+## The sting playing ("" none) and the last phrase started.
 var sting := ""
-## Tests: >0 holds the duck on this many s more, as if the radio were on.
+var phrase := ""
+## Tests: >0 holds the duck on this many s more, as if the radio were on; a world to play instead of the sea's.
 var duck_test := 0.0
-## A fish just lost (rods.gd): the music all but gone for this many s more, then back slowly.
-var hushed := 0.0
-var _layers := {}           # name -> {player, gain, target}
-var _phrases := {}          # calm name -> AudioStream
-var _stings := {}
-var _race: AudioStreamSynchronized
-var _race_gain := [1.0, 0.0, 0.0]
-var _calm_wait := 0.0
-var _calm_last := ""
+var world_test := {}
+## What's been played, for the tests: [[audio time, what]] ("clip:<name>" as a switch lands, "sting:<name>",
+## "phrase:<name>"), the last LOG_N.
+var played: Array = []
+const PLAYED_N := 64
+
+var _bed: AudioStreamPlayer
+var _it: AudioStreamInteractive
+var _clips := {}            # section -> {index, sync, stems, bpm, bar_beats, loop}
+var _rest := 0
+var _asked := "rest"        # the clip last asked for
+var _start := 0.0           # audio time the sounding clip started
+var _landing := {}          # {to, at}: a switch asked, landing at audio time `at`
+var _fill_wait := 0.0
+var _gate := {}             # stem -> 0..1 (GATED: let in at a phrase)
+var _phrase_n := -1
+var _stings: Array[AudioStreamPlayer] = []
+var _queue: Array = []      # [{name, at, from}]
+var _streams := {}          # sting/phrase name -> AudioStream
+var _phrase: AudioStreamPlayer
+var _clock: AudioStreamPlayer
+var _clock_last := 0.0
+var _clock_wraps := 0
+var _t := 0.0               # audio time now (s)
+var _game_t := 0.0
 var _duck := 1.0
 var _duck_for := 0.0
+var _duck_to := 1.0
+var _pocket := 0.0
+var _lp := 20000.0
+var _hush := 0.0            # 1: hushed
+var _level := 1.0           # the bed's section level (LEVEL), eased between sections
+var _eq: AudioEffectEQ6
+var _lpf: AudioEffectLowPassFilter
 var _sea: Node
-var _counting := false
-var _stamped := false
-var _rng := RandomNumberGenerator.new()
-var _dummy := false         # (no sound card, headless: a bus nothing's mixed through reads 0 dB)
+var _dummy := false         # (no sound card, headless: nothing's mixed, so the clock's the frames')
+var _world := {}
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	_rng.randomize()
 	_dummy = AudioServer.get_driver_name() == "Dummy"
-	for n: String in CALM:
-		_phrases[n] = _load(n, false)
-	for n: String in ["countdown", "win", "lose", "tie"]:
-		_stings[n] = _load(n, false)
-	_race = AudioStreamSynchronized.new()
-	_race.stream_count = 3
-	for i in 3:
-		_race.set_sync_stream(i, _load(["race_a", "race_b", "race_c"][i], true))
-	_layer("title", _load("title", true))
-	_layer("calm", null)
-	_layer("fish", _load("fish_on", true))
-	_layer("race", _race)
-	_layer("sting", null)
+	state = State.new()
+	_build_bed()
+	for n: String in Cues.CUES:
+		var c: Dictionary = Cues.CUES[n]
+		if str(c["kind"]) in ["sting", "phrase", "filler"]:
+			_streams[n] = _ogg(str(c["files"][0]), c)
+	for i in 2:
+		var p := AudioStreamPlayer.new()
+		p.name = "Sting%d" % i
+		p.bus = BUS
+		add_child(p)
+		_stings.append(p)
+	_phrase = AudioStreamPlayer.new()
+	_phrase.name = "Phrase"
+	_phrase.bus = BUS
+	add_child(_phrase)
+	# the clock: silence, looping, its position read each frame
+	var w := AudioStreamWAV.new()
+	w.format = AudioStreamWAV.FORMAT_8_BITS
+	w.mix_rate = 8000
+	w.data = PackedByteArray()
+	w.data.resize(int(CLOCK_LEN * 8000))
+	w.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	w.loop_end = int(CLOCK_LEN * 8000)
+	_clock = AudioStreamPlayer.new()
+	_clock.name = "Clock"
+	_clock.stream = w
+	_clock.volume_db = -80.0
+	_clock.bus = BUS
+	add_child(_clock)
+	_clock.play()
+	_bus_effects.call_deferred()
 
 
-func _load(n: String, loop: bool) -> AudioStream:
-	var s := load(DIR + n + ".ogg") as AudioStreamOggVorbis
-	if s != null:
-		s.loop = loop
+func _ogg(file: String, c: Dictionary) -> AudioStreamOggVorbis:
+	var s := load(DIR + file + ".ogg") as AudioStreamOggVorbis
+	if s == null:
+		return null
+	s.loop = bool(c.get("loop", false))
+	if float(c.get("bpm", 0.0)) > 0.0:
+		s.bpm = float(c["bpm"])
+		s.bar_beats = int(c["bar_beats"])
+		s.beat_count = int(c["bars"]) * int(c["bar_beats"]) if int(c["bars"]) > 0 else 0
 	return s
 
 
-func _layer(n: String, stream: AudioStream) -> void:
-	var p := AudioStreamPlayer.new()
-	p.name = n.capitalize()
-	p.bus = BUS
-	p.stream = stream
-	p.volume_db = -80.0
-	add_child(p)
-	_layers[n] = {"player": p, "gain": 0.0, "target": 0.0}
+## The bed: every section a clip (its stems in step), the quiet (rest) a clip of silence, the leader's fill.
+func _build_bed() -> void:
+	_it = AudioStreamInteractive.new()
+	var names: Array = ["rest"] + SECTIONS
+	_it.clip_count = names.size()
+	for i in names.size():
+		var n: String = names[i]
+		_it.set_clip_name(i, StringName(n))
+		if n == "rest":
+			var w := AudioStreamWAV.new()
+			w.format = AudioStreamWAV.FORMAT_8_BITS
+			w.mix_rate = 8000
+			w.data = PackedByteArray()
+			w.data.resize(8000)
+			w.loop_mode = AudioStreamWAV.LOOP_FORWARD
+			w.loop_end = 8000
+			_it.set_clip_stream(i, w)
+			continue
+		var c: Dictionary = Cues.CUES.get(n, {})
+		if c.is_empty():
+			continue
+		var sync := AudioStreamSynchronized.new()
+		var files: Array = c["files"]
+		sync.stream_count = files.size()
+		for k in files.size():
+			sync.set_sync_stream(k, _ogg(str(files[k]), c))
+			sync.set_sync_stream_volume(k, -80.0)
+		_it.set_clip_stream(i, sync)
+		_clips[n] = {"index": i, "sync": sync, "stems": c["stems"], "bpm": float(c["bpm"]),
+				"bar_beats": int(c["bar_beats"]), "loop": bool(c["loop"])}
+		if not bool(c["loop"]):
+			_it.set_clip_auto_advance(i, AudioStreamInteractive.AUTO_ADVANCE_ENABLED)
+			_it.set_clip_auto_advance_next_clip(i, 0)
+	_rest = 0
+	_it.initial_clip = 0
+	for t: Array in _transitions():
+		_it.add_transition(_index(t[0]), _index(t[1]), t[2], t[3], t[4], t[5])
+	_bed = AudioStreamPlayer.new()
+	_bed.name = "Bed"
+	_bed.bus = BUS
+	_bed.stream = _it
+	add_child(_bed)
+	_bed.play()
 
 
-## A layer's loudness now (0..1, before the duck).
+func _index(n: String) -> int:
+	if n == "*":
+		return AudioStreamInteractive.CLIP_ANY
+	for i in _it.clip_count:
+		if str(_it.get_clip_name(i)) == n:
+			return i
+	return AudioStreamInteractive.CLIP_ANY
+
+
+## [from, to, leave (when), enter (where), fade, fade beats]: the most particular wins. A loop's first sample is its
+## end's tail wrapped round, never silence, so nothing comes in at full without ENTER beats of fade. (No filler clips:
+## Godot doesn't fade from a filler into what's next, so the leader's fill is a sting, timed to end on the bar.)
+func _transitions() -> Array:
+	var I := AudioStreamInteractive
+	var t: Array = [
+		["*", "*", I.TRANSITION_FROM_TIME_NEXT_BAR, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, 2.0],
+		["*", "rest", I.TRANSITION_FROM_TIME_NEXT_BEAT, I.TRANSITION_TO_TIME_START, I.FADE_OUT, 2.0],
+		["title", "rest", I.TRANSITION_FROM_TIME_NEXT_BEAT, I.TRANSITION_TO_TIME_START, I.FADE_OUT, 4.0],
+		["*", "title", I.TRANSITION_FROM_TIME_IMMEDIATE, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, 2.0],
+		["*", "fight", I.TRANSITION_FROM_TIME_NEXT_BEAT, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, 1.0],
+		["rest", "fight", I.TRANSITION_FROM_TIME_IMMEDIATE, I.TRANSITION_TO_TIME_START, I.FADE_IN, ENTER],
+		["fight", "tired", I.TRANSITION_FROM_TIME_NEXT_BAR, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, 1.0],
+		["tired", "fight", I.TRANSITION_FROM_TIME_NEXT_BAR, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, 1.0],
+		["fight", "leader", I.TRANSITION_FROM_TIME_NEXT_BAR, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, ENTER],
+		["tired", "leader", I.TRANSITION_FROM_TIME_NEXT_BAR, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, ENTER],
+		["*", "afterglow", I.TRANSITION_FROM_TIME_NEXT_BEAT, I.TRANSITION_TO_TIME_START, I.FADE_OUT, 1.0],
+		["*", "race", I.TRANSITION_FROM_TIME_NEXT_BAR, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, 4.0],
+		["*", "harbour", I.TRANSITION_FROM_TIME_NEXT_BAR, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, 4.0],
+		["*", "hunt", I.TRANSITION_FROM_TIME_NEXT_BAR, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, 4.0],
+	]
+	for to: String in SECTIONS:
+		if to != "fight":
+			t.append(["rest", to, I.TRANSITION_FROM_TIME_IMMEDIATE, I.TRANSITION_TO_TIME_START, I.FADE_IN, 2.0])
+	return t
+
+
+## (Each transition's leave, for the clock.)
+func _leave(from: String, to: String) -> int:
+	var best: Array = []
+	var score := -1
+	for t: Array in _transitions():
+		var s := (2 if t[0] == from else (0 if t[0] == "*" else -9)) + (1 if t[1] == to else (0 if t[1] == "*" else -9))
+		if s > score:
+			score = s
+			best = t
+	return best[2]
+
+
+## The Music bus's own effects: the pocket (an EQ), the muffle (a low-pass), a limiter.
+func _bus_effects() -> void:
+	var b := AudioServer.get_bus_index(BUS)
+	if b < 0:
+		return
+	_eq = AudioEffectEQ6.new()
+	_lpf = AudioEffectLowPassFilter.new()
+	_lpf.cutoff_hz = 20000.0
+	var lim := AudioEffectHardLimiter.new()
+	lim.ceiling_db = -0.5
+	for e: AudioEffect in [_eq, _lpf, lim]:
+		AudioServer.add_bus_effect(b, e)
+
+
+# ------------------------------------------------------------------ reading
+
+## A layer's loudness now (0..1, before the duck): a stem of the section sounding ("pulse", "drive", ...), or a whole
+## section by name (its level while it's the one wanted).
 func level(n: String) -> float:
-	return float(_layers[n]["gain"]) if _layers.has(n) else 0.0
-
-
-## The race home's stems now: [rhythm, tune, urgency], each 0..1.
-func race_mix() -> Array:
-	return _race_gain.duplicate()
+	if _clips.has(n):
+		return 1.0 if sounding == n else 0.0
+	return state.level(n) * float(_gate.get(n, 1.0))
 
 
 ## The duck now (1: none, DUCK: under the radio).
@@ -118,52 +290,59 @@ func duck() -> float:
 	return _duck
 
 
+## The race home's stems now: [rhythm, tune, urgency, last chance], each 0..1.
+func race_mix() -> Array:
+	if cue != "race" and sounding != "race":
+		return [0.0, 0.0, 0.0, 0.0]
+	return [level("a"), level("b"), level("c"), level("d")]
+
+
+## Where the sounding clip is: [bar, beat in it] (from 0; -1 when there's no grid: the quiet).
+func bar_beat() -> Vector2:
+	var c: Dictionary = _clips.get(sounding, {})
+	if not c.has("bpm"):
+		return Vector2(-1, -1)
+	var beat := 60.0 / float(c["bpm"])
+	var beats := floorf((_t - _start) / beat + 0.0001)
+	return Vector2(floorf(beats / int(c["bar_beats"])), fposmod(beats, int(c["bar_beats"])))
+
+
+## Audio time now (s).
+func now() -> float:
+	return _t
+
+
+## A fish lost (rods.gd says so too; the state sees it for itself): the silence after the line goes.
+func hush(seconds: float) -> void:
+	state.hush = maxf(state.hush, seconds)
+
+
+# ------------------------------------------------------------------ the frame
+
 func _process(delta: float) -> void:
-	var sea := _find_sea()
-	var was := cue
-	var left := -1.0
-	cue = ""
-	fish = false
-	var title: Node = sea.get("title") if sea != null else null
-	var vs: Node = sea.get("vs") if sea != null else null
-	var rivals := vs != null and bool(vs.get("on"))
-	var now := _now(sea)
-	if sea == null:
-		pass
-	elif title != null and is_instance_valid(title) and bool(title.call("busy")):
-		cue = "title"
-	elif rivals and (vs.get("card") as Node).call("up"):
-		cue = ""
-	elif rivals and float(vs.get("count_end")) >= 0.0:
-		cue = ""
-	elif rivals and float(vs.get("home_by")) > 0.0 and not bool(vs.call("came_home", int(vs.get("my_team")))):
-		cue = "race"
-		left = float(vs.get("home_by")) - now
-	elif not rivals and float(sea.get("home_by")) > 0.0 and not bool((sea.get("fish_hold") as Node).get("docked")):
-		cue = "race"
-		left = float(sea.get("home_by")) - now
-	else:
-		cue = "calm" if sting == "" or not _playing("sting") else ""
-		var rods: Node = sea.get("rods")
-		fish = rods != null and bool(rods.call("fighting"))
-	_stings_for(vs if rivals else null, now)
-	# the beds
-	_aim("title", 1.0 if cue == "title" else 0.0)
-	_aim("race", 1.0 if cue == "race" else 0.0)
-	_aim("fish", 1.0 if fish else 0.0)
-	_aim("sting", 0.0 if cue == "title" or sting == "" else 1.0)
-	_calm(delta, was)
-	if cue == "race":
-		var p := clampf(1.0 - left / HOME, 0.0, 1.0)
-		_stem(1, 0.3 + 0.7 * smoothstep(0.05, 0.4, p), delta)
-		_stem(2, smoothstep(0.5, 0.88, p), delta)
-	elif level("race") <= 0.0:
-		_race_gain = [1.0, 0.0, 0.0]
-	for i in 3:
-		_race.set_sync_stream_volume(i, linear_to_db(maxf(_race_gain[i], 0.0001)))
-	_ducking(delta)
-	for n: String in _layers:
-		_fade(n, delta)
+	_game_t += delta
+	_t = _audio_t()
+	_world = world(_find_sea()) if world_test.is_empty() else world_test.duplicate()
+	_world["talking"] = _duck_for > 0.0
+	state.step(_world, delta)
+	cue = state.section
+	for e: String in state.events:
+		_on(e)
+	_land()
+	_ask(cue)
+	_apply(delta)
+	_play_queue(delta)
+	_mix(delta)
+
+
+func _audio_t() -> float:
+	if _dummy or _clock == null:
+		return _game_t
+	var pos := _clock.get_playback_position()
+	if pos + 0.5 < _clock_last:
+		_clock_wraps += 1
+	_clock_last = pos
+	return _clock_wraps * CLOCK_LEN + pos + AudioServer.get_time_since_last_mix()
 
 
 func _find_sea() -> Node:
@@ -172,114 +351,326 @@ func _find_sea() -> Node:
 	return _sea
 
 
-func _now(sea: Node) -> float:
-	var ocean: Node = sea.get("ocean") if sea != null else null
-	return float(ocean.get("wave_time")) if ocean != null else 0.0
+func _on(e: String) -> void:
+	match e:
+		"strike":
+			_hush = 0.0
+			_sting_at("strike", "now" if _asked == "rest" or sounding == "rest" else "beat")
+		"their_on":
+			_sting_at("their_on", "beat")
+		"lead_up", "lead_down":
+			_sting_at(e, "bar")
+		"countdown":
+			var into := float(_world.get("counting", 0.0))
+			if into < COUNT - 0.5:
+				_queue.append({"name": "countdown", "at": _t, "from": maxf(into, 0.0)})
+		"lost":
+			pass                   # (the hush: _mix)
+		_:
+			if e.begins_with("card:"):
+				_sting_at(e.substr(5), "now")
+			elif e.begins_with("phrase:"):
+				var n := e.substr(7)
+				phrase = n
+				_phrase.stream = _streams.get(n)
+				if _phrase.stream != null:
+					_phrase.play()
+				_note("phrase:" + n)
 
 
-func _aim(n: String, target: float) -> void:
-	_layers[n]["target"] = target
+## A sting on the next grid line of whatever's playing ("now", "beat", "bar").
+func _sting_at(n: String, grid: String) -> void:
+	_queue.append({"name": n, "at": _next(grid, 0.0), "from": 0.0})
 
 
-func _playing(n: String) -> bool:
-	return (_layers[n]["player"] as AudioStreamPlayer).playing
+## The next grid line ("beat", "bar", "phrase") of the sounding clip, at least `after` s from now; now if it's got
+## no grid.
+func _next(grid: String, after: float) -> float:
+	var c: Dictionary = _clips.get(sounding, {})
+	if grid == "now" or not c.has("bpm"):
+		return _t
+	var beats: int = {"beat": 1, "bar": int(c["bar_beats"]), "phrase": int(c["bar_beats"]) * PHRASE_BARS}.get(grid, 1)
+	var unit := 60.0 / float(c["bpm"]) * beats
+	return _start + ceilf((_t + after - _start) / unit - 0.0001) * unit
 
 
-## Calm at sea: a phrase now and then, a long silence between; down under a fight; gone for anything else.
-func _calm(delta: float, was: String) -> void:
-	if cue != "calm":
-		_aim("calm", 0.0)
+## A switch landing: the clip's start is where its grid begins.
+func _land() -> void:
+	if not _landing.is_empty() and _t >= float(_landing["at"]) - 0.001:
+		sounding = str(_landing["to"])
+		_start = float(_landing["at"])
+		_landing = {}
+		_phrase_n = -1
+		_note("clip:" + sounding, _start)
+
+
+## Asks the bed for `to` (if it isn't already it), working out where the switch will land.
+func _ask(to: String) -> void:
+	if _hush > 0.5 and to != "rest" and not to in FIGHT:
+		to = "rest"
+	if to == _asked:
 		return
-	if was != "calm":
-		_calm_wait = maxf(_calm_wait, _rng.randf_range(CALM_FIRST.x, CALM_FIRST.y))
-	_aim("calm", UNDER_FISH if fish else 1.0)
-	_calm_wait -= delta
-	if _calm_wait > 0.0 or fish:
+	if not _clips.has(to) and to != "rest":
+		to = "rest"
+		if _asked == "rest":
+			return
+	if not _landing.is_empty():
+		return                     # (one switch at a time: the last one lands within a bar)
+	var from := sounding
+	var lf: int = _leave(from, to)
+	var grid: String = {AudioStreamInteractive.TRANSITION_FROM_TIME_NEXT_BEAT: "beat",
+			AudioStreamInteractive.TRANSITION_FROM_TIME_NEXT_BAR: "bar"}.get(lf, "now")
+	# the fight's fresh and tired halves trade on a phrase: wait for its last bar
+	if from in ["fight", "tired"] and to in ["fight", "tired"]:
+		var c: Dictionary = _clips[from]
+		var bar := 60.0 / float(c["bpm"]) * int(c["bar_beats"])
+		if _next("phrase", 0.0) - _t > bar + 0.001:
+			return
+	var at := _next(grid, 0.0)
+	if grid != "now" and at - _t < GRID_SAFE:
+		return                     # (too near the line to know which side the mixer takes it: next frame)
+	# into the leader: the fill over the bar's last two beats, the leader on the downbeat (ask in the frame or two
+	# before the fill's due; FILL_WAIT s on and it's gone without it)
+	if to == "leader" and from in ["fight", "tired"]:
+		var fill := float(Cues.CUES.get("leader_in", {}).get("length", 0.0))
+		_fill_wait += get_process_delta_time()
+		if _fill_wait < FILL_WAIT and (at - _t < fill or at - _t > fill + FILL_SLOP):
+			return
+		if at - _t >= fill:
+			_queue.append({"name": "leader_in", "at": at - fill, "from": 0.0})
+	_fill_wait = 0.0
+	var pb := _bed.get_stream_playback() as AudioStreamPlaybackInteractive
+	if pb == null:
 		return
-	var pick: Array = CALM.filter(func(n: String) -> bool: return n != _calm_last)
-	var n: String = pick[_rng.randi() % pick.size()]
-	_calm_last = n
-	phrase = n
-	var p := _layers["calm"]["player"] as AudioStreamPlayer
-	p.stream = _phrases[n]
-	if p.stream != null:
-		p.play()
-	var length := p.stream.get_length() if p.stream != null else 20.0
-	_calm_wait = length + _rng.randf_range(CALM_GAP.x, CALM_GAP.y)
+	pb.switch_to_clip_by_name(StringName(to))
+	_asked = to
+	_landing = {"to": to, "at": at}
+	if to != "rest":
+		_set_volumes(to, true)
 
 
-## Rivals' stings: the countdown as it starts (from where it's got to), the card's as its stamp lands.
-func _stings_for(vs: Node, now: float) -> void:
-	var counting := vs != null and float(vs.get("count_end")) >= 0.0
-	if counting and not _counting:
-		var into := COUNT - (float(vs.get("count_end")) - now)
-		if into < COUNT - 0.5:
-			_play_sting("countdown", maxf(into, 0.0))
-	_counting = counting
-	var card: Node = vs.get("card") if vs != null else null
-	var stamped := card != null and bool(card.call("up")) and bool(card.call("stamped"))
-	if stamped and not _stamped:
-		var d: Dictionary = card.get("data")
-		var winner := int(d.get("winner", -1))
-		_play_sting("tie" if winner < 0 else ("win" if winner == int(card.get("mine")) else "lose"), 0.0)
-	_stamped = stamped
-	if sting != "" and not _playing("sting") and level("sting") > 0.0:
+## Each stem of the section wanted at its level (the clips going out keep theirs while they fade).
+func _apply(delta: float) -> void:
+	var c: Dictionary = _clips.get(_asked, {})
+	if c.is_empty():
+		return
+	# the gated stems: in only at the top of a phrase
+	var bb := bar_beat()
+	var n := int(bb.x) / PHRASE_BARS if bb.x >= 0.0 and sounding == _asked else -1
+	var top := n != _phrase_n and n >= 0
+	_phrase_n = n
+	for s: String in GATED:
+		var g := float(_gate.get(s, 0.0))
+		if state.level(s) < 0.01:
+			g = 0.0
+		elif top or g > 0.0:
+			g = minf(g + delta / GATE_IN, 1.0) if g > 0.0 else 0.01
+		_gate[s] = g
+	_set_volumes(_asked, false)
+
+
+func _set_volumes(n: String, fresh: bool) -> void:
+	var c: Dictionary = _clips[n]
+	var sync: AudioStreamSynchronized = c["sync"]
+	var stems: Array = c["stems"]
+	for k in stems.size():
+		var s: String = stems[k]
+		var g := state.level(s) if not s in GATED else state.level(s) * (0.0 if fresh else float(_gate.get(s, 0.0)))
+		if s == "main":
+			g = 1.0
+		sync.set_sync_stream_volume(k, linear_to_db(maxf(g, 0.0001)))
+
+
+func _play_queue(_delta: float) -> void:
+	# each sting's file starts with `pre` s of silence: started in the frame before it's due, from far enough into
+	# that silence that its hit lands on the line (the mixer's next block counted in), not a frame either side
+	var late := 0.0 if _dummy else AudioServer.get_time_to_next_mix()
+	for q: Dictionary in _queue.duplicate():
+		var n: String = q["name"]
+		var pre := float(Cues.CUES.get(n, {}).get("pre", 0.0))
+		var lead := float(q["at"]) - _t - late
+		if lead > pre:
+			continue
+		_queue.erase(q)
+		var p := _stings[1] if n in SMALL else _stings[0]      # (the small ones over the big ones, not cutting them)
+		p.stream = _streams.get(n)
+		p.set_meta("cue", n)
+		if p.stream != null:
+			p.play(maxf(float(q["from"]) + pre - lead, 0.0))
+		sting = n
+		_note("sting:" + n, float(q["at"]))
+	if sting != "" and not _stings[0].playing and not _stings[1].playing:
 		sting = ""
 
 
-func _play_sting(n: String, from: float) -> void:
-	sting = n
-	var l: Dictionary = _layers["sting"]
-	var p := l["player"] as AudioStreamPlayer
-	p.stream = _stings.get(n)
-	l["gain"] = 1.0             # (a sting starts on its own soft note or its count-in: it's the music, not a cut)
-	l["target"] = 1.0
-	p.volume_db = linear_to_db(LEVEL["sting"] * _duck)
-	if p.stream != null:
-		p.play(from)
+func _note(what: String, at := -1.0) -> void:
+	played.append([_t if at < 0.0 else at, what])
+	if played.size() > PLAYED_N:
+		played.pop_front()
 
 
-func _stem(i: int, want: float, delta: float) -> void:
-	_race_gain[i] = move_toward(_race_gain[i], want, delta * 0.25)
-
-
-## Down a little while the radio or a voice is on, back up slowly once they stop; all but gone for a moment after a
-## fish is lost (hush).
-## A fish lost: the music drops away at once for `seconds`, the silence after the line goes.
-func hush(seconds: float) -> void:
-	hushed = maxf(hushed, seconds)
-
-
-func _ducking(delta: float) -> void:
+## The duck, the pocket, the muffle, the pause, the hush.
+func _mix(delta: float) -> void:
 	var on := duck_test > 0.0
+	var depth := DUCK if on else 1.0
 	duck_test = maxf(duck_test - delta, 0.0)
-	for b: StringName in DUCK_BUSES if not _dummy else []:
+	for b: StringName in DUCK_BUSES if not _dummy else {}:
 		var i := AudioServer.get_bus_index(b)
 		if i >= 0 and maxf(AudioServer.get_bus_peak_volume_left_db(i, 0),
 				AudioServer.get_bus_peak_volume_right_db(i, 0)) > DUCK_AT:
 			on = true
+			depth = minf(depth, float(DUCK_BUSES[b]))
+	if on:
+		_duck_to = depth
 	_duck_for = DUCK_HOLD if on else maxf(_duck_for - delta, 0.0)
-	var want := DUCK if _duck_for > 0.0 else 1.0
-	if hushed > 0.0:
-		hushed = maxf(hushed - delta, 0.0)
-		want = minf(want, 0.06)
-	if get_tree().paused:
-		want = minf(want, PAUSED)         # (the world held still under the pause card: the music on, quieter)
-	_duck = move_toward(_duck, want, delta * ((6.0 if hushed > 0.0 else 1.6) if want < _duck else 0.4))
+	_pocket = move_toward(_pocket, 1.0 if _duck_for > 0.0 else 0.0, delta / (0.15 if _duck_for > 0.0 else 0.6))
+	# with the pocket in, half the drop (in dB)
+	var want := sqrt(_duck_to) if _duck_for > 0.0 else 1.0
+	if duck_test > 0.0:
+		want = DUCK
+	var paused := get_tree().paused
+	if paused:
+		want = minf(want, PAUSED)
+	_duck = move_toward(_duck, want, delta * (1.6 if want < _duck else 0.4))
+	# the hush: a fish lost, everything gone at once, then the sea alone
+	_hush = move_toward(_hush, 1.0 if state.hush > 0.0 else 0.0, delta / (HUSH_FADE if state.hush > 0.0 else 1.5))
+	var gain := _duck * (1.0 - _hush)
+	_level = move_toward(_level, float(LEVEL.get(_asked if _asked != "rest" else sounding, 1.0)), delta * 0.5)
+	_bed.volume_db = linear_to_db(maxf(gain * _level, 0.0001))
+	_phrase.volume_db = linear_to_db(maxf(gain * PHRASE_LEVEL, 0.0001))
+	for p in _stings:
+		p.volume_db = linear_to_db(maxf(gain * float(STING_LEVEL.get(str(p.get_meta("cue", "")), 1.0)), 0.0001))
+	if _eq != null:
+		_eq.set_band_gain_db(3, POCKET[0] * _pocket)
+		_eq.set_band_gain_db(4, POCKET[1] * _pocket)
+	var lp := 20000.0
+	if bool(_world.get("underwater", false)):
+		lp = UNDER_LP
+	elif paused:
+		lp = PAUSED_LP
+	_lp = exp(move_toward(log(_lp), log(lp), delta * 12.0))
+	if _lpf != null:
+		_lpf.cutoff_hz = _lp
 
 
-func _fade(n: String, delta: float) -> void:
-	var l: Dictionary = _layers[n]
-	var g := float(l["gain"])
-	var target := float(l["target"])
-	var f: Vector2 = FADES[n]
-	g = move_toward(g, target, delta / (f.x if target > g else f.y))
-	l["gain"] = g
-	var p := l["player"] as AudioStreamPlayer
-	if g <= 0.0 and target <= 0.0:
-		if p.playing:
-			p.stop()
-		return
-	if not p.playing and p.stream != null and n != "calm" and n != "sting":
-		p.play()
-	p.volume_db = linear_to_db(maxf(g * float(LEVEL[n]) * _duck, 0.0001))
+# ------------------------------------------------------------------ the world
+
+## The game as the state wants it (audio/music_state.gd's world): read off the sea, your boat, your rods.
+func world(sea: Node) -> Dictionary:
+	var w := {}
+	if sea == null:
+		return w
+	var now_s := _sea_now(sea)
+	var title: Node = sea.get("title")
+	w["title"] = title != null and is_instance_valid(title) and bool(title.call("busy"))
+	var hold: Node = sea.get("fish_hold")
+	var docked := hold == null or bool(hold.get("docked"))
+	w["docked"] = docked
+	w["paused"] = get_tree().paused
+	w["condition"] = str(sea.get("condition"))
+	if hold != null:
+		w["landed"] = (hold.get("fish") as Array).size()
+		w["day"] = float(hold.call("day_fraction"))
+		w["night"] = bool(sea.get("night")) or (not docked and float(hold.call("daylight")) < 0.2)
+	var vs: Node = sea.get("vs")
+	var rivals := vs != null and bool(vs.get("on"))
+	if rivals:
+		var card: Node = vs.get("card")
+		w["card"] = card != null and bool(card.call("up"))
+		if w["card"] and bool(card.call("stamped")):
+			var d: Dictionary = card.get("data")
+			var winner := int(d.get("winner", -1))
+			w["card_result"] = "tie" if winner < 0 else ("win" if winner == int(card.get("mine")) else "lose")
+		var ce := float(vs.get("count_end"))
+		w["counting"] = COUNT - (ce - now_s) if ce >= 0.0 else -1.0
+		var mine := int(vs.get("my_team"))
+		var shown: Array = vs.get("shown")
+		if not docked and shown.size() == 2:
+			w["lbs"] = shown
+		if float(vs.get("home_by")) > 0.0 and not bool(vs.call("came_home", mine)):
+			w["race_left"] = float(vs.get("home_by")) - now_s
+			if shown.size() == 2:
+				w["standing"] = signi(int(shown[0]) - int(shown[1]))
+		var sides: Array = vs.get("sides")
+		if sides.size() == 2:
+			var theirs := 0
+			for r: Node in (sides[1 - mine].get("rods") as Node).get("rods"):
+				if bool(r.get("hooked")) and not bool(r.get("alongside")):
+					theirs += 1
+			w["their_on"] = theirs
+	elif float(sea.get("home_by")) > 0.0 and not docked:
+		w["race_left"] = float(sea.get("home_by")) - now_s
+	w["birds"] = _birds(sea)
+	var fights: Array = []
+	var along: Array = []
+	var rods: Node = sea.get("rods")
+	if rods != null:
+		for r: Node in rods.get("rods"):
+			if not bool(r.get("hooked")):
+				continue
+			var id := "%d:%.2f" % [int(r.get("index")), float(r.get("hook_t"))]
+			if bool(r.get("alongside")):
+				along.append(id)
+			else:
+				fights.append(_fight_of(r, id))
+	w["fights"] = fights
+	w["alongside"] = along
+	var landing: Node = sea.get("landing")
+	if landing != null:
+		w["draw"] = float(landing.get("draw"))
+		var fl: Variant = landing.get("_flight")
+		var fd: Dictionary = fl if fl is Dictionary else {}
+		w["flying"] = not fd.is_empty() and float(fd.get("end", 0.0)) < 0.0
+	var crew: Node = sea.get("crew")
+	var me: Node = crew.get("me") if crew != null else null
+	w["underwater"] = me != null and bool(me.get("_under"))
+	return w
+
+
+## One fish on, in what you'd feel of it: on the rod's holder's machine its own fight's cues, on everyone else's the
+## rod's synced state.
+func _fight_of(r: Node, id: String) -> Dictionary:
+	var f := {"id": id, "line_out": float(r.get("line_out")), "spool": float(r.get("line_out")) / 500.0,
+			"depth": float(r.get("depth")), "move": str(r.get("move")), "tangled": int(r.get("tangled")) >= 0}
+	var fight: RefCounted = r.get("fight")
+	if fight != null:
+		var c: Dictionary = fight.call("cues")
+		f["tension"] = float(c["tension"]) / maxf(float(fight.call("strength")), 0.05)
+		f["spool"] = float(c["spool"])
+		f["slack"] = bool(c["slack"])
+		f["airborne"] = bool(c["airborne"])
+		f["surging"] = bool(c["surging"]) or float(c["paying"]) > 1.5
+		f["contact"] = float(c["contact"])
+		f["props"] = float(c["props"])
+	else:
+		var strength := (1.0 - 0.5 * smoothstep(0.4, 1.0, float(r.get("wear")))) * (1.0 - 0.6 * float(r.get("twist")))
+		f["tension"] = float(r.get("strain")) / maxf(strength, 0.05)
+		f["slack"] = float(r.get("stretch")) < -0.3
+		f["airborne"] = f["move"] == "jump"
+		f["surging"] = f["move"] in ["run", "surge", "charge"]
+	return f
+
+
+## How near feeding birds are (1 right there, 0 past BIRDS_FAR m): what anyone on deck can see.
+const BIRDS_FAR := 650.0
+const BIRDS_NEAR := 150.0
+
+
+func _birds(sea: Node) -> float:
+	var schools: Node = sea.get("schools")
+	if schools == null or not schools.has_method("boat_at"):
+		return 0.0
+	var at: Vector2 = schools.call("boat_at")
+	var t := float(schools.call("now"))
+	var best := 0.0
+	for s: Object in schools.get("schools"):
+		if s == null or not is_instance_valid(s) or not bool(s.call("feeding", t)) or bool(s.call("done", t)):
+			continue
+		var d := (s.call("center", t) as Vector2).distance_to(at)
+		best = maxf(best, smoothstep(BIRDS_FAR, BIRDS_NEAR, d))
+	return best
+
+
+func _sea_now(sea: Node) -> float:
+	var ocean: Node = sea.get("ocean")
+	return float(ocean.get("wave_time")) if ocean != null else 0.0
