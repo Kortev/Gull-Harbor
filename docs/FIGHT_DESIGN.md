@@ -1,398 +1,644 @@
-# The fish fight: design from the brainstorm
+# The fish fight: Bend, Head and Heat
 
-Winner: **Loaded Rod, Crewed (v2): one spring between your hand and the fish, a camera that keeps the water in frame, a hand on the drag, and a director behind the fish** (boss score 84/100, after three rounds: 76, 79, 84).
+**Status:** design only, nothing built yet. This replaces the earlier "Loaded Rod, Crewed (v2)" design, which is still in git history at 26137ea. Build nothing until the sim tables in "Tuning targets" pass (PASS 0).
 
-Boss's remaining notes: 1) SCOPE IS NOT TWO DAYS. The 2-day plan holds: the fight.gd rewrite, the director, the triggers, hull_wrap.gd plus outlines for both boats, decoupling player.gd's camera from the rod with follow and glance, the rod-weight lease, a host-arbitrated networked lever at 10 Hz, three new audio loops, spool and backing, the wallow animation, a full cues()-only bot rewrite, and a property test. Honestly that is 4-5 days. Draw a hard cut line. Day 1: spring, tension, hook hold, the camera rule, and solo scroll drag, and nothing else. Day 2: HullWrap and the rod/line feel. Day 3 (named as such): the director beats, the mate lever, and the wallow. Each stage has to be shippable alone. 2) LEASE BUG. In Godot, player.gd's _input runs before rods.gd's _process in the same frame. So when mouse motion arrives, rod_load.frame is always the previous frame, and the check frame == Engine.get_process_frames() makes the rod permanently neutral. Accept frame >= get_process_frames() - 1, or have rods.gd pull the mouse delta instead of player.gd pushing weight. 3) THE MATE IS STILL MOSTLY A KNOB-HOLDER standing 1.3 m from the angler, which is borderline busywork for a 5-minute fight. Bring the follow-up 'fend the line off the rail by hand at the via point' into the core: it is the co-op payoff for exactly the wrap the user complained about, and the via point already exists. Also let the mate leave the lever at a setting and walk off to do it. 4) Glance on Alt alone will feel like the camera is taken away. In Sea of Thieves you always own the camera. Make the follow strength a setting (0 = free look, with the rod still following mouse delta), or let large mouse-X beyond the rod's side cap spill into free camera yaw. 5) Too many coupled magic numbers (spring, capstan, hold, breath, side tiring, cushion) to tune in a day. Build the headless bot harness first and tune against it before any feel pass, and state the 3-4 numbers that matter most. 6) Rivals 1v1 has no interaction beyond watching. Fine as a follow-up, but say so plainly. 7) The proposal's 'crewmate gaffs it' isn't delivered: landing.gd is unchanged. Either keep landing as is, or tie the existing harpoon to the lunge-survival moment.
+**The rules this design is held to:**
+1. Gamify the hands and keep the realism in the boat, the crew and the world.
+2. Thirty minutes that never go dull.
+3. The world's rules never depend on crew size.
+4. A two-person boat has two roles plus shared chores.
+5. Solo is barely possible, two and three on the skiff work, and the sportfisher needs four.
+6. Every station knows something the others don't.
+7. Readable in five seconds, pixel style, nothing snaps, done by hand.
 
-## Pitch
+---
 
-The whole fight is one quantity, line tension, and you feel it in your hand. The fish drags your rod tip down, fights every heave, gives way as you drop and wind, and turns its head when you lay the rod over against it, while the camera stays on the line and the water where the fish shows itself. The mate rides the drag lever at your shoulder, the captain backs down while you wind, and a seeded director gives every fish an arc you never quite memorise: opening run, the grind, a comeback, a giant wallowing at colour, and a lunge at the boat.
+## 1. Pitch
 
-## Controls
+The rod is a tension game you can read at a glance. A pixel gauge by the reel has one golden band, just under your drag. Ride the gold and he tires and comes to you. Push past the red and the line parts. At the same time you steer: lay the rod against his head until he turns, and for a few seconds he swims to you.
 
-The angler's controls are built on what exists: player.gd's _yaw/_pitch/look_scale and the _in_hands() call in rods.gd. While a fish is on, the mouse drives the ROD, and the camera FOLLOWS the rod at a fraction, with a cap. This is must-fix 1, solved as a design problem and not as a risk.
+Everything else is real, and it lives on the boat:
+- The helm puts her across his line and keeps the stern on him.
+- The reel heats, the bilge fills and the other lines tangle.
+- The line rubs the hull and the props wait under her.
 
-ROD AIM, DECOUPLED FROM THE CAMERA (new in player.gd: rod_aim_pitch, rod_aim_side):
-- MOUSE Y drives rod_aim_pitch at full ratio over 0.15 rad (tip at the water) to 1.35 rad (near vertical), at 0.0035 rad per pixel, so a full heave is about 340 px. _in_hands() reads rod_aim_pitch instead of _pitch while fighting. The tip travels about 1.7 m along the line.
-- MOUSE X drives rod_aim_side at full ratio over -0.9 to +0.9 rad, measured against the line's yaw. That is side pressure. The rod also swings the tip up to 0.8 m outboard, which matters for the hull wrap (see build_plan).
-- CAMERA FOLLOW: the camera aims at the line's water entry point, and offsets by the rod at a fraction.
-  - Pitch: cam_pitch = entry_pitch + 0.35 * (rod_aim_pitch - 0.75), clamped to entry_pitch -0.12 / +0.28.
-  - Yaw: cam_yaw = line_yaw + 0.4 * rod_aim_side.
-  - The camera eases toward that target at 6 rad/s.
-  - entry_pitch = the pitch from your eye to where the line enters the water, clamped to -0.75 .. 0.05.
-- What that means on screen: at full heave the camera rises only about 0.2 rad, so the line, the water and the fish stay in frame. The rod butt and the curve of the bend stay in frame too. The very tip leaves the top of the frame above about 1.15 rad, which reads as "high" and is fine, because you read the line and the water and not the tip. At full side pressure the camera is turned 0.36 rad and the line is still well inside the 0.9 rad horizontal half-FOV.
-- GLANCE (hold Alt, or the left bumper on a gamepad) is OPTIONAL, never required (must-fix 4). The rod freezes, the camera turns freely, and on release the camera eases back over 0.25 s to the rod's frame. Nothing in the fight needs it: the mate stands at your shoulder inside the camera's normal frame, and the crew's information reaches you by voice. It exists only to look at your friends.
+None of these rules care how many of you are aboard. Alone, you run between all of them and barely make it. On the skiff, two of you are flat out and three are comfortable. The sportfisher makes every chore bigger and further apart: five lines, a helm 8 m forward and blind at her transom, a tower and bigger fish. She pays like a galleon, but only for a crew that talks.
 
-THE PUMP:
-- LEFT MOUSE (hold) cranks at CRANK 2.4 m/s (x crank_mul). Line actually gained = CRANK * clamp(1.25 - T/drag, 0, 1). With the rod loaded the handle grinds. With the tip dropped it whirs free.
-- A good pump: mouse up over 0.6-1.2 s to heave the fish about 1.5 m with the reel silent, then mouse down while holding LMB to wind it back.
-- Use short fast strokes on a steep, deep line and long slow sweeps on a fish that is up.
-- RIGHT MOUSE (hold) raises the rod at 0.9 rad/s, an accessibility alias for trackpads.
+---
 
-DRAG, SOLO (must-fix 6): the SCROLL WHEEL nudges the lever one detent per notch, with the rod still live.
-- The detents are FREE 0.0, LIGHT 0.45, STRIKE 0.72, FULL 0.95, each with a click.
-- Rate limit: one notch per 0.2 s. So dumping from FULL to LIGHT takes two notches and 0.2 s. That is fast enough for a lunge if you see it coming, and slow if you don't.
-- The old R-freezes-the-rod lever is deleted, so solo players are no longer pushed into leaving it at STRIKE forever.
-- Solo drag is detents only.
+## 2. The angler loop
 
-ROD WEIGHT, through a lease so it can never stick:
-- rods.gd writes player.rod_load = {up_scale, drift, yaw_drag, frame} every frame you fight.
-- player.gd applies it only if frame == Engine.get_process_frames(), else it is neutral that same frame.
-- The values:
-  - up_scale = 1 - 0.55 * T * weight_setting, applied to the upward rod_aim delta only.
-  - drift: the rod sinks toward the line at up to 0.35*T rad/s.
-  - yaw_drag: on a run, rod_aim_side is pulled 0.08 rad/s toward the fish.
-- So every exit path (Q, a handover, loss, landing, falling, disconnect, pause, death) restores a neutral mouse that frame, and rod_aim stops being read.
-- A "Rod weight" slider runs 0-100% (default 100).
+### Inputs (whoever holds the rod, on any boat, any crew size)
 
-Q puts the rod in its holder and E takes it, as now. The holder pins the rod at pitch 0.6 and side 0, with no crank, and the drag stays where it was left.
-
-MATE (any crewmate not on the rod or the wheel):
-- Stand within 1.3 m of the angler, look at the reel and press E to take the lever.
-- MOUSE Y moves it CONTINUOUSLY (0.0-1.0, with soft detent clicks felt as a slight sticky zone of ±0.03).
-- So the mate can sit between detents, for example 0.85 in a dog: the sweet spot solo scroll cannot reach, and that is the mate's mechanical edge over solo.
-- E again, or walking away, lets go. The solo scroll is locked out while a mate holds the lever.
-
-CAPTAIN: helm as now (throttle, wheel, backing down). There is no fight UI.
-
-## Fish Behaviour
-
-The fish has INTENTS, not answers. Each move shapes only thrust (0..1), heading relative to the line, turn rate and goal depth. In fight.gd's MOVES, "answer" is replaced by thrust/jitter/tag.
-
-MOVES:
-
-| Move | Thrust | Duration | Tag | Notes |
-|---|---|---|---|---|
-| RUN | 1.0 | 5-12 s | PEAK | Away from the boat, 20 m deep. |
-| SOUND | 0.8 | 6-10 s | PEAK | Down to 110 m. |
-| DOG | 0.45 | 4-8 s | VALLEY | Sulks deep. "rest" is kept as an alias for rod sync and carry_on. |
-| SHAKE | 0.3-0.9 oscillating at 3-4 Hz | 1.5-2.5 s | PEAK | |
-| CIRCLE | 0.6 | 6-10 s | VALLEY | Sideways at its turn rate. |
-| SURGE | 1.0 | 1-2 s | PEAK | |
-| JUMP | | | PEAK | Under 60 kg weight 1.2, 60-150 kg weight 0.4, giants 0, near the surface only. |
-| WALLOW | | | PEAK | New, see below. |
-| SPIRAL | | | | The finale, geometry kept as now. |
-
-Within a move, thrust gets ±0.15 of smoothed noise.
-
-TENSION (the core, unchanged from the scored design):
-- stretch += (fish_v_away + tip_v_toward_you + crank_eff - boat_closing) * dt
-- SPRING = 0.8 + 0.012*line_out, and T = stretch/SPRING.
-- The drag slips when T > drag: line pays out and the reel screams.
-- T = min(T, drag) + 0.45*crank*slipping + shock*(1.3 - cushion), where cushion = clamp((rod_pitch - line_pitch)/0.9, 0.2, 1).
-- At a hull contact, T_fish = T * exp(0.25*wrap_angle). The line breaks when T_fish >= 1.0 for 0.3 s.
-- The fish swims away while pull = thrust*e*size exceeds T. Otherwise it comes in at (T - pull)*3 m/s.
-- Tiring: energy -= T*thrust*e*dt/_goal_s.
-- Breath back: with T < 0.2 for over 1 s it regains 0.012/s (giant) or 0.02/s (schoolie). That is what punishes slack and the holder.
-
-SIDE PRESSURE, WITH TEETH (must-fix 3):
-- side_eff = rod_aim_side * clamp(T/0.6, 0, 1) * cushion. Side pressure needs load; a slack rod laid over does nothing.
-- AGAINST its turn (sign(side) == -turn_sign, i.e. the rod held to the side opposite where its head is going):
-  - Turn rate x (1 - 0.7*|side_eff|). At full effect it barely swings round the boat.
-  - In a CIRCLE, move_t advances x (1 + 1.5*|side_eff|), so held well a circle ends up to 2.5x sooner.
-  - Extra tiring: energy -= 0.5*|side_eff|*thrust*e*dt/_goal_s (it fights the turn).
-  - TURNING THE HEAD: |side_eff| > 0.5 held for 2.0 s in a circle or a dog ends the move. turn_sign flips, and the fish swims 2 s TOWARD the boat (pull-in +1.5 m/s). That is the payoff, worth about 6-10 m of line.
-  - On a RUN, side pressure against it cuts the remaining run time by 30% and bends the bearing 0.08 rad/s toward the rod side, so the captain chases less.
-- WITH its turn: turn rate x (1 + 0.3*|side|) and no extra tiring. A mistake, but a gentle one.
-- What you SEE: bearing's rate of change is the line sweeping across the stern. You watch the sweep slow, stop, and the line swing back the other way as its head comes round. On the head-turn the fish's boil and silhouette (under 30 m) visibly change direction, and the rod's bend unloads for half a second as the fish comes toward you.
-- The verb is "steer the head", and it is the main way to SHORTEN a circle or a dog. Bot target: a pumper using side pressure lands giants at least 15% faster than a plain pumper.
-
-PACING DIRECTOR (about 70 lines, deterministic from the fish's seed):
-- At hookup it builds a beat queue tagged PEAK or VALLEY.
-- Rules:
-  - At least 12 s between peak starts (8 s for a schoolie).
-  - Never two runs in a row.
-  - A valley lasts at least 6 s.
-  - Peak intensity is scaled by energy, except the guaranteed beats.
-  - A valley over 15 s gets a SHAKE dropped into it.
-- The fill between beats comes from the existing _pick() weighting, filtered by those rules.
-
-GUARANTEED BEATS, jittered from day one (must-fix 5). Every trigger is rolled from the seed at hookup:
-1. OPENING RUN at the strike: 8-20 s for a giant, 4-8 s for a schoolie. Its direction is seeded: off the quarter, straight astern, or across the bow.
-2. SECOND WIND, giants only: at energy 0.55 ± 0.08, a full-strength peak of 8-12 s. 70% a run, 30% a sound to 120 m.
-3. COMEBACK, every fish over 100 kg: at line_out 40 ± 8 m.
-   - 60% a RUN taking 30-60 m back at 0.8 of fresh speed.
-   - 40% a hard SOUND straight down to 70-100 m under the boat. The line goes vertical off the transom; it needs short pumps and the captain clear of it.
-   - So you know something is coming around 32-48 m, never exactly what or exactly when.
-4. WALLOW at colour, new for giants and 50% of 60-150 kg fish (must-fix 7). See below.
-5. BOAT-SHY LUNGE, every fish over 100 kg: at line_out 15 ± 4 m, 2-3 s of thrust 1.0.
-   - Seeded direction: straight down, under the hull (toward the props, where the existing prop-cut check gets teeth), or along the side.
-   - Schoolies get a 0.7-thrust lunge 50% of the time.
-- One authored CIRCLE TOWARD THE BOW per fight, on boats with 2+ crew, placed in the first-half grind at a seeded time. It is the wrap set piece.
-
-WALLOW (the giant's visual peak):
-- It triggers when the fish is first in the spiral under 30 ± 5 m. The giant comes up and rolls on the surface for 3-4 s.
-- The Tuna node rises to depth 0.3. Its sickle tail and back break the water. It makes 2-3 TAIL SLAPS (seeded timing, 0.9-1.4 s apart): white fountains, a hard slap SFX, and its flank flashing silver.
-- Each slap is a shock spike of 1.6 * size_factor * (1.3 - cushion) through the spring. A slack line during the roll wears hook hold at head_motion 2.0.
-- The right play is the same physics as a jump: a bent, cushioned rod (tip up and to the side, not pointed), the line kept tight but not cranked, and the drag down a touch.
-- It is the moment the whole crew stops and looks: the fish people care about finally shows itself before the lunge.
-
-HOOK HOLD (one emergent rule):
-- hold starts at 1.0 and the hook tears at 0.
-- It wears two ways:
-  - Shock over the top: hold -= max(0, T_peak - 0.9)*2.0 per spike.
-  - Slack while the head moves: hold -= head_motion*(T < 0.12)*dt*0.8, where head_motion is 1.0 in a shake, surge or wallow, 0.4 otherwise, and 2.5 airborne.
-- It heals 0.05/s while 0.25 < T < 0.8.
-
-JUMPS are physics, not checks:
-- The rise flattens the line and the tension goes away under your hand.
-- 0.7 s airborne: the body swing is a shock of 2.5x its weight factor, at head_motion 2.5.
-- Re-entry shock = 0.6*size*(rod_pitch/1.35)*(1.3 - cushion).
-- So dropping the tip ("bow to the king") is simply the low-shock choice, and half-right play is half-safe.
-
-SCHOOLIE (20-40 kg):
-- Its pull never beats STRIKE drag.
-- It is lost through hook hold (2-4 jumps, shakes twice as often).
-- Turn rate x1.6, so side pressure is the main tool.
-- 60-90 s.
-
-GIANT (250-400 kg):
-- Pull 1.4 against a drag of 0.72, so it takes line on every run.
-- It sounds to 110 m and dogs deep.
-- It has the second wind, the comeback (run or sound), the wallow and the lunge.
-- 4-6 min played well.
-
-## How You Read It
-
-No fight text at all. hud.fight() gets an empty tell, the strain ring is removed, and the HUD plot overlay is removed. Everything below is in the world, and the camera rule (rod-follow at 0.35x, aimed at the line's water entry) guarantees the line and the water are always on screen to read.
-
-ROD:
-- The bend is driven by T, and it now bends TOWARD THE VIA POINT when the line is on the hull, not toward the fish.
-- The blank quivers at 23 Hz from T 0.85.
-- A creak from T 0.92, its pitch rising with T. Your one warning.
-- When the hook pulls, the rod springs straight with a soft whip and the line floats slack.
-- When the line breaks, a sharp PING plays and the line snaps back in a coil.
-- Two different sounds and two different pictures.
-
-LINE:
-- Dead straight above T 0.5, sagging below 0.2 (the existing sag code, fed T).
-- Thrums above 0.8 (0.01-0.03 m vertex jitter).
-- The angle into the water is the depth: steep means sounding (and the comeback-sound goes vertical off the transom), flat and rising means coming up.
-- SWEEP across the stern is the fish's turn. Side pressure shows as the sweep slowing, stopping, and swinging back.
-- At a hull contact it is drawn as two segments bent over the rail at the real via point, with a fleck of spray and a squeal whose pitch is the slide speed. It shows nothing when the line does not actually touch, which fixes the user's complaint.
-
-REEL (the fight's main sound):
-- The drag scream's pitch is the run's speed.
-- A free whir on the drop.
-- A GRIND loop when crank_eff < 0.3 (stop cranking, pump).
-- A slow tick-tick when it barely slips.
-- A detent click on each lever notch, audible to anyone near, so the angler hears the mate's changes.
-
-SPOOL:
-- A cylinder shrinks with line_out/500.
-- The last 100 m is WHITE BACKING.
-- Bare metal shows at 15%.
-
-HAND: the rod weight on the mouse (heavier upward and sinking toward the line under load). On a jump's rise the weight falls away under your hand. me.shake is fed by shock, so headshakes and tail slaps knock the view.
-
-WATER:
-- A boil on runs and slaps on shakes (as now).
-- Jumps: the fish clears the water for 0.7 s.
-- The silhouette shows under 30 m of line (_show_fish keyed on line_out), brightening as it shallows, and turning visibly on a head-turn or a lunge.
-- The spiral's side flash going up and its dark back going under.
-- The WALLOW: back, tail and fountains on the surface, the giant's visual peak.
-
-CAPTAIN: reads the line angle and sweep off the stern, the bend, the hull squeal and spray, and the line slicing under the transom when the fish goes for the props. There is no instrument on either boat in the core (the sportfisher plotter is a follow-up).
-
-INFORMATION ASYMMETRY (why the crew talks):
-- The angler feels the weight but can't see the contact behind their shoulder.
-- The mate sees the spool, the lever and the contact.
-- The captain sees the line and sweep from above and behind.
-- Proximity voice carries it, and the game never says it for them.
-
-AFTER A LOSS ONLY: one small 3 s caption ("Line parted on the gunwale", "Hook pulled: slack in a headshake", "Hook thrown on the jump", "Spooled", "Cut on the props"), passed from _end_mine.
-
-Bots read only Fight.cues(): rod_bend, line_pitch, line_sweep, reel_state, spool, contact_angle, fish_visible_depth.
-
-## Lose And Win
-
-LOSING, always visible and caused by play:
-
-| Loss | Trigger | Causes | What you see |
+| Action | Mouse + keys | Pad | What it does |
 |---|---|---|---|
-| BROKE | T_fish >= 1.0 for 0.3 s | Cranking into a run; FULL drag on the lunge; a pointed rod through a shake or a wallow slap (no cushion); a wrap adding capstan tension | Ping and a coil |
-| PULLED | Hook hold reaches 0 | Slack while the head works; shock spikes; a tight line with the tip high through a jump; the captain backing down while nobody winds | The rod springs straight |
-| SPOOLED | 500 m out | | The white backing warned you |
-| CHAFED | Wear at the real contact only | | |
-| CUT (props) and TANGLE | Kept from today | | |
+| Wind | Hold LMB (eases 0 to 1 over 0.3 s, back over 0.2 s; taps feather it) | RT, analog | Raises tension toward *his pull + 0.35 x wind*. Tension eases toward that target with a 0.5 s time constant, never a jump. |
+| Lay the rod over (steer) | Mouse X | Right stick X | The existing `aim_side` (-0.9..0.9 rad). It lays the rod without turning you. |
+| Rod height | Mouse Y | Right stick Y | Tip down bows to a jump, and over the side it dips the line under the keel. Tip high lifts the line off the rail. It **never gains line**. |
+| Walk the rod round | WASD | Left stick (50% speed while holding a rod) | Move along the rail. |
+| Free look | Hold Alt | R3 | The rod holds its lay. Otherwise the camera follows the line with +-20 degrees of slack. |
+| Drag lever | Scroll | D-pad up/down | 0.1 per notch, with a click detent at 0.6. It moves over 0.15 s. |
+| Take or hand over the rod | E | A | 1.5 s, hand to hand. |
+| Rod in the holder | Q | B | |
+| Shout | V (hold for the wheel) | Y (hold for the wheel) | See section 7. |
 
-Chafe wear = slide_speed * wrap_angle * T * dt / (CHAFE_LIFE * chafe_mul). A line resting on the rail wears slowly and a line sawing across it on a run wears fast.
+### The three reads (pixel art, nearest filtered, no text)
 
-LANDING:
-- Boatside means energy < 0.15 and line_out <= 7 m, after the boat-shy lunge has been survived for fish over 100 kg.
-- landing.gd (wire, harpoon, haul) is UNCHANGED in the core. The lunge-timed harpoon window is a follow-up.
+**1. The bend gauge.** A 48 px arc by the reel with a needle at the tension T. The bands hang off **the drag S** (S = lever x 0.9), so the gold is always just under your drag, wherever you set it:
 
-SKILL AGAINST LUCK:
-- The only randomness is the fish: the seeded queue, the jittered triggers, the run-or-sound comeback, the lunge direction, durations, thrust noise and slap timing.
-- There are no dice in tension or hook hold, so the same seed with the same play gives the same result.
-- The guaranteed beats always happen, but you can't predict their exact moment or form.
+| Band | Range | Gain | Tires him |
+|---|---|---|---|
+| Grey SLACK | 0 to 0.12 | 0 (and the hook works loose) | none |
+| Green WORK | 0.12 to 0.8 S | x1.0 | x1.0 |
+| **Gold EDGE** | 0.8 S to S | **x1.4** | **x1.6** |
+| White tick: PINNED at S (the spool slips, he takes line, the reel screams) | at S | 0 | x1.0 |
+| Red line: line strength St | St = 1 - wear, floor 0.5 | | |
 
-BOT TARGETS (fight_test.gd rewritten; bots read cues() only):
+- The needle can't pass the white tick unless a kick jolts it, up to **1.6 x S**.
+- Anything past St held for 0.25 s parts the line.
+- New line sits well above the tick, so the red is a thin cap at the top. As the line wears, the red creeps down the arc, toward the tick and then under it.
+- The five-second read: **keep it gold, and watch the red come down to meet you.**
+- The lever is the risk dial. At the 0.6 detent (S = 0.54), a full kick tops out at 0.86, so it's safe on new line. On worn line (St under 0.86) the detent can break. A high drag gains faster and turns him harder, but kicks can reach the red.
+- Colourblind safety: the red band is hatched, and the needle trembles when it's pinned at the tick.
 
-| Bot | Target |
-|---|---|
-| PUMPER + MATE (continuous drag) | Lands a 300 kg giant in 200-360 s on at least 85% of seeds, and a schoolie in 45-120 s on at least 90% |
-| PUMPER SOLO (scroll detents) | Lands at least 65% of giants, at most 35% slower than with a mate |
-| PUMPER + SIDE PRESSURE | At least 15% faster than a plain pumper on giants; mean circle length at least 40% shorter |
-| STATUE | Never takes energy below 0.35 |
-| CONSTANT CRANKER | Breaks at least 70% of giants |
-| HIGH-TIP-ON-JUMP | Loses at least 40% of schoolies |
-| HALF-BOW | Loses about 20% of schoolies |
-| POINTED-ROD-ON-WALLOW | Loses at least 35% of giants at the wallow |
-| FULL-DRAG-ON-LUNGE | Breaks at least 50% of giants |
-| Every fish over 100 kg | Exactly one comeback and one lunge |
-| Director | Over 500 seeds: peak spacing respected, and comeback trigger spread across 32-48 m |
+**2. The head chevron.** One 7 px arrow drawn on the water where the line goes in, clamped to the screen edge. It points the way he's swimming.
+- Its **fill** shows the steering: grey means you're not across his head, green means you are and his head is coming round.
+- As you win, it visibly rotates toward the boat. When it points at you he's turned: a white wake flip, his flank flashes, a pad thump and a stinger note.
+- A 1 px rim shows his freshness in 4 steps (blue-black, slate, steel, bronze). You see the same colour on his flank when he rolls. Freshness is never in the fill.
+- When he's deeper than your eye can see (section 7), the arrow dims. It is then worked out from the line's drift: it lags **3.5 s** and points the wrong side 25% of the time. Only an eye that can actually see him shows the truth.
 
-## Crew Roles
+**3. The spool.** The existing 500 m reel art empties as he takes line. The backing colour shows past half, and the last 50 m are red.
 
-Everyone works the same spring, and nobody spectates.
+**In the world, for the crew:**
+- The rod blank has 6 bend frames.
+- The line is white, turns gold at the edge and flickers red past St.
+- Mates read the edge coarsely. Only the rod sees the exact needle, the tick and the red.
 
-ANGLER:
-- Pumps and winds, steers the head with side pressure, sets tip height on jumps and wallows, and drops the tip and stops cranking on the lunge.
-- Can nudge the drag solo with the scroll wheel (detents only).
-- Walks round the cockpit and swings the tip outboard to lift a wrapped line off the rail. The wrap model uses the real tip position, so where you stand and how you hold the rod matters.
+### The tell
 
-MATE (the second hand), on the DRAG LEVER, at the angler's shoulder and inside their view:
-- Continuous control between detents, which is the mechanical edge over solo: the sweet spot in a dog is about 0.85, and only a hand on the lever gets there.
-- Their job is anticipation, reading what the angler can't:
-  - Spool and backing: "you're on the white".
-  - The contact: "it's on the rail, walk aft".
-  - The scream pitch: LIGHT for the opening run, up toward FULL in the dogs, down for the comeback, and DUMP the instant the lunge kicks.
-- Done well it is worth 25-35% off a giant's time and most of the lunge survivals. Done badly it breaks fish.
-- After the fight they wire, throw the harpoon and haul (landing.gd as now).
+Every kick (a surge, a head shake, the bolt of a run) comes 0.7 s after a tell: the tip nods twice, a double thump plays and the pad gives two 60 ms pulses. Inside 30 m of line the lead is 0.5 s.
+- Ease off the wind during the tell and the jolt is halved. Wind through it and the jolt lands in full.
+- A missed tell costs margin, never the fish by itself. It is not a pass/fail window.
 
-CAPTAIN:
-- Keeps the fish astern for a straight line.
-- On the authored bow-circle wrap, swings the stern so the line comes off the rail.
-- Backs down on runs. That cuts fish_v_away and T, so the angler must wind or the slack wears the hook: "backing!", "winding!".
-- Chases a spooling fish.
-- Keeps the props clear when the comeback is a sound or the lunge goes under the hull.
-- Out of gear on the spiral.
+### Each second
 
-TWO PLAYERS:
-- The angler can drop the rod in its holder to drive or gaff, at a real cost: breath regain and no gain.
-- Otherwise the second player is captain AND mate, shuttling between the wheel and the lever. That shuttle is the two-player tension, and the director's spacing (at least 12 s between peaks) is what makes it possible.
+- **Gain** = 1.8 m/s x wind x band factor. The factor is x2.5 while his head is turned, x0.3 with spent arms, and x1.25 with the dock's two-speed reel.
+- **Kicks** add +0.30..0.55 for 0.3 s, x1.5 inside 60 m of line.
+  - Laying hard across his head (|lay| > 0.7) makes him kick x1.5 as often.
+  - So steering and tension pull against each other, and you can't max both at once.
+- **Losses** (kept from today's code):
+  - past St for 0.25 s: the line parts
+  - under 0.12 for SLACK_LOOSE: the hook works loose
+  - over 0.5 for HELD_T: the hook tears (HOOK_T)
+  - a tight line on a jump: the hook is thrown (JUMP_T)
 
-RIVALS 1v1: each fights solo on their own boat with the scroll drag. The decisions are the holder (drive or fight) and how hard to work side pressure. Bend, splashes, leaps, wallows and lunges sync, so you watch the rival's rod load across the water. Rival spooking is a follow-up.
+### Steering (continuous)
 
-## Pacing
+- **His heading curves continuously** toward a target that changes every 6-12 s while he's fresh and every 4-7 s under 40%. Far out, the interval stretches by max(1, line_out / 80). So you track an angle, not just a sign.
+- **The effective lay blends the rod and the boat:**
+  `eff_lay = w x (rod_side / 0.9) x (1 - 0.5 x tip_high) + (1 - w) x boat_cross`, with `w = clamp(80 / line_out_m, 0.35, 1.0)`.
+  - **boat_cross** is where the boat sits off his **run line**: his heading averaged over 30 s, -1..1. The helm chases his run, not every wiggle.
+  - Far out, putting the boat across his line does most of the turning, but the rod always counts for at least 35%. Inside 80 m it's all the rod.
+  - Tip high halves the rod's side pressure. Height is a real trade: steer, or protect the line.
+- **The head meter** is hidden and shown only by the chevron's rotation.
+  - It fills at 0.25/s x |eff_lay| x T/0.5 while eff_lay opposes his heading and T > 0.25.
+  - Laid with him, it drains at 0.5/s and he gains an angle on you. If that angle points under her, the line heads for the hull.
+- **THE GIFT:** when the meter is full, his head is turned for 4-6 s.
+  - He swims toward the boat at no more than 3.5 m/s and pulls 40% less.
+  - You gain x2.5 and he tires x2.
+  - There's a 1.5 s slack grace, so a GIFT can't trap a mouse player into a loose hook.
+  - The director's committed-move queue pauses during a GIFT and resumes in order, which keeps it deterministic.
 
-THE ARC OF A GIANT (about 5 min), with every trigger jittered:
+### Jumps
 
-1. STRIKE (0-3 s): the rod slams down, the weight lands in your hand, the camera tips to the line's entry point. The mate grabs the lever and sets LIGHT.
-2. OPENING RUN (8-20 s, seeded direction): the scream. Cranking grinds and creaks. The captain backs down while the angler winds the slack.
-3. FIRST GRIND (about 90 s):
-   - Pump cycles in dogs and circles. Side pressure turns its head and cuts circles short: the line swings back across the stern.
-   - Peaks every 12-40 s.
-   - The mate rides the drag up in the valleys and down for the peaks.
-   - On crewed boats, the BOW-CIRCLE WRAP: the line goes over the rail with a real bend and squeal, the angler walks aft with the tip outboard, and the captain swings the stern.
-4. SECOND WIND (energy 0.55 ± 0.08): a run, or a deep sound. Proof it isn't over.
-5. SECOND GRIND (60-90 s): shorter, weaker peaks.
-6. COMEBACK (32-48 m): a run that takes 30-60 m back, or a sound straight down under the transom. You know it's coming, not what.
-7. COLOUR and the WALLOW (25-35 m): the pale shape rises and the giant rolls out on the surface. Back and tail show, with 2-3 tail-slap fountains. Keep the rod bent and to the side, and don't point it. Then the spiral: crank as it flashes up, ease as it goes dark under.
-8. BOAT-SHY LUNGE (11-19 m, seeded direction): the stiffest line of the fight. Drop the tip, dump the drag, nobody cranks, and the captain watches the props.
-9. BOATSIDE: wire, harpoon, haul, as now.
+The line lifts and sheds drops, a bulge shows on the water and the chevron lifts. Tip down within 0.5 s, or a tight line throws the hook.
 
-QUIET MOMENTS are 6-20 s valleys (a shake is forced into anything longer), where rhythm, side pressure and drag set the speed and the crew talks. PEAKS never stack.
+**The hands play two games at once:**
+- **Tension:** ride the gold, ease on the tells, notch the drag to where the gold is reachable.
+- **Steering:** lay against him, together with the boat.
 
-LENGTHS played well:
+Everything else is on the other stations.
 
-| Fish | Length | Beats |
+---
+
+## 3. The universal mechanics
+
+Every row runs identically for 1, 2, 3 or 4 players. "Who" means who *can* do it. Nobody is assigned anything.
+
+| Mechanic | What it does | Who can handle it | Cost if ignored |
+|---|---|---|---|
+| **Bend and drag** | The gauge above. Kicks come 0.7 s after a tell and jolt up to 1.6 S. Near the arbor the drag doubles (spool_gain kept). On long runs the line's belly adds load (BELLY kept). | The rod. Mates see the line colour and the rod's bend. | Breaks, pulled hooks and shaken hooks. |
+| **Head (steering)** | The blended steering above. Each GIFT gives x2.5 gain and x2 tiring. A fish nobody steers drifts toward one side of the boat every 30-50 s, or every 10-15 s if the rod is in a holder. | The rod always. The helm far out. A high eye calls his turns. | About 2x longer fights, and he keeps getting an angle under her, which brings chafe and the props. |
+| **Stern angle** | Tiring x1.0 within 0.6 rad of dead astern, falling to x0.35 by 1.9 rad (SQUARE, WIDE and STEEP kept). The helm's compass shows a green arc astern and a tick at the line. The angler sees it only roughly, over the transom. | The helm. | Up to 3x longer fights. |
+| **Planing** | Slow ahead at 1-2 m/s with a deep fish astern drains him x1.3. It raises chafe and prop risk, and his circle crosses the stern every lap. | The helm, with someone at the corner to fend. | The grind runs longer. |
+| **Spool** | 500 m. The backing shows past half, and he spools you at empty. Back down to close the gap (skiff 1.8 m/s, sportfisher 3.2 m/s), or run up on him at a slant. | The rod reads it. The helm can't see it and must be told. | Spooled on the first or second run. |
+| **Reel heat** | heat += 0.0045 x S x slip speed (m/s) per second, and it cools 0.004/s by itself. Over 0.7 the drag fades (S x0.7) and steam shows. At 1.0 a rising squeal warns 1.0 s ahead, then the drag **grabs** at 0.95 until heat falls under 0.6, and a kick while it's grabbed parts the line. A bucket of sea water takes off 0.35. | Anyone, with the deck bucket on its lanyard: dip at the rail 1.2 s, carry at 70% walking speed, pour at the reel 1.5 s. If your hands are on the rod, it goes in the holder first. | A grab in the third run, and the next kick breaks the line. |
+| **Water aboard** | Green seas (existing), plus backing down. Over 0.6 the boat goes astern at half speed. At 1.0 the engine drowns, and restarting it takes holding E for 3 s. Pumps per boat (section 4). | Anyone pumps or clears. Only the helm sees the level. | A boat that can't back down, then a dead engine as he runs. |
+| **The other lines (tangles)** | Every line still out gets the sweep-scaled tangle check (TANGLE_EVERY/CHANCE/GRACE kept). A tangle **knots** the two lines: the tangled rod's drag adds to the fish rod's T until someone winds it in (2.5 m/s) or cuts it with the knife, which loses that rig and its cost. Outrigger lines need their halyard clip popped first (1 s). | Anyone free. | A real snap risk: about 35% per uncleared line over a first run on the sportfisher, about 20% on the skiff. |
+| **Line wear** | One damage number, St, which the red shows eating the gauge. What wears it: hull or rail rub (CHAFE_LIFE 14 s of full rub parts new line), the keel (x1.6), a tangle sawing, a prop nick you survive (-0.15), a tail wrap on a jump (-0.1). A frayed puff shows on the line within 3 m. | The rod (tip high, walk it round), anyone free (a gloved hand fends: x0.2, up to 6 s at a time), the helm (put the stern back on him). | broke_rail or chafed, and less margin for the rest of the fight. |
+| **Props and keel** | Line under her with a screw turning is cut after PROP_GRACE 2.5 s. Neutral stops the screws in 0.5 s. She keeps coasting (skiff 4.5 s, sportfisher 9 s), and a coasting hull rides over the line, which is keel chafe x1.6, not a cut. The skiff's outboard can be tilted (2 s at her stern, no drive while tilted). The rod can dip its tip (over the side, pitch 0.15). | The helm (gear), anyone at the skiff's stern (tilt), the rod (dip). | Instant loss. |
+| **Arms** | They drain only while the rod is in gold or pinned at the tick: ARM_LIFE about 4 min of gold, ARM_REST 40 s, ARM_HOLDER 30 s. Spent arms wind x0.3 and the rod sways 1-2 px. A swap takes 1.5 s, hand to hand. | The rod, a mate who takes it, or the holder. | Gain falls to a third late in the fight. |
+| **Rod holder** | A parked rod fights on its drag only: no gain, no steering, drain x0.2, unsteered drift every 10-15 s, and slipping heats the reel as normal. | Anyone. | The fish rests and wanders. Parking is a cost, never a free machine. |
+| **Fighting chair** (sportfisher) | Seated arms last 2x, but the lay is capped at 0.5 and counts only along the chair's facing. Seated, A/D turns it at 0.2 rad/s. Someone behind the chair (E + A/D) turns it at 0.8 rad/s. Or fight stand-up at a corner, with full lay. | The rod, and anyone behind the chair. | Facing wrong, the steering is lost. |
+| **Eye height** | The director commits each move 2.5 s ahead. An eye h metres above the water sees his shadow and true heading down to 7h m deep and out to 60h m, plus a fin flare before each move at lead = clamp(0.3 + 0.3h, 0.7, 2.2) s. Glare and dusk halve the depth. | Whoever stands there (section 4). | Deep, the chevron is late and sometimes wrong. |
+| **Unheld things keep their setting** | The helm holds its throttle and wheel, a parked rod holds its drag, and the bilge keeps filling. Nothing works by itself, and nothing stops by itself. | Everyone. | The angle drifts and the water rises. |
+| **Boatside** (kept from tuna/landing.gd) | The leader at 16 m with one last run. Alongside at 7 m he has to be held (a parked rod sheers every 9 s). Then the wire (sportfisher, 15 s), the harpoon, the tail rope and a haul where every hand on the rope speeds it, inside the 90 s hook clock. Spike, bleed, pump, gut and ice set the grade. | Any hands. | Lost at the boat. |
+
+---
+
+## 4. Skiff vs sportfisher
+
+Every rule above runs on both boats. The boat changes only the numbers, the distances and which stations exist, all in `boat/kinds.gd`.
+
+| | **Skiff** (8.5 m, open, outboard) | **Sportfisher** (14 m, twin screws, self-bailing) |
 |---|---|---|
-| Schoolie | 1-1.5 min | Opening run, 2-4 jumps, head-steering circles |
-| 100-150 kg | 2-3 min | Comeback, 50% a wallow, lunge |
-| Giant | 4-6 min | All of it |
+| Lines | 2 rods, 1 other line to clear (16 s) | 5 rods, 4 to clear (about 107 s plus walking). The shotgun is wound in from its centre holder, off a high clip, so nobody climbs. |
+| Raising fish | | The teaser effect: 2 lines out raise about 25% as many fish as 5. Fishing short-handed with a small spread is allowed, but it starves her. |
+| Distances | The wheel is 1.5 m from the rods. The bucket is 1 m from rod 1. The hand pump is at the console foot. The stern (tilt, restart) is 2 m aft. | The cockpit helm is 8 m forward of the corners, with a 6 m blind spot behind the transom. The bucket is 3.5 m from the chair. The engine hatch is mid-cockpit. The tower is 4 s up and 3 s down. |
+| Eyes | The leaning post is **at the helm** (2.4 m: 1.0 s lead, 17 m deep), so whoever drives is also the spotter. Standing on deck is 1.7 m. | The tower (5.5 m: 1.95 s lead, 38 m deep, every line in the water) and the bridge (3.5 m). |
+| Helm | The console has the stern-angle compass and the sight glass. She coasts 4.5 s, turns at 0.75 rad/s, and the outboard can be tilted. | The cockpit helm has the compass, the bilge light and sonar (depth and range). **The tower helm** has throttle and wheel only, but sees his flank far out. Close in, the skipper has to come down to the cockpit helm, which sees the transom better. She coasts 9 s, turns at 0.45 rad/s, and her twin screws spin her on the spot. |
+| Water | She backs at 1.8 m/s and ships 0.006/s doing it. Green water adds about 0.08 a sea. A **hand pump only** (LMB stroke every 0.6 s, -0.012 a stroke, no strainer). Today's automatic 0.004 pump is removed (see open questions). | Self-bailing. Backing harder than 2.5 m/s in a sea ships 0.006/s over the transom, and less than that ships nothing. Electric pump, 0.03/s. Its strainer clogs from **debris**: in a weedline or after a debris minor (section 6), after 0.25 of water pumped. Clearing it takes the hatch (1 s) plus holding E for 3 s, and the open hatch slows everyone walking past. Only the helm's light shows a clog. |
+| Chair | None. Stand-up only. | The chair (and the swivel chore), or stand-up at a corner. |
+| Boatside | No wire. A 0.9 m lift over the gunwale: 40 s for one person, 18 s for two, 13 s for three. The box holds 2 fish. | The wire is required (high transom). The tuna door means no lift. |
+| Fish | Her range keeps her inshore: 150-350 kg. | She reaches the shelf: 350-600 kg, so longer fights and more set pieces. |
+| Calls | Everyone is within 4 m. | A shout from the cockpit reaches the helm at 35% in gear and 70% out of gear. Down from the tower it's clear. |
+| Doubles | | About 3x as many. |
 
-Sloppy play runs longer, because slack lets it breathe. The fights aren't shorter, they are shaped.
+**Four people on the skiff find the same small chores and idle. A bigger crew pays only on the boat that makes bigger work.**
 
-## Build Plan
+---
 
-A REAL 2-DAY CORE (must-fix 2). Each half-day leaves the game playable.
+## 5. Crew walkthroughs
 
-DAY 1, MORNING: tuna/fight.gd core (about 220 of 467 lines change).
-- New signature: step(dt, crank: float, rod_pitch: float, side: float, drag: float, contact: Dictionary).
-- New vars: stretch, shock, slipping, hold, _thrust, _breath_t, _air_t, drag, _side_t, _beats (the queue), _trig (the jittered triggers: second_wind_e, comeback_m, comeback_kind, wallow_m, lunge_m, lunge_dir).
-- Keep the `strain` name for T, so rods.gd and its rpcs keep working.
-- Consts: SPRING_BASE 0.8, SPRING_PER_M 0.012, PULL_IN 3.0, REGAIN 0.012, BREAK_T 0.3, CAPSTAN_MU 0.25, DETENTS [0, 0.45, 0.72, 0.95], SIDE_TURN 0.7, SIDE_TIRE 0.5, HEAD_TURN_T 2.0.
-- DELETE: answer(), tell(), TELLS, _pump/_lift_low, the per-answer strain targets, arms/ARMS_*, STRAIN_GRACE, SLACK_GRACE/_slack_t, Fight.rub(), RUB_ALL, HULL_MARGIN. Also player.gd's `arms` and its REST regen (lines 46-47 and 544).
-- MOVES gain thrust/jitter/tag. Add surge, jump, dog and wallow; "rest" stays as an alias for dog.
-- The director: _build_queue(kg, crew_n) in _init(), plus _next_move() consuming it with the spacing rules, falling back to _pick(). Beat triggers are checked in step().
-- Side-pressure maths in the existing bearing/turn code.
-- cues() -> Dictionary.
-- KEPT: boat backing and chasing math (it feeds boat_closing), props/cut, tangle, spool, spiral geometry, the boatside signal.
+The same seeded 300 kg runner every time, on the same director timeline:
+- a green-water spell at about minute 6
+- an under-the-boat dive at about 11
+- a second wind at about 12
+- a jump series at about 14
+- a shark pass at about 9 (the one deferred major brought forward, section 6)
 
-DAY 1, AFTERNOON: the user's line-contact fix, as a new tuna/hull_wrap.gd (static, about 100 lines, no physics in gameplay).
-- WHY TODAY'S TUG IS WRONG: rods.gd rub_on_hull() casts the straight tip-to-fish segment against the hull. It casts 3 more copies offset by HULL_MARGIN 0.5 m sideways and down, and adds +0.25 for any hit. So a line passing NEAR the bow rubs, and a straight segment to a deep fish that cuts through the hull's underwater volume (where a real line would hang clear or bend at the chine) rubs at full. It is a proximity test, not contact.
-- NEW MODEL:
-  - Each kind in boat/kinds.gd gets `wrap_hull`:
-    - a convex deck outline (6-8 boat-local x/z points, from the existing half-beam, house, bow and transom numbers),
-    - gunwale_y,
-    - a keel outline (the deck outline inset 0.6 m) at keel_y,
-    - the house's top-edge rectangle.
-  - HullWrap.wrap(tip, fish, hull) -> {touching, via, angle}:
-    - If the tip-to-fish segment doesn't pass through the prism (its vertical extent is gunwale_y to keel_y), the result is no contact. There are no margins.
-    - If it does, find the point P that minimises |tip-P| + |P-fish| over three candidate edge loops: the gunwale (the line over the rail), the keel (the line under the bottom) and the house top. Sample 32 points per loop, then golden-section refine on the best edge, about 40 evaluations.
-    - via = P, and angle = the angle between (P - tip) and (fish - P).
-    - Hysteresis: contact releases only when the segment clears by 0.05 m, so the bend doesn't flicker in the swell.
-  - Everything is computed in the boat frame, so hull roll is ignored.
-  - One via point. A double wrap takes the larger-angle edge, which is acceptable at this scale.
-- fight.gd receives contact = {angle, slide}, where slide = |d line_out/dt| + |d via/dt| in the boat frame. That gives T_fish = T*exp(0.25*angle) and the wear formula.
-- rod.gd _draw_line takes the optional via and draws two segments; the bend aims at via.
-- The squeal and spray are placed at via.
-- On the user's raycasting idea: rays stay ONLY in a RUB_DEBUG overlay, drawing the prism and the old ray result side by side, to tune the outline against the art. That replaces the fragile .glb mesh-vertex test.
-- No line physics needed: a taut line wrapping a convex hull is the shortest path, which this computes exactly.
+Moderate sea. Good players.
 
-DAY 2, MORNING: rods.gd (about 130 lines) and crew/player.gd (about 50 lines).
-- player.gd:
-  - rod_aim_pitch and rod_aim_side, which take mouse input while the rod_load lease is fresh.
-  - The camera-follow rule (entry_pitch from a rods.gd-provided entry point, 0.35x/0.4x follow, caps, 6 rad/s ease).
-  - Optional Alt glance with the 0.25 s ease-back.
-  - The lease (neutral unless stamped this frame).
-  - The Rod weight setting.
-- rods.gd _in_hands(p, lift): reads p.rod_aim_pitch and rod_aim_side while fighting, else _pitch as now.
-- rods.gd _fight_mine:
-  - Calls step(dt, crank, rod_aim_pitch, rod_aim_side, r.drag, contact), with contact from HullWrap.wrap(r.tip_position(), fish_point(r, boat), spec.wrap_hull).
-  - Writes the lease every frame.
-  - Scroll notches change r.drag when nobody holds the lever, rate-limited to 0.2 s.
-  - Deletes me.arms plumbing and fight.answer().
-- rods.gd _fight_holder: step(dt, 0, 0.6, 0, r.drag, contact).
-- THE DRAG LEVER: r.drag is a synced float on Rod, and lever_holder is host-arbitrated with the same ask/grant rpc pattern as _ask_grab/_host_set (or helm.gd). The holder sends mouse-Y values at 10 Hz to the rod holder's peer, where the fight runs.
-- _fight_state/_holder_state gain stretch, hold, drag and via, and carry_on gets stretch and hold.
-- A 0.5 s handover grace (shock ignored, hold frozen).
-- HUD: the tell is cleared, the hud "plot" call is deleted, and _end_mine sends the reason to a 3 s caption.
+### Solo, skiff: about 20% landed, 28-34 min. Never idle, always behind.
 
-DAY 2, AFTERNOON: the rod/rod.gd feel pass (about 90 lines) and tests.
-- Bend, quiver and sag from T; thrum jitter.
-- Creak, grind and detent-click AudioStreamPlayer3Ds, made like _scream.
-- The ping-and-coil against the spring-straight.
-- The spool cylinder with white backing.
-- The wallow in tuna.gd/_show_fish (rise to 0.3 m, roll, 2-3 Splash.gd slaps on the seeded times) and the silhouette at line_out < 30.
-- tests/fight_test.gd rewritten with the cues()-only bots and the director property test.
-- tests/hull_wrap_test.gd:
-  - no contact for a fish dead astern,
-  - contact with angle > 0.3 for a fish ahead of the beam,
-  - NO contact for a line 0.4 m clear of the rail (today's false positive),
-  - keel contact for a fish under the hull,
-  - the tip swung outboard aft clears a shallow wrap.
-- ui/manual.gd and ui/tips.gd: one line per role.
+**The strike**
+- **0:00** Rod 1 goes. You're at the wheel. Neutral (0.5 s to stop the screws), 1.5 s to the rod, drag eased to 0.5 on the first tell.
+- **0:25** He's run 190 m. Heat 0.35.
+- **0:27** Into the holder, which costs you: he drifts and takes line on its drag. You wind the port line in (16 s).
+- **0:45** Back on the rod at 210 m. w = 0.38, so your lay barely turns him. The boat has to be across his line, and only you can drive it.
 
-FOLLOW-UP (stated, not in the 2 days):
-- the mate fending the line by hand and the burnt hand,
-- the sportfisher's physical SubViewport plotter,
-- the lunge-timed harpoon flash window (with its 18 m resume),
-- double headers on 3+ crew with inside/outside deadlines on the crossing check,
-- rival engine spooking,
-- a lever animation polish pass.
+**The middle, a 45-60 s cycle**
+- Holder (he rests and drifts), then 20 s at the wheel running up on a slant and parking her off his run line. You also get the post's 1.0 s eye while you're there.
+- Back on the rod: ride the gold, steer.
+- Every 4-5 min the reel steams: holder, bucket (5 s).
+- After each back-down, 15 strokes at the pump.
+- **6:00** Green water while you're on the rod. You see the glass only when you next reach the wheel.
+- **9:00** The shark pass: the fish bolts, you have no free hand for the harpoon, and you can only drop the drag and hope.
+- **11:00** He dives under her. You're already in neutral (the solo habit), so you dip the tip and walk the rod round the console.
+- **12:00** Second wind: the rim flashes back to blue-black. A false finish.
 
-## Risks
+**The leader**
+- **26:00** Leader up. His last run takes 40 m, with nobody at the wheel.
 
-- CAMERA FOLLOW FEELS FLOATY OR SICKENING. The rod moves at 1:1 while the camera moves at 0.35x, which could read as lag. Mitigations: the camera is anchored to the line's entry point (a stable world target, not the mouse), its range is capped at -0.12/+0.28 rad, and a 6 rad/s ease with no overshoot. Tune it with the swell's camera bob. Fallback: drop the follow to 0.2x.
-- THE ROD TIP LEAVES THE TOP OF FRAME on a full heave. That is intended (the bend and the line read the load), but test whether players heave less because they lose the tip. If so, widen the FOV 4 degrees with T, or raise the pitch cap to +0.32.
-- MOUSE WEIGHT AS LAG. It applies only upward, capped drift, with a slider down to 0, and the lease makes a stuck-heavy mouse impossible. Add a test that drops the rod and asserts neutral scale on the next process frame.
-- SIDE PRESSURE TOO STRONG OR TOO WEAK. The bot band (at least 15% faster, circles at least 40% shorter) is the harness. Watch that the 2 s head-turn hold isn't a spam trick: it requires T above 0.3 through the cushion term.
-- SCROLL DRAG MAKES THE MATE REDUNDANT. The mate's edges are continuous values between detents and no rate limit, plus their attention. The target is solo at least 65% and at most 35% slower. Tune with the solo bot first, since rivals is solo.
-- DIRECTOR READS AS A SCRIPT. The triggers are jittered from day one, the comeback is a run or a sound, the lunge direction is seeded, and the wallow's slap timing is seeded. Watch playtests past fish 5.
-- HULL OUTLINE DRIFT. The analytic prism can disagree with the art. The RUB_DEBUG overlay shows prism against rays, and the outlines are about 8 numbers per boat in kinds.gd. Hull roll is ignored.
-- TUNING INTERACTIONS between the spring, capstan, hold and side pressure. Iterate headless with the bots before hand-tuning.
-- NETWORK. The lever arrives at 10 Hz (about 100 ms). The detent margins absorb it, the wrap is computed on the rod holder's machine, via syncs at 10 Hz for visuals only, and the handover grace prevents unfair breaks.
-- SCOPE. If day 2 runs over, cut the wallow's roll animation to splashes only and the spool backing material swap. Never cut the camera rule or the hull wrap.
+**Boatside**
+- **28:00** Holder, harpoon between sheers, tail rope, a 40 s haul alone.
+
+**Where it fails:** one slip in the order. A late bucket, the gear left in, or a jump while you're at the wheel.
+
+### Two on the skiff: about 75%, 17-19 min. A on the rod, B skipper. Both busy throughout.
+
+**The strike**
+- **0:00** B goes neutral. A takes the rod and eases the drag on the tell.
+- **0:02** B squares the stern, steps 2 m to the port rod and winds it in until 0:20. The knot risk is ticking.
+- **0:18** A shouts *HALF SPOOL!* and notches down.
+- **0:22** B is back at the wheel, runs up on a slant and parks her off his run line. At 220 m the boat does about 60% of the turning. From the post B sees the fin flare 1.0 s early and calls *LEFT!*.
+
+**The middle**
+- **1:00-10:00** A has a tell every 4-15 s, a lay correction every couple of seconds and a drag notch every 30-60 s. B moves the boat every 40-90 s and is the only one who sees the angle and the water. B also pours when he sees steam (about 4:10 and 8:20).
+- **6:00** *WATER!* B pumps 12 strokes while A holds on a heavier drag.
+- **8:30** A's arms are going (about 4 min of gold so far). They swap in 1.5 s and A takes the wheel.
+- **9:00** Shark: B (now on the rod) drops the drag. A leaves the wheel 2 s to harpoon-scare it off the rail. A gamble: the angle drifts.
+- **10:00-14:00** The grind. He circles deep. B planes her slow ahead (x1.3 drain), so every lap crosses the stern and A, at the wheel, keeps him off the corners. B winds on his up-swing for a GIFT each lap.
+- **11:00** Under her: A goes neutral and tilts the leg. B dips and walks the rod.
+- **14:00** Jumps: A, on the post, sees the bulge first and shouts. B bows.
+
+**The leader**
+- **16:30** Leader up. *BACK DOWN!*, 15 s.
+
+**Boatside**
+- **17:10** B holds the rod, A harpoons, and both haul (18 s).
+
+About three peaks where both are maxed (heat + water + a run). Nobody idle.
+
+### Three on the skiff: about 85%, 15-16 min. A rod, B skipper and spotter, C free hands.
+
+- **0:00** C winds the port line in, so B steers from second 1 and the run stops at about 170 m.
+- C's chores: pours (3x), pumps (5x), fends every planing lap at the corner, works the tilt at 11:00, takes the harpoon on the shark at 9:00 so nobody leaves the wheel, and takes the rod at about 8:00.
+- C is idle about 25% of the time. That's the honest price of three on a small boat: "feasible and comfortable". The gamble that fills it is putting the port line back out for a double.
+- **15:00** C harpoons, A holds, three haul (13 s).
+- The skiff has no more work to give a fourth.
+
+### Two on the sportfisher: about 35%, 22-26 min. The boat is a crew short.
+
+**The strike**
+- **0:00** The starboard rigger goes. B is at the cockpit helm, 8 m forward. A fights stand-up, because nobody is free to swivel the chair.
+- B goes neutral and clears four lines: port rigger (1 s + 21 s), corners (2 x 16 s), the shotgun from its centre holder (31 s). About 110 s with the fish running unsteered and the knot rolls ticking. About 30% of the time they lose him here.
+- *(If they had fished only two lines, there would have been less to clear, but about a quarter as many bites.)*
+- **1:55** B back at the helm, 340 m out. Backing hard at 3.2 m/s in the sea ships water over the transom.
+
+**The middle**
+- **4:00-20:00** B shuttles between the cockpit and tower helms: the tower to see his flank far out, the cockpit to see the transom close in. B also runs 8 m for the bucket and clears the strainer when they cross a weedline.
+- In-game shouts reach the cockpit helm at 35% in gear, so they rely on the icons, voice, or B easing out of gear to listen.
+- Nobody stands in the tower while B drives from the cockpit, so deep, the chevron is late and sometimes wrong. Head turned about 25%.
+- **9:00** Shark: nobody can harpoon. A drops the drag.
+- **11:00** Under her: inside the blind spot, so A has to call it, and 9 s of coast rides her over the line (keel chafe).
+
+**The leader and boatside**
+- **21:00** Leader up.
+- **22:00** B wires. A parks the rod and throws inside 15 s. Miss, and B re-wires.
+
+Both are overloaded half the time.
+
+### Four on the sportfisher: about 85%, 15-17 min at 300 kg (22-25 at 450, 28-32 at 600). A rod, B skipper, C and D free hands.
+
+**The strike**
+- **0:00** The shotgun goes. A takes it into the chair (3 s).
+- C clears the port rigger and corner (38 s). D clears the starboard pair (40 s). All clear by about 0:42.
+- B spins her on twin screws, squares the stern by 0:06 and backs on *HALF SPOOL*.
+
+**The middle**
+- **0:45** D goes up the tower (4 s). B takes the tower helm far out while w is low, with D beside him calling turns 1.95 s early. C swivels the chair on each call.
+- **3:00** At about 120 m, B comes down to the cockpit helm. D stays up as the eye.
+- C pours (3:30, 7:00, 10:00) and clears the strainer on *STRAINER!* when they cross a weedline at about 8:00.
+- **9:00** Shark: D comes down, harpoons and scares it off. The tower is empty for 40 s.
+- **10:00-14:00** Planing: B slow ahead, C fends at the corners, D calls the laps.
+- **11:00** Under her: D sees it first (*UNDER! STARBOARD!*). B goes neutral, C fends, A dips.
+- **12:00** Swap: C takes the rod, so D comes down to swivel and the tower is empty for 90 s. A trade-off.
+
+**The leader and boatside**
+- **15:00** D: *COLOUR!*
+- **15:30** C wires, D harpoons, A holds and B keeps her square. Through the door (12 s).
+
+Nobody idle. On her usual 450-600 kg shelf fish the director's majors stack up, and the weedline and strainer come round 2-3 times.
+
+---
+
+## 6. Keeping 30 minutes gripping
+
+**The fight director** (new `tuna/fight_director.gd`):
+- It is seeded from the fish's seed plus the world: weather, region and time of day. **It never reads crew size.**
+- Nearby boats affect only *which* major is picked (later, a crossing boat), never energy or cadence. In the invariance test they are an explicit, logged input.
+- It commits every move 2.5 s ahead and syncs it as "move X at sea time t". One schedule feeds the rod's tell, the eyes' fin flares and the network.
+
+**Three clocks**, so the rod is never just holding a button:
+- A tell every 4-15 s.
+- A heading target every 6-12 s (4-7 s tired), with the heading curving continuously in between.
+- A set piece: a minor every 60-90 s, a major every 4-6 min, never two fish majors at once, and forced after 90 s with none.
+
+**Each major belongs to a different pair of hands**, so the spotlight goes round the boat:
+
+| Major | Whose moment |
+|---|---|
+| A run | The helm and the spool |
+| Sounding | The eye and the sonar, and the helm planes him |
+| Under the boat | The helm's gear, the rail's fend, the rod's dip |
+| A jump series | The rod |
+| A sweep across the spread | Free hands winding lines |
+| A green-water spell | Whoever pumps (from the weather) |
+| **A shark pass** (brought forward to PASS 1) | The harpoon hand at the rail. The rod must drop the drag or he's bitten off. |
+
+Minors include a debris patch or weedline, which is what feeds the sportfisher's strainer.
+
+**The station chores come from the world, not a timer:** heat from slipping, water from backing and seas, the strainer from debris. They drift out of step with the fish's set pieces and sometimes pile up ("steam + water + he's running"). Those are the stories people tell after.
+
+**The acts of a 450 kg shelf fish (about 23 min for a good crew):**
+1. **The strike (0-2):** the burst run, the spread to clear, drag and heat. w is low, so it's the helm's game.
+2. **The legs (2-10):** runs and soundings by nature, and full-strength head battles. The boat and the rod share the steering as the line shortens.
+3. **The grind (10-18):** he circles deep (STEEP). Planing, wind on the up-swing for a GIFT each lap, eyes matter most, wear builds and swaps come due. The shark lives here. QUIET 22 s is kept.
+4. **Second wind (one per 150 kg, at 60% and 35% energy):** the rim flashes back and the cadence goes "fresh" for 60 s. The false finish.
+5. **The spiral (under 25%):** w = 1, so it's all the rod. Kicks hit x1.5 on the short line, the tell lead drops to 0.5 s, and you'll be notching the drag down to keep the gold within reach.
+6. **The end (the last 3 min):** the last run, the wire, the harpoon, the 90 s hook clock, the door. Every hand at once.
+
+**Escalation, all from the world:**
+- The red comes down the gauge (permanent wear).
+- Heat carries over from run to run.
+- The spool's drag rises as it empties.
+- Arms run down.
+- The short line sharpens everything.
+- The sea builds over the hours.
+- In Rivals, the other boat may be on the same water.
+
+**Lactic build-up** keeps the long end from sagging: drain x (1 + t / 20 min). No fight runs longer than 45 min.
+
+**The readable ending** is his colour stepping from blue-black to bronze, with no bar.
+
+**Deliberately left out:** a meat-burn clock (it punishes the 30-minute fight).
+
+**Still deferred:** the squall and crossing-boat majors.
+
+---
+
+## 7. Information asymmetry
+
+**Where your body is decides what you know. Roles have nothing to do with it.** Anyone standing at a spot gets what that spot knows, solo included.
+
+| Spot | Knows | Doesn't know |
+|---|---|---|
+| **The rod** | The exact needle, the drag tick and the red. The 0.7 s tell. The spool. His head within the angler's own eye depth. His own arms. | The water, the depth, the strainer, a clog, anything early, or the line under her near the transom. |
+| **The helm** | The precise stern angle (compass). Gear, throttle and coast. The water (sight glass or bilge light). Sonar depth and range (sportfisher cockpit helm). | On the sportfisher, the 6 m behind her transom. The spool. |
+| **High eyes** (sportfisher tower 5.5 m and bridge 3.5 m, skiff post 2.4 m, which is at the skiff's helm) | His true heading and depth to 7h. His next move up to 1.95 s early. Every line in the water (tower). The line under her. The rival boat. | The gauge. |
+| **The rail / door** | The line at the transom, fray puffs (within 3 m), his condition alongside, the wire's pull. | |
+
+**Not counted as asymmetry** (the angler can see these in first person): the reel's steam and the rough line angle over the transom. These still cost the angler, because their hands are busy, and a pour means parking the rod.
+
+**The Shout key** (V or pad Y). Your character barks the most urgent thing only *your* spot knows right now. A pixel icon (arrow, spool, drop, steam, prop, colour) pops over your head for 2.6 s with a voice bark. Hold the key for a 6-way wheel.
+- **At the rod:** *HALF SPOOL! BACK DOWN!*, *ARMS!*
+- **At the helm:** *OFF THE PORT QUARTER*, *WATER!*, *STRAINER!*, *HE'S DEEP*
+- **From an eye:** *LEFT / RIGHT / UNDER / HE'S GONNA GO*
+- **From the rail:** *STEAM!*, *RUBBING!*
+
+The bark is heard by proximity, with the engine duck. The icon shows at any range, but **only to your own boat**. Rivals hear only the proximity bark.
+
+**Today's auto-calls go.** `rods/fight_calls.gd` currently shouts the fight to everyone whenever `crew_n > 1`. That is crew-size-gated, which breaks rule 3. Calls now fire only from the Shout key. Dale's first-time VHF lines stay as the tutor.
+
+---
+
+## 8. Sloppy vs good crews
+
+**The core idea:** fish are lost at decisive moments, where one spot had to act on what only another spot knew. The **boat** sets how many of those moments there are.
+
+- **Skiff, about 7 per 300 kg fight:** 1 line, the spool, under the hull once, heat about 3x, water about 4x, the shark, boatside. Everyone is within 4 m.
+- **Sportfisher, about 14 (recounted honestly):**
+  - 4 lines, each a knot roll that adds drag
+  - the helm 8 m away, muffled and blind at her transom
+  - the tower-to-cockpit helm change
+  - 9 s of coast
+  - the strainer, only in debris
+  - the chair's facing
+  - the wire's 15 s window between two people
+  - bigger fish with more majors
+  - a tower worth nothing if it's empty or silent
+  - 3x the doubles, which split the crew
+  - the far-out blend, where the helm and an eye must talk to put her on his flank
+
+**Why sloppy big does worse:**
+- A sloppy player fails each moment 25-35% of the time, and each failure is about 15-40% of a loss. Seven moments leaves a sloppy skiff duo at about 35%. Fourteen leaves a sloppy quad at about 25%.
+- An uncoordinated sportfisher fight also runs about 50% longer (head turned about 15%, angle 0.7), which means more majors and more heat.
+- Cheating the moment count by fishing a 2-line spread starves her of bites (the teaser effect).
+- Taking her inshore for small fish still costs her $13k payment.
+- "Sloppy" is modelled as **missed or late calls**, not unheard ones, so a Discord crew isn't let off. No sim gate leans on the in-game muffle.
+
+**Why a good small crew can beat a sloppy big one:**
+- A good skiff duo lands about 75% of 150-350 kg fish in about 17 min, about 2 fish a trip, about +$5k net.
+- A sloppy quad nets about $0.
+- A good quad (85%, 450-600 kg, doubles) nets +$10-15k. That's the galleon payoff, earned only by coordinating.
+
+**Money and crew size:** the current `SHARE` cut (`boat/fish_hold.gd:66`, applied at `:624`) scales with the players aboard, which breaks rule 3. The proposed replacement is **berth wages per boat**, a per-trip crew cost in `kinds.gd` paid whoever fills the berths. Re-run trip_sim with it before deciding (open question 1).
+
+---
+
+## 9. Tuning targets
+
+### Fight constants (starting values, tuned in fight_sim)
+
+**Fish**
+- Energy E = 5 x kg^0.9.
+- Drain per second = (T/0.5) x band (EDGE 1.6, else 1.0) x GIFT 2.0 x angle 0.35..1.0 x planing 1.3 x lactic (1 + t/20 min), and x0.2 in the holder.
+- Recovery: +0.3/s x his pull's share while T < 0.2.
+
+**Gain**
+- 1.8 m/s x wind x band (SLACK 0, WORK 1.0, EDGE 1.4, pinned 0).
+- x2.5 in a GIFT, x0.3 with spent arms, x1.25 with the two-speed reel.
+
+**Tension**
+- Target = pull + 0.35 x wind, eased with tau 0.5 s.
+- SLACK < 0.12, WORK to 0.8 S, EDGE to S, red at St.
+- Past St for 0.25 s parts the line. St floor 0.5.
+- S = lever x 0.9, notches 0.1, detent 0.6. The kick cap is 1.6 S.
+
+**Kicks**
+- +0.30..0.55 for 0.3 s.
+- x1.5 inside 60 m. x0.5 if you ease during the tell. x1.5 as often when |lay| > 0.7.
+- Tell lead 0.7 s, 0.5 s inside 30 m.
+
+**Head**
+- Fills 0.25/s x |eff_lay| x T/0.5 (T > 0.25). Drains 0.5/s the wrong way.
+- w = clamp(80/line_out, 0.35, 1). Rod side normalised by /0.9. Tip high x0.5 on the rod's part.
+- boat_cross is measured against a 30 s run line.
+- GIFT 4-6 s, with an approach cap of 3.5 m/s and a 1.5 s slack grace.
+- Heading target every 6-12 s fresh, 4-7 s under 40%, x max(1, line_out/80).
+
+**Eyes**
+- Depth 7h, range 60h, lead clamp(0.3 + 0.3h, 0.7, 2.2).
+- Out of sight, the chevron lags 3.5 s and is 25% wrong-side.
+
+**Heat**
+- +0.0045 x S x slip per second (raise to 0.006 if good crews never reach the fade), -0.004/s by itself.
+- Fade at 0.7. At 1.0: squeal 1 s, then a grab at 0.95 until heat < 0.6. A bucket takes off 0.35.
+
+**Water**
+- Skiff: ships 0.006/s backing, hand pump -0.012 a stroke.
+- Sportfisher: ships 0.006/s backing faster than 2.5 m/s in a sea. Electric pump 0.03/s. In debris it clogs after 0.25 +-0.08 pumped, and clearing takes 4 s.
+- Over 0.6 the boat goes astern at half speed. At 1.0 the engine drowns, and restarting takes 3 s.
+
+**Arms**
+- Drain only in gold or pinned: about 4 min of gold. Rest 40 s, holder 30 s.
+- Chair: arms last x2, lay cap 0.5, swivel 0.2/0.8 rad/s.
+
+**Kept:** CHAFE_LIFE 14 s, fend x0.2 (6 s holds), PROP_GRACE 2.5 s, tilt 2 s, neutral 0.5 s.
+
+**Director**
+- A minor every 60-90 s, a major every 4-6 min, forced after 90 s without one.
+- One second wind per 150 kg.
+- The queue pauses during a GIFT.
+
+### Landing targets (good / sloppy players: landed %, median minutes)
+
+| Fish and boat | Solo | Duo | Trio | Quad |
+|---|---|---|---|---|
+| 300 kg, skiff | 20% / 3%, 31 / 38 | 75% / 35%, 18 / 25 | 85% / 45%, 15 / 21 | about the trio's |
+| 300 kg, sportfisher | 6% / 1% | 35% / 8%, 24 / 32 | 65% / 20%, 19 / 27 | 85% / 25%, 16 / 23 |
+| 450 kg, sportfisher | | | | 80% / 18%, 23 / 33 |
+| 600 kg, sportfisher | | | | 70% / 10%, 30 / 40 |
+| Rivals ledge fish (120-200 kg), skiff | 40-55% | | | |
+
+By weight, a skiff duo takes about 9 min on 150 kg and about 21 min on 350 kg.
+
+### Sim gates (all must pass before any feel pass)
+
+**Landing and balance**
+- Every cell is within +-8 points of its target.
+- The sloppy sportfisher quad is at least 8 points below the sloppy skiff duo, including when the quad fishes a 2-line spread.
+- The good skiff duo beats the sloppy quad in fish per hour.
+- A skilled solo skiff lands 15-25%.
+- A holder-heavy solo bot lands fewer fish than a rod-heavy solo bot.
+- A mouse-binary bot reaches at least 85% of an analog bot's gold time.
+- Heat reaches its fade (0.7) at least once per 300 kg fight for good crews.
+
+**Pace and busyness**
+- The rod gets a decision every 8 s on average, and never goes 20 s without one.
+- Never 90 s without a set piece. No fight runs longer than 45 min.
+- The skiff duo's skipper is busy at least 70% of the time, including in the grind.
+- The sportfisher quad's least busy station is busy at least 60%.
+
+**Invariance**
+- CREW INVARIANCE: one recorded input trace, replayed with 1-4 peers connected (the extras idle elsewhere), gives an identical director timeline and fish path.
+
+### Money (trip_sim, $18/kg, with berth wages instead of SHARE)
+
+- Good skiff duo: about +$5k a trip.
+- Sloppy sportfisher quad: about $0, and negative inshore or on a 2-line spread.
+- Good sportfisher quad: +$10-15k.
+
+---
+
+## 10. Build plan
+
+Build in passes and re-run the sims between each one. **No feel pass until PASS 0's tables and gates are green.**
+
+**PASS 0: the sims and the guards**
+- `tests/fight_sim.gd`: station bots (rod, helm, deck, eye) with good / sloppy / distracted profiles.
+  - Reaction: 0.3 / 1.2 / 3 s.
+  - Missed or late calls: 10% / 35% / 60%.
+  - Plus a mouse-binary rod bot and a holder-heavy solo bot.
+  - Runs boat x crew 1-4 x skill against every target and gate above.
+- New `tests/crew_invariance_test.gd`: the recorded-trace replay with 1-4 peers.
+- `tests/trip_sim.gd`: money per trip, including the inshore sportfisher cell and the 2-line spread cell.
+
+**PASS 1: `tuna/fight.gd` and the director**
+- **Keep:**
+  - the spring and tension, the drag lever, the spool and backing, spool_gain, BELLY
+  - natures, MOVES and phases
+  - HOOK_T/HELD_T, JUMP_T, SLACK_LOOSE
+  - the chafe outline, WORN_K, PROP_GRACE
+  - SQUARE/WIDE/STEEP
+  - ARM_*, the holder, BOATSIDE and LEADER, the signals
+  - the "every loss is something somebody could have done" contract
+- **Replace:**
+  - the ROD_LEVER lift-gain and CRANK_MAX grind, with the band gain
+  - the line-relative bands, with drag-relative bands
+  - STATIC 1.2, with a kick cap of 1.6 S
+- **Add:**
+  - the eased tension target
+  - the head meter and the GIFT with the w blend: `step(crank, rod_pitch, side, drag)` gains a `boat_cross` argument
+  - St as the one wear number
+  - heat (fade, squeal, grab, cool)
+  - the drain formula with planing and lactic build-up
+  - the colour steps
+  - second winds
+  - knotted tangles with knife cuts
+  - the holder costs
+  - arms that drain only in gold
+- **New `tuna/fight_director.gd`:**
+  - acts, minors and majors, including the **shark pass** and the debris minor
+  - the 2.5 s committed queue, which pauses during a GIFT
+  - inputs: seed, weather, clock, region, and nearby boats for major choice only
+  - no crew input
+
+**PASS 2: the hands and the HUD**
+- `rods/rods.gd`:
+  - the wind ease, rod_pitch for bow/dip/lift only, the pad remap (left stick walks at 50%, right stick lays and sets height, R3 frees the look)
+  - the 1.5 s handover
+  - the bucket, fend and knife hooks
+  - rod-holder authority: the peer holding the rod owns T, wind and lay. The host owns the director, the fish path and line_out, and reconciles at 10 Hz. A handover carries T, heat, the head meter and any tell in progress.
+  - remove the crew_n plumbing at `rods.gd:1502-1505`
+- `ui/fight_hud.gd`: the 48 px drag-relative gauge with the hatched red, the chevron (grey/green fill, freshness rim, rotation), the spool art. No in-fight text.
+- New `rods/fight_fx.gd`: line colour by band, rod bend frames, steam, fray puffs, the wake flip.
+
+**PASS 3: the boat stations**
+- `boat/kinds.gd` gets new per-boat fields:
+  - bucket position
+  - pump (hand or electric, rate, debris clog)
+  - astern shipping
+  - tilt
+  - sonar
+  - helm_hear
+  - helm_blind
+  - eye spots
+  - chair
+  - the tower helm
+  - teaser factor by spread size
+  - berth wages
+- The skiff's automatic `bilge` 0.004 (kinds.gd:78) is removed.
+- `boat/green_water.gd`: backing inflow, hand strokes, the debris clog, the drowned engine.
+- New `boat/bucket.gd` and `boat/bilge_pump.gd`, modelled on `boat/live_well.gd`'s pump.
+- `boat/helm.gd`: the compass, the glass or light, the tilt, holding its last setting, and the sportfisher's tower helm (throttle and wheel only).
+- `crew/spotter.gd`: the eye-height shadow, fin flares and the line view, drawn only for that viewer.
+
+**PASS 4: calls and the crew-size cleanup (rule 3)**
+- `rods/fight_calls.gd`: `tick()` drops `crew_n`. Calls fire only from the Shout key, using the shouter's spot. They're heard by proximity, and the icons show to your own boat only.
+- `ui/fight_tutor.gd:186/197/201` and `tuna/landing.gd:719/807`: key the prompts off world state ("is the rod held by someone else", "is anyone in earshot") instead of `_crew_aboard()`.
+- SHARE (`boat/fish_hold.gd:66/624`, `trip_sim.gd:134`, `tests/shares_test.gd`): swap it for berth wages **only after the user signs off**.
+
+**PASS 5: Rivals**
+- An inshore ledge region with 120-200 kg fish.
+- Scoring is weight landed plus colour steps reached on a fish still on at the horn.
+- Shout icons are hidden from the rival boat.
+
+**PASS 6 (deferred until the tables pass):** the squall and crossing-boat majors.
+
+**Leave alone:** `schools.gd`, `live_well.gd`, landing.gd's boatside, and handling.gd's processing.
+
+---
+
+## 11. The critique: what was changed and what was rejected
+
+All 33 points were reviewed.
+
+**Accepted as written:**
+1. Bands relative to the drag, the kick cap at 1.6 S, the wind target pull + 0.35 x wind.
+2. Holder drain x0.2, faster drift, holder heat and the bot gate.
+3. Tip high halves the side pressure.
+4. The teaser effect and the 2-line gate.
+5. The inshore sportfisher cell in trip_sim.
+6. Knotted tangles, with wind or knife.
+7. The crew-size gates in the calls and prompts are removed.
+11. The rod holder's peer is authoritative.
+12. The recorded-trace invariance test and the GIFT pausing the queue.
+13. Planing, laps across the stern, winding on the up-swing in the grind.
+15. The dim chevron lags 3.5 s and is 25% wrong-side.
+16. The tower helm.
+17. Arms drain only in gold.
+18. Lactic build-up, E = 5 x kg^0.9, and the 45 min cap.
+19. Continuous heading and the kick risk from a hard lay.
+20. The 30 s run line and the stretched intervals.
+21. The /0.9 normalisation.
+22. The GIFT speed cap and slack grace.
+23. Neutral stops the screws in 0.5 s, and the coast rides over the line.
+24. The pad and mouse remap.
+25. The chevron's fill and rim split.
+26. The tau 0.5 s ease, the wider gold and the mouse gate.
+27. Steam and the rough angle are not counted as asymmetry.
+28. Icons only to your own boat.
+29. Sloppy means late, not unheard.
+30. Nearby boats pick majors only.
+31. Solo at 15-25%.
+32. The heat check.
+
+**Accepted with a choice made:**
+- **8:** berth wages per boat replace SHARE, pending the user's sign-off.
+- **9:** the ledge region and progress scoring. The round cap is left to the user.
+- **10:** the strainer is kept but clogs from debris. The sportfisher ships water when backing hard in a sea. Her moment count is re-done honestly (16 down to 14).
+- **14:** the skiff's post eye belongs to whoever drives, which makes the skiff skipper the spotter. The skiff trio's C idles about 25%, and that's stated rather than hidden.
+- **33:** only the shark is pulled forward, because it gives the grind a harpoon-hand moment cheaply. The squall and the crossing boat stay deferred, to protect scope.
+
+**Rejected:**
+- **10's other option, dropping the strainer.** It is the sportfisher's one chore that only the helm can see and only a free hand can fix, which is exactly rule 6. It just needed a better trigger.
+- **27's implication that the compass adds nothing.** The angler sees the angle only roughly. The compass's precise green arc still matters when the angler is deciding to plane or square up, so it stays a helm instrument. It just isn't counted as hidden information.
+
+---
+
+## 12. Open questions for you
+
+1. **Replace the per-player SHARE cut with per-boat berth wages?** SHARE scales with players, which breaks rule 3.
+   *Recommended:* yes. About $300 a trip on the skiff and $1,800 on the sportfisher, paid whoever's aboard, with the numbers set by trip_sim.
+2. **Remove the skiff's automatic bilge pump, so she has a hand pump only?**
+   *Recommended:* yes. The water becomes a real chore you do by hand, and it's the main thing that makes solo barely possible.
+3. **Rivals 1v1: fish an inshore ledge (120-200 kg) and score weight plus colour progress at the horn?**
+   *Recommended:* yes, with a 20-minute round and the rival's fish colour shown on their boat. That makes your 1v1 with your buddy fun instead of 30-minute losses.
+4. **In Rivals, do teams pick their boat, instead of the boat being assigned by crew size?**
+   *Recommended:* yes, a free pick. The boat's demands do the balancing, and a good duo choosing the sportfisher is a fair gamble.
+5. **Remove today's automatic fight calls entirely, leaving the Shout key and Dale's VHF tutor lines?**
+   *Recommended:* yes. Dale's tutor carries the first three fights, and the Shout wheel is taught on the first strike.
+6. **Is about 16-18 min for a 300 kg fish (good crew) right, with the full 30 minutes reserved for 600 kg shelf fish?**
+   *Recommended:* yes. The 30-minute fight is the trophy, everyday fish stay a bit over 15 min, and nothing passes 45.
