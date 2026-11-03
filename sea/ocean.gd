@@ -52,11 +52,11 @@ const MAX_CHOP := 1.0
 const SHADER_SWELL := 20
 const SEA_SEED := 20261029
 ## Calm, the usual rain, a storm: (swell crest to trough m, chop, steepness 0..1, whitecaps 0..1).
-## The sea's significant height comes to about 0.85 of the swell's figure: calm about 2.7 m (a long swell, no wind),
-## rain 4.3, heavy 4.8, a storm 5.3 (2026-11-02; it was 10.5, the rain 5: no-one fishes for tuna in a 46 footer, let
-## alone a 28 ft skiff, in a 35 ft sea, and the boats couldn't ride it). Big but survivable: the storm's drama is in its
-## steep breaking seas, the chop, the white water and the gusts, and in the sets (sea/ocean.gd's swell sets: a band
-## where the swell's half as big again comes through now and then).
+## The sea's significant height (height_at's, measured offshore) comes to about 0.85 of the swell's figure: calm 3.2 m
+## (a long swell, no wind), sunny 3.5, rain and heavy 4.4, a storm 5.4 (2026-11-02; it was 10.5, heavy 6.9, the rain 5:
+## no-one fishes for tuna in a 46 footer, let alone a 28 ft skiff, in a 35 ft sea, and the boats couldn't ride it). Big
+## but survivable: the storm's drama is in its steep breaking seas, the chop, the white water and the gusts, and in the
+## sets (_mods' swell sets: a band where the swell's half as big again comes through now and then).
 const CALM := [3.2, 0.5, 0.5, 0.0]
 const RAIN := [5.0, 0.6, 0.68, 0.45]
 const STORM := [6.2, 0.9, 0.9, 1.0]

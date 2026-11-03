@@ -29,17 +29,20 @@ const ACROSS := 3
 ## critical: heave, pitch, roll; roll least), and her sheer (her rail's cap over her origin aft, and how much more it
 ## rises to her stem: art/*.py).
 const HULLS := {
-	"skiff": {"draft": 0.42, "roll": 3.0, "zeta": Vector3(0.35, 0.38, 0.28), "sheer": Vector2(1.15, 0.55)},
-	"sportfisher": {"draft": 1.1, "roll": 4.6, "zeta": Vector3(0.35, 0.38, 0.2), "sheer": Vector2(1.45, 0.95)},
+	"skiff": {"draft": 0.42, "roll": 3.0, "zeta": Vector3(0.4, 0.42, 0.35), "sheer": Vector2(1.15, 0.55)},
+	"sportfisher": {"draft": 1.1, "roll": 4.6, "zeta": Vector3(0.4, 0.42, 0.3), "sheer": Vector2(1.45, 0.95)},
 }
 ## The water she drags with her, a share of her own mass (heave), and of her inertia (pitch, roll).
 const ADDED := Vector3(0.9, 0.9, 0.25)
 ## Her radii of gyration: pitch, a share of her length; roll, of her beam.
 const GYRATION := Vector2(0.26, 0.38)
-## The wave clock jumping more than this (s), or her moving further than this (m) in one go (moored, put somewhere by
-## a test): she starts afresh, sitting on the water where she is.
+## The wave clock jumping more than this (s), or her moving further in one go than she could have gone (JUMP_AT m and
+## JUMP_SPEED m/s of the time since: moored, put alongside the other boat, put somewhere by a test): she's been put
+## there, not sailed there, and starts afresh, sitting on the water where she is (her motion carried on from where she
+## was would throw her about for seconds over a sea she was never on).
 const JUMP_T := 2.0
-const JUMP_AT := 15.0
+const JUMP_AT := 0.6
+const JUMP_SPEED := 20.0      # (m/s: faster than she ever goes, a hitch of a frame or two included)
 ## How far she may pitch and roll (rad): a steep sea never throws her past it.
 const MAX_TILT := 0.6
 ## How fast the water can rise or fall past a cell, for its damping (m/s).
@@ -58,7 +61,7 @@ var _dry := Vector3.ONE       # heave, pitch, roll: her own mass and inertia
 var _inertia := Vector3.ONE   # (and with the water she drags with her, afloat)
 var _area := 1.0              # her waterplane (m^2)
 var _damp := Vector3.ZERO     # per m^2 of cell (and per m^2 m^2 for the moments), from the damping ratios
-var _bg := 0.0                # (her weight high over her buoyancy: what's left of the waterplane's roll stiffness)
+var _roll_share := 1.0                # (the share of the water's push across her that rolls her: configure)
 var _zc := 0.0                # (her middle along her, where her weight is: the waterplane's, fuller aft than forward)
 
 ## Her state at wave time _t (y of her origin, its rate; pitch, its rate; roll, its rate), and a step before (_s0):
@@ -108,9 +111,11 @@ func configure(kind: String, spec: Dictionary) -> void:
 	var zeta: Vector3 = hull["zeta"]
 	_dry = Vector3(mass, mass * pow(GYRATION.x * length, 2.0), mass * pow(GYRATION.y * beam, 2.0))
 	_inertia = _dry * (Vector3.ONE + ADDED)
-	# (roll: the waterplane's stiffness less what her weight up high takes off it, leaving her roll period)
+	# (roll: her stiffness is what her roll period says, less than her waterplane's, her weight being up high; the
+	# sea's push to roll her is as much less again, a real hull feeling only part of the slope under her, her own bulk
+	# and the water round her taking the rest: so on a long swell she lies along its slope, not over it)
 	var roll_k := _inertia.z * pow(TAU / float(hull["roll"]), 2.0)
-	_bg = maxf(RHO * G * xx - roll_k, 0.0) / (mass * G)
+	_roll_share = minf(roll_k / (RHO * G * xx), 1.0)
 	var heave_k := RHO * G * area
 	var pitch_k := RHO * G * zz
 	_damp = Vector3(2.0 * zeta.x * sqrt(heave_k * _inertia.x) / area,
@@ -151,7 +156,7 @@ func at(now: float, mid: Vector2, yaw: float) -> Vector3:
 	if ocean == null or cells.is_empty():
 		return Vector3(-sink, 0.0, 0.0)
 	var jumped := is_nan(_t) or absf(now - _t) > JUMP_T or is_nan(float(_track[3])) \
-			or (_track[4] as Vector2).distance_to(mid) > JUMP_AT
+			or (_track[4] as Vector2).distance_to(mid) > JUMP_AT + JUMP_SPEED * maxf(now - float(_track[3]), 0.0)
 	if not jumped and now != float(_track[3]):
 		_track = [_track[3], _track[4], _track[5], now, mid, yaw]
 	elif jumped:
@@ -171,9 +176,17 @@ func at(now: float, mid: Vector2, yaw: float) -> Vector3:
 			while _t < now:
 				_step()
 	var a := clampf((now - (_t - DT)) / DT, 0.0, 1.0)
-	# (on the sea as it's drawn, curving away from the middle of its mesh: her motion's worked out on it flat)
-	var curve := float(ocean.call("curve_at", Vector3(mid.x, 0.0, mid.y)))
-	return Vector3(lerpf(_s0[0], _s1[0], a) - curve, lerpf(_s0[2], _s1[2], a), lerpf(_s0[4], _s1[4], a))
+	# (on the sea as it's drawn, curving away from the middle of its mesh: her motion's worked out on it flat, then she's
+	# set down on the curve, as low as it is under her and tilted as it is there)
+	var turn := Basis(Vector3.UP, yaw)
+	var at := Vector3(mid.x, 0.0, mid.y)
+	var bow := turn * Vector3(0.0, 0.0, -length * 0.5)
+	var side := turn * Vector3(beam * 0.5, 0.0, 0.0)
+	var curve := float(ocean.call("curve_at", at))
+	var dip := Vector2(float(ocean.call("curve_at", at - bow)) - float(ocean.call("curve_at", at + bow)),
+			float(ocean.call("curve_at", at - side)) - float(ocean.call("curve_at", at + side)))
+	return Vector3(lerpf(_s0[0], _s1[0], a) - curve, lerpf(_s0[2], _s1[2], a) + atan(dip.x / length),
+			lerpf(_s0[4], _s1[4], a) + atan(dip.y / beam))
 
 
 ## Where she is (x, z) and her heading at wave time `t`, along her track (a step past it, carried on).
@@ -282,7 +295,7 @@ func _step() -> void:
 	var k := Vector3.ONE + ADDED * clampf(wet / _area, 0.0, 1.0)
 	var ay := (lift + _damp.x * dh - mass * G) / (_dry.x * k.x)
 	var ap := (pitch_m + _damp.y * dp) / (_dry.y * k.y)
-	var ar := (roll_m + _damp.z * dr + mass * G * _bg * sin(s[4])) / (_dry.z * k.z)
+	var ar := (roll_m * _roll_share + _damp.z * dr) / (_dry.z * k.z)
 	var n := s.duplicate()
 	n[1] += ay * DT
 	n[0] += n[1] * DT

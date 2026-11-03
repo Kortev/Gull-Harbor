@@ -10,6 +10,16 @@ const Player := preload("res://crew/player.gd")
 
 var fails: Array[String] = []
 var sea: Sea
+var _wall := 0.0
+
+
+## (the sea's clock is the wall clock, but headless at a fixed 30 fps the frames run as fast as the machine lets them:
+## the waves held to the game's pace, so the boats ride the sea as they would playing, however loaded it is)
+func _process(delta: float) -> void:
+	var wall := Time.get_ticks_msec() / 1000.0
+	if _wall > 0.0 and sea != null and sea.ocean != null:
+		sea.ocean.clock_offset -= (wall - _wall) - delta
+	_wall = wall
 
 
 func _ready() -> void:
@@ -73,6 +83,10 @@ func _leaps(me: Node3D, a_boat: Node3D, b_boat: Node3D, ha: Node, hb: Node, at: 
 			me.place(Vector3((float(from.get("beam")) * 0.5 - 0.7) * way, deck + 0.02, 3.5), -PI * 0.5 * way, from)
 			await get_tree().create_timer(0.3).timeout
 			var w := {"t": 0.0, "step": 0.0, "prev": me.global_position, "handed": INF}
+			if OS.get_cmdline_user_args().has("--trace"):
+				for bt: Node3D in [a_boat, b_boat]:
+					print("  BOAT %s at %s euler %s water %.2f ocean %s" % [bt.name, bt.global_position,
+							bt.global_basis.get_euler(), sea.ocean.height_at(bt.global_position), sea.ocean.global_position])
 			# up on her rail (a walk at it and a jump), then Shift, W and Space off it
 			Input.action_press("move_forward")
 			Input.action_press("jump")
@@ -119,7 +133,7 @@ func _watch_leap(me: Node3D, to: Node3D, w: Dictionary) -> void:
 	w["t"] = float(w["t"]) + 1.0 / 30.0
 	if OS.get_cmdline_user_args().has("--trace"):
 		var l: Vector3 = (to.global_transform.affine_inverse() * me.global_position)
-		print("  t %.2f mode %d rail %s frame %s  in her: %.2f %.2f %.2f" % [float(w["t"]), me.get("mode"),
+		print("  t %.2f step %.2f mode %d rail %s frame %s  in her: %.2f %.2f %.2f" % [float(w["t"]), d, me.get("mode"),
 				me.on_rail(), me.get("frame").name if me.get("frame") else "-", l.x, l.y, l.z])
 
 
