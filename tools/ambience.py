@@ -30,13 +30,23 @@ Run: python tools/ambience.py   (numpy, scipy, soundfile; under a minute). Then 
 godot --headless --path . --import)."""
 import os
 
+import sys
+
 import numpy as np
 import soundfile as sf
 from scipy import signal
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import loudness  # noqa: E402  (tools/loudness.py: BS.1770, the same yardstick the game's mix is checked by)
+
 SR = 22050
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "audio", "bank")
 RNG = np.random.default_rng(1983)
+## Every file's loudness (LUFS): a bed at the bank's own median, a one-shot a little over it (it's heard alone, short);
+## no peak over CEILING dBFS (a bed's softly limited under it, a one-shot turned down to it).
+BED_LUFS = -20.0
+SHOT_LUFS = -18.0
+CEILING = -3.0       # (Vorbis overshoots a sharp edge by a dB or so: room for it under -1)
 
 
 # --- tools --------------------------------------------------------------------------------------------------------
@@ -182,21 +192,26 @@ def fade_ends(x, a=0.004, r=0.03):
 
 
 def write(name, x, level=0.8, loop=False):
-    """To ../audio/bank/<name>.ogg. A one-shot its peak at `level`, trimmed of its silent tail; a loop as it is, its
-    loudness (RMS) at a quarter of `level` and its odd peak softly limited, so every bed sits alike in the mix and the
-    game's levels say how loud each is."""
+    """To ../audio/bank/<name>.ogg, at its loudness (BED_LUFS for a loop, SHOT_LUFS for a one-shot, measured as
+    tools/loudness.py does), its peaks under CEILING; a one-shot trimmed of its silent tail. (`level` is only the
+    working scale before that: the game's levels and audio/sfx.gd's gains say how loud each is in the mix.)"""
     os.makedirs(OUT, exist_ok=True)
     x = np.asarray(x, dtype=np.float64)
-    if loop:
-        x = x / max(1e-9, np.sqrt(np.mean(x ** 2))) * level * 0.25
-        x = np.tanh(x / 0.8) * 0.8
-    else:
-        x = x / max(1e-9, np.max(np.abs(x))) * level
+    x = x / max(1e-9, np.max(np.abs(x))) * level
     if not loop:
         alive = np.nonzero(np.abs(x) > 0.002)[0]
         if len(alive):
             x = x[: min(len(x), alive[-1] + secs(0.05))]
         x = fade_ends(x)
+    ceiling = 10.0 ** (CEILING / 20.0)
+    for _ in range(4):        # (limiting a bed takes a little loudness off it: measured again)
+        x = x * 10.0 ** (((BED_LUFS if loop else SHOT_LUFS) - loudness.integrated(x, SR)) / 20.0)
+        if np.max(np.abs(x)) <= ceiling:
+            break
+        if not loop:
+            x = x / np.max(np.abs(x)) * ceiling
+            break
+        x = np.tanh(x / ceiling) * ceiling
     path = os.path.join(OUT, name + ".ogg")
     data = np.ascontiguousarray(x.astype(np.float32))
     for tries in range(20):
