@@ -108,7 +108,7 @@ const PART_T := 0.06
 const HOOK_T := 0.5
 const HOOK_TEAR := 1.3
 const HELD_T := 0.8
-const SLACK_LOOSE := 0.005
+const SLACK_LOOSE := 0.02
 const SHAKE_LOOSE := 12.0
 const JUMP_T := 0.2
 const JUMP_TEAR := 30.0
@@ -175,7 +175,7 @@ const TOW := 0.01
 ## A beaten fish kept tight is led round off the stern this fast (rad/s, at full pressure).
 const LEAD := 0.35
 ## A rod left in its holder: how much faster he takes line on a run, with nobody on it.
-const HOLDER_RUN := 2.0
+const HOLDER_RUN := 1.8
 
 var kg := 150.0
 var nature := "runner"
@@ -204,6 +204,12 @@ var throttle := 0.0
 ## `moving` (the headless tests), the throttle stands in.
 var boat_vel := Vector2.ZERO
 var moving := false
+## Without `moving` (the headless tests): how fast she closes on him backing down hard (m/s: her kind's "astern").
+var back_speed := BACK_SPEED
+## The sea throwing her about (m/s a rod tip over her transom is thrown up and forward, - down and aft: rods.gd, x
+## how much reaches the line in her, boat/kinds.gd's "lively"): a small boat thrown up a big sea snatches the line
+## tight, then drops it.
+var heave := 0.0
 ## Her outline from above, in her frame (x across, z astern: her bow's -z): half her beam, her transom, the aft face of
 ## her house, her bow, and the spot the fish's bearing is measured from (rods.gd sets them from her spec).
 var half_beam := 2.4
@@ -458,12 +464,12 @@ func step(dt: float, crank: float, rod_pitch: float, _side: float, drag_set: flo
 	else:
 		var b0 := absf(wrapf(bearing, -PI, PI))
 		var back := maxf(-throttle, 0.0) * clampf(cos(b0) * 1.5, 0.0, 1.0)     # (backing down only closes on a fish astern)
-		boat_close = BACK_SPEED * back - 1.5 * maxf(throttle, 0.0)
+		boat_close = back_speed * back - 1.5 * maxf(throttle, 0.0)
 
 	# the line: his going stretches it, her closing slackens it, lifting the rod stretches it, winding takes line in
 	var pw := power()
 	var lift := ROD_LEVER * dpitch * (lerpf(SPENT_LIFT, 1.0, pw) if dpitch > 0.0 else 1.0)
-	stretch += (speed - boat_close) * dt + lift
+	stretch += (speed - boat_close + heave) * dt + lift
 	var tens := maxf(stretch, 0.0) / give()
 	wind = WIN * crank_mul * crank * lerpf(SPENT_WIN, 1.0, pw) * clampf(1.0 - tens / CRANK_MAX, 0.0, 1.0)
 	if stretch < 0.0:

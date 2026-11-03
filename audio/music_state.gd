@@ -7,7 +7,7 @@ extends RefCounted
 ## Never the hook's hold or how tired he is: the music never tells you what you couldn't feel.
 ##
 ## The world, every key optional:
-##   title, card, docked, paused, talking, underwater: bool
+##   title, card, docked, paused, underwater: bool
 ##   counting: s into Rivals' countdown (-1: not counting); card_result: "win"/"lose"/"tie" once the stamp's down
 ##   race_left: s left in the race home (-1: no race on); standing: 1 ahead, -1 behind, 0 level/none (Rivals)
 ##   lbs: [yours, theirs] (Rivals, out there); their_on: how many fish they've got on
@@ -43,21 +43,29 @@ const SMOOTH := {
 	"click": [0.25, 3.0, 4.3], "tension": [0.5, 2.5, 4.3], "tension_hi": [1.0, 3.0, 4.3], "deep": [1.5, 4.0, 4.3],
 	"tune": [1.0, 4.0, 8.6], "tick": [1.5, 3.0, 0.0], "glint": [2.0, 4.0, 0.0], "shimmer": [0.15, 0.4, 0.0],
 	"a": [2.0, 4.0, 0.0], "b": [4.0, 4.0, 0.0], "c": [4.0, 4.0, 0.0], "d": [3.0, 4.0, 0.0],
+	"pad": [3.0, 4.0, 0.0], "bass": [3.0, 4.0, 0.0], "pick": [4.0, 5.0, 0.0], "lead": [4.0, 5.0, 0.0],
+	"rain": [4.0, 5.0, 0.0], "storm": [4.0, 6.0, 0.0], "night": [5.0, 5.0, 0.0],
 }
 const SMOOTH_ELSE := [1.0, 2.0, 0.0]
-## Into the quiet from something else: the first phrase after this long (s, between); after each phrase, the silence
-## by mood (s, between).
-const FIRST := Vector2(8.0, 16.0)
-const GAPS := {"calm": Vector2(30.0, 75.0), "fog": Vector2(90.0, 180.0), "rain": Vector2(45.0, 100.0),
-		"storm": Vector2(120.0, 200.0), "night": Vector2(60.0, 120.0)}
-## A fish lost: dead silence this long (s), and no phrase for this long after (s, between).
+## The sea's stems by mood (an endless song: the pad and the bass always, the guitar and the lead in fair weather, the
+## rain's patter, the storm's drums and drone, the night's bells), and how bright a passage it leans to (0 dark .. 1
+## bright: audio/music.gd picks each next one by it).
+const SEA := {
+	"calm": {"pad": 0.8, "bass": 0.7, "pick": 1.0, "lead": 0.9},
+	"fog": {"pad": 1.0, "bass": 0.35, "pick": 0.25, "lead": 0.45, "night": 0.3},
+	"rain": {"pad": 0.8, "bass": 0.8, "pick": 0.6, "lead": 0.35, "rain": 1.0},
+	"storm": {"pad": 1.0, "bass": 1.0, "rain": 0.6, "storm": 1.0},
+	"night": {"pad": 0.75, "bass": 0.45, "pick": 0.5, "lead": 0.3, "night": 1.0},
+}
+const SEA_STEMS := ["pad", "bass", "pick", "lead", "rain", "storm", "night"]
+const BRIGHT := {"calm": 0.75, "fog": 0.35, "rain": 0.3, "storm": 0.0, "night": 0.35}
+## Dusk: past this far through the day the sea leans darker (to half as bright by its end).
+const DUSK := 0.75
+## A fish lost: dead silence this long (s), then the sea again.
 const HUSH := 6.0
-const AFTER_LOST := Vector2(60.0, 90.0)
-## A fish landed: the afterglow, then no phrase for this long (s, between).
-const AFTER_LANDED := Vector2(45.0, 90.0)
 ## A fish gone from alongside: this long to see it in the hold (landed) before it counts as got away.
 const LANDED_WAIT := 1.2
-## The weather there's no waltz in, tied up: the quiet and the weather's own phrases instead.
+## The weather there's no waltz in, tied up: the sea's song in its storm instead.
 const STORMY := ["storm", "heavy"]
 ## Birds: in at this near, out under this.
 const BIRDS_IN := 0.12
@@ -68,13 +76,14 @@ const LAST := 90.0
 ## Lead changes: no more than one sting in this long (s).
 const LEAD_GAP := 30.0
 
-## The section wanted ("rest", "title", "harbour", "hunt", "fight", "tired", "leader", "gaff", "afterglow", "race").
-var section := "rest"
+## The section wanted ("sea", "title", "harbour", "hunt", "fight", "tired", "leader", "gaff", "afterglow", "race",
+## or "rest": quiet, only under Rivals' countdown and card, and the hush after a fish is lost).
+var section := "sea"
 ## Each of its stems' level now (0..1), smoothed; and the fast mask over the fight's (the jump, the line parting).
 var gains := {}
 var masks := {}
 ## What happened this step: "strike", "lost", "landed", "leader", "their_on", "lead_up", "lead_down", "countdown",
-## "card:win" (lose, tie), "phrase:<name>".
+## "card:win" (lose, tie), "dawn".
 var events: Array[String] = []
 ## The mood at sea, and the worst fight's danger (0..1) and its id ("" none).
 var mood := "calm"
@@ -83,9 +92,8 @@ var fight_id := ""
 var parting := false
 ## s of the loss's silence left (music.gd drops everything at once while it's on).
 var hush := 0.0
-## s till the next phrase may start; the last one started.
-var phrase_wait := 0.0
-var phrase := ""
+## How bright a sea passage to pick next (0 dark .. 1 bright).
+var bright := 0.75
 
 var _t := 0.0
 var _section_t := 0.0
@@ -101,7 +109,6 @@ var _card := ""
 var _dawned := false
 var _after := 0.0             # s of the afterglow left
 var _held := {}               # stem -> [level held, s left]
-var _was := "rest"
 var _rng := RandomNumberGenerator.new()
 
 
@@ -110,7 +117,6 @@ func _init(seed_value := -1) -> void:
 		_rng.seed = seed_value
 	else:
 		_rng.randomize()
-	phrase_wait = _rng.randf_range(FIRST.x, FIRST.y)
 
 
 func step(w: Dictionary, dt: float) -> void:
@@ -130,13 +136,14 @@ func step(w: Dictionary, dt: float) -> void:
 		if not (section in FIGHT and want in FIGHT and want != "leader" and _section_t < SECTION_HOLD):
 			if want == "leader" and section in FIGHT:
 				events.append("leader")
-			_was = section
 			section = want
 			_section_t = 0.0
 	var wants := _wants(w, f)
 	_smooth(wants, dt)
 	_mask(w, f, dt)
-	_phrases(w, dt)
+	bright = float(BRIGHT.get(mood, 0.5)) * lerpf(1.0, 0.5, smoothstep(DUSK, 1.0, float(w.get("day", 0.0))))
+	if events.has("dawn"):
+		bright = 1.0
 
 
 ## The fight that's worst off (the most danger; the newest of equals).
@@ -209,8 +216,9 @@ func _edges(w: Dictionary, fights: Array) -> void:
 	if got:
 		_gone.clear()
 		events.append("landed")
-		_after = float(Cues.CUES.get("afterglow", {}).get("length", 20.0))
-		phrase_wait = _after + _rng.randf_range(AFTER_LANDED.x, AFTER_LANDED.y)
+		# the afterglow till its last chord's ringing (its last two bars): the sea comes in under the ring
+		var ag: Dictionary = Cues.CUES.get("afterglow", {})
+		_after = (int(ag.get("bars", 10)) - 2) * int(ag.get("bar_beats", 4)) * 60.0 / float(ag.get("bpm", 112.0))
 	else:
 		for id: String in _gone.keys():
 			if _t - float(_gone[id]) >= LANDED_WAIT:
@@ -257,7 +265,6 @@ func _lost() -> void:
 		return
 	events.append("lost")
 	hush = HUSH
-	phrase_wait = maxf(phrase_wait, _rng.randf_range(AFTER_LOST.x, AFTER_LOST.y))
 
 
 func _section(w: Dictionary, f: Dictionary) -> String:
@@ -284,12 +291,12 @@ func _section(w: Dictionary, f: Dictionary) -> String:
 		return "afterglow"
 	if float(w.get("race_left", -1.0)) >= 0.0:
 		return "race"
-	if bool(w.get("docked", false)) and not str(w.get("condition", "calm")) in STORMY:
-		return "harbour"
+	if bool(w.get("docked", false)):
+		return "sea" if str(w.get("condition", "calm")) in STORMY else "harbour"
 	var birds := float(w.get("birds", 0.0))
 	if birds >= BIRDS_IN or (section == "hunt" and birds >= BIRDS_OUT):
 		return "hunt"
-	return "rest"
+	return "sea"
 
 
 ## Each stem's level wanted (before smoothing).
@@ -299,6 +306,12 @@ func _wants(w: Dictionary, f: Dictionary) -> Dictionary:
 			return {"main": 1.0}
 		"harbour":
 			return _harbour(w)
+		"sea":
+			var want := {}
+			var m: Dictionary = SEA.get(mood, SEA["calm"])
+			for k: String in SEA_STEMS:
+				want[k] = float(m.get(k, 0.0))
+			return want
 		"hunt":
 			var b := float(w.get("birds", 0.0))
 			return {"pulse": smoothstep(0.05, 0.6, b), "tick": smoothstep(0.3, 0.8, b),
@@ -354,7 +367,7 @@ func _fight(w: Dictionary, f: Dictionary) -> Dictionary:
 		"sound", "dog":
 			drive = 0.25
 		"circle", "spiral":
-			drive = 0.4
+			drive = 0.6               # (tiring, circling: the drums stay up under the tune, the end's not won yet)
 	if bool(f.get("surging", false)):
 		drive = 1.0
 	if section == "leader":
@@ -427,36 +440,3 @@ func _mask(w: Dictionary, f: Dictionary, dt: float) -> void:
 ## A stem's level as it should sound (its gain under its mask).
 func level(k: String) -> float:
 	return float(gains.get(k, 0.0)) * float(masks.get(k, 1.0))
-
-
-## The quiet at sea: now and then a phrase for the mood, never the same twice running, long silences between; none
-## while anything else is playing or anyone's talking.
-func _phrases(w: Dictionary, dt: float) -> void:
-	if section != "rest" or hush > 0.0 or bool(w.get("card", false)) or float(w.get("counting", -1.0)) >= 0.0 \
-			or bool(w.get("title", false)):
-		if section != "rest" and _was != "rest" and phrase_wait < FIRST.x:
-			phrase_wait = _rng.randf_range(FIRST.x, FIRST.y)
-		return
-	if events.has("dawn"):
-		_start_phrase("dawn")
-		return
-	phrase_wait -= dt
-	if phrase_wait > 0.0 or bool(w.get("talking", false)):
-		return
-	var pick: Array = []
-	for n: String in Cues.CUES:
-		var c: Dictionary = Cues.CUES[n]
-		if str(c.get("kind", "")) == "phrase" and str(c.get("mood", "")) == mood and n != phrase:
-			pick.append(n)
-	if pick.is_empty():
-		phrase_wait = 10.0
-		return
-	pick.sort()
-	_start_phrase(pick[_rng.randi() % pick.size()])
-
-
-func _start_phrase(n: String) -> void:
-	phrase = n
-	events.append("phrase:" + n)
-	var gap: Vector2 = GAPS.get(mood, GAPS["calm"])
-	phrase_wait = float(Cues.CUES.get(n, {}).get("length", 20.0)) + _rng.randf_range(gap.x, gap.y)

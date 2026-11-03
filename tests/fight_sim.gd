@@ -10,6 +10,10 @@ const Bot := preload("res://tests/fight_bot.gd")
 const Rods := preload("res://rods/rods.gd")
 const DT := 1.0 / 30.0
 const N := 20
+## (--heave=A) the sea throwing her about: her stern heaving A m/s up and down every HEAVE_T s (a small boat in a
+## storm: about 1.1; rods.gd's heave)
+var heave_a := 0.0
+const HEAVE_T := 7.0
 const KGS := [35.0, 150.0, 300.0, 400.0]
 ## The other baits in the spread (bearings off her stern, m out), as the sportfisher trolls them (boat/kinds.gd).
 const SPREAD := [[-0.27, 56.0], [-0.14, 39.0], [0.27, 56.0], [0.0, 78.0]]
@@ -23,6 +27,8 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--style="):
 			only = a.substr(8)
+		if a.begins_with("--heave="):
+			heave_a = float(a.substr(8))
 		if a.begins_with("--kg="):
 			kgs = Array(a.substr(5).split(",")).map(func(k: String) -> float: return float(k))
 	var styles := ["good", "sloppy", "distracted"]
@@ -31,7 +37,7 @@ func _ready() -> void:
 	for style: String in styles:
 		if not only.is_empty() and style != only:
 			continue
-		for n: int in ([1] if "--solo" in OS.get_cmdline_user_args() else [1, 2]):
+		for n: int in ([1] if "--solo" in OS.get_cmdline_user_args() else ([2] if "--crew" in OS.get_cmdline_user_args() else [1, 2])):
 			for kg: float in kgs:
 				var ends := {}
 				var times: Array[float] = []
@@ -105,6 +111,7 @@ func _fight(kg: float, seed_value: int, style: String, n: int, left_out := false
 				lines.remove_at(mini(tangled_k, lines.size() - 1))
 			tangled_t = -1.0
 			f.tangled = false
+		f.heave = heave_a * sin(TAU * t / HEAVE_T)
 		f.step(DT, float(act["crank"]), float(act["pitch"]), float(act["side"]), float(act["drag"]))
 		t += DT
 		if f.angle_k() < 0.5:

@@ -22,6 +22,12 @@ MUSIC = os.path.join(HERE, "..", "music")
 sys.path.insert(0, HERE)
 
 
+# How far into a section it's lined up (s): past the longest fade in (four beats at 112) and the strike's tail.
+INTO = 4.0
+# Stems not up in the rendered scene (calm, day, a fresh fish): left out of what a switch is lined up against.
+EXTRAS = {"rain", "storm", "night", "click", "tension_hi", "tune"}
+
+
 def cues():
     """audio/music_cues.gd's CUES (it's JSON after the `const CUES :=`)."""
     s = open(os.path.join(HERE, "..", "audio", "music_cues.gd"), encoding="utf-8").read()
@@ -58,21 +64,34 @@ def main(d):
     # against the clip before it: the gap between them as they said (the movie maker's frames and its sound sit a
     # few ms apart, the same for everything, so it's the gaps that tell)
     real = []
+    clips = [float(p[0]) for p in played if p[1].startswith("clip:")]
     for at, what in played:
         kind, name = what.split(":", 1)
         if name == "rest" or kind not in ("clip", "sting") or name not in C:
             real.append((at, what, None))
             continue
         skip = int(round(C[name].get("pre", 0.0) * sr))         # (a sting's silent pre-roll)
-        ref = sum(load(f, sr)[skip:skip + sr] for f in C[name]["files"])
+        # (against the stems that are up in the scene: the weather's and the fight's extras are down in it)
+        files = [f for f, st in zip(C[name]["files"], C[name].get("stems", C[name]["files"])) if st not in EXTRAS]
+        # (a sea passage against its first two bars: they all share the guitar's pattern, and a second of it could
+        # line up with the one before)
+        span = int((4.0 if name.startswith("sea_") else 1.0) * sr)
+        # (a section's lined up from INTO s in, past its fade in and any sting over its start: its grid's the same)
+        into = 0 if kind == "sting" else int(INTO * sr)
+        # (all of it inside this clip's own time: the next one's crossfade isn't it)
+        if kind == "clip":
+            life = min([c for c in clips if c > at + 0.01] + [len(mono) / sr]) - at - 0.3
+            span = max(min(span, int(life * sr)), int(0.5 * sr))
+            into = max(min(into, int(life * sr) - span), 0)
+        ref = sum(load(f, sr)[skip + into:skip + into + span] for f in files)
         pre = int(0.25 * sr)
-        i0 = int(round(at * sr)) - pre
-        seg = mono[max(i0, 0):i0 + pre + int(1.25 * sr)]
+        i0 = int(round(at * sr)) + into - pre
+        seg = mono[max(i0, 0):i0 + pre + span + int(0.25 * sr)]
         if i0 < 0 or len(seg) < pre + len(ref):
             real.append((at, what, None))
             continue
         c = signal.fftconvolve(seg, ref[::-1], "valid")
-        real.append((at, what, (i0 + int(np.argmax(np.abs(c)))) / sr))
+        real.append((at, what, (i0 - into + int(np.argmax(np.abs(c)))) / sr))
     prev = None
     for at, what, got in real:
         if what.startswith("clip:rest"):
@@ -82,7 +101,10 @@ def main(d):
             continue
         if prev is not None:
             err = (got - prev[2]) - (at - prev[0])
-            check(abs(err) < 0.004, "%s at %.3f s: %+.1f ms against %s's grid" % (what, at, err * 1000, prev[1]))
+            # a switch in the bed is the mixer's own (within a few ms); a sting's started from the frame, so it can be
+            # out by up to a mix block (about 10 ms)
+            ok = abs(err) < (0.004 if what.startswith("clip:") else 0.012)
+            check(ok, "%s at %.3f s: %+.1f ms against %s's grid" % (what, at, err * 1000, prev[1]))
         else:
             print("     %s at %.3f s: from the quiet (no grid; %+.1f ms after it was asked)"
                   % (what, at, (got - at) * 1000))
@@ -123,7 +145,17 @@ def main(d):
     # 4. lost (96 s): silence, but for the strike's tail that went before it
     lost = rms_db(win(96.3, 101.5))
     check(lost < -60.0, "a fish lost: silence (%.1f dBFS)" % lost)
-    for a, b, what in [(4, 10, "hunt"), (12, 16, "fight"), (37, 40, "tired"), (42, 50, "leader"), (51, 55, "gaff"),
+    # 5. never quiet but where it should be: him in the air (27-28.6 s), the harpoon flying (56-57), the hush after
+    # the loss (96-102.5)
+    hush = [(26.9, 28.9), (55.9, 57.3), (95.9, 102.6)]
+    gaps = []
+    t = 0.5
+    while t + 1.0 < len(mono) / sr - 0.5:
+        if not any(a - 1.0 < t < b for a, b in hush) and rms_db(win(t, t + 1.0)) < -45.0:
+            gaps.append(round(t, 1))
+        t += 0.5
+    check(not gaps, "never quiet anywhere else (quiet at: %s)" % gaps[:10])
+    for a, b, what in [(0.5, 3, "sea"), (110, 135, "sea after"), (4, 10, "hunt"), (12, 16, "fight"), (37, 40, "tired"), (42, 50, "leader"), (51, 55, "gaff"),
                        (58, 70, "afterglow")]:
         print("     %-9s %.1f dBFS" % (what, rms_db(win(a, b))))
     print("MUSIC CHECK", "PASSED" if not fails else "FAILED")

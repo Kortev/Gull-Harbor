@@ -6,6 +6,39 @@ screen anyway, so it tells you nothing the sea doesn't). Written 2026-11-02 agai
 
 ## As built (2026-11-02)
 
+**Changed after a playtest (Kortev): music always, an endless soundtrack in sync with the game.** The quiet at sea
+(a phrase now and then, long silences) is gone, along with its one-shot phrases (calm, fog, rain, storm, night,
+dawn). Principle 1 ("silence is the default") no longer holds. In its place:
+- **The sea is an endless song.** Six 8-bar passages (`sea_a`..`sea_f`: three bright, three dark) at 112 bpm in
+  B minor / D, the hunt's and the fight's own tempo and key. Each next passage is picked as the last one's final bar
+  begins: never the same twice running, weighted bright or dark by the weather and the hour (dusk darker, the
+  first light bright). It joins on the passage's end with a one-beat crossfade. Birds → hunt → strike → fight is
+  one piece getting more intense, on the beat.
+- **The weather plays the sea's stems, eased over several seconds rather than switched:**
+  - pad and bass always;
+  - guitar picking and the lead in fair weather;
+  - the rain's patter;
+  - the storm's half-time war drums, bowed drone and sub (no tune);
+  - the night's bells;
+  - fog is sparse and far.
+- **The harbour follows the weather too:** guitar alone in rain, the concertina far off in fog, soft at night.
+  In a storm or downpour the dock plays the sea's storm instead of the waltz.
+- **The only silences:** the hush after a fish is lost (6 s, then the sea fades back in), him in the air, the
+  harpoon flying, and under Rivals' countdown and card.
+- **Clock drift fixed.** Godot takes each grid switch 0–4 ms early (1.8 ms on average), and the next switch counts
+  from where it really landed. Endless chaining made our estimate drift: 20 ms late by the second fish, and growing.
+  `EARLY` takes the average off at each grid switch, which held every switch within ±2 ms over 146 s.
+- **The strike's hit now waits for the fight to be asked for**, so it always lands with the fight, even when a
+  switch was already under way.
+- **The drums stay up while he circles at the end** (0.6, was 0.4). The balance pass's shorter fights had pulled
+  the drive under a third of big fights.
+- Measured: switches within ±2 ms; stings within about 10 ms (they start from a frame, so they can be off by a mix
+  block); no clicks; never quiet outside the deliberate silences (`tools/music_check.py`'s new check). The music is
+  15 MB. Demos (not committed): `export/music_demo_fish.ogg` and `export/music_demo_sea.ogg` (the sea through fair,
+  rain, storm, night, fog and a sunny dusk).
+
+### First build
+
 Built and pushed on `claude/zealous-mendel-h2udij`. Below is what changed from the plan, and why. The rest of this
 document is the plan as approved.
 

@@ -44,13 +44,15 @@ binoculars and the pump are only in hints.
 ## The run (the boat payment)
 
 - The bank wants the **boat payment** every **3 days** (3 trips), the **same every time** for the boat you own
-  (the biggest you've bought; a charter doesn't count): **$7,000** for the skiff, **$10,000** once you own the
+  (the biggest you've bought; a charter doesn't count): **$7,000** for the skiff, **$13,000** once you own the
   sportfisher (`boat/kinds.gd`'s "payment"). It never rises on its own: it only goes up when you buy a bigger boat,
   and then from the next payment on, so an upgrade always pays its way (she catches more). The same however many are
   aboard.
-- Sized from `tests/trip_sim` (24 days each, after shares and fuel, a 3-day period): the skiff alone about $8,200
-  (barely made, a lost fish and it's missed), two aboard the sportfisher about $15,500 and four about $14,600
-  (comfortable, and about the same).
+- Sized from `tests/trip_sim` (24 days each, after shares and fuel, a 3-day period, the weather turning through
+  each day): the skiff alone about $8,500 (barely made: a lost fish and it's missed), two in her about $18,300; two
+  aboard the sportfisher about $25,700 and four about $20,500 (comfortable), one alone in her about $7,600 (too much
+  boat for one: it doesn't pay). Two who move up from the skiff keep about $12,700 a period over the payment, against
+  $11,300 in the skiff.
 - Every fish sold counts toward the payment **and** goes in the bank to spend.
 - **Crew shares:** each crewmate aboard **past the second** takes **12% of the gross** of every fish sold, a
   "Share, <name>" line on the slip (the third and fourth aboard, by when they came aboard). Two keep it all; four
@@ -89,10 +91,14 @@ shelter, the same in the shader and for everything riding the water).
 | Cost | yours | $20,000, or $2,500 a day chartered |
 | Rods | 2 (the aft corners) | 5: two corners, two off the outriggers, the shotgun way back down the middle off a clip high on the tower |
 | Fish box | 2 iced | 12 iced |
-| Speed / handling | about 21 knots, turns quick, stops short | about 19 knots, slow to turn, carries her way |
+| Speed / handling | about 21 knots, turns quick, stops short | about 26 knots, slow to turn, carries her way |
 | Landing | over the low gunwale: no wiring | through the tuna door: must be wired first |
 | Lively in a sea | very | less |
 | Fuel | $60 a trip | $400 a trip |
+| Range | a small tank: about 10 min flat out (6.6 km), inshore only | about 37 min flat out: out to the shelf edge and back |
+| In a blow | seas over her low rail fill her (heavy and slow till her bilge pump clears it), the sea snatches a line with a fish on; her skipper runs in | self-bailing cockpit, her long heavy hull rides it: she fishes on |
+| Backing down on a fish | an outboard backs poorly (1.8 m/s) | twin screws back her down hard (3.2 m/s) |
+| Payment | $7,000 every 3 trips | $13,000 every 3 trips |
 
 **Gear** (the chandlery; once each, for the run):
 
@@ -119,6 +125,10 @@ said anywhere in game.
 
 ## The hunt: finding bluefin
 
+- **The shelf edge** (the chart's 100 m line, about 3.6 km off the coast: `tuna/schools.gd`'s OFFSHORE): out past
+  it, in the deep water, schools turn up oftener (every 5 to 12 s), up to 8 at once, nearer (0.5 to 1.6 km), and
+  they're the giants (200 to 400 kg). The sportfisher's speed (about 26 knots) and range get her out there and back
+  in a day; the skiff's tank doesn't.
 - **Flocks** turn up **0.8 to 2.6 km** off (the first a bit closer), up to 4 at a time, a new one every 30 s to a
   minute or so, each working for **6 to 12 minutes** before the birds lift and scatter.
 - From far off a flock is a **speck on the horizon**. **Binoculars** (hold B) tell you what it is:
@@ -226,8 +236,12 @@ bar, the rod tip's knock. Gap: nothing says the kit is on 1-5 but the hotbar its
 Rebuilt 2026-11-01 on how big-game tackle really works (tuna/fight.gd): it's tense every time because several things
 press at once, and every one of them is read off the rod, the reel and the line, not a meter.
 
-- **The strike:** the reel screams and the line pours off; the rod's slammed over in its holder, a hit-stop, the
-  white water. **Anyone grabs the rod** (E); Q puts it back in its holder.
+- **The strike** can't be missed, wherever you are aboard: the outrigger clip cracks, the rod's slammed over in its
+  holder, the reel screams (loud, and from where it is), a hit-stop with the white water hanging and everyone's view
+  kicked, a white flash, the pad kicks, the music's sting, the crew yelling, and **FISH ON! ROD n!** across the screen
+  with where she carries it. A marker sits on that rod's tip (or on the screen's edge pointing to it, BEHIND YOU when
+  it is) saying **E: TAKE THE ROD**, and at the wheel the line under the crosshair says to leave it and go.
+  **Anyone grabs the rod** (E); Q puts it back in its holder.
 - **The rod's bend is the line's tension.** A strike drag is already a deep bend; past that it's the **creak** of the
   blank, the **line singing** higher and the **tip shivering** that say how near it is to going, and the screen's
   edges pulse red right at the edge. Slack, the rod springs straight and the line droops on the water.
@@ -271,17 +285,35 @@ press at once, and every one of them is read off the rod, the reel and the line,
   - The captain's plotter shows where each fish is (red where its line's on the hull).
 - **Other lines:** while a fish is on, REEL THE OTHER LINES IN!; heading for one still out the warning names it;
   across it 3 s it tangles and saws his line through in 20 s unless someone winds that line in.
-- **Taught in the moment, never frozen:** no cards over the fight. Dale on the VHF says each thing the first time it
-  comes up (the bend, the drag slipping, cranking against him, half the spool gone, a jump, holding him too hard, the
-  leader, tired arms), and the crew shout what's happening as it happens (rods/fight_calls.gd: every peer works it
-  out from the rods' synced state, so everyone aboard hears it). A loss says why and what would have saved it.
+- **Taught in the moment, never frozen** (ui/fight_coach.gd, drawn by ui/fight_hud.gd): one line over the bottom of
+  the screen says the one thing to do now, read off the fight the way you'd read it: **LET HIM RUN - DON'T WIND**
+  while he takes line; **LIFT (MOUSE UP) > WIND AS YOU DROP (HOLD LMB)** when he stops, the half you're on lit;
+  **DROP THE TIP** when he jumps; **SLACK! WIND!**; **TOO TIGHT! EASE THE DRAG**. It fades once you've shown you've
+  got it (two runs let go, four pumps) and comes back in red the moment you flounder (cranking into a run, winding
+  against him without lifting, sitting idle). What you've learned is kept on this machine.
+- **Your reel**, bottom right, while he's on: him in one word (RUNNING, SURGING, DEEP, PULLING, TIRED, SHAKING,
+  JUMPING, CHARGING, SLACK), the side plate (the spool emptying, the drag lever on its quadrant marked FREE / STRIKE
+  / FULL; each notch says what it does as you move it), LINE LEFT as a bar and metres, the BEND as a bar with where
+  it parts (ON - LIGHT, ON - TIGHT, ABOUT TO PART!), and the three controls as pixel key caps (LIFT, WIND, DRAG; the
+  pad's RS UP, RT, LB/RB), the one to use now lit, till you've learned them.
+- **Is he still on?** The bend, the line bar-tight and angled into the water, the reel's clicker and the line's hum
+  (a note that climbs with the tension, the same note for the same bend), the rumble in a pad (a hum that tightens
+  with the bend, a buzz climbing with a run, a throb near parting). Gone: slack line, dead silence, and **HE'S GONE**
+  with why and what would have saved him, for everyone aboard (ROD n for the others).
+- **Co-op:** everyone aboard gets the strike banner, and a marker on each rod with a fish on that isn't theirs: the
+  rod's number, him in a word, and E: TAKE THE ROD or whose oilskins are on it.
+- Dale on the VHF says each thing the first time it comes up (the bend, the drag slipping, cranking against him,
+  half the spool gone, a jump, holding him too hard, the leader, tired arms), and the crew shout what's happening as
+  it happens (rods/fight_calls.gd: every peer works it out from the rods' synced state, so everyone aboard hears it).
+  A tip that's been overtaken while it waited (the rod's grabbed already) isn't said late.
 - **How long, and how often you lose one** (tests/fight_sim.tscn, headless test anglers that read only the rod, the
   reel and the line; see its output for the full table): fought well with a captain who backs down and swaps on the
   rod, a schoolie about 1.5 min, 150 kg about 4, 300 kg about 8, 400 kg about 9 and nearly all landed; alone a giant
   takes 12+ min and you lose a fair share of the biggest.
 
-**Teach it:** the rod, the reel and the line; Dale's lines and the crew's shouts in the moment; the loss reasons with
-what would have saved each; the field guide's section 6.
+**Teach it:** the rod, the reel and the line; the coach's line and the key caps by the reel; Dale's lines and the
+crew's shouts in the moment; the loss reasons with what would have saved each; the field guide's section 6.
+tests/first_fight_shot.tscn plays a first-timer's first fish start to end doing only what the screen says.
 
 ## Boatside
 
