@@ -14,6 +14,12 @@ var hiss := 0.0
 ## How empty the spool is (0 full .. 1 the arbor showing): the clicker's ping climbs with it.
 var arbor := 0.0
 const CREAK := 0.42
+## The line's tension, 0 slack .. 1 parting (0 too when it's slack or gone): the line under load hums, a low note
+## that climbs as it tightens, always the same note for the same bend, so you learn it (and it stops dead when he's
+## off or it's slack).
+var taut := 0.0
+var _hum_ph := 0.0
+var _hum_f := 0.0
 ## The snap: s left of it (0: none), and whether it was the line parting (a crack) or the hook coming out (a flick).
 var _snap := 0.0
 var _snap_hard := false
@@ -54,10 +60,11 @@ func snap(parted: bool) -> void:
 	clicks = 0.0
 	hiss = 0.0
 	strain = 0.0
+	taut = 0.0
 
 
 func _process(_delta: float) -> void:
-	var on := clicks > 0.5 or hiss > 0.02 or strain > CREAK or _snap > 0.0
+	var on := clicks > 0.5 or hiss > 0.02 or strain > CREAK or _snap > 0.0 or taut > 0.05
 	if not on:
 		if playing:
 			stop()
@@ -83,8 +90,16 @@ func _process(_delta: float) -> void:
 	# the blank: a ~210 Hz body excited by the stick-slip pulses
 	var bw := TAU * 210.0 * dt
 	var bdamp := exp(-dt / 0.012)
+	var hum_to := 110.0 + 420.0 * clampf(taut, 0.0, 1.2) if taut > 0.05 else 0.0
 	for i in n:
 		var out := 0.0
+		if hum_to > 0.0 and _snap <= 0.0:
+			# (a string under load: a fundamental and a little of its octave, gliding to the bend's note)
+			_hum_f = hum_to if _hum_f <= 0.0 else lerpf(_hum_f, hum_to, 0.0008)
+			_hum_ph = fmod(_hum_ph + _hum_f * dt, 1.0)
+			out += (sin(_hum_ph * TAU) + 0.35 * sin(_hum_ph * TAU * 2.0)) * (0.035 + 0.075 * clampf(taut, 0.0, 1.0))
+		elif hum_to <= 0.0:
+			_hum_f = 0.0
 		if rate > 0.5:
 			_click_ph += rate * dt * (0.85 + 0.3 * randf())
 			if _click_ph >= 1.0:

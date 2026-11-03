@@ -163,6 +163,9 @@ func reset() -> void:
 	var tutor: Node = (sea.get("rods") as Node).get("tutor")
 	if tutor != null:
 		tutor.call("_load")
+	var hud: Object = (sea.get("rods") as Node).get("_fight_hud")
+	if hud != null:
+		(hud.get("coach") as Object).call("reset")      # (the fight's lines and key caps again too)
 
 
 ## Tip `id` now, unless it's been seen (or it's already waiting).
@@ -188,6 +191,9 @@ func _process(delta: float) -> void:
 		_in = 0.25
 		_watch()
 	# the card: one tip at a time, up long enough to read (a second for every three words), fading in and out
+	# (a tip that's been overtaken while it waited, the rod already grabbed, isn't said late)
+	while _left <= 0.0 and not _queue.is_empty() and _stale(_queue[0]):
+		_queue.pop_front()
 	if _left <= 0.0 and not _queue.is_empty():
 		var id: String = _queue.pop_front()
 		_title.text = CALLER
@@ -205,6 +211,16 @@ func _process(delta: float) -> void:
 	if _talk <= 0.0:
 		_talk = randf_range(0.05, 0.14)
 		_light.color = Color(1.0, 0.3, 0.2, randf_range(0.55, 1.0) if _left > 0.4 else 0.15)
+
+
+## Whether tip `id`, still waiting, has been overtaken (the rod's grabbed already; you're off the wheel now).
+func _stale(id: String) -> bool:
+	match id:
+		"bite":
+			return (sea.get("rods") as Node).call("held_by", Net.my_id()) != null
+		"captain":
+			return not bool((sea.get("boat") as Node).get("helm").call("is_mine"))
+	return false
 
 
 ## What's going on, and whether it's the first time for any of it.
@@ -271,7 +287,11 @@ func _watch() -> void:
 			show_tip("fight")
 			if str(mine.get("move")) == "spiral":
 				show_tip("spiral")
-			if (crew.get("slots") as Dictionary).size() <= 1:
+			# (alone: the holder, once the basics are in hand or the arms are going, not over the first lesson)
+			var hud: Object = rods.get("_fight_hud")
+			var coach: Object = hud.get("coach") if hud != null else null
+			if (crew.get("slots") as Dictionary).size() <= 1 and (coach == null or bool(coach.call("learned"))
+					or float(mine.get("arms")) < 0.5):
 				show_tip("alone")
 		if int(helm.get("captain")) == me:
 			show_tip("captain")
