@@ -3,7 +3,10 @@ extends Node3D
 ## white water bursts in over the rail with a crash, and for a while after the deck streams with foam running aft to
 ## the scuppers. The sea's the same on every peer (sea/ocean.gd's wave clock), so everyone sees the same crests come
 ## aboard. Her rail comes from her kind (boat/kinds.gd's "rail": points on her starboard rail; port mirrors it).
-## Just the sea: it doesn't knock anyone down or wash anything over (both Rivals boats ride the same sea).
+## It doesn't knock anyone down or wash anything over (both Rivals boats ride the same sea), but it stays aboard: a
+## small open boat fills (`water`, of what she can take: each sea her kind's "swamp" of it, a deep sea more) faster
+## than her bilge pump clears it ("bilge" a second), and with water in her she's heavy and slow (boat/helm.gd's
+## top_speed). The sportfisher's self-bailing cockpit and high rail hardly notice.
 
 const Sfx := preload("res://audio/sfx.gd")
 const PUFF := preload("res://sea/textures/steam_puff.png")
@@ -15,6 +18,9 @@ var boat: Node3D              # boat/boat.gd
 ## Times a sea's come aboard (tests), and how much the deck's streaming now (0..1).
 var bursts := 0
 var streaming := 0.0
+## Water aboard her (0 dry .. 1 as much as she can take), and whether she's been told she's taking it.
+var water := 0.0
+var _told := false
 var _rail: Array[Vector3] = []
 var _wait: Array[float] = []
 var _sheets: Array[GPUParticles3D] = []
@@ -65,6 +71,15 @@ func _process(delta: float) -> void:
 			_wait[i] = AGAIN
 			_aboard(_rail[i], over)
 	streaming = maxf(streaming - delta / STREAM_S, 0.0)
+	var spec: Dictionary = boat.get("spec")
+	water = maxf(water - float(spec.get("bilge", 0.05)) * delta, 0.0)
+	if water > 0.4 and not _told:
+		_told = true
+		var crew: Node = boat.get("sea").get("crew") if boat.get("sea") != null else null
+		if crew != null and crew.get("hud") != null and crew.call("boat_of", Net.my_id()) == boat:
+			(crew.get("hud") as Node).call("notify", "She's taking water: heavy and slow. Get her in out of it")
+	elif water < 0.1:
+		_told = false
 	_deck_wash.emitting = streaming > 0.05
 	_deck_wash.amount_ratio = clampf(streaming, 0.2, 1.0)
 
@@ -73,6 +88,7 @@ func _process(delta: float) -> void:
 ## awash.
 func _aboard(at: Vector3, over: float) -> void:
 	bursts += 1
+	water = minf(water + float((boat.get("spec") as Dictionary).get("swamp", 0.0)) * (0.6 + over), 1.0)
 	var s := _sheets[_next_sheet]
 	_next_sheet = (_next_sheet + 1) % _sheets.size()
 	s.position = at

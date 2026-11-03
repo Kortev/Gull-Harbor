@@ -44,13 +44,15 @@ binoculars and the pump are only in hints.
 ## The run (the boat payment)
 
 - The bank wants the **boat payment** every **3 days** (3 trips), the **same every time** for the boat you own
-  (the biggest you've bought; a charter doesn't count): **$7,000** for the skiff, **$10,000** once you own the
+  (the biggest you've bought; a charter doesn't count): **$7,000** for the skiff, **$13,000** once you own the
   sportfisher (`boat/kinds.gd`'s "payment"). It never rises on its own: it only goes up when you buy a bigger boat,
   and then from the next payment on, so an upgrade always pays its way (she catches more). The same however many are
   aboard.
-- Sized from `tests/trip_sim` (24 days each, after shares and fuel, a 3-day period): the skiff alone about $8,200
-  (barely made, a lost fish and it's missed), two aboard the sportfisher about $15,500 and four about $14,600
-  (comfortable, and about the same).
+- Sized from `tests/trip_sim` (24 days each, after shares and fuel, a 3-day period, the weather turning through
+  each day): the skiff alone about $8,500 (barely made: a lost fish and it's missed), two in her about $18,300; two
+  aboard the sportfisher about $25,700 and four about $20,500 (comfortable), one alone in her about $7,600 (too much
+  boat for one: it doesn't pay). Two who move up from the skiff keep about $12,700 a period over the payment, against
+  $11,300 in the skiff.
 - Every fish sold counts toward the payment **and** goes in the bank to spend.
 - **Crew shares:** each crewmate aboard **past the second** takes **12% of the gross** of every fish sold, a
   "Share, <name>" line on the slip (the third and fourth aboard, by when they came aboard). Two keep it all; four
@@ -89,10 +91,14 @@ shelter, the same in the shader and for everything riding the water).
 | Cost | yours | $20,000, or $2,500 a day chartered |
 | Rods | 2 (the aft corners) | 5: two corners, two off the outriggers, the shotgun way back down the middle off a clip high on the tower |
 | Fish box | 2 iced | 12 iced |
-| Speed / handling | about 21 knots, turns quick, stops short | about 19 knots, slow to turn, carries her way |
+| Speed / handling | about 21 knots, turns quick, stops short | about 26 knots, slow to turn, carries her way |
 | Landing | over the low gunwale: no wiring | through the tuna door: must be wired first |
 | Lively in a sea | very | less |
 | Fuel | $60 a trip | $400 a trip |
+| Range | a small tank: about 10 min flat out (6.6 km), inshore only | about 37 min flat out: out to the shelf edge and back |
+| In a blow | seas over her low rail fill her (heavy and slow till her bilge pump clears it), the sea snatches a line with a fish on; her skipper runs in | self-bailing cockpit, her long heavy hull rides it: she fishes on |
+| Backing down on a fish | an outboard backs poorly (1.8 m/s) | twin screws back her down hard (3.2 m/s) |
+| Payment | $7,000 every 3 trips | $13,000 every 3 trips |
 
 **Gear** (the chandlery; once each, for the run):
 
@@ -119,6 +125,10 @@ said anywhere in game.
 
 ## The hunt: finding bluefin
 
+- **The shelf edge** (the chart's 100 m line, about 3.6 km off the coast: `tuna/schools.gd`'s OFFSHORE): out past
+  it, in the deep water, schools turn up oftener (every 5 to 12 s), up to 8 at once, nearer (0.5 to 1.6 km), and
+  they're the giants (200 to 400 kg). The sportfisher's speed (about 26 knots) and range get her out there and back
+  in a day; the skiff's tank doesn't.
 - **Flocks** turn up **0.8 to 2.6 km** off (the first a bit closer), up to 4 at a time, a new one every 30 s to a
   minute or so, each working for **6 to 12 minutes** before the birds lift and scatter.
 - From far off a flock is a **speck on the horizon**. **Binoculars** (hold B) tell you what it is:

@@ -161,7 +161,7 @@ static func act(c: Dictionary, dt: float, style: String, mem: Dictionary) -> Dic
 ## The boat round a headless fight, a tick on: the captain, swapping on the rod, the holder. `n` is how many aboard
 ## (1: alone); `mem` keeps its state (start with {}). TURN: how fast she swings (rad/s, boat/helm.gd).
 const TURN := 0.45
-const WALK := 2.5          # s from the rod to the wheel and back
+const WALK := 2.5          # s from the rod to the wheel and back (mem["walk_s"]: her own; mem["turn"]: her turn)
 const LATE := 1.0          # s a captain's slow to see he's gone wide
 const ROD_MIN := 4.0       # s alone back on the rod, winding, before the next go at the wheel
 const CHASE := 0.7         # alone, the spool this empty with him still running: to the wheel to chase him
@@ -188,7 +188,7 @@ static func crew(f: Object, dt: float, n: int, mem: Dictionary, careless := fals
 				rest = arms
 				f.set("grace", 1.0)
 		elif arms < 0.15 and rest > 0.6 and not bool(f.get("slipping")):
-			walk = WALK
+			walk = float(mem.get("walk_s", WALK))
 		mem["walk"] = walk
 		mem["rest"] = rest
 		steering = walk <= 0.0 and not bool(mem.get("busy", false))
@@ -210,12 +210,12 @@ static func crew(f: Object, dt: float, n: int, mem: Dictionary, careless := fals
 		elif not resting and ((on_rod > ROD_MIN and not slipping and float(f.call("angle_k")) < 0.4
 				and float(f.get("line_out")) > 12.0) or arms < 0.12 or (spool > CHASE and slipping)):
 			resting = true
-			walk = WALK
+			walk = float(mem.get("walk_s", WALK))
 			f.set("in_holder", true)
 		elif resting and absf(b) < 0.4 and float(f.get("arms")) > 0.5 and (spool < CHASE or not slipping) \
 				and (float(f.get("stretch")) < -2.0 or float(mem.get("helm_t", 0.0)) > 6.0):
 			resting = false         # (she's backed down on him, or long enough: back to the rod, wind up the slack)
-			walk = WALK
+			walk = float(mem.get("walk_s", WALK))
 		mem["helm_t"] = float(mem.get("helm_t", 0.0)) + dt if resting else 0.0
 		if not resting and walk <= 0.0:
 			mem["rod_t"] = on_rod + dt
@@ -240,7 +240,7 @@ static func crew(f: Object, dt: float, n: int, mem: Dictionary, careless := fals
 	mem["seen"] = seen
 	if steering and seen > (2.0 if careless else LATE) or (steering and absf(b) > 0.15 and bool(mem.get("swinging", false))):
 		mem["swinging"] = true
-		f.set("bearing", float(f.get("bearing")) - signf(b) * minf(TURN * dt, absf(b)))
+		f.set("bearing", float(f.get("bearing")) - signf(b) * minf(float(mem.get("turn", TURN)) * dt, absf(b)))
 	else:
 		mem["swinging"] = false
 	# backing down on him when he's taken a lot (never with him under her or close in)

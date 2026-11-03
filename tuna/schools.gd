@@ -18,6 +18,11 @@ extends Node3D
 ## through, run alongside just ahead of it, or stop in its path and cast. (Running over a school does nothing to it:
 ## the user's call, 2026-10-30, it only punished you for what you couldn't see.)
 ##
+## The shelf edge (OFFSHORE m off the coast, the chart's 100 m line: boat/plotter.gd): out past it, in the deep
+## water, is where the giants are. Schools turn up more often there (EDGE_EVERY), more of them at once (EDGE_SCHOOLS),
+## nearer (EDGE_SPAWN), and they're the big fish (EDGE_KG). It's a long run: the skiff's tank won't take her out
+## there and back (boat/kinds.gd's "tank"); the sportfisher's speed and range will.
+##
 ## Or bring them to you: chum (boat/chum.gd) lays a slick back through the baits, and while it's fresh (SLICK) a
 ## school within SLICK_PULL of it comes up it (DRAW m/s) and stays on it, working, as long as the chum keeps coming;
 ## and new schools turn up nearer it (SLICK_SPAWN).
@@ -58,6 +63,13 @@ const SLICK_PULL := 450.0
 const DRAW := 3.0
 const SLICK_SPAWN := Vector2(250.0, 500.0)
 const STAY := 60.0
+## The shelf edge: how far off the water's edge (m), and out past it how often a school turns up (s), how many at
+## once, how far off (m), and how big its fish are (kg).
+const OFFSHORE := 3600.0
+const EDGE_EVERY := Vector2(5.0, 12.0)
+const EDGE_SCHOOLS := 8
+const EDGE_SPAWN := Vector2(500.0, 1600.0)
+const EDGE_KG := Vector2(200.0, 400.0)
 ## How near the spread (m) a school has to be to find the baits on its own.
 const FIND := 160.0
 ## (tests and screenshots: the next school this close, m; 0: as usual)
@@ -144,6 +156,16 @@ func _in_close(at := Vector2.INF) -> bool:
 	return at.y > float(marks.call("shore_z", at.x)) - IN_CLOSE
 
 
+## Whether she's out past the shelf edge (or `at`, world x, z, is): the deep water where the giants are.
+func offshore(at := Vector2.INF) -> bool:
+	var marks: Node = sea.get("landmarks") if sea != null else null
+	if marks == null:
+		return false
+	if at == Vector2.INF:
+		at = boat_at()
+	return at.y < float(marks.call("shore_z", at.x)) - OFFSHORE
+
+
 ## Where the boat is (world x, z): the schools turn up round her.
 func boat_at() -> Vector2:
 	var boat := sea.get("boat") as Node
@@ -177,11 +199,12 @@ func _process(delta: float) -> void:
 	if Net.is_host() and (not bool(vs.call("_all_docked")) if rivals else not _docked()):
 		_next -= delta
 		if _next <= 0.0:
-			_next = randf_range(10.0, 25.0)
+			var edge := offshore()
+			_next = randf_range(EDGE_EVERY.x, EDGE_EVERY.y) if edge else randf_range(10.0, 25.0)
 			# (none while she's still in the harbour or close in under the coast: they're out on the grounds)
 			if bool(vs.call("all_in_close")) if rivals else _in_close():
 				_next = 3.0
-			elif schools.size() < MAX_SCHOOLS:
+			elif schools.size() < (EDGE_SCHOOLS if edge else MAX_SCHOOLS):
 				_host_start()
 	for s in schools.duplicate():
 		if s.done(now()):
@@ -345,6 +368,9 @@ func _host_start() -> void:
 	var ring := FIRST if _first else SPAWN
 	_first = false
 	var round_at := boat_at()
+	var edge := offshore(round_at)
+	if edge:
+		ring = EDGE_SPAWN
 	var vs: Node = sea.get("vs")
 	if vs != null and bool(vs.get("on")):
 		round_at = vs.call("spawn_anchor")      # (two boats, vs/vs.gd: round each, and between them)
@@ -374,6 +400,8 @@ func _host_start() -> void:
 				bearing = randf_range(-PI, PI)
 				start = round_at + Vector2(cos(bearing), sin(bearing)) * far
 	var kg := randf_range(60.0, 330.0) if randf() < 0.85 else randf_range(330.0, 400.0)
+	if edge:
+		kg = randf_range(EDGE_KG.x, EDGE_KG.y)       # (the deep water's giants)
 	var args := [_ids, randi(), now() + 0.5, start, heading, speed, kg, life]
 	if Net.in_session():
 		_start.rpc.callv(args)
