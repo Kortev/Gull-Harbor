@@ -4,6 +4,51 @@ Status: **approved 2026-11-02, being built** with the recommended answers: folk-
 about-to-part moment, pure synth, pure silence on a loss, and the hunt layer on birds you can see (they are on
 screen anyway, so it tells you nothing the sea doesn't). Written 2026-11-02 against `claude/zealous-mendel-h2udij` at a416062.
 
+## As built (2026-11-02)
+
+Built and pushed on `claude/zealous-mendel-h2udij`. Below is what changed from the plan, and why. The rest of this
+document is the plan as approved.
+
+- **Files:**
+  - `audio/music_state.gd`: the pure state, game picture in, section/stems/events out.
+  - `audio/music.gd`: the conductor.
+  - `audio/music_cues.gd`: the manifest, written by `tools/music.py`. It's a script rather than JSON so it goes into
+    the export with no filter change.
+  - `music/*.ogg`: 63 files, 13 MB, up from 3.8 MB. Stems are encoded a little lower than the full cues.
+- **Measured in the real mixer** (`tools/music_check.sh`: movie-maker render, then `tools/music_check.py`):
+  - every switch lands within 4 ms of the grid of the clip before it;
+  - stings land within 3 ms;
+  - no clicks at any switch, sting or loop seam;
+  - the line about to part is 6.5 dB thinner than a run, and him in the air is 19 dB down;
+  - a loss is true silence.
+- **No filler clips.** Godot doesn't fade from a filler into the next clip, and a loop's first sample is its tail
+  wrapped round, so the leader came in with a click. The leader's drum fill is now a sting timed to *end* on a bar
+  line: it plays over beats 3–4 and the leader enters on the downbeat with a 0.1-beat fade (`ENTER`). The same
+  0.1-beat fade covers the strike's entry from the quiet.
+- **Stings have 60 ms of silent pre-roll** (`PRE` in tools/music.py). The conductor starts them a frame early and
+  seeks into the silence by the remainder, allowing for the mixer's next block, so a 30 fps frame no longer moves a
+  hit by up to 33 ms.
+- **The clock:** a silent looping player's position (the mixer's time) on a sound card, and game time headless or
+  under the movie maker (the Dummy driver). `AudioStreamPlaybackInteractive` reports no playback position, so where
+  each clip started is worked out from the grid it was asked on. Godot lands each switch 0–4 ms early, so the
+  estimate can drift by that much per chained switch. It re-anchors every time the music returns to the quiet.
+- **Danger retuned to the real fight.** Bot-played fights (`tests/music_fight_test`) sit at a median bend of about
+  0.1 of breaking strain, 0.3 at the 90th percentile, and rarely above 0.45 (the drag tops out at 0.55, and the
+  hook tears past 0.5). The tension stem now rises with a loaded rod (0.18 → 0.4: in for 25–50% of every fight).
+  "About to part" is past the hook's tearing point (0.4 → 0.6). It shows 0.1–0.3% of the time, which keeps it a rare,
+  real moment. Every fight peaks the drive at least twice and keeps it up 31–59% of the time, in flat calm.
+- **The race home yields to a fish on.** Before, the race beat the fight. Now a fish on during the race home plays
+  the fight.
+- **No edits outside audio/.** The world is read with `get()`: `landing._flight` (the harpoon flying), the local
+  player's `_under` (underwater), each school's `feeding()`/`center()` (birds). rods.gd's old `hush(3.5)` call is
+  harmless (the state detects a loss for itself), so it stays.
+- **Not made:** the grocery-shift muzak, because the shift isn't in the game yet.
+- **Tests:**
+  - `tests/music_state_test` (around 50 cases, including the hold-is-never-heard fairness check);
+  - `tests/music_test` (against the real sea);
+  - `tests/music_fight_test` (the music over bot fights);
+  - `tools/music_check.sh` (the real mixer; opens a window for about 2 minutes).
+
 ## The one-line pitch
 
 A fish-shed folk band that is mostly **silent**. It plays like a live band watching the water over your shoulder.

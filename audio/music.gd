@@ -634,14 +634,7 @@ func _fight_of(r: Node, id: String) -> Dictionary:
 			"depth": float(r.get("depth")), "move": str(r.get("move")), "tangled": int(r.get("tangled")) >= 0}
 	var fight: RefCounted = r.get("fight")
 	if fight != null:
-		var c: Dictionary = fight.call("cues")
-		f["tension"] = float(c["tension"]) / maxf(float(fight.call("strength")), 0.05)
-		f["spool"] = float(c["spool"])
-		f["slack"] = bool(c["slack"])
-		f["airborne"] = bool(c["airborne"])
-		f["surging"] = bool(c["surging"]) or float(c["paying"]) > 1.5
-		f["contact"] = float(c["contact"])
-		f["props"] = float(c["props"])
+		f.merge(State.feel(fight.call("cues"), float(fight.call("strength"))), true)
 	else:
 		var strength := (1.0 - 0.5 * smoothstep(0.4, 1.0, float(r.get("wear")))) * (1.0 - 0.6 * float(r.get("twist")))
 		f["tension"] = float(r.get("strain")) / maxf(strength, 0.05)

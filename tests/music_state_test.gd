@@ -33,7 +33,7 @@ func _run(s: State, w: Dictionary, secs: float) -> Array:
 
 
 func _fish(more := {}) -> Dictionary:
-	var f := {"id": "0:1.00", "tension": 0.5, "spool": 0.2, "depth": 10.0, "line_out": 120.0, "move": "run"}
+	var f := {"id": "0:1.00", "tension": 0.2, "spool": 0.2, "depth": 10.0, "line_out": 120.0, "move": "run"}
 	f.merge(more, true)
 	return f
 
@@ -107,20 +107,23 @@ func _fight() -> void:
 	_run(s, {"docked": false, "fights": [_fish({"move": "run"})]}, 0.3)
 	_check(s.level("drive") > 0.9, "back in: everything back (%.2f)" % s.level("drive"))
 	# about to part
-	_run(s, {"docked": false, "fights": [_fish({"tension": 0.97})]}, 0.25)
+	_run(s, {"docked": false, "fights": [_fish({"tension": 0.62})]}, 0.25)
 	_check(s.parting and s.level("drive") < 0.02 and s.level("deep") < 0.02 and s.level("tension") > 0.99
 			and s.level("pulse") > 0.95 and absf(s.level("bed") - 0.3) < 0.05,
 			"the line about to part: the heartbeat and one note (drive %.2f, tension %.2f, bed %.2f)"
 			% [s.level("drive"), s.level("tension"), s.level("bed")])
-	_run(s, {"docked": false, "fights": [_fish({"tension": 0.5})]}, 0.8)
-	_check(not s.parting and s.level("drive") > 0.5, "eased: the band back (%.2f)" % s.level("drive"))
-	_run(s, {"docked": false, "fights": [_fish({"spool": 0.8, "tension": 0.5})]}, 2.0)
+	_run(s, {"docked": false, "fights": [_fish({"tension": 0.42})]}, 0.8)
+	_check(not s.parting and s.level("drive") > 0.5 and s.level("tension") > 0.9,
+			"eased, still loaded: the band back, the tension stem with it (%.2f)" % s.level("drive"))
+	_run(s, {"docked": false, "fights": [_fish({"spool": 0.8, "tension": 0.2})]}, 2.0)
 	_check(s.level("tension_hi") > 0.6 and s.level("drive") > 0.8,
 			"the spool emptying: the high tremolo, the drive held (%.2f)" % s.level("tension_hi"))
 	# tiring
 	_run(s, {"docked": false, "fights": [_fish({"move": "circle", "spool": 0.2})]}, 5.0)
 	_check(s.section == "tired" and s.level("tune") > 0.8, "circling: tired, the tune (%s, %.2f)"
 			% [s.section, s.level("tune")])
+	_run(s, {"docked": false, "fights": [_fish({"move": "circle", "spool": 0.2})]}, 4.0)
+	_check(s.level("tension") < 0.5, "a played fish, the rod easy: the tension eases (%.2f)" % s.level("tension"))
 	_run(s, {"docked": false, "fights": [_fish({"move": "surge", "spool": 0.2})]}, 1.0)
 	_check(s.section == "tired", "a surge near her doesn't undo it")
 	ev = _run(s, {"docked": false, "fights": [_fish({"move": "spiral", "line_out": 12.0})]}, DT)
@@ -146,7 +149,7 @@ func _fair() -> void:
 	var same := true
 	for i in 600:
 		var mv: String = moves[(i / 40) % moves.size()]
-		var f := _fish({"move": mv, "tension": 0.4 + 0.5 * sin(i * 0.05), "line_out": 200.0 - i * 0.3})
+		var f := _fish({"move": mv, "tension": 0.3 + 0.35 * sin(i * 0.05), "line_out": 200.0 - i * 0.3})
 		var g := f.duplicate()
 		f["hold"] = 1.0
 		g["hold"] = 0.05

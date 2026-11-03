@@ -29,6 +29,11 @@ const LEADER := 16.0
 const LEADER_OUT := 40.0
 ## A fight section holds at least this long (s: two bars at 112) before it changes (the leader doesn't wait).
 const SECTION_HOLD := 4.3
+## The bend against what the line takes (tuna/fight.gd: the drag holds at most DRAG_MAX 0.55 of it, past HOOK_T 0.5
+## the hook tears; a played fish sits round 0.1, a heavy moment 0.3): the rod loaded (the tension stem coming in),
+## and near going (danger).
+const LOADED := Vector2(0.18, 0.4)
+const NEAR := Vector2(0.4, 0.6)
 ## The line about to part: danger past PARTING, over till it's back under PARTED.
 const PARTING := 0.85
 const PARTED := 0.72
@@ -144,10 +149,18 @@ func _worst(fights: Array) -> Dictionary:
 	return best
 
 
+## A fight's feel from its own cues (tuna/fight.gd's cues(), on the machine holding the rod; `strength` what the
+## line takes now): the bend against it, the spool, slack, in the air, a run (the reel screaming), the line on her.
+static func feel(c: Dictionary, strength: float) -> Dictionary:
+	return {"tension": float(c["tension"]) / maxf(strength, 0.05), "spool": float(c["spool"]), "slack": bool(c["slack"]),
+			"airborne": bool(c["airborne"]), "surging": bool(c["surging"]) or float(c["paying"]) > 1.5,
+			"contact": float(c["contact"]), "props": float(c["props"])}
+
+
 ## How near the line is to going, from what you could see and feel: the bend against what the line takes, the backing
 ## showing, the line worn on her, under her props, tangled.
 static func _danger(f: Dictionary) -> float:
-	var d := smoothstep(0.55, 0.95, float(f.get("tension", 0.0)))
+	var d := smoothstep(NEAR.x, NEAR.y, float(f.get("tension", 0.0)))
 	d = maxf(d, smoothstep(0.5, 0.9, float(f.get("spool", 0.0))))
 	d = maxf(d, smoothstep(0.4, 0.9, float(f.get("contact", 0.0))))
 	d = maxf(d, clampf(float(f.get("props", 0.0)) / 2.5, 0.0, 1.0))
@@ -340,7 +353,7 @@ func _fight(w: Dictionary, f: Dictionary) -> Dictionary:
 		deep = maxf(deep, 0.5)
 	return {"bed": 1.0, "pulse": 0.0 if bool(f.get("slack", false)) else 1.0, "drive": drive,
 			"shaker": 0.0 if night else drive, "click": drive if night else 0.0,
-			"tension": smoothstep(0.2, 0.8, danger),
+			"tension": maxf(smoothstep(LOADED.x, LOADED.y, float(f.get("tension", 0.0))), smoothstep(0.2, 0.8, danger)),
 			"tension_hi": maxf(smoothstep(0.5, 0.85, spool), 0.6 * smoothstep(0.7, 0.95, danger)),
 			"deep": deep, "tune": {"tired": 0.85, "leader": 1.0}.get(section, 0.0)}
 

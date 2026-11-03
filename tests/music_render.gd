@@ -15,7 +15,7 @@ var until := INF
 
 
 func _fish(more := {}) -> Dictionary:
-	var f := {"id": "0:1.00", "tension": 0.6, "spool": 0.2, "depth": 10.0, "line_out": 150.0, "move": "run"}
+	var f := {"id": "0:1.00", "tension": 0.3, "spool": 0.2, "depth": 10.0, "line_out": 150.0, "move": "run"}
 	f.merge(more, true)
 	return f
 
@@ -31,11 +31,11 @@ func _script() -> Array:
 		[0.0, at.call({})],
 		[3.0, at.call({"birds": 0.7})],
 		[10.0, at.call({"fights": [_fish()]})],
-		[16.0, at.call({"fights": [_fish({"move": "sound", "depth": 80.0, "tension": 0.5})]})],
-		[24.0, at.call({"fights": [_fish({"move": "dog", "depth": 60.0, "tension": 0.97})]})],
-		[27.0, at.call({"fights": [_fish({"move": "jump", "airborne": true, "tension": 0.3})]})],
-		[28.6, at.call({"fights": [_fish({"move": "circle", "depth": 40.0, "tension": 0.5, "line_out": 60.0})]})],
-		[40.0, at.call({"fights": [_fish({"move": "spiral", "depth": 5.0, "tension": 0.5, "line_out": 12.0})]})],
+		[16.0, at.call({"fights": [_fish({"move": "sound", "depth": 80.0, "tension": 0.2})]})],
+		[24.0, at.call({"fights": [_fish({"move": "dog", "depth": 60.0, "tension": 0.62})]})],
+		[27.0, at.call({"fights": [_fish({"move": "jump", "airborne": true, "tension": 0.1})]})],
+		[28.6, at.call({"fights": [_fish({"move": "circle", "depth": 40.0, "tension": 0.2, "line_out": 60.0})]})],
+		[40.0, at.call({"fights": [_fish({"move": "spiral", "depth": 5.0, "tension": 0.2, "line_out": 12.0})]})],
 		[50.0, at.call({"alongside": ["0:1.00"]})],
 		[53.0, at.call({"alongside": ["0:1.00"], "draw": 0.5})],
 		[54.5, at.call({"alongside": ["0:1.00"], "draw": 1.0})],
