@@ -175,7 +175,7 @@ const TOW := 0.01
 ## A beaten fish kept tight is led round off the stern this fast (rad/s, at full pressure).
 const LEAD := 0.35
 ## A rod left in its holder: how much faster he takes line on a run, with nobody on it.
-const HOLDER_RUN := 1.8
+const HOLDER_RUN := 2.0
 
 var kg := 150.0
 var nature := "runner"
