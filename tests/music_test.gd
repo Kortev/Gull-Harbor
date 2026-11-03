@@ -24,6 +24,7 @@ func _ready() -> void:
 	add_child(sea)
 	await get_tree().process_frame
 	sea.schools.set("_next", 9999.0)
+	sea.schools.set_process(false)     # (no stray bites: only the test hooks a fish)
 	sea.set_condition("calm")          # (the weather's dice: a storm at the dock has no waltz)
 	var t := Title.new()
 	t.name = "Title"

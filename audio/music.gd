@@ -926,8 +926,18 @@ func world(sea: Node) -> Dictionary:
 			else:
 				fights.append(_fight_of(r, id))
 	w["fights"] = fights
-	w["alongside"] = along
 	var landing: Node = sea.get("landing")
+	if landing != null:
+		# (a fish the landing's still got, harpooned and being hauled in through the door, is still alongside:
+		# its rod lets go of it before it's in the hold)
+		var held: Variant = landing.get("fish")
+		if held is Dictionary:
+			for i: Variant in held:
+				var lf: Dictionary = held[i]
+				var lid := "%d:%.2f" % [int(i), float(lf.get("hook_t", 0.0))]
+				if not lid in along:
+					along.append(lid)
+	w["alongside"] = along
 	if landing != null:
 		w["draw"] = float(landing.get("draw"))
 		var fl: Variant = landing.get("_flight")
