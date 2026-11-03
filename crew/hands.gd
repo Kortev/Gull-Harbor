@@ -612,7 +612,10 @@ func _pipe_tick(delta: float) -> void:
 		return
 	var look := asin(clampf(-cam.global_basis.z.y, -1.0, 1.0))
 	var want := int(music.call("whistle_note", inverse_lerp(PIPE_LOOK.x, PIPE_LOOK.y, look)))
-	if want != note and want != _next_note:
+	if want == note:
+		_next_note = 0                 # (back to the note sounding before the next one was due: it stays)
+		_next_at = INF
+	elif want != _next_note:
 		_next_note = want
 		_next_at = float(music.call("next_tick", 2))
 	if float(music.call("now")) >= _next_at - 0.008:

@@ -91,7 +91,8 @@ func _finish() -> void:
 	set_process(false)
 	if out != "":
 		var f := FileAccess.open(out, FileAccess.WRITE)
-		f.store_string(JSON.stringify({"played": m.get("played"), "fps": 30}))
+		f.store_string(JSON.stringify({"played": m.get("played"), "fps": 30, "heard": m.get("heard"),
+				"put_right": m.get("put_right")}))
 		f.close()
 	print("MUSIC RENDER DONE (%d played)" % (m.get("played") as Array).size())
 	get_tree().quit()

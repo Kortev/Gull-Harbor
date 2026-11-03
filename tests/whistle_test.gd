@@ -69,7 +69,7 @@ func _ready() -> void:
 	_check(high > low, "looking up: higher (%d after %d)" % [high, low])
 	var heard := true
 	var chord: String = m.chord_now()
-	var since := 99
+	var since := 0                     # (how long it's been on this chord: from now, not knowing)
 	var changes := 0
 	for i in 180:
 		await get_tree().process_frame

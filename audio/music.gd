@@ -15,7 +15,10 @@ extends Node
 ##   the theme for the leader, the hit and the theme when he's in, the race called, home made, casting off.
 ## - the switches between passages land on the bar in the mixer itself (sample-locked), a half-beat's crossfade at
 ##   most: never a slow smear; cues start on our own clock (a silent player's position: the mixer's time), each with
-##   a silent pre-roll so its hit lands on the line, lead-ins ending exactly on the downbeat.
+##   a silent pre-roll so its hit lands on the line, lead-ins ending exactly on the downbeat. And the clock listens:
+##   every bar of the song carries a tiny tick (its "mark" stem, MARK_HZ), the bed plays through a bus of its own
+##   (BED_BUS) where it's captured and then filtered out, and each bar the clock's put right on where its tick really
+##   was (_listen()), so however long it plays, nothing drifts off the beat.
 ## - the only silences: a fish lost (HUSH_FADE: everything gone at once), him in the air, the harpoon flying, and the
 ##   quiet under Rivals' countdown and card.
 ## - the mix: all of it down a little while the radio or a voice is on (DUCK_BUSES), with a dip where voices sit (the
@@ -77,6 +80,16 @@ const COUNT := 10.0
 const HOME := 360.0
 ## The clock: a silent loop this long (s), its position the mixer's time.
 const CLOCK_LEN := 4.0
+## The clock's ear: the bed's own bus (into the Music bus); how far either side of where a bar's due its tick's
+## looked for (s), in steps of how many samples, each heard over how many; how much louder than the rest round it
+## counts as the tick; how much of its sound is kept (s); and the biggest put-right it trusts (s: more is a mishearing).
+const BED_BUS := &"MusicBed"
+const MARK_WIN := 0.03
+const MARK_STEP := 24
+const MARK_N := 96
+const MARK_OVER := 6.0
+const CAP_KEEP := 0.6
+const MARK_TRUST := 0.06
 
 ## The section wanted now ("rest": quiet), and the one sounding (a switch lands on the grid, a moment later).
 var cue := "rest"
@@ -133,6 +146,15 @@ var _eq: AudioEffectEQ6
 var _lpf: AudioEffectLowPassFilter
 var _sea: Node
 var _dummy := false         # (no sound card, headless: nothing's mixed, so the clock's the frames')
+var _cap: AudioEffectCapture
+var _cap_buf := PackedFloat32Array()   # the bed as heard, mono: the last CAP_KEEP s
+var _cap_end := 0           # frames heard in all (the last of _cap_buf)
+var _cap_c := NAN           # our clock less the ear's (s), averaged
+var _mark_ref := NAN        # the offset at the first tick heard since the song came in from the quiet
+var _mark_at := -1.0        # the next bar line to listen for (our clock)
+## How far the ear's put the clock right, all told (s), and how many ticks it's heard (the tests read them).
+var heard := 0
+var put_right := 0.0
 var _world := {}
 
 
@@ -271,11 +293,29 @@ func _leave(from: String, to: String) -> int:
 	return best[2]
 
 
-## The Music bus's own effects: the pocket (an EQ), the muffle (a low-pass), a limiter.
+## The Music bus's own effects: the pocket (an EQ), the muffle (a low-pass), a limiter; and the bed's bus into it, with
+## the ear on it (a capture) and the tick filtered out after (a notch and two low-passes: the music's low-passed at
+## 8 kHz already).
 func _bus_effects() -> void:
 	var b := AudioServer.get_bus_index(BUS)
 	if b < 0:
 		return
+	if AudioServer.get_bus_index(BED_BUS) < 0:
+		AudioServer.add_bus()
+		var i := AudioServer.bus_count - 1
+		AudioServer.set_bus_name(i, BED_BUS)
+		AudioServer.set_bus_send(i, BUS)
+		_cap = AudioEffectCapture.new()
+		_cap.buffer_length = 0.5
+		AudioServer.add_bus_effect(i, _cap)
+		var notch := AudioEffectNotchFilter.new()
+		notch.cutoff_hz = float(Cues.CUES.get("sea_a", {}).get("mark_hz", 12000.0))
+		AudioServer.add_bus_effect(i, notch)
+		for k in 2:
+			var lp := AudioEffectLowPassFilter.new()
+			lp.cutoff_hz = 9000.0
+			AudioServer.add_bus_effect(i, lp)
+		_bed.bus = BED_BUS
 	_eq = AudioEffectEQ6.new()
 	_lpf = AudioEffectLowPassFilter.new()
 	_lpf.cutoff_hz = 20000.0
@@ -381,6 +421,7 @@ func _process(delta: float) -> void:
 	cue = state.section
 	for e: String in state.events:
 		_on(e)
+	_listen()
 	_land()
 	_jumps()
 	_chain()
@@ -397,7 +438,8 @@ func _exit_tree() -> void:
 	if _log_to != "":
 		var f := FileAccess.open(_log_to, FileAccess.WRITE)
 		if f != null:
-			f.store_string(JSON.stringify({"played": _log, "fps": Engine.physics_ticks_per_second}))
+			f.store_string(JSON.stringify({"played": _log, "fps": Engine.physics_ticks_per_second, "heard": heard,
+					"put_right": put_right}))
 			f.close()
 
 
@@ -484,6 +526,9 @@ func _land() -> void:
 		_landing = {}
 		_phrase_n = -1
 		_fill = 0.0                # (the fill was the last passage's, into this one)
+		if str(_landing.get("from", "")) == "rest":
+			_mark_ref = NAN        # (in from the quiet: a new start to hear it against)
+		_mark_at = -1.0
 		_note("clip:" + sounding, _start)
 
 
@@ -520,7 +565,7 @@ func _ask(to: String) -> void:
 	if from == "title" and to.begins_with("sea_"):
 		_queue.append({"name": "title_end", "at": at, "from": 0.0})      # (the title's last chord rings on into it)
 	_asked = to
-	_landing = {"to": to, "at": at}
+	_landing = {"to": to, "at": at, "from": from}
 	if to != "rest":
 		_set_volumes(to, true)
 
@@ -556,6 +601,88 @@ func _jumps() -> void:
 	_fill = 0.0
 	_landing = {"to": "sea_t1", "at": at - EARLY}
 	_set_volumes("sea_t1", true)
+
+
+## The clock's ear: the bed as the mixer played it (the capture on BED_BUS), and at each bar line its tick looked for
+## (a Goertzel at the mark's pitch, every MARK_STEP samples round where it's due). Where it really was against where
+## the clock had it, set against the first heard since the song came in from the quiet: the difference is how far the
+## clock's drifted, and it's put right (the clip's start, the switch on its way, the next bar to listen for).
+func _listen() -> void:
+	if _cap == null:
+		return
+	var n := _cap.get_frames_available()
+	if n > 0:
+		var f := _cap.get_buffer(n)
+		var at := _cap_buf.size()
+		_cap_buf.resize(at + f.size())
+		for i in f.size():
+			_cap_buf[at + i] = (f[i].x + f[i].y) * 0.5
+		_cap_end += f.size()
+	var rate := AudioServer.get_mix_rate()
+	var keep := int(CAP_KEEP * rate)
+	if _cap_buf.size() > keep:
+		_cap_buf = _cap_buf.slice(_cap_buf.size() - keep)
+	if _cap_end <= 0:
+		return
+	var c := _t - float(_cap_end) / rate
+	_cap_c = c if is_nan(_cap_c) else lerpf(_cap_c, c, 0.05)
+	var cl: Dictionary = _clips.get(sounding, {})
+	if not cl.has("bpm") or not _landing.is_empty():
+		_mark_at = -1.0
+		return
+	var bar := 60.0 / float(cl["bpm"]) * int(cl["bar_beats"])
+	if _mark_at < 0.0:
+		_mark_at = _next("bar", 0.0)
+	if _t < _mark_at + MARK_WIN + 0.04:
+		return
+	var due := _mark_at
+	_mark_at += bar
+	# where in what's been heard: the ear's frames, from the oldest kept
+	var first := _cap_end - _cap_buf.size()
+	var i0 := int(roundf((due - _cap_c - MARK_WIN) * rate)) - first
+	var steps := int(2.0 * MARK_WIN * rate / MARK_STEP)
+	if i0 < 0 or i0 + steps * MARK_STEP + MARK_N >= _cap_buf.size():
+		return
+	var hz := float(cl.get("mark_hz", Cues.CUES.get("sea_a", {}).get("mark_hz", 12000.0)))
+	var k := 2.0 * cos(TAU * hz / rate)
+	var powers: Array[float] = []
+	var best := 0.0
+	var best_i := -1
+	for st in steps:
+		var a := 0.0
+		var b := 0.0
+		var o := i0 + st * MARK_STEP
+		for j in MARK_N:
+			var x := _cap_buf[o + j] + k * a - b
+			b = a
+			a = x
+		var pw := a * a + b * b - k * a * b
+		powers.append(pw)
+		if pw > best:
+			best = pw
+			best_i = st
+	var sorted := powers.duplicate()
+	sorted.sort()
+	if best_i < 0 or best < MARK_OVER * maxf(sorted[sorted.size() / 2], 1e-9) or best < 1e-6:
+		return                     # (not heard: the hush, or the bar too loud up there to tell)
+	# the tick's middle is where the window it fills best sits; its bar line is the start of it
+	var mark_s := float(cl.get("mark_s", 0.006))
+	var mid := float(i0 + best_i * MARK_STEP + MARK_N / 2 + first) / rate
+	var d := (mid - mark_s * 0.5 + _cap_c) - due
+	heard += 1
+	if is_nan(_mark_ref):
+		_mark_ref = d
+		return
+	var e := d - _mark_ref
+	if absf(e) < 0.0006 or absf(e) > MARK_TRUST:
+		return
+	_start += e
+	_mark_at += e
+	put_right += e
+	if not _landing.is_empty():
+		_landing["at"] = float(_landing["at"]) + e
+	for q: Dictionary in _queue:
+		q["at"] = float(q["at"]) + e
 
 
 ## The sea's next passage: by how bright the weather and the hour want it (the state's `bright`), never the one
@@ -653,7 +780,7 @@ func _set_volumes(n: String, fresh: bool) -> void:
 	for k in stems.size():
 		var s: String = stems[k]
 		var g := state.level(s) if not s in GATED else state.level(s) * (0.0 if fresh else float(_gate.get(s, 0.0)))
-		if s == "main":
+		if s == "main" or s == "mark":
 			g = 1.0
 		elif s == "fill":
 			g = _fill if n == sounding else 0.0      # (the passage going out has it; the one coming in, not yet)

@@ -28,7 +28,9 @@ sys.path.insert(0, HERE)
 INTO = 4.0
 # Stems not up in the rendered scene (calm, day, a fresh fish): left out of what a switch is lined up against.
 REAL = False
-EXTRAS = {"rain", "storm", "night", "click", "tension_hi", "tune"}
+# The song's layers that play whatever's happening (a passage is lined up against these alone: the rest come and go).
+ALWAYS = {"pad", "bass"}
+EXTRAS = {"mark", "rain", "storm", "night", "click", "tension_hi", "tune"}
 
 
 def cues():
@@ -63,6 +65,10 @@ def main(d):
             fails.append(what)
 
     print("render: %.1f s at %d Hz, %d things played" % (len(mono) / sr, sr, len(played)))
+    log = json.load(open(os.path.join(d, "f.json")))
+    if "heard" in log:
+        print("     the clock's ear: %d ticks heard, put right by %+.1f ms in all" % (int(log["heard"]),
+              float(log["put_right"]) * 1000))
     # 1. on time: where each switch (and sting) really started, from the render against its own stems; then each
     # against the clip before it: the gap between them as they said (the movie maker's frames and its sound sit a
     # few ms apart, the same for everything, so it's the gaps that tell)
@@ -75,7 +81,8 @@ def main(d):
             continue
         skip = int(round(C[name].get("pre", 0.0) * sr))         # (a sting's silent pre-roll)
         # (against the stems that are up in the scene: the weather's and the fight's extras are down in it)
-        files = [f for f, st in zip(C[name]["files"], C[name].get("stems", C[name]["files"])) if st not in EXTRAS]
+        files = [f for f, st in zip(C[name]["files"], C[name].get("stems", C[name]["files"]))
+                 if (st in ALWAYS if name.startswith("sea_") else st not in EXTRAS)]
         # (a sea passage against its first two bars: they all share the guitar's pattern, and a second of it could
         # line up with the one before)
         span = int((4.0 if name.startswith("sea_") else 1.0) * sr)
@@ -98,24 +105,34 @@ def main(d):
             continue
         c = signal.fftconvolve(seg, ref[::-1], "valid")
         real.append((at, what, (i0 - into + int(np.argmax(np.abs(c)))) / sr))
-    prev = None
+    # each run of the song from where it last came in from the quiet: every switch's and sting's offset (where it
+    # really started, against where it said) against the run's median. A real slip moves everything after it, so
+    # it's two clips in a row out the same way; one alone out and the next back (a passage whose first seconds
+    # don't line up with its stems: a quiet one) is the measuring, not the music.
+    runs, cur = [], []
     for at, what, got in real:
-        if what.startswith("clip:rest"):
-            prev = None
-            continue
-        if got is None:
-            continue
-        if prev is not None:
-            err = (got - prev[2]) - (at - prev[0])
-            # a switch in the bed is the mixer's own (within a few ms); a sting's started from the frame, so it can be
-            # out by up to a mix block (about 10 ms)
-            ok = abs(err) < (0.004 if what.startswith("clip:") else 0.012)
-            check(ok, "%s at %.3f s: %+.1f ms against %s's grid" % (what, at, err * 1000, prev[1]))
-        else:
-            print("     %s at %.3f s: from the quiet (no grid; %+.1f ms after it was asked)"
-                  % (what, at, (got - at) * 1000))
-        if what.startswith("clip:"):
-            prev = (at, what, got)
+        if what.startswith("clip:rest") or (what.startswith("clip:") and got is not None and not cur):
+            if cur:
+                runs.append(cur)
+            cur = []
+        if got is not None:
+            cur.append((at, what, got - at))
+    if cur:
+        runs.append(cur)
+    for run in runs:
+        med = float(np.median([o for at, what, o in run if what.startswith("clip:")] or [0.0]))
+        clips = [(at, what, o - med) for at, what, o in run if what.startswith("clip:")]
+        stings = [(at, what, o - med) for at, what, o in run if what.startswith("sting:")]
+        out = [abs(e) >= 0.004 for at, what, e in clips]
+        for i, (at, what, e) in enumerate(clips):
+            slip = out[i] and i + 1 < len(clips) and out[i + 1] and (e > 0) == (clips[i + 1][2] > 0)
+            if out[i] and not slip:
+                print("     %s at %.3f s: %+.1f ms, alone (the next one's back on: the measuring)" % (what, at, e * 1000))
+            elif i > 0:
+                check(not slip, "%s at %.3f s: %+.1f ms against the song's grid" % (what, at, e * 1000))
+        for at, what, e in stings:
+            # (a sting's started from the frame: within a mix block, about 10 ms)
+            check(abs(e) < 0.012, "%s at %.3f s: %+.1f ms against the song's grid" % (what, at, e * 1000))
     # 2. clicks: the music's low-passed (8 kHz, tools/music.py), a click isn't: whatever's up past 12 kHz round each
     # switch, sting and loop seam, against the render's own
     b, a = signal.butter(4, 12000 / (sr / 2), "high")

@@ -459,6 +459,13 @@ def seam_ok(x):
     return jump <= max(moves, 1e-3), jump, moves
 
 
+# The clock's tick on each bar (a stem of its own: "mark"): how high (Hz: above the music, which is low-passed round 8
+# kHz, below what the Vorbis encoder drops), how long (s) and how loud.
+MARK_HZ = 12000.0
+MARK_S = 0.006
+MARK_LEVEL = 0.03
+
+
 def stems(name, tracks, bpm, bar_beats, bars, level=0.85, kind="bed", chords=None, chord_beats=0, **mk):
     """A section as stems (dict name -> Track, all one length): each mastered just like the whole mix (by the whole
     mix's peak, so they keep their balance), written ../music/<name>_<stem>.ogg, checked: the stems sum back to the
@@ -484,8 +491,17 @@ def stems(name, tracks, bpm, bar_beats, bars, level=0.85, kind="bed", chords=Non
             assert ok, "%s_%s: the loop's seam jumps %.4f (the music moves %.4f)" % (name, k, jump, moves)
         write("%s_%s" % (name, k), x * g, comp=0.8)       # (a stem's heard with the rest: fewer bits)
     print("  %s: %d stems, sum vs whole %.1f dB" % (name, len(xs), err))
-    cue(name, kind, ["%s_%s" % (name, k) for k in tracks], bpm, bar_beats, bars, ts[0].loop,
-        stems=list(tracks), length=n / SR)
+    # mark: the clock's tick, a little MARK_HZ blip on each bar's downbeat, never mastered (no room on it, sharp):
+    # audio/music.gd hears the section through it as it plays (its grid as the mixer really has it), and filters it
+    # out before anyone else does
+    mark = np.zeros((2, n))
+    blip = np.sin(2 * np.pi * MARK_HZ * np.arange(int(MARK_S * SR)) / SR) * np.hanning(int(MARK_S * SR)) * MARK_LEVEL
+    for b in range(bars):
+        i = int(round(b * bar_beats * 60.0 / bpm * SR))
+        mark[:, i:i + len(blip)] += blip[:n - i]
+    write("%s_mark" % name, mark, comp=0.6)
+    cue(name, kind, ["%s_%s" % (name, k) for k in tracks] + ["%s_mark" % name], bpm, bar_beats, bars, ts[0].loop,
+        stems=list(tracks) + ["mark"], length=n / SR, mark_hz=MARK_HZ, mark_s=MARK_S)
     if chords:
         # (what's playing when: one chord each chord_beats beats, a bar each by default; the deck whistle's notes)
         CUES[name]["chords"] = list(chords)

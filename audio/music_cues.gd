@@ -174,11 +174,14 @@ const CUES := {
 	   "sea_a_drive",
 	   "sea_a_tension",
 	   "sea_a_deep",
-	   "sea_a_heavy"
+	   "sea_a_heavy",
+	   "sea_a_mark"
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
 	  "loop": true,
+	  "mark_hz": 12000.0,
+	  "mark_s": 0.006,
 	  "stems": [
 	   "pad",
 	   "bass",
@@ -196,7 +199,8 @@ const CUES := {
 	   "drive",
 	   "tension",
 	   "deep",
-	   "heavy"
+	   "heavy",
+	   "mark"
 	  ]
 	 },
 	 "sea_b": {
@@ -232,11 +236,14 @@ const CUES := {
 	   "sea_b_drive",
 	   "sea_b_tension",
 	   "sea_b_deep",
-	   "sea_b_heavy"
+	   "sea_b_heavy",
+	   "sea_b_mark"
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
 	  "loop": true,
+	  "mark_hz": 12000.0,
+	  "mark_s": 0.006,
 	  "stems": [
 	   "pad",
 	   "bass",
@@ -254,7 +261,8 @@ const CUES := {
 	   "drive",
 	   "tension",
 	   "deep",
-	   "heavy"
+	   "heavy",
+	   "mark"
 	  ]
 	 },
 	 "sea_c": {
@@ -290,11 +298,14 @@ const CUES := {
 	   "sea_c_drive",
 	   "sea_c_tension",
 	   "sea_c_deep",
-	   "sea_c_heavy"
+	   "sea_c_heavy",
+	   "sea_c_mark"
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
 	  "loop": true,
+	  "mark_hz": 12000.0,
+	  "mark_s": 0.006,
 	  "stems": [
 	   "pad",
 	   "bass",
@@ -312,7 +323,8 @@ const CUES := {
 	   "drive",
 	   "tension",
 	   "deep",
-	   "heavy"
+	   "heavy",
+	   "mark"
 	  ]
 	 },
 	 "sea_d": {
@@ -348,11 +360,14 @@ const CUES := {
 	   "sea_d_drive",
 	   "sea_d_tension",
 	   "sea_d_deep",
-	   "sea_d_heavy"
+	   "sea_d_heavy",
+	   "sea_d_mark"
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
 	  "loop": true,
+	  "mark_hz": 12000.0,
+	  "mark_s": 0.006,
 	  "stems": [
 	   "pad",
 	   "bass",
@@ -370,7 +385,8 @@ const CUES := {
 	   "drive",
 	   "tension",
 	   "deep",
-	   "heavy"
+	   "heavy",
+	   "mark"
 	  ]
 	 },
 	 "sea_e": {
@@ -406,11 +422,14 @@ const CUES := {
 	   "sea_e_drive",
 	   "sea_e_tension",
 	   "sea_e_deep",
-	   "sea_e_heavy"
+	   "sea_e_heavy",
+	   "sea_e_mark"
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
 	  "loop": true,
+	  "mark_hz": 12000.0,
+	  "mark_s": 0.006,
 	  "stems": [
 	   "pad",
 	   "bass",
@@ -428,7 +447,8 @@ const CUES := {
 	   "drive",
 	   "tension",
 	   "deep",
-	   "heavy"
+	   "heavy",
+	   "mark"
 	  ]
 	 },
 	 "sea_f": {
@@ -464,11 +484,14 @@ const CUES := {
 	   "sea_f_drive",
 	   "sea_f_tension",
 	   "sea_f_deep",
-	   "sea_f_heavy"
+	   "sea_f_heavy",
+	   "sea_f_mark"
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
 	  "loop": true,
+	  "mark_hz": 12000.0,
+	  "mark_s": 0.006,
 	  "stems": [
 	   "pad",
 	   "bass",
@@ -486,7 +509,8 @@ const CUES := {
 	   "drive",
 	   "tension",
 	   "deep",
-	   "heavy"
+	   "heavy",
+	   "mark"
 	  ]
 	 },
 	 "sea_g": {
@@ -522,11 +546,14 @@ const CUES := {
 	   "sea_g_drive",
 	   "sea_g_tension",
 	   "sea_g_deep",
-	   "sea_g_heavy"
+	   "sea_g_heavy",
+	   "sea_g_mark"
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
 	  "loop": true,
+	  "mark_hz": 12000.0,
+	  "mark_s": 0.006,
 	  "stems": [
 	   "pad",
 	   "bass",
@@ -544,7 +571,8 @@ const CUES := {
 	   "drive",
 	   "tension",
 	   "deep",
-	   "heavy"
+	   "heavy",
+	   "mark"
 	  ]
 	 },
 	 "sea_h": {
@@ -580,11 +608,14 @@ const CUES := {
 	   "sea_h_drive",
 	   "sea_h_tension",
 	   "sea_h_deep",
-	   "sea_h_heavy"
+	   "sea_h_heavy",
+	   "sea_h_mark"
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
 	  "loop": true,
+	  "mark_hz": 12000.0,
+	  "mark_s": 0.006,
 	  "stems": [
 	   "pad",
 	   "bass",
@@ -602,7 +633,8 @@ const CUES := {
 	   "drive",
 	   "tension",
 	   "deep",
-	   "heavy"
+	   "heavy",
+	   "mark"
 	  ]
 	 },
 	 "sea_i": {
@@ -638,11 +670,14 @@ const CUES := {
 	   "sea_i_drive",
 	   "sea_i_tension",
 	   "sea_i_deep",
-	   "sea_i_heavy"
+	   "sea_i_heavy",
+	   "sea_i_mark"
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
 	  "loop": true,
+	  "mark_hz": 12000.0,
+	  "mark_s": 0.006,
 	  "stems": [
 	   "pad",
 	   "bass",
@@ -660,7 +695,8 @@ const CUES := {
 	   "drive",
 	   "tension",
 	   "deep",
-	   "heavy"
+	   "heavy",
+	   "mark"
 	  ]
 	 },
 	 "sea_j": {
@@ -696,11 +732,14 @@ const CUES := {
 	   "sea_j_drive",
 	   "sea_j_tension",
 	   "sea_j_deep",
-	   "sea_j_heavy"
+	   "sea_j_heavy",
+	   "sea_j_mark"
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
 	  "loop": true,
+	  "mark_hz": 12000.0,
+	  "mark_s": 0.006,
 	  "stems": [
 	   "pad",
 	   "bass",
@@ -718,7 +757,8 @@ const CUES := {
 	   "drive",
 	   "tension",
 	   "deep",
-	   "heavy"
+	   "heavy",
+	   "mark"
 	  ]
 	 },
 	 "sea_t1": {
@@ -754,11 +794,14 @@ const CUES := {
 	   "sea_t1_drive",
 	   "sea_t1_tension",
 	   "sea_t1_deep",
-	   "sea_t1_heavy"
+	   "sea_t1_heavy",
+	   "sea_t1_mark"
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
 	  "loop": true,
+	  "mark_hz": 12000.0,
+	  "mark_s": 0.006,
 	  "stems": [
 	   "pad",
 	   "bass",
@@ -776,7 +819,8 @@ const CUES := {
 	   "drive",
 	   "tension",
 	   "deep",
-	   "heavy"
+	   "heavy",
+	   "mark"
 	  ],
 	  "then": "sea_t2"
 	 },
@@ -814,11 +858,14 @@ const CUES := {
 	   "sea_t2_drive",
 	   "sea_t2_tension",
 	   "sea_t2_deep",
-	   "sea_t2_heavy"
+	   "sea_t2_heavy",
+	   "sea_t2_mark"
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
 	  "loop": true,
+	  "mark_hz": 12000.0,
+	  "mark_s": 0.006,
 	  "stems": [
 	   "pad",
 	   "bass",
@@ -836,7 +883,8 @@ const CUES := {
 	   "drive",
 	   "tension",
 	   "deep",
-	   "heavy"
+	   "heavy",
+	   "mark"
 	  ]
 	 },
 	 "strike": {
@@ -932,11 +980,14 @@ const CUES := {
 	   "title_rain",
 	   "title_storm",
 	   "title_night",
-	   "title_low"
+	   "title_low",
+	   "title_mark"
 	  ],
 	  "kind": "bed",
 	  "length": 85.71428125,
 	  "loop": true,
+	  "mark_hz": 12000.0,
+	  "mark_s": 0.006,
 	  "stems": [
 	   "lead",
 	   "counter",
@@ -947,7 +998,8 @@ const CUES := {
 	   "rain",
 	   "storm",
 	   "night",
-	   "low"
+	   "low",
+	   "mark"
 	  ]
 	 },
 	 "title_end": {
