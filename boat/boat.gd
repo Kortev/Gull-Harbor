@@ -491,12 +491,14 @@ func _process(delta: float) -> void:
 	_was = global_transform
 	_was_dt = delta
 	global_transform = pose()
-	# her hull pushes the sea down where she sits and the sea's cut away inside her: no crest shows up through her
-	# deck (the boat you're on; in Rivals the other boat's only cut away)
+	# the sea meets her hull where she is (carried, pitched and rolled, this frame's pose): left as it is outside her,
+	# heaped along her by her way, held under her deck inside her, so no crest shows up through it (the boat you're
+	# on; in Rivals the other boat the same)
+	var way: float = helm.speed if helm else 0.0
 	if ocean.follow == self or ocean.follow == null:
-		ocean.set_hull(global_transform, length, beam)
+		ocean.set_hull(global_transform, length, beam, deck, way)
 	else:
-		ocean.set_other_hull(global_transform, length, beam)
+		ocean.set_other_hull(global_transform, length, beam, true, deck, way)
 
 
 ## Where the hull sits on the swell right now: a plane fitted to the water under her (five stations along, three
