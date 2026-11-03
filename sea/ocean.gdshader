@@ -68,21 +68,30 @@ uniform vec4 glow_spot = vec4(0.0);
 uniform vec2 glow_heading = vec2(1.0, 0.0);
 uniform vec3 glow_color : source_color = vec3(0.3, 0.95, 0.8);
 uniform sampler2D noise : filter_linear_mipmap, repeat_enable;
-// the boat (ocean.gd's set_hull): her hull pushes the water down, so no crest ever comes up through her deck.
-// hull_xf takes her space to this node's, hull_inv back; inside her the sea stays under hull_floor (her space)
+// the boat (ocean.gd's set_hull): the water meets her hull as water would. Outside her it's left as it is, only
+// heaped up a little along her at speed (her bow wave, the wash along her sides); inside her (her topsides and
+// liner, her cockpit) it's held under her deck, so no crest ever shows through it. hull_xf takes her space to this
+// node's, hull_inv back.
 uniform bool hull_on = false;
 uniform mat4 hull_xf = mat4(1.0);
 uniform mat4 hull_inv = mat4(1.0);
-uniform float hull_floor = 0.35;
-// her length (m) and how much beamier than 4.3 m she is (ocean.gd sets both from boat.gd)
+// her length (m), how much beamier than 4.3 m she is (ocean.gd sets both from boat.gd), her cockpit sole over her
+// origin (m) and her way through the water (m/s, + ahead)
 uniform float hull_length = 14.0;
 uniform float hull_beam = 1.1163;
-// the other boat in Rivals (vs/vs.gd), pushed down the same (ocean.gd's set_other_hull)
+uniform float hull_deck = 0.55;
+uniform float hull_speed = 0.0;
+// (how much coarser the sea's mesh is round her than near its middle, m: ocean.gd's _gap_at)
+uniform float hull_pad = 0.0;
+// the other boat in Rivals (vs/vs.gd), the same (ocean.gd's set_other_hull)
 uniform bool hull2_on = false;
 uniform mat4 hull2_xf = mat4(1.0);
 uniform mat4 hull2_inv = mat4(1.0);
 uniform float hull2_length = 14.0;
 uniform float hull2_beam = 1.1163;
+uniform float hull2_deck = 0.55;
+uniform float hull2_speed = 0.0;
+uniform float hull2_pad = 0.0;
 
 
 // The FFT sea (sea/ocean_fft.gd): three tiles of the spectrum, each two textures (a: sideways x, z, height, slope x;
@@ -119,6 +128,8 @@ uniform vec3 wake_bound = vec3(0.0, 0.0, -1.0);    // (x, z, radius: nothing of 
 
 varying vec3 local;
 varying vec3 moved;
+// the white water her way puts along her sides (hull_water), 0..1
+varying float hull_wash;
 
 float calm_at(vec2 p) {
 	if (calm_rect.z <= 0.0) {
@@ -232,23 +243,46 @@ float hull_half(float z) {
 	return half_of(z, hull_length, hull_beam);
 }
 
-// the sea pushed down under hull_floor inside a hull (this node's space in, out): all the way in from a little outside
-// her rail (so a triangle reaching in from outside her doesn't carry a crest across her deck), easing off beyond it.
-// (Done to the vertices, never by discarding pixels: a discard in the sea's shader costs the whole sea its early
-// depth test, a third of the frame.)
-vec3 push_down(vec3 v, mat4 inv, mat4 xf, float len, float beam) {
+// The water round a hull (this node's space in, out; `wash` gets the white water her way makes here).
+// Outside her the sea's left alone: no flattened band beside her, the swell comes right up her topsides (which hide
+// where it goes on inside them). At speed it heaps up along her: a bow wave off her forward shoulders, a lower
+// ridge running aft along her sides and a little stern wave at her quarters, falling away from her over a metre or
+// two. Inside her the water's held a hand under her deck: out of her cockpit, so nothing shows through it.
+// The two meet across her topsides, the thickness of her hull (a hull 0.15 m mesh, ocean.gd's: no triangle reaches
+// from open water into her cockpit). (Done to the vertices, never by discarding pixels: a discard in the sea's shader
+// costs the whole sea its early depth test, a third of the frame.)
+vec3 hull_water(vec3 v, mat4 inv, mat4 xf, float len, float beam, float deck, float speed, float pad, inout float wash) {
 	vec3 b = (inv * vec4(v, 1.0)).xyz;
-	if (b.y <= hull_floor) {
-		return v;
-	}
-	float hh = half_of(b.z, len, beam);
 	float hl = len * 0.5;
-	float in_k = smoothstep(hh + 0.9, hh + 0.25, abs(b.x)) * smoothstep(hl + 0.9, hl + 0.2, b.z)
-			* smoothstep(-hl - 0.9, -hl - 0.1, b.z);
-	if (in_k <= 0.0) {
+	// how far outside her this is (m, from her sheer line seen from above; 0 inside her)
+	float zc = clamp(b.z, -hl + 0.01, hl - 0.01);
+	float hh = max(half_of(zc, len, beam), 0.02);
+	float out_d = length(vec2(max(abs(b.x) - hh, 0.0), b.z - zc));
+	if (out_d > 6.0 + pad) {
 		return v;
 	}
-	b.y = mix(b.y, hull_floor, in_k);
+	// her bow wave and the wash along her, heaped up with her way (her length's worth: the skiff's is smaller)
+	float way = smoothstep(0.6, 8.0, speed) * len / 14.0;
+	if (way > 0.0) {
+		// along her: 0 at her transom, 1 at her stem (and past them, the end's)
+		float u = clamp((hl - b.z) / len, -0.2, 1.1);
+		float bow = exp(-pow((u - 0.82) / 0.13, 2.0)) + 0.5 * smoothstep(0.92, 1.05, u);
+		float side = smoothstep(-0.05, 0.15, u) * smoothstep(1.1, 0.75, u);
+		float stern = exp(-pow((u - 0.04) / 0.08, 2.0));
+		// (falling away from her, the bow wave spreading out further than the rest)
+		float off = exp(-out_d / mix(0.9, 2.2, clamp(bow, 0.0, 1.0)));
+		b.y += (0.42 * bow + 0.14 * side + 0.12 * stern) * way * off;
+		wash = max(wash, clamp((0.9 * bow + 0.5 * side + 0.4 * stern) * way * exp(-out_d / 0.7), 0.0, 1.0));
+	}
+	// inside her (her topsides' thickness to come in through, from her rubbing strake to her liner, and her transom)
+	// (and further out round her where the mesh is coarse, out of the middle: there no-one's close enough to see)
+	float o = 0.06 + pad;
+	float in_k = smoothstep(hh + o, hh - 0.12, abs(b.x)) * smoothstep(hl + o, hl - 0.12, b.z)
+			* smoothstep(-hl - o, -hl + 0.12, b.z);
+	float lid = deck - 0.3;
+	if (in_k > 0.0 && b.y > lid) {
+		b.y = mix(b.y, lid, in_k);
+	}
 	return (xf * vec4(b, 1.0)).xyz;
 }
 
@@ -316,12 +350,14 @@ void vertex() {
 	}
 	d *= k;
 	VERTEX = p + d;
+	float wash = 0.0;
 	if (hull_on) {
-		VERTEX = push_down(VERTEX, hull_inv, hull_xf, hull_length, hull_beam);
+		VERTEX = hull_water(VERTEX, hull_inv, hull_xf, hull_length, hull_beam, hull_deck, hull_speed, hull_pad, wash);
 	}
 	if (hull2_on) {
-		VERTEX = push_down(VERTEX, hull2_inv, hull2_xf, hull2_length, hull2_beam);
+		VERTEX = hull_water(VERTEX, hull2_inv, hull2_xf, hull2_length, hull2_beam, hull2_deck, hull2_speed, hull2_pad, wash);
 	}
+	hull_wash = wash;
 	moved = VERTEX;
 	VERTEX.y -= pow(max(r - curve_start, 0.0), 2.0) / (2.0 * curve_radius);
 }
@@ -454,6 +490,11 @@ void fragment() {
 	// (thin and soft: wide hard-edged ones read as zebra stripes down a big swell's face)
 	float streaks = 0.08 * smoothstep(0.55, 1.0, whitecaps) + 0.08 * spume + 0.08 * white;
 	foam = max(foam, smoothstep(1.0 - streaks, 1.0 - streaks * 0.4, streak * (0.6 + 0.6 * grain)) * 0.8 * (1.0 - far));
+	// the white water her way throws along her sides (hull_water): torn lace, thickest against her
+	if (hull_wash > 0.01) {
+		float torn = grain * 0.55 + texture(noise, qk * 0.27 + vec2(0.19, 0.83)).r * 0.45;
+		foam = max(foam, smoothstep(0.3, 0.7, hull_wash * (0.5 + torn)) * 0.85);
+	}
 	// the spindrift: a white haze blown off the whole sea, thicker downwind of the crests
 	foam = max(foam, (spume + 0.6 * white) * (0.16 + 0.3 * smoothstep(0.3, 0.9, crest)) * (0.6 + 0.8 * grain));
 	// and a hurricane's: whole slopes downwind of the crests gone white, in drifting patches
