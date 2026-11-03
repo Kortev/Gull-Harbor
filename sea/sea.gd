@@ -40,6 +40,7 @@ const Sfx := preload("res://audio/sfx.gd")
 const Vs := preload("res://vs/vs.gd")
 const Tow := preload("res://sea/tow.gd")
 const Places := preload("res://sea/places.gd")
+const Ambience := preload("res://audio/ambience.gd")
 
 ## How rough the sea is (ocean.gd: 0 calm, 0.5 rain, 1 storm), the sun, how thick the fog, and how far you can see
 ## the land and the rig (far, m: sea/landmarks.gd's haze).
@@ -92,6 +93,8 @@ var vs: Vs
 var tows: Array[Tow] = []
 ## The places on the quay (sea/places.gd): the hoist and the buyer's scale, the pump, the ice, the counters.
 var places: Places
+## The world heard (audio/ambience.gd): the sea, the wind, the rain, the harbour, her creaks and knocks.
+var ambience: Ambience
 ## Whether her lines say when the trip starts and ends (cast off and gone from the floats: out; tied up: in). The
 ## game itself; a test that's testing it sets it.
 var lines_rule := false
@@ -176,6 +179,9 @@ func _ready() -> void:
 	places.name = "Places"
 	places.sea = self
 	add_child(places)
+	ambience = Ambience.new()
+	ambience.sea = self
+	add_child(ambience)
 	lines_rule = get_parent() == get_tree().root
 	var sonar := Sonar.new()
 	sonar.name = "Sonar"
