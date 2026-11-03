@@ -1,6 +1,6 @@
 extends Node
-## The crew's shares and the quota: the first quota's sized for two ($12,000, then 1.4 times as much each time), the
-## same alone (no discount); and each crewmate aboard past the second takes 12% of the gross of every fish sold, a
+## The crew's shares and the boat payment: the payment's flat for the boat you own (the skiff's small, the
+## sportfisher's bigger), the same however many are aboard (no discount alone); and each crewmate aboard past the second takes 12% of the gross of every fish sold, a
 ## "Share, <name>" line on the sale slip (the buyer's slip on the quay and the dock's), off what goes in the bank and
 ## toward the quota. Two aboard keep it all.
 ## Run: godot --headless --fixed-fps 30 --path . res://tests/shares_test.tscn
@@ -12,14 +12,32 @@ var fails: Array[String] = []
 
 
 func _ready() -> void:
-	var q := [FishHold.quota_for(1), FishHold.quota_for(2), FishHold.quota_for(3), FishHold.quota_for(4)]
-	_check(q == [12000, 17000, 23500, 33000], "the quotas: %s" % str(q))
+	var skiff := FishHold.quota_for(["skiff"])
+	var sport := FishHold.quota_for(["skiff", "sportfisher"])
+	_check(skiff == 6000 and sport == 10000, "the boat payments: $%d the skiff, $%d once the sportfisher's yours"
+			% [skiff, sport])
 	var sea := (load("res://sea/sea.tscn") as PackedScene).instantiate() as Sea
 	add_child(sea)
 	await get_tree().create_timer(0.3).timeout
 	sea.schools.set("_next", 9999.0)
 	var hold := sea.fish_hold
-	_check(hold.quota == 12000, "alone, the first quota's the same $12,000 (%d)" % hold.quota)
+	_check(hold.quota == skiff, "alone, the same skiff's payment ($%d)" % hold.quota)
+	_check(str(hold.due_text()) == "BOAT PAYMENT DUE IN 3 DAYS", "the card says: %s" % hold.due_text())
+	# a bigger boat bought: her payment from the next period on, not this one
+	hold.owned = ["skiff", "sportfisher"]
+	_check(hold.quota == skiff and hold.next_payment() == sport, "the sportfisher bought: $%d from the next payment"
+			% hold.next_payment())
+	hold.day = FishHold.DAYS
+	hold.earned = hold.quota
+	hold.head_out("skiff")
+	await get_tree().process_frame
+	hold.head_in()
+	await get_tree().process_frame
+	_check(hold.quota == sport and hold.day == 1 and str(hold.sale.get("verdict", "")) == "met",
+			"paid: the next period's hers ($%d)" % hold.quota)
+	hold.owned = ["skiff"]
+	hold.quota = skiff
+	hold.earned = 0
 	# two aboard: no shares
 	var slots: Dictionary = sea.crew.slots
 	slots[2] = 1
@@ -48,7 +66,7 @@ func _ready() -> void:
 			fuel += int(c[1])          # (the fuel and the charter)
 	var net := gross - 2 * each
 	_check(absi(hold.bank - (bank0 + net - fuel)) <= 2 and absi(hold.earned - (earned0 + net)) <= 2,
-			"the bank and the quota get the rest (bank +%d, quota +%d, of $%d gross)" % [hold.bank - bank0,
+			"the bank and the payment get the rest (bank +%d, quota +%d, of $%d gross)" % [hold.bank - bank0,
 			hold.earned - earned0, gross])
 	_check(absi(int(four["total"]) - (net - fuel)) <= 2, "the slip's day total's after the shares (%d)" % int(four["total"]))
 	# on the buyer's slip on the quay, in its own pixel letters

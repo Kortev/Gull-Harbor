@@ -2,7 +2,7 @@ extends CanvasLayer
 ## The title: what you see when the game starts. The harbour at the fish pier behind it, a camera drifting slowly
 ## round the boats at their berths; BLUEFIN in big pixel letters (ui/pixfont.gd, the game's pixel look) and the way
 ## in:
-##   FISH     your boat: out after the quota alone, and open for friends to come aboard any time (it hosts quietly:
+##   FISH     your boat: out after the boat payment alone, and open for friends to come aboard any time (it hosts quietly:
 ##            a Steam friend sees your boat, or the Esc menu has the join code to send)
 ##   RIVALS   two boats, a crew each; most pounds aboard by dusk wins the day, best of three (vs/vs.gd)
 ##   REJOIN   (only after a friend's boat dropped you mid-game) straight back aboard her, your same spot
@@ -148,7 +148,7 @@ func _go(page: String) -> void:
 				_items.append(["REJOIN", "BACK ABOARD THE BOAT YOU WERE DROPPED FROM, IN YOUR SPOT.", func() -> void:
 					_mode = ""
 					_note = "JOINING..." if Net.rejoin() == OK else "COULDN'T START JOINING"])
-			_items += [["FISH", "YOUR BOAT. MAKE THE QUOTA. FRIENDS CAN JOIN ANY TIME.", _fish],
+			_items += [["FISH", "YOUR BOAT. MAKE THE PAYMENTS. FRIENDS CAN JOIN ANY TIME.", _fish],
 				["RIVALS", "TWO BOATS, A CREW EACH. MOST FISH BY DUSK WINS THE DAY.", func() -> void: _choose("rivals")],
 				["JOIN A FRIEND", "GET ABOARD A FRIEND'S BOAT.", func() -> void:
 					_mode = ""

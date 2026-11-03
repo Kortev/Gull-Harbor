@@ -22,8 +22,8 @@ const LIST := [
 	["ONE_THROW", "One Throw", "Stick a bluefin with the harpoon on the first throw."],
 	["GRADE_ONE", "Number One", "Sell a bluefin graded #1."],
 	["TON", "A Ton Ashore", "Sell 1,000 kg of bluefin, all told."],
-	["QUOTA", "Paid Up", "Make a quota for the bank."],
-	["THREE_QUOTAS", "Keeping Her", "Make three quotas in one run."],
+	["QUOTA", "Paid Up", "Make a boat payment."],
+	["THREE_QUOTAS", "Keeping Her", "Make three boat payments in a row."],
 	["SPORTFISHER", "Bigger Boat", "Buy the sportfisher."],
 	["LIVE_BAIT", "Live Bait", "Jig a mackerel into the live well."],
 	["CREW", "Many Hands", "Land a bluefin with a friend aboard."],
@@ -36,7 +36,7 @@ const LIST := [
 ]
 ## A Ton Ashore: kilos sold in all (kept here, not a Steam stat).
 const TON_KG := 1000.0
-## Keeping Her: quotas made in one run.
+## Keeping Her: boat payments made in a row (one run).
 const QUOTAS := 3
 ## GIANT: kilos.
 const GIANT_KG := 300.0

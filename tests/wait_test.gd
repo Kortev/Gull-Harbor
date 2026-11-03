@@ -123,7 +123,8 @@ func _ready() -> void:
 	sea.chum._last = -1e9
 	sea.chum._ask_scoop_as(1)
 	_check(hold.chum == 0, "an empty bucket")
-	# the quota: made on its last day, a bigger one; missed, the bank takes the boat and a new run starts
+	# the boat payment: made on its last day, the next period's the same (the skiff's); missed, the bank takes the
+	# boat and a new run starts
 	hold.day = FishHold.DAYS
 	hold.earned = 0
 	hold.quota = 100
@@ -131,7 +132,8 @@ func _ready() -> void:
 	hold.head_in()
 	hold.host_sell_all()      # (the buyer's scale: the last fish sold, the day's settled)
 	_check(str(hold.sale["verdict"]) == "met" and hold.quota_n == 2 and hold.day == 1
-			and hold.quota == FishHold.quota_for(2) and hold.earned == 0, "quota made: the next one's bigger")
+			and hold.quota == FishHold.quota_for(["skiff"]) and hold.earned == 0,
+			"payment made: the next one's the skiff's again ($%d)" % hold.quota)
 	hold.head_out("skiff")
 	_check(not hold.docked and hold.day == 1, "out on day 1 of the next")
 	hold.head_in()

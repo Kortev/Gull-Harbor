@@ -27,7 +27,8 @@ extends RefCounted
 ##   box, box_size the fish box: the middle of its hatch in her sole, and how big it is (x across, z along)
 ##   chum          where the chum bucket stands, on deck by the live well (not on its lid: that opens; boat/chum.gd);
 ##                 jig: the holder the mackerel jig sits in (boat/jig.gd)
-##   price         what she costs to buy at the dock; fuel: what a trip in her costs (taken from the sale)
+##   price         what she costs to buy at the dock; fuel: what a trip in her costs (taken from the sale); payment:
+##                 the bank's boat payment every 3 trips while she's the biggest boat you own (boat/fish_hold.gd)
 ##   radar_bar     where her radar's spinning bar sits, if her model hasn't one (boat.gd builds it)
 ##   seats         somewhere to sit (boat/chair.gd): the middle of its seat, which way you face, its name, and lean
 ##                 (a leaning post: you lean on it rather than sit). The sportfisher's fighting chair is her model's.
@@ -70,7 +71,7 @@ const KINDS := {
 		"transom": Vector3(0.0, 0.0, 4.9), "house": 0.25, "engines": Vector3(0.0, 0.9, 4.7), "bow": Vector3(0.5, 0.45, -3.3),
 		"cabin_light": Vector3(0.0, 1.0, 0.55), "crown": Vector3(0.0, 2.75, 0.0),
 		"chum": Vector3(0.75, 0.46, 3.85), "jig": 2,
-		"price": 0, "fuel": 60,
+		"price": 0, "fuel": 60, "payment": 6000,
 		"radar_bar": Vector3(0.0, 2.68, -0.3),
 		"ladder": Vector3(-1.0, 1.15, 4.25), "bulwark": 0.6,
 		"seats": [{"at": Vector3(0.0, 0.99, -1.2), "face": 0.0, "name": "the cooler seat"},
@@ -103,7 +104,7 @@ const KINDS := {
 		"transom": Vector3(0.0, 0.0, 7.3), "house": 0.4, "engines": Vector3(0.0, 0.3, 3.5), "bow": Vector3(1.7, 0.6, -5.0),
 		"cabin_light": Vector3(0.0, 2.45, -1.3), "crown": Vector3(0.0, 7.6, -1.3),
 		"chum": Vector3(-0.9, 0.56, 6.55), "jig": 4,
-		"price": 20000, "fuel": 400,
+		"price": 20000, "fuel": 400, "payment": 10000,
 		"ladder": Vector3(-1.35, 1.45, 7.0), "bulwark": 0.5,
 		"seats": [{"at": Vector3(0.9, 1.23, -1.47), "face": PI, "name": "the skipper's seat"},
 				{"at": Vector3(-1.62, 1.1, -1.45), "face": -PI * 0.5, "name": "the bench"},

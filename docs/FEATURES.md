@@ -11,11 +11,10 @@ Status: everything below is in the code on `claude/zealous-mendel-h2udij`. Most 
 
 ## The game in a paragraph
 
-A crew of 1 to 4 on a tuna boat, on an endless sea, owing the bank. Each **quota** is a sum to sell within **three
-days** (three trips). Each day you run out, **hunt** for bluefin (birds working far off, checked through
+A crew of 1 to 4 on a tuna boat, on an endless sea, owing the bank: a **boat payment** every **three
+days** (three trips), flat for the boat you own. Each day you run out, **hunt** for bluefin (birds working far off, checked through
 binoculars), troll your baits through them, **fight** a fish that can weigh 400 kg, get it **alongside**, wire it,
-**harpoon** it, **haul** it aboard, **bleed and ice** it, and head in to **sell**. Make the quota and the next one's
-bigger. Miss it and the bank takes the boat, and the run's over.
+**harpoon** it, **haul** it aboard, **bleed and ice** it, and head in to **sell**. Make the payment and she's yours another three days. Miss it and the bank takes the boat, and the run's over.
 
 ## Controls
 
@@ -42,23 +41,29 @@ binoculars and the pump are only in hints.
 
 ---
 
-## The run (the quota)
+## The run (the boat payment)
 
-- The bank wants **$12,000** in the first **3 days**, a sum sized for **two** aboard (the same alone: no discount;
-  alone it's a stretch). Each quota made, the next is **1.4 times** as much: $12,000, $17,000, $23,500, $33,000, ...
-- Every fish sold counts toward the quota **and** goes in the bank to spend.
+- The bank wants the **boat payment** every **3 days** (3 trips), the **same every time** for the boat you own
+  (the biggest you've bought; a charter doesn't count): **$6,000** for the skiff, **$10,000** once you own the
+  sportfisher (`boat/kinds.gd`'s "payment"). It never rises on its own: it only goes up when you buy a bigger boat,
+  and then from the next payment on, so an upgrade always pays its way (she catches more). The same however many are
+  aboard.
+- Sized from `tests/trip_sim` (about $6,900 a 3-day period alone in the skiff: alone, it's barely made; about
+  $17,600 two aboard the sportfisher and $14,700 four after shares: comfortable).
+- Every fish sold counts toward the payment **and** goes in the bank to spend.
 - **Crew shares:** each crewmate aboard **past the second** takes **12% of the gross** of every fish sold, a
   "Share, <name>" line on the slip (the third and fourth aboard, by when they came aboard). Two keep it all; four
   catch more, but give a quarter of it away (`boat/fish_hold.gd`'s SHARE).
-- The quota's settled at the **third day's sale**. Made it: the next quota, three more days. Missed it: **the bank
-  takes the boat**. The slip tells the run's story (quotas made, fish, the biggest), and a new run starts with the
-  skiff and **$1,000**, no gear.
-- The best run (most quotas) is kept.
+- It's settled at the **third day's sale**. Made it: the next period, three more days. Missed it: **the bank takes
+  the boat** (for now: a shift at the grocery store will replace it). The slip tells the run's story (payments made,
+  fish, the biggest), and a new run starts with the skiff and **$1,000**, no gear.
+- The best run (most payments in a row) is kept.
 - Fuel comes off each sale: **$60** the skiff, **$400** the sportfisher. A chartered boat: **$2,500** a day.
 
-**Teach it:** the dock screen shows QUOTA n: $earned of $quota, Day d of 3, a bar, and "$x more by day 3, or the
-bank takes her". At sea, top left: the quota as a bar (what's aboard ghosted on), "$earned / $quota", "Day d/3", and
-the fish box as pips (filled once iced, amber for one still on deck).
+**Teach it:** the dock screen and the harbour master's card: "BOAT PAYMENT DUE IN 3 DAYS: $earned OF $payment", a
+bar, and "$x more, or the bank takes her" (a new boat's payment, from the next one, said too). At sea, top left: the
+payment as a bar (what's aboard ghosted on), "$earned / $payment", "due in N days", and the fish box as pips (filled
+once iced, amber for one still on deck). Dale's first word on the radio says it's due every 3 trips.
 
 ## The dock
 
@@ -170,7 +175,7 @@ sitting.
   them. Setting up the pass is the captain's job.
 - **No bites above about 12 knots** (6 m/s): the baits skip along the top.
 - A feeding bluefin school with a bait at its head eats it now and then (the reel screams). **Double headers:** with
-  a fish on, another bait across the **same feeding school** still goes, at about **a quarter** of the usual rate,
+  a fish on, another bait across the **same feeding school** still goes, at about **a twelfth** of the usual rate (about one hookup in five ends up a double),
   till the other lines are in (a stray loner hardly ever: 1.5%). Two fish on at once: one in someone's hands, the
   other fighting on its drag in its holder till a pair of hands is free for it.
 - Working a chum slick (going nowhere) a school eats all round.
@@ -253,7 +258,7 @@ press at once, and every one of them is read off the rod, the reel and the line,
 - **Your arms:** winding against a load, lifting and just holding a heavy fish take them; going, the rod **shakes in
   your hands** and you wind and lift slow. A giant spends a fresh pair: **swap on the rod** (E on a mate's rod takes
   it, fresh arms). Alone, **rest it in the holder** (Q): it fights on its drag as you left the lever, and nobody
-  winds or wins line back; and with nobody on the rod, **on his runs he takes line nearly twice as fast** (the rod
+  winds or wins line back; and with nobody on the rod, **on his runs he takes line twice as fast** (the rod
   just bows to him: `tuna/fight.gd`'s HOLDER_RUN). Put it in between his runs, not during one.
 - **The captain** (E on the wheel; A/D steer, W/S throttle) has a real job:
   - **Back down on him** when he's taken line (S): she closes on him, the line goes light and the angler winds like
@@ -433,4 +438,4 @@ rules.
    the first fight's moves one by one; the first fish alongside; the first fish on deck; the quota on the first
    dock screen; the first stale bait; the first chum and jig.
 2. **The field guide** in the Esc menu: this document's sections, short, in game.
-3. **The dock screen** spells out the stakes: "Make $5,000 by the end of day 3, or the bank takes the boat."
+3. **The dock screen** spells out the stakes: "BOAT PAYMENT DUE IN 3 DAYS ... or the bank takes her."

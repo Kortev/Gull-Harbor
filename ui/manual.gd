@@ -16,9 +16,10 @@ const CHAPTERS := [
 		+ "A jump, X use, B put back, Y shove, LB/RB what's in your hands, L3 sprint, R3 dive, START the menu. "
 		+ "At the wheel the triggers are the throttle too. D-pad up talks, down's the VHF."],
 	["2. The loan", "Your boat belongs to First Coastal Savings & Loan.\n\n"
-		+ "Every 3 days (3 trips) the bank wants a payment: the quota. $12,000 (sized for two of you), then 1.4 times as "
-		+ "much each time. Past two aboard, each extra hand takes a 12% share of every fish sold. "
-		+ "Every fish sold counts, and the money's yours to spend too. The bar top left is the quota.\n\n"
+		+ "Every 3 days (3 trips) the bank wants the boat payment, the same every time for the boat you own: "
+		+ "$6,000 for the skiff, $10,000 once you've bought the sportfisher (she catches more). It only "
+		+ "goes up when you buy a bigger boat. Past two aboard, each extra hand takes a 12% share of every fish sold. "
+		+ "Every fish sold counts, and the money's yours to spend too. The bar top left is the payment, and when it's due.\n\n"
 		+ "Miss it and the bank takes the boat: the skiff and $1,000 again. Fuel comes off every sale ($60 the "
 		+ "skiff, $400 the sportfisher)."],
 	["3. Finding tuna", "Bluefin feed under birds: a speck on the horizon, a mile or more off. Crosshair on it "

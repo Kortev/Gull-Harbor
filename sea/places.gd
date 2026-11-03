@@ -11,7 +11,7 @@ extends Node3D
 ##   the ice     the ice plant's bin on the float, kept full down its chute: the scoop (4) on it takes a scoop of ice,
 ##               the scoop on her open fish box tips it in.
 ##   counters    on the street, each with its keeper: the CHANDLERY (gear), BAIT & TACKLE (a tote of live mackerel to
-##               carry aboard and tip into her well: E on her live well), the HARBOR MASTER (the quota, the run's
+##               carry aboard and tip into her well: E on her live well), the HARBOR MASTER (the boat payment, the run's
 ##               record, the dock prep, a new career); the broker's board on the quay (the boats); the buyer's slip
 ##               pinned up at his shed's door. E at one: its card, small, in the pixel font (ui's), till you walk off or
 ##               Esc.
@@ -371,7 +371,7 @@ func _counter_prompt(place: String) -> String:
 		"BAIT & TACKLE":
 			return "Bait & tackle: live mackerel"
 		"HARBOR MASTER":
-			return "The harbor master: the quota, the run"
+			return "The harbor master: the boat payment, the run"
 	return place.capitalize()
 
 
@@ -1020,7 +1020,8 @@ func _fill_broker() -> void:
 		var spec: Dictionary = Kinds.KINDS[k]
 		var nm := str(spec["name"]).trim_prefix("the ").to_upper()
 		var kk := k
-		var what := "%s: %d RODS, FUEL $%s A TANK" % [nm, (spec["rods"] as Array).size(), FishHold._money(int(spec["fuel"]))]
+		var what := "%s: %d RODS, FUEL $%s A TANK, PAYMENT $%s" % [nm, (spec["rods"] as Array).size(),
+				FishHold._money(int(spec["fuel"])), FishHold._money(int(spec.get("payment", 0)))]
 		if owned.has(k):
 			_card_box.add_child(_row(what, _btn("TAKING HER" if k == picked else "TAKE HER",
 					func() -> void: hold.call("pick", kk), skipper and k != picked)))
@@ -1061,15 +1062,17 @@ func _fill_master() -> void:
 	_card_box.add_child(_text("THE HARBOR MASTER", 24, Color(0.12, 0.2, 0.34)))
 	var quota := int(hold.get("quota"))
 	var earned := int(hold.get("earned"))
-	_card_box.add_child(_text("QUOTA %d: $%s OF $%s. DAY %d OF %d." % [int(hold.get("quota_n")), FishHold._money(earned),
-			FishHold._money(quota), int(hold.get("day")), FishHold.DAYS], 18))
-	_card_box.add_child(_text("MADE: ON TO THE NEXT." if earned >= quota else "$%s MORE BY DAY %d, OR THE BANK TAKES HER."
-			% [FishHold._money(quota - earned), FishHold.DAYS], 12))
+	_card_box.add_child(_text("%s: $%s OF $%s." % [str(hold.call("due_text")), FishHold._money(earned),
+			FishHold._money(quota)], 18))
+	_card_box.add_child(_text("PAID: SHE'S YOURS TILL THE NEXT ONE." if earned >= quota else "$%s MORE, OR THE BANK TAKES HER."
+			% FishHold._money(quota - earned), 12))
+	if int(hold.call("next_payment")) != quota:
+		_card_box.add_child(_text("YOUR NEW BOAT'S PAYMENT FROM THE NEXT ONE: $%s." % FishHold._money(int(hold.call("next_payment"))), 12))
 	var verdict := str((hold.get("sale") as Dictionary).get("verdict", ""))
 	if verdict == "lost":
 		_card_box.add_child(_text("THE BANK TOOK THE BOAT. A NEW RUN: THE SKIFF AND $%s." % FishHold._money(FishHold.START_CASH),
 				12, Color(0.6, 0.15, 0.1)))
-	_card_box.add_child(_text("THE RUN: %d FISH, THE BIGGEST %d KG. BEST RUN: %d QUOTAS. BEST DAY: $%s." % [
+	_card_box.add_child(_text("THE RUN: %d FISH, THE BIGGEST %d KG. BEST RUN: %d PAYMENTS IN A ROW. BEST DAY: $%s." % [
 			int(hold.get("run_fish")), roundi(float(hold.get("run_biggest"))), int(hold.get("best_run")),
 			FishHold._money(int(hold.get("best")))], 12))
 	var skipper := Net.is_host()

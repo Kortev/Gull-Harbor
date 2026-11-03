@@ -43,6 +43,9 @@ const DECK := [45.0, 25.0, 12.0]
 const BAIT_UP := 12.0
 ## The well: a stroke of the pump every so often (boat/fish_hold.gd's WELL_STALE), s of pumping each time.
 const PUMP_S := 5.0
+## A fish's quality at the sale (tuna/handling.gd: 1 perfect), handled alone and by a crew.
+const QUALITY_ALONE := 0.7
+const QUALITY_CREW := 0.8
 
 var _rng := RandomNumberGenerator.new()
 ## Where the day went, over every day of a crew: s hunting, s fighting, s boatside, on deck and baiting up; hookups.
@@ -55,14 +58,16 @@ func _ready() -> void:
 		if a.begins_with("--days="):
 			days = int(a.substr(7))
 	_rng.seed = 4242
-	# alone in the skiff, two and four in the sportfisher
-	for setup: Array in [[1, "skiff"], [2, "sportfisher"], [4, "sportfisher"]]:
+	# one, two and four aboard, each boat
+	for setup: Array in [[1, "skiff"], [2, "skiff"], [4, "skiff"], [1, "sportfisher"], [2, "sportfisher"],
+			[4, "sportfisher"]]:
 		var n := int(setup[0])
 		var kind := str(setup[1])
 		var fish := 0
 		var lost := 0
 		var doubles := 0
 		var kg := 0.0
+		var dollars := 0.0
 		_spent = {"hunt": 0.0, "pass": 0.0, "fight": 0.0, "after": 0.0, "hookups": 0}
 		for d in days:
 			var day := _day(n, kind)
@@ -70,9 +75,14 @@ func _ready() -> void:
 			lost += int(day["lost"])
 			doubles += int(day["doubles"])
 			kg += float(day["kg"])
+			dollars += float(day["dollars"])
 		var shares := maxi(n - 2, 0) * FishHold.SHARE
+		var fuel := float(Kinds.spec(kind)["fuel"])
+		var net := dollars / days * (1.0 - shares) - fuel
 		print("TRIP %d aboard (%s): %.2f fish a day (%d landed, %d lost, %d double headers over %d days), %.0f kg a fish, %.0f%% kept after shares"
 				% [n, kind, float(fish) / days, fish, lost, doubles, days, kg / maxf(fish, 1.0), 100.0 * (1.0 - shares)])
+		print("TRIP   $%.0f a day sold, $%.0f a day to the boat after shares and fuel ($%.0f a 3-day payment period)"
+				% [dollars / days, net, net * FishHold.DAYS])
 		var hk := maxf(float(_spent["hookups"]), 1.0)
 		print("TRIP   a hookup: %.0f s hunting, %.0f s on the pass, %.0f s fighting, %.0f s boatside, on deck and baiting up; %.1f hookups a day"
 				% [float(_spent["hunt"]) / hk, float(_spent["pass"]) / hk, float(_spent["fight"]) / hk, float(_spent["after"]) / hk,
@@ -94,7 +104,9 @@ func _day(n: int, kind: String) -> Dictionary:
 		hands = 2
 	var k := mini(n - 1, 2)                    # (0 alone, 1 two aboard, 2 four)
 	var left := FishHold.DAY - DOCK - RUN_OUT - RUN_HOME
-	var out := {"fish": 0, "lost": 0, "doubles": 0, "kg": 0.0}
+	var out := {"fish": 0, "lost": 0, "doubles": 0, "kg": 0.0, "dollars": 0.0}
+	# (what a fish fetches: handled well, bled and iced; a crew gets it on ice quicker)
+	var q := QUALITY_ALONE if n == 1 else QUALITY_CREW
 	var since_pump := 0.0
 	while left > 0.0 and int(out["fish"]) < room:
 		# the hunt
@@ -124,6 +136,7 @@ func _day(n: int, kind: String) -> Dictionary:
 		var landed := 1 if a[0] == "boatside" else 0
 		var lost := 1 - landed
 		var kgs := float(a[2]) * landed
+		var paid := float(FishHold.price(float(a[2]), q)) * landed
 		if double:
 			out["doubles"] = int(out["doubles"]) + 1
 			# the second fish: on its drag in its holder till someone's free for it (alone: till the first's done)
@@ -133,6 +146,7 @@ func _day(n: int, kind: String) -> Dictionary:
 			if b[0] == "boatside":
 				landed += 1
 				kgs += float(b[2])
+				paid += float(FishHold.price(float(b[2]), q))
 			else:
 				lost += 1
 		var after: float = landed * (BOATSIDE[k] + DECK[k]) + baits * BAIT_UP / float(maxi(n, 1))
@@ -140,11 +154,14 @@ func _day(n: int, kind: String) -> Dictionary:
 		_spent["fight"] = float(_spent["fight"]) + t
 		_spent["after"] = float(_spent["after"]) + after
 		since_pump += t
-		if left < -60.0:
-			break         # (still on him at dusk: towed in with what's aboard)
+		if left < -FishHold.DAY * 0.25:
+			break         # (still on him long after dusk: cut loose, home with what's aboard)
+		if left < 0.0:
+			paid *= 0.5   # (landed after dusk: towed in late, the cannery's half price)
 		out["fish"] = int(out["fish"]) + landed
 		out["lost"] = int(out["lost"]) + lost
 		out["kg"] = float(out["kg"]) + kgs
+		out["dollars"] = float(out["dollars"]) + paid
 		while since_pump > FishHold.WELL_STALE:
 			since_pump -= FishHold.WELL_STALE
 			left -= PUMP_S / float(maxi(n, 1)) if n == 1 else 0.0       # (a crew pumps it in the quiet stretches)
