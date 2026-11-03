@@ -58,6 +58,12 @@ const CHARTER := 2500
 ## The run: trips to make each quota in, and the money a new run starts with.
 const DAYS := 3
 const START_CASH := 1000
+## The quotas: the first, and how much bigger each one after is.
+const QUOTA_START := 12000.0
+const QUOTA_GROW := 1.4
+## Each crewmate aboard past the second takes this much of the gross of every fish sold (a "Share, <name>" line on the
+## slip). Two aboard keep it all; a third and a fourth hand earn their keep in what they let you catch.
+const SHARE := 0.12
 ## Gear for sale at the dock, once each (tuna/fight.gd and tuna/schools.gd ask has_gear()).
 const GEAR := {
 	"reel": {"name": "A two-speed reel", "blurb": "Winds line in a quarter faster.", "price": 3000},
@@ -69,6 +75,11 @@ const GEAR := {
 ## trip: boat/chum.gd). The same for every boat and every crew, so a Rivals day starts even.
 const WELL_START := 4
 const WELL_MAX := 8
+## The well's water goes stale: left WELL_STALE s without fresh water pumped in, a mackerel in it dies (onto the ice
+## in the bait box: a poor bait), and another every WELL_STALE s after; every stroke of the pump (boat/live_well.gd)
+## buys PUMP_STROKE s of it back, up to fresh.
+const WELL_STALE := 240.0
+const PUMP_STROKE := 30.0
 const CHUM := 24
 ## Dock prep: a tote of live mackerel (how many, what it costs), a scoop of ice (what it costs; how many her box
 ## takes for each fish it holds), a tank's burn (of a full tank, each second flat out).
@@ -107,6 +118,9 @@ var best_run := 0
 var well := 0
 var dead := 0
 var chum := 0
+## How long the well's water has gone without fresh pumped in (s: WELL_STALE and a mackerel dies). The host's; the
+## others keep it going between its words, for the water's look (boat/live_well.gd).
+var well_stale := 0.0
 ## Her tank (0..1) and the scoops of ice in her box; the dock prep in force ("full", "quick", "off": the host's).
 var fuel := 0.6
 var ice := 0
@@ -225,6 +239,9 @@ func _process(delta: float) -> void:
 	_throes(delta)
 	if Net.is_host() and not docked:
 		_host_life(delta)
+		_host_well(delta)
+	elif not docked and well > 0:
+		well_stale = minf(well_stale + delta, WELL_STALE)      # (till the host's next word)
 	if Net.is_host() and docked and not _borrowed:
 		# (the host's dock prep for the game being played; only ever changed at the dock, never mid-trip)
 		var real: Node = sea.get("sea") if sea.get("sea") != null else sea
@@ -477,6 +494,51 @@ func _ask_drop(id: int, at: Vector3, yaw: float) -> void:
 		return
 
 
+## Host, every frame out there: the well's water going stale with mackerel in it, and one of them dying when it's gone
+## too long (the water murky, one belly up on the ice in the bait box, and Dale's word the first time).
+func _host_well(delta: float) -> void:
+	if well <= 0:
+		well_stale = 0.0
+		return
+	well_stale += delta
+	if well_stale >= WELL_STALE:
+		well_stale -= WELL_STALE
+		well -= 1
+		dead += 1
+		_host_changed()
+		_well_died.rpc() if Net.in_session() else _well_died()
+
+
+@rpc("authority", "call_local", "reliable")
+func _well_died() -> void:
+	var tips: Node = (sea.get("sea") if sea.get("sea") != null else sea).get("tips")
+	if tips != null and _mine():
+		tips.call("show_tip", "stale_well")
+
+
+## A stroke of the well's pump (boat/live_well.gd): PUMP_STROKE s of fresh water in.
+func request_pump() -> void:
+	if Net.is_host():
+		_ask_pump()
+	else:
+		_ask_pump.rpc_id(1)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _ask_pump() -> void:
+	if docked:
+		return
+	var was := well_stale
+	well_stale = maxf(well_stale - PUMP_STROKE, 0.0)
+	if absf(was - well_stale) > 0.01:
+		_host_changed()
+
+
+## How stale the well's water is, 0 fresh .. 1 a mackerel's about to die.
+func well_staleness() -> float:
+	return clampf(well_stale / WELL_STALE, 0.0, 1.0)
+
+
 ## Host: the fish box's lid opened or shut.
 @rpc("any_peer", "call_remote", "reliable")
 func _ask_lid(open: bool) -> void:
@@ -554,9 +616,24 @@ func host_sell(f: Dictionary) -> Array:
 		sale = {"lines": [], "costs": [], "total": 0, "bank": bank, "best": best,
 				"quota": [quota_n, earned, quota, day], "verdict": "", "late": false, "settled": true}
 	(sale["lines"] as Array).append(line)
-	sale["total"] = int(sale["total"]) + dollars
-	bank += dollars
-	earned += dollars
+	# the crew past the second take their shares of it, off the top (a "Share, <name>" line each, growing as the
+	# catch is sold)
+	var net := dollars
+	for who: String in share_takers():
+		var cut := roundi(dollars * SHARE)
+		net -= cut
+		var costs: Array = sale["costs"]
+		var row: Array = []
+		for c: Array in costs:
+			if str(c[0]) == "Share, " + who:
+				row = c
+		if row.is_empty():
+			row = ["Share, " + who, 0]
+			costs.append(row)
+		row[1] = int(row[1]) + cut
+	sale["total"] = int(sale["total"]) + net
+	bank += net
+	earned += net
 	run_fish += 1
 	run_biggest = maxf(run_biggest, float(f["kg"]))
 	sale["bank"] = bank
@@ -566,6 +643,24 @@ func host_sell(f: Dictionary) -> Array:
 	_save()
 	_host_changed()
 	return line
+
+
+## Who aboard her takes a share of the catch: everyone past the first two aboard (in the order they came aboard: the
+## skipper and the first mate keep theirs), by their call signs (crew/crew.gd). Not in Rivals (a side's two at most).
+func share_takers() -> Array[String]:
+	var out: Array[String] = []
+	var crew: Node = sea.get("crew") if sea != null else null
+	var slots: Variant = crew.get("slots") if crew != null else null
+	if not slots is Dictionary:
+		return out
+	var ids: Array = []
+	for id: int in slots:
+		if not crew.has_method("boat_of") or crew.call("boat_of", id) == sea.get("boat"):
+			ids.append(id)
+	ids.sort_custom(func(a: int, b: int) -> bool: return int(slots[a]) < int(slots[b]))
+	for k in range(2, ids.size()):
+		out.append(str(crew.call("call_sign", ids[k])))
+	return out
 
 
 ## Host: fish `id` off her (onto the hoist's hook): out of the books aboard, its record handed over ({} if none).
@@ -638,9 +733,10 @@ func _new_run() -> void:
 	run_biggest = 0.0
 
 
-## Quota n: $5,000 for the first, half as much again each time (to the nearest $500).
+## Quota n: QUOTA_START for the first (sized for two aboard: alone it's a stretch, and there's no discount for it),
+## QUOTA_GROW times as much each time after (to the nearest $500): $12,000, $17,000, $23,500, $33,000...
 static func quota_for(n: int) -> int:
-	return roundi(5000.0 * pow(1.5, n - 1) / 500.0) * 500
+	return roundi(QUOTA_START * pow(QUOTA_GROW, n - 1) / 500.0) * 500
 
 
 ## Host: off the dock and out to the grounds in boat `k` (or the one picked), at dawn.
@@ -658,6 +754,7 @@ func head_out(k := "") -> void:
 		fuel = 1.0
 		ice = ice_room()
 	dead = 0
+	well_stale = 0.0
 	chum = CHUM
 	(sea.get("boat") as Node).call("use_kind", kind)
 	_save()
@@ -833,6 +930,7 @@ func _state() -> Dictionary:
 	return {"fish": fish, "bank": bank, "best": best, "sale": sale, "next": _next_id, "docked": docked, "box": box_open, "well_open": well_open,
 			"fuel": fuel, "ice": ice, "prep": prep,
 			"trip_t0": trip_t0, "kind": kind, "owned": owned, "gear": gear, "well": well, "dead": dead, "chum": chum,
+			"well_stale": well_stale,
 			"quota_n": quota_n, "quota": quota, "earned": earned, "day": day, "run_fish": run_fish,
 			"run_biggest": run_biggest, "best_run": best_run}
 
@@ -862,6 +960,7 @@ func _sync(state: Dictionary) -> void:
 	gear = state.get("gear", gear)
 	well = int(state.get("well", well))
 	dead = int(state.get("dead", dead))
+	well_stale = float(state.get("well_stale", well_stale))
 	chum = int(state.get("chum", chum))
 	quota_n = int(state.get("quota_n", quota_n))
 	quota = int(state.get("quota", quota))
@@ -1784,7 +1883,7 @@ func _load() -> void:
 	best_run = int(_number(cfg, "run", "best_run", 0))
 	if cfg.has_section_key("run", "quota"):
 		quota_n = maxi(int(_number(cfg, "run", "quota_n", 1)), 1)
-		quota = int(_number(cfg, "run", "quota", quota_for(quota_n)))
+		quota = maxi(int(_number(cfg, "run", "quota", quota_for(quota_n))), quota_for(quota_n))      # (an old run: the new sums)
 		earned = int(_number(cfg, "run", "earned", 0))
 		day = clampi(int(_number(cfg, "run", "day", 1)), 1, DAYS)
 		run_fish = int(_number(cfg, "run", "run_fish", 0))
