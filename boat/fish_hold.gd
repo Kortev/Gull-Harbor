@@ -82,7 +82,8 @@ const WELL_STALE := 240.0
 const PUMP_STROKE := 30.0
 const CHUM := 24
 ## Dock prep: a tote of live mackerel (how many, what it costs), a scoop of ice (what it costs; how many her box
-## takes for each fish it holds), a tank's burn (of a full tank, each second flat out).
+## takes for each fish it holds), a tank's burn (of a full tank, each second flat out; boat/kinds.gd's "tank" for
+## each boat: the skiff's small tank won't take her out to the shelf edge and back).
 const TOTE := 4
 const TOTE_PRICE := 30
 const ICE_PRICE := 4
@@ -800,7 +801,7 @@ func burn(throttle: float, delta: float) -> bool:
 	if fuel <= 0.0:
 		return false
 	var was := fuel
-	fuel = maxf(fuel - BURN * pow(absf(throttle), 1.5) * delta, 0.0)
+	fuel = maxf(fuel - pow(absf(throttle), 1.5) * delta / float(Kinds.spec(kind).get("tank", 1.0 / BURN)), 0.0)
 	if floori(was * 50.0) != floori(fuel * 50.0) or fuel <= 0.0:
 		_host_changed()
 	return fuel > 0.0

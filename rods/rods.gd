@@ -124,6 +124,13 @@ var _fight_hud: FightHud
 ## The first fish you ever hook, taught a step at a time (ui/fight_tutor.gd): made with the fight HUD.
 var tutor: FightTutor
 var _whoosh: AudioStreamPlayer3D
+## Her stern's heave (m/s, + up, eased) and where it was last frame (INF: not yet); what of it reaches a line with a
+## fish on (tuna/fight.gd's heave: x her kind's "lively").
+var _heave := 0.0
+var _tip_was := Vector3.INF
+var heave := 0.0
+## Where a rod tip's held over her transom (from her stern, boat-local), for the heave.
+const TIP_OVER := Vector3(0.0, 2.3, -0.5)
 
 
 func _ready() -> void:
@@ -1248,6 +1255,7 @@ func set_drag(r: Rod, to: float) -> void:
 func _process(delta: float) -> void:
 	_auto_wind(delta)
 	var boat := sea.get("boat") as Node3D
+	_heaving(boat, delta)
 	var ocean := sea.get("ocean") as Node
 	var crew := sea.get("crew") as Node
 	var landing := sea.get("landing") as Node
@@ -1633,6 +1641,7 @@ func _fight_mine(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	fight.throttle = throttle
 	fight.moving = true
 	fight.boat_vel = _boat_vel()
+	fight.heave = heave
 	fight.tip = _tip_local(r)
 	fight.rub_now = rub_on_hull(r)
 	fight.tangled = is_tangled(r.index)
@@ -1749,6 +1758,7 @@ func _fight_holder(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	fight.throttle = throttle
 	fight.moving = true
 	fight.boat_vel = _boat_vel()
+	fight.heave = heave
 	fight.tangled = is_tangled(r.index)
 	fight.tip = _tip_local(r)
 	fight.rub_now = rub_on_hull(r)
@@ -1809,6 +1819,26 @@ func _take(r: Rod, fight: Fight) -> void:
 	r.reeling = fight.wind
 	r.grinding = fight.grinding
 	r.turn_sign = fight.turn_sign()
+
+
+## Her stern's heave this frame, and what of it reaches a line with a fish on: a small open boat thrown up a big sea
+## snatches the line (and drops it slack after), a big heavy hull rides through it (her kind's "lively").
+func _heaving(boat: Node3D, delta: float) -> void:
+	if boat == null or delta <= 0.0:
+		return
+	# where the lines leave her: a rod tip held up over her transom, thrown up and about as she pitches and rolls
+	var tip := boat.global_transform * (stern + TIP_OVER)
+	if _tip_was != Vector3.INF and tip.distance_to(_tip_was) < 3.0:
+		var helm: Node = boat.get("helm")
+		var moved := tip - _tip_was
+		if helm != null:
+			var way: Vector2 = helm.call("ahead_of", float(helm.get("heading"))) * float(helm.get("speed")) * delta
+			moved -= Vector3(way.x, 0.0, way.y)          # (her way through the water's the fight's own boat_vel)
+		# (up, and forward away from a fish astern, tightens the line: down and aft slackens it)
+		var local := boat.global_basis.inverse() * moved / delta
+		_heave = lerpf(_heave, 0.7 * local.y - 0.7 * local.z, minf(1.0, 8.0 * delta))
+	_tip_was = tip
+	heave = float((boat.get("spec") as Dictionary).get("lively", 1.0)) * _heave
 
 
 ## Her velocity in her own frame (x across, z astern: her bow's -z), for the fight.

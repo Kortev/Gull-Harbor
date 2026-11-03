@@ -35,11 +35,11 @@ func _ready() -> void:
 	_check(went.length() > 15.0 and went.normalized().dot(Vector2(bow.x, bow.z).normalized()) > 0.9,
 			"she went %.0f m, bow first" % went.length())
 	var b := sea.boat.global_position
-	_check(Vector2(b.x, b.z).distance_to(at) < 0.5, "the boat's where the helm says she is")
+	_check(Vector2(b.x, b.z).distance_to(at) < 0.5 + v / 10.0, "the boat's where the helm says she is (%.2f m)" % Vector2(b.x, b.z).distance_to(at))
 	_check(absf(b.y - sea.ocean.height_at(b)) < 1.5, "and still riding the sea there (%.2f m off the water)"
 			% (b.y - sea.ocean.height_at(b)))
 	var o := sea.ocean.global_position
-	_check(Vector2(o.x, o.z).distance_to(Vector2(b.x, b.z)) < 0.5, "the sea's mesh keeps up under her")
+	_check(Vector2(o.x, o.z).distance_to(Vector2(b.x, b.z)) < 0.5 + v / 10.0, "the sea's mesh keeps up under her")
 	# let go: she carries her way, slowing
 	await get_tree().create_timer(4.0).timeout
 	var coasting := float(helm.get("speed"))

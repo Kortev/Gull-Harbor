@@ -201,9 +201,17 @@ static func ahead_of(h: float) -> Vector2:
 	return Vector2(-sin(h), -cos(h))
 
 
+## Her top speed ahead: less with water aboard her (boat/green_water.gd: a small open boat filling in a blow is
+## heavy and slow till her bilge pump clears it).
+func top_speed() -> float:
+	var green: Node = boat.get("green") if boat != null else null
+	var wet := float(green.get("water")) if green != null else 0.0
+	return ahead * (1.0 - 0.6 * wet)
+
+
 ## Her speed toward where she's going after `delta` s at throttle `gas` (-1 .. 1).
 func next_speed(v: float, gas: float, delta: float) -> float:
-	var want := gas * ahead if gas > 0.0 else gas * astern
+	var want := gas * top_speed() if gas > 0.0 else gas * astern
 	if absf(gas) < 0.02 or (signf(v) == signf(want) and absf(v) > absf(want)):
 		# easing off (or off altogether): she carries her way
 		return want + (v - want) * exp(-delta / coast)
