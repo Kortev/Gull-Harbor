@@ -16,15 +16,17 @@ var weather := false
 
 
 func _fish(more := {}) -> Dictionary:
-	var f := {"id": "0:1.00", "tension": 0.3, "spool": 0.2, "depth": 10.0, "line_out": 150.0, "move": "run"}
+	var f := {"id": "0:1.00", "kg": 300.0, "tension": 0.3, "spool": 0.2, "depth": 10.0, "line_out": 150.0, "move": "run"}
 	f.merge(more, true)
 	return f
 
 
-## (--sea) The sea alone through the weather: fair, rain, a storm, night, a fair dusk.
+## (--sea) The sea alone through the weather: fair (drifting, then running hard), rain, a storm, night, fog, a
+## sunny dusk.
 func _weather() -> Array:
 	return [
 		[0.0, {"docked": false, "condition": "calm", "day": 0.3}],
+		[17.0, {"docked": false, "condition": "calm", "day": 0.3, "speed": 0.9}],
 		[35.0, {"docked": false, "condition": "rain", "day": 0.4}],
 		[70.0, {"docked": false, "condition": "storm", "day": 0.5}],
 		[105.0, {"docked": false, "condition": "calm", "night": true, "day": 1.2}],

@@ -12,8 +12,8 @@ extends RefCounted
 ##   race_left: s left in the race home (-1: no race on); standing: 1 ahead, -1 behind, 0 level/none (Rivals)
 ##   lbs: [yours, theirs] (Rivals, out there); their_on: how many fish they've got on
 ##   condition: the weather (sea.gd's CONDITIONS); night: bool; day: day fraction (0 dawn .. 1 dusk)
-##   birds: 0..1, how near feeding birds are (1 right there)
-##   fights: [{id, tension (bend / what the line takes), spool (0..1 of the reel gone), depth, line_out, move,
+##   birds: 0..1, how near feeding birds are (1 right there); speed: 0..1 of her top speed ahead
+##   fights: [{id, kg, tension (bend / what the line takes), spool (0..1 of the reel gone), depth, line_out, move,
 ##            slack, airborne, surging, contact (0..1 of the line worn on her), props (s under her props), tangled}]
 ##   alongside: [ids up alongside]; draw: the harpoon's wind-up 0..1; flying: the harpoon's in the air
 ##   landed: fish aboard (it going up: one landed)
@@ -44,7 +44,8 @@ const SMOOTH := {
 	"tune": [1.0, 4.0, 8.6], "tick": [1.5, 3.0, 0.0], "glint": [2.0, 4.0, 0.0], "shimmer": [0.15, 0.4, 0.0],
 	"a": [2.0, 4.0, 0.0], "b": [4.0, 4.0, 0.0], "c": [4.0, 4.0, 0.0], "d": [3.0, 4.0, 0.0],
 	"pad": [3.0, 4.0, 0.0], "bass": [3.0, 4.0, 0.0], "pick": [4.0, 5.0, 0.0], "lead": [4.0, 5.0, 0.0],
-	"rain": [4.0, 5.0, 0.0], "storm": [4.0, 6.0, 0.0], "night": [5.0, 5.0, 0.0],
+	"rain": [4.0, 5.0, 0.0], "storm": [4.0, 6.0, 0.0], "night": [5.0, 5.0, 0.0], "run": [2.0, 4.0, 4.3],
+	"heavy": [2.0, 4.0, 0.0], "fill": [0.01, 0.01, 0.0],
 }
 const SMOOTH_ELSE := [1.0, 2.0, 0.0]
 ## The sea's stems by mood (an endless song: the pad and the bass always, the guitar and the lead in fair weather, the
@@ -57,7 +58,11 @@ const SEA := {
 	"storm": {"pad": 1.0, "bass": 1.0, "rain": 0.6, "storm": 1.0},
 	"night": {"pad": 0.75, "bass": 0.45, "pick": 0.5, "lead": 0.3, "night": 1.0},
 }
-const SEA_STEMS := ["pad", "bass", "pick", "lead", "rain", "storm", "night"]
+const SEA_STEMS := ["pad", "bass", "pick", "lead", "rain", "storm", "night", "run", "fill"]
+## Under way: the sea's run stem (and the bass with it) from this share of her top speed to that.
+const RUN := Vector2(0.25, 0.8)
+## A fish this heavy (kg) to that: the fight's heavy stem in (a giant's weight, felt on the rod).
+const HEAVY := Vector2(120.0, 320.0)
 const BRIGHT := {"calm": 0.75, "fog": 0.35, "rain": 0.3, "storm": 0.0, "night": 0.35}
 ## Dusk: past this far through the day the sea leans darker (to half as bright by its end).
 const DUSK := 0.75
@@ -311,6 +316,10 @@ func _wants(w: Dictionary, f: Dictionary) -> Dictionary:
 			var m: Dictionary = SEA.get(mood, SEA["calm"])
 			for k: String in SEA_STEMS:
 				want[k] = float(m.get(k, 0.0))
+			# under way: the drums' eighths and the bass pushing; the faster she goes, the more
+			var run := smoothstep(RUN.x, RUN.y, float(w.get("speed", 0.0)))
+			want["run"] = run * (0.5 if mood == "storm" else 1.0)
+			want["bass"] = maxf(float(want["bass"]), 0.6 + 0.4 * run)
 			return want
 		"hunt":
 			var b := float(w.get("birds", 0.0))
@@ -379,7 +388,9 @@ func _fight(w: Dictionary, f: Dictionary) -> Dictionary:
 	var deep := 1.0 if mv in ["sound", "dog"] or depth > 40.0 else (0.3 if depth > 20.0 else 0.0)
 	if str(w.get("condition", "")) == "storm":
 		deep = maxf(deep, 0.5)
-	return {"bed": 1.0, "pulse": 0.0 if bool(f.get("slack", false)) else 1.0, "drive": drive,
+	var heavy := smoothstep(HEAVY.x, HEAVY.y, float(f.get("kg", 0.0)))
+	deep = maxf(deep, 0.5 * heavy)
+	return {"heavy": heavy, "bed": 1.0, "pulse": 0.0 if bool(f.get("slack", false)) else 1.0, "drive": drive,
 			"shaker": 0.0 if night else drive, "click": drive if night else 0.0,
 			"tension": maxf(smoothstep(LOADED.x, LOADED.y, float(f.get("tension", 0.0))), smoothstep(0.2, 0.8, danger)),
 			"tension_hi": maxf(smoothstep(0.5, 0.85, spool), 0.6 * smoothstep(0.7, 0.95, danger)),
@@ -423,7 +434,7 @@ func _mask(w: Dictionary, f: Dictionary, dt: float) -> void:
 	for k: String in gains:
 		var m := 1.0
 		if parting:
-			m = {"bed": 0.3, "pulse": 1.0, "tension": 1.0}.get(k, 0.0)
+			m = {"bed": 0.3, "pulse": 1.0, "tension": 1.0, "heavy": 0.5}.get(k, 0.0)
 		if air:
 			m = minf(m, 0.15)
 		if flying:

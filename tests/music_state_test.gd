@@ -57,6 +57,10 @@ func _sea() -> void:
 	_check(s.mood == "night" and s.level("night") > 0.95, "dark: the night's bells")
 	_run(s, {"condition": "calm", "docked": false, "day": 0.98}, 0.1)
 	_check(s.bright < 0.45, "dusk: darker (%.2f)" % s.bright)
+	_run(s, {"condition": "calm", "docked": false, "day": 0.3, "speed": 0.95}, 4.0)
+	_check(s.level("run") > 0.95 and s.level("bass") > 0.95, "running hard: the drums' eighths, the bass pushing")
+	_run(s, {"condition": "calm", "docked": false, "day": 0.3, "speed": 0.0}, 9.0)
+	_check(s.level("run") < 0.05, "drifting: gone again (%.2f)" % s.level("run"))
 	var dn := State.new(1)
 	_run(dn, {"docked": true}, 1.0)
 	var ev := _run(dn, {"docked": false, "day": 0.02, "condition": "rain"}, DT)
@@ -154,6 +158,12 @@ func _fight() -> void:
 	_run(n, {"docked": false, "night": true, "condition": "storm", "fights": [_fish({"depth": 5.0})]}, 2.0)
 	_check(n.level("click") > 0.9 and n.level("shaker") == 0.0 and n.level("deep") >= 0.5,
 			"a storm at night: the click not the shaker, the deep under it")
+	var g := State.new(6)
+	_run(g, {"docked": false, "fights": [_fish({"kg": 380.0})]}, 3.0)
+	var sm := State.new(6)
+	_run(sm, {"docked": false, "fights": [_fish({"kg": 40.0})]}, 3.0)
+	_check(g.level("heavy") > 0.95 and sm.level("heavy") == 0.0 and g.level("deep") >= 0.5,
+			"a giant on: his weight in it (the heavy stem, the deep); a little one, not")
 	var c := State.new(6)
 	_run(c, {"docked": false, "condition": "calm", "fights": [_fish({"depth": 5.0})]}, 2.0)
 	_check(is_equal_approx(c.level("drive"), n.level("drive")) and c.level("drive") > 0.9,
