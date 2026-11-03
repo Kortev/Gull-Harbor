@@ -2,7 +2,8 @@ extends Node
 ## The radar on every boat, made honest, and the chart plotter beside it. The skiff carries a radar (a screen on her
 ## console, a bar on her T-top) and a plotter. A flock with its birds up paints a tight return in the same spot sweep
 ## after sweep; the sea clutter close in boils (different every sweep) and grows with the sea; rain lays clutter out
-## across the screen that a sunny day doesn't. The plotter draws her track as she goes and marks a flock where it was
+## across the screen that a sunny day doesn't. It shows birds, never what's under them: gulls over bait paint just like
+## birds over bluefin. The plotter draws her track as she goes and marks a flock where it was
 ## picked out.
 ## Run: godot --headless --path . res://tests/radar_test.tscn
 
@@ -56,6 +57,22 @@ func _ready() -> void:
 			steady += 1
 		near_px.append(_lit_near(radar))
 	_check(steady == 3, "the flock paints a strong return, sweep after sweep (%d of 3)" % steady)
+	# birds over little bait, no tuna under them, the same way off to port: the radar paints them just the same (it
+	# shows birds, nothing more: only eyes, up the tower best, tell you what they're on)
+	sea.schools.call("_host_start")
+	var g: Node = sea.schools.schools[sea.schools.schools.size() - 1]
+	g.set("start", Vector2(-500.0, -750.0))
+	g.set("t0", t)
+	g.set("speed", 0.3)
+	g.set("life", 1e6)
+	g.set("bait_only", true)
+	g.set("seed", int(s.get("seed")))
+	g.set("born", float(s.get("born")))
+	await _sweeps(radar, 2)
+	var tuna_px := radar.painted(s.call("center", sea.schools.now()), 1)
+	var gull_px := radar.painted(g.call("center", sea.schools.now()), 1)
+	_check(bool(g.call("feeding", sea.schools.now())) and absf(tuna_px - gull_px) < 0.08,
+			"gulls over bait paint just like birds over bluefin: the radar can't tell (%.2f, %.2f)" % [tuna_px, gull_px])
 	var same := 0
 	var all := 0
 	for i in near_px[0].size():

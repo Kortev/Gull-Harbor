@@ -66,6 +66,18 @@ func shout(i: int, what: String, text: String, crew: bool, urgent_too := false) 
 		_voice.call("say", maxi(text.split(" ", false).size() - 1, 2))
 
 
+## A shout that isn't about a fish on (crew/spotter.gd: the spotter up the tower calling birds): up under the
+## crosshair like any other, and a voice shouting it if it's someone else's.
+func call_out(text: String, voiced := true) -> void:
+	_shout = text
+	_shout_t = SHOUT_T
+	_urgent = false
+	last = text
+	count += 1
+	if voiced and _voice.is_inside_tree():
+		_voice.call("say", maxi(text.split(" ", false).size() - 1, 2))
+
+
 ## Dale's line `id` (ui/tips.gd), the first time it comes up (only aboard: not for the other boat's fish in VS).
 func dale(id: String) -> void:
 	var sea := spread.get("sea") as Node

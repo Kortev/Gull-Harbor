@@ -2,7 +2,8 @@ extends Node
 ## The tuna tower (the sportfisher's, boat/tower.gd): from the cockpit you can put the crosshair on its ladder; E on
 ## it and you climb, the whole way, a step at a time (nothing jumps: never more than a little each frame), to the
 ## platform five metres up, where W doesn't walk you off; from up there you can tell what a flock's on much further off
-## than from the deck (crew/spotter.gd's read_range); E climbs you back down the same way, to the foot of the ladder,
+## than from the deck (crew/spotter.gd's read_range: about 1.8 km), and birds working over bluefin are called down to
+## the crew by the clock ("BIRDS WORKING, TWO O'CLOCK!"); E climbs you back down the same way, to the foot of the ladder,
 ## and you're walking again. Not with a rod in your hands. The skiff has no tower.
 ## Run: godot --headless --fixed-fps 30 --path . res://tests/tower_test.tscn
 
@@ -49,7 +50,7 @@ func _ready() -> void:
 	_check(me.local_position().distance_to(at) < 0.05, "W doesn't walk you off it")
 	var top_read := Spotter.read_range(cam)
 	# (your eye rides up and down with the swell: these move a little with it)
-	_check(deck_read > 500.0 and deck_read < 950.0 and top_read > 1050.0 and top_read > deck_read * 1.4,
+	_check(deck_read > 500.0 and deck_read < 950.0 and top_read > 1650.0 and top_read < 2000.0,
 			"you can tell what a flock's on %.0f m off from the deck, %.0f m from up here" % [deck_read, top_read])
 	# a feeding school between the two, under your crosshair: what's under the birds only from up here
 	var c := cam.global_position
@@ -58,8 +59,32 @@ func _ready() -> void:
 	var dist := (deck_read + top_read) * 0.5
 	sea.schools._start(1, 7, sea.schools.now(), Vector2(c.x, c.z) + flat * dist, Vector2(1, 0), 0.0, 200.0)
 	var s: Node = sea.schools.schools.back()
+	# (in a feeding spell: birds working)
+	var t0: float = sea.schools.now()
+	var k := 0
+	while sea.schools.call("hash1", float(int(s.get("seed")) % 1000), float(k)) <= 0.38:
+		k += 1
+	s.set("born", t0 - k * 40.0 - 1.0)
 	var up_text := await _spotted(sea, me, s)
 	_check(up_text != "" and not up_text.begins_with("Birds"), "from the tower, %.0f m off: %s" % [dist, up_text])
+	# the spotter's call: birds working over bluefin, shouted down to the crew by the clock off her bow
+	_check(bool(s.call("feeding", sea.schools.now())) and not bool(s.get("bait_only")), "(birds working over bluefin)")
+	if true:
+		sea.spotter.call("_spotting", cam, s)
+		var said := str(sea.spotter.get("last_call"))
+		var clock := str(sea.spotter.call("clock_of", s.call("center", sea.schools.now())))
+		_check(said == "BIRDS WORKING, %s O'CLOCK!" % clock and str(sea.rods.calls.line()) == said,
+				"up the tower, the call: %s" % said)
+		var n := int(sea.rods.calls.count)
+		sea.spotter.call("_spotting", cam, s)
+		_check(int(sea.rods.calls.count) == n, "once for a flock, not over and over")
+	var ahead := sea.boat.global_transform * Vector3(0.0, 0.0, -1000.0)
+	var abeam := sea.boat.global_transform * Vector3(1000.0, 0.0, 0.0)
+	var astern := sea.boat.global_transform * Vector3(0.0, 0.0, 1000.0)
+	_check(str(sea.spotter.call("clock_of", Vector2(ahead.x, ahead.z))) == "TWELVE"
+			and str(sea.spotter.call("clock_of", Vector2(abeam.x, abeam.z))) == "THREE"
+			and str(sea.spotter.call("clock_of", Vector2(astern.x, astern.z))) == "SIX",
+			"the clock: twelve dead ahead, three to starboard, six astern")
 	var ev := InputEventAction.new()
 	ev.action = "interact"
 	ev.pressed = true
