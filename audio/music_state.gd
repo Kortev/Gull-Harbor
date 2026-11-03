@@ -57,6 +57,8 @@ const AFTER_LOST := Vector2(60.0, 90.0)
 const AFTER_LANDED := Vector2(45.0, 90.0)
 ## A fish gone from alongside: this long to see it in the hold (landed) before it counts as got away.
 const LANDED_WAIT := 1.2
+## The weather there's no waltz in, tied up: the quiet and the weather's own phrases instead.
+const STORMY := ["storm", "heavy"]
 ## Birds: in at this near, out under this.
 const BIRDS_IN := 0.12
 const BIRDS_OUT := 0.05
@@ -282,7 +284,7 @@ func _section(w: Dictionary, f: Dictionary) -> String:
 		return "afterglow"
 	if float(w.get("race_left", -1.0)) >= 0.0:
 		return "race"
-	if bool(w.get("docked", false)):
+	if bool(w.get("docked", false)) and not str(w.get("condition", "calm")) in STORMY:
 		return "harbour"
 	var birds := float(w.get("birds", 0.0))
 	if birds >= BIRDS_IN or (section == "hunt" and birds >= BIRDS_OUT):
@@ -296,7 +298,7 @@ func _wants(w: Dictionary, f: Dictionary) -> Dictionary:
 		"title", "afterglow":
 			return {"main": 1.0}
 		"harbour":
-			return {"guitar": 1.0, "reed": 1.0}
+			return _harbour(w)
 		"hunt":
 			var b := float(w.get("birds", 0.0))
 			return {"pulse": smoothstep(0.05, 0.6, b), "tick": smoothstep(0.3, 0.8, b),
@@ -308,6 +310,19 @@ func _wants(w: Dictionary, f: Dictionary) -> Dictionary:
 		"fight", "tired", "leader":
 			return _fight(w, f)
 	return {}
+
+
+## Tied up, by the weather: the waltz in fair weather; in rain the guitar alone, quieter; in fog the concertina far
+## off down the quay, the guitar barely; at night both soft. (A storm or a downpour: no waltz at all, STORMY.)
+func _harbour(w: Dictionary) -> Dictionary:
+	match str(w.get("condition", "calm")):
+		"rain":
+			return {"guitar": 0.6, "reed": 0.0}
+		"fog":
+			return {"guitar": 0.25, "reed": 0.8}
+	if bool(w.get("night", false)):
+		return {"guitar": 0.6, "reed": 0.45}
+	return {"guitar": 1.0, "reed": 1.0}
 
 
 func _race(w: Dictionary) -> Dictionary:

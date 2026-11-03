@@ -78,6 +78,17 @@ func _hunt() -> void:
 	_check(s.section == "hunt", "it holds as they drift off a little")
 	_run(s, {"docked": true}, 1.0)
 	_check(s.section == "harbour", "tied up: the harbour")
+	var h := State.new(21)
+	var ev := _run(h, {"docked": true, "condition": "storm"}, 17.0)
+	_check(h.section == "rest" and (ev.has("phrase:storm_1") or ev.has("phrase:storm_2")),
+			"tied up in a thunderstorm: no waltz, the storm's own low swells (%s, %s)" % [h.section, ev])
+	_run(h, {"docked": true, "condition": "heavy"}, 1.0)
+	_check(h.section == "rest", "a downpour at the dock: no waltz either")
+	_run(h, {"docked": true, "condition": "rain"}, 3.0)
+	_check(h.section == "harbour" and h.level("reed") == 0.0 and h.level("guitar") < 0.7,
+			"rain: the guitar alone, quieter (%.2f)" % h.level("guitar"))
+	_run(h, {"docked": true, "condition": "fog"}, 5.0)
+	_check(h.level("reed") > 0.7 and h.level("guitar") < 0.3, "fog: the concertina far off, the guitar barely")
 
 
 func _fight() -> void:
