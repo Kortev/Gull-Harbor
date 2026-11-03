@@ -80,6 +80,16 @@ const BRIGHT := {"calm": 0.75, "fog": 0.35, "rain": 0.3, "storm": 0.0, "night": 
 const DUSK := 0.75
 ## Landed: the song lifted (the afterglow) this long (s: eight bars at 112).
 const AFTER := 17.1
+## How hard the band plays for what's happening (heat), up quickly, down slowly (s).
+const HEAT := {"fight": 1.0, "tired": 0.9, "leader": 1.0, "gaff": 0.7, "afterglow": 0.6, "hunt": 0.15}
+const HEAT_UP := 0.8
+const HEAT_DOWN := 6.0
+## The fight builds the longer it goes (s since the strike): the drums never right down after BUILD_DRIVE, the drum
+## section in after BUILD_POUND, the tension never off after BUILD_TENSION; while he sounds deep it backs off (and his
+## next run hits all the harder).
+const BUILD_DRIVE := Vector2(20.0, 40.0)
+const BUILD_POUND := Vector2(60.0, 120.0)
+const BUILD_TENSION := Vector2(90.0, 150.0)
 ## The scenic silences: casting off, the band lets the song go and you sail out to the sea and the harbour alone, till
 ## she's SCENIC_PAST m out past the harbour mouth (or SCENIC_OUT s), and the song comes back in on the theme; and on
 ## a long quiet stretch at sea in fair weather (SCENIC_EVERY s, between, of nothing happening), the band rests for
@@ -134,6 +144,11 @@ var _rest_due := 240.0
 var _flash_armed := true
 ## How bright a sea passage to pick next (0 dark .. 1 bright).
 var bright := 0.75
+## How hard the band's playing (0 .. 1: a fish on is 1; audio/music.gd plays the whole song up to HEAT_DB louder for
+## it), and how long this fight's been going (s).
+var heat := 0.0
+var fight_t := 0.0
+var _deep_was := false
 
 var _t := 0.0
 var _section_t := 0.0
@@ -193,6 +208,14 @@ func step(w: Dictionary, dt: float) -> void:
 	_mask(w, f, dt)
 	_scenic(w, dt)
 	still = still or scenic != "" or bool(w.get("paused", false))
+	# the heat, and the fight's clock
+	fight_t = fight_t + dt if section in FIGHT or section == "gaff" else 0.0
+	var h := float(HEAT.get(section, 0.0))
+	if section == "race":
+		h = 0.6 * smoothstep(0.6, 0.95, clampf(1.0 - float(w.get("race_left", HOME)) / HOME, 0.0, 1.0))
+	if mood == "storm":
+		h = maxf(h, 0.3)
+	heat = move_toward(heat, h, dt / (HEAT_UP if h > heat else HEAT_DOWN))
 	_lightning(w)
 	bright = float(BRIGHT.get(mood, 0.5)) * lerpf(1.0, 0.5, smoothstep(DUSK, 1.0, float(w.get("day", 0.0))))
 	if SECTION_BRIGHT.has(section):
@@ -522,14 +545,24 @@ func _fight(w: Dictionary, f: Dictionary, want: Dictionary) -> void:
 	deep = maxf(deep, 0.5 * heavy)
 	want["beat"] = 0.0 if bool(f.get("slack", false)) else 1.0
 	want["drive"] = drive
-	want["tension"] = maxf(smoothstep(LOADED.x, LOADED.y, float(f.get("tension", 0.0))),
-			maxf(smoothstep(0.2, 0.8, danger), 0.6 * smoothstep(0.5, 0.85, spool)))
+	want["tension"] = maxf(maxf(smoothstep(LOADED.x, LOADED.y, float(f.get("tension", 0.0))),
+			maxf(smoothstep(0.2, 0.8, danger), 0.6 * smoothstep(0.5, 0.85, spool))),
+			0.35 * smoothstep(BUILD_TENSION.x, BUILD_TENSION.y, fight_t))
 	want["deep"] = deep
 	want["heavy"] = heavy
 	# the whole drum section: on his runs, the backing showing, the leader, a storm; tiring, a little
 	var pound := 0.7 if drive >= 0.99 else 0.0
 	if spool > 0.5:
 		pound = maxf(pound, smoothstep(0.5, 0.8, spool))
+	# the fight building: the drums never right down, the drum section in, the tension never off; sounding deep it
+	# backs off, and his next run after it hits with everything
+	var deep_now := mv in ["sound", "dog"]
+	drive = maxf(drive, 0.5 * smoothstep(BUILD_DRIVE.x, BUILD_DRIVE.y, fight_t))
+	pound = maxf(pound, 0.6 * smoothstep(BUILD_POUND.x, BUILD_POUND.y, fight_t) * (0.4 if deep_now else 1.0))
+	if _deep_was and not deep_now and mv in ["run", "surge", "charge"] and fight_t > 30.0:
+		pound = 1.0
+	_deep_was = deep_now if mv != "" else _deep_was
+	want["drive"] = drive
 	if section == "leader":
 		pound = 1.0
 	elif section == "tired":

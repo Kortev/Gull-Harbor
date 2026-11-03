@@ -118,6 +118,23 @@ func _storm() -> void:
 	var c := State.new(42)
 	ev = _run(c, {"docked": false, "condition": "calm", "flash": 1.0}, DT)
 	_check(not ev.has("lightning"), "no storm, no cue")
+	# the band playing harder, and the fight building the longer it goes
+	var hb := State.new(48)
+	_run(hb, {"docked": false}, 3.0)
+	var cool := hb.heat
+	_run(hb, {"docked": false, "fights": [_fish({"move": "dog", "depth": 60.0, "tension": 0.15})]}, 3.0)
+	_check(cool < 0.05 and hb.heat > 0.95, "fish on: the band plays harder (heat %.2f, was %.2f)" % [hb.heat, cool])
+	var early := hb.level("pound")
+	_run(hb, {"docked": false, "fights": [_fish({"move": "circle", "depth": 10.0, "tension": 0.1})]}, 160.0)
+	_check(early < 0.1 and hb.level("pound") > 0.5 and hb.level("tension") > 0.3 and hb.level("drive") > 0.45,
+			"nearly three minutes in, even with him easy: the drum section, the drums, the tension never off (pound %.2f)"
+			% hb.level("pound"))
+	_run(hb, {"docked": false, "fights": [_fish({"move": "sound", "depth": 90.0, "tension": 0.15})]}, 8.0)
+	var backed := hb.level("pound")
+	_run(hb, {"docked": false, "fights": [_fish({"move": "run", "tension": 0.25})]}, 1.0)
+	_check(backed < 0.35 and hb.level("pound") > 0.95,
+			"sounding deep it backs off; his run after it hits with everything (%.2f, then %.2f)" % [backed,
+			hb.level("pound")])
 	var f := State.new(43)
 	_run(f, {"docked": false, "fights": [_fish({"move": "run"})]}, 2.0)
 	_check(f.level("pound") > 0.6, "his run: the whole drum section in (%.2f)" % f.level("pound"))

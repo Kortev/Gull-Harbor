@@ -200,7 +200,7 @@ def main(d):
             b = min([x for x in marks_off if x > a] + [len(mono) / sr])
             hush.append((a - 0.1, b + 2.5))
     gaps = []
-    t = 0.5
+    t = 2.5                    # (past the music's first fade in from nothing at the start)
     while t + 1.0 < len(mono) / sr - 0.5:
         if not any(a - 1.0 < t < b for a, b in hush) and rms_db(win(t, t + 1.0)) < -45.0:
             gaps.append(round(t, 1))

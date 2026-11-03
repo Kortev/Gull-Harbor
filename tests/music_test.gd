@@ -90,8 +90,11 @@ func _ready() -> void:
 	_check(m.cue == "fight", "fish on: the fight (%s)" % m.cue)
 	await _secs(1.0)
 	_check(_played("sting:strike") and _on_grid("sting:strike", "beat"), "the strike's hit, on the song's beat")
-	_check(str(m.sounding).begins_with("sea_"), "and the song's still the song (%s, was %s)" % [m.sounding, before])
-	await _secs(1.5)
+	await _secs(2.5)
+	_check(_played("sting:fight_in") and bool(Cues.CUES.get(m.sounding, {}).get("fight", false))
+			and _on_grid("clip:" + m.sounding, "bar"),
+			"the bar after: the song turned dark, into the fight's own (%s, was %s), its break driving in"
+			% [m.sounding, before])
 	_check(m.level("beat") > 0.9 and m.level("drive") > 0.5, "the heartbeat and the drums on it")
 	var bb: Vector2 = m.bar_beat()
 	_check(bb.x >= 0.0, "the song's clock running (bar %d, beat %d)" % [bb.x, bb.y])

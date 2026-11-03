@@ -57,7 +57,7 @@ const JOIN := 0.5
 const LEVEL := {"sea": 1.0, "title": 1.0}
 const STING_LEVEL := {"strike": 1.0, "their_on": 0.7, "lead_up": 0.8, "lead_down": 0.8, "countdown": 1.0, "win": 1.0,
 		"lose": 1.0, "tie": 1.0, "landed": 1.0, "leader_in": 1.0, "hunt_in": 0.8, "away_in": 0.8, "race_in": 0.9,
-		"boatside_end": 0.9, "race_end": 0.9, "title_end": 0.8, "thunder": 1.0}
+		"boatside_end": 0.9, "race_end": 0.9, "title_end": 0.8, "thunder": 1.0, "fight_in": 1.0}
 ## The cues that play over the others (on their own player), not cutting them.
 const SMALL := ["their_on", "lead_up", "lead_down", "hunt_in", "away_in", "race_in", "boatside_end", "race_end",
 		"title_end"]
@@ -69,8 +69,11 @@ const SCENIC_FADE := 6.0
 const SCENIC_IN := 0.12
 ## Lightning: the band ducked to this share from the flash till the thunder's hit.
 const DIP := 0.25
-## In a storm, its own passages this much likelier than the rest (and never out of one).
+## In a storm, its own passages this much likelier than the rest (and never out of one); in a fight, the fight's.
 const STORM_K := 12.0
+const FIGHT_K := 20.0
+## A fish on: the whole song up to this much louder (dB, by the state's heat): the band playing harder.
+const HEAT_DB := 5.0
 ## While the radio or a voice is on: down to these shares (by whose it is), back up DUCK_HOLD s after they stop; the
 ## level (dB) on their bus that counts as on; the pocket (dB) cut where voices sit (1 and 3.2 kHz) while they're on,
 ## and the duck halved with it.
@@ -115,6 +118,7 @@ var world_test := {}
 ## the last PLAYED_N.
 var played: Array = []
 const PLAYED_N := 64
+var played_n := 0           # (how many in all)
 ## Run with -- --music-log=<file>: everything played, and when it was meant to be all but silent ("still:on"/"off"),
 ## kept whole and written there as JSON when the game closes (tools/music_check.py reads it beside the movie maker's
 ## .wav).
@@ -143,7 +147,9 @@ var _seas: Array = []       # the sea's passages (sea_a ...)
 var _rng := RandomNumberGenerator.new()
 var _sea_was := ""
 var _fill := 0.0            # the sounding passage's fill stem, opened for its last bar
-var _jump := ""             # into the theme on the bar: "leader" (with its fill), "landed" (with its hit), "theme"
+var _jump := ""             # on the bar: "leader" (its fill, the theme), "landed" (its hit, the theme), "theme",
+                            # "fight" (the strike: into the fight's own, its break)
+var _jump_after := 0.0      # (a jump's bar: the first after this)
 var _quiet := 1.0           # the scenic silence's gate on the song (1: open)
 var _return_at := -1.0      # when the gate opens again (our clock; -1: not asked)
 var _dip := 1.0
@@ -210,6 +216,10 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--music-log="):
 			_log_to = a.substr(12)
+		elif a == "--music-hud":
+			var hud: CanvasLayer = preload("res://audio/music_hud.gd").new()
+			hud.set("music", self)
+			add_child(hud)
 
 
 func _ogg(file: String, c: Dictionary) -> AudioStreamOggVorbis:
@@ -490,7 +500,12 @@ func _on(e: String) -> void:
 	match e:
 		"strike":
 			_hush = 0.0
-			_sting_at("strike", "beat")
+			var hit := _next("beat", 0.0)
+			_queue.append({"name": "strike", "at": hit, "from": 0.0})
+			# the song turns: on the bar after the hit, into one of the fight's own passages, the break driving in
+			if not bool(Cues.CUES.get(_asked, {}).get("fight", false)):
+				_jump = "fight"
+				_jump_after = hit
 		"leader", "landed":
 			_jump = e
 			_fill_wait = 0.0
@@ -619,6 +634,28 @@ func _jumps() -> void:
 		return
 	var at := _next("bar", 0.0)
 	var in_theme := sounding in ["sea_t1", "sea_t2"]
+	if _jump == "fight":
+		var bar := 60.0 / float(_clips[sounding]["bpm"]) * int(_clips[sounding]["bar_beats"])
+		var line := _start + ceilf((_jump_after + 0.01 - _start) / bar) * bar
+		if line - _t > bar or line - _t < GRID_SAFE:
+			if line < _t:
+				_jump = ""
+			return
+		var to := _pick_sea()
+		_queue.append({"name": "fight_in", "at": line, "from": 0.0})
+		_jump = ""
+		if to == sounding or not bool(Cues.CUES.get(to, {}).get("fight", false)):
+			return
+		var pbf := _bed.get_stream_playback() as AudioStreamPlaybackInteractive
+		if pbf == null:
+			return
+		pbf.switch_to_clip_by_name(StringName(to))
+		_sea_was = sounding
+		_asked = to
+		_fill = 0.0
+		_landing = {"to": to, "at": line - EARLY}
+		_set_volumes(to, true)
+		return
 	if _jump == "theme":
 		# (onto the bar the song comes back in on: ask in the bar before it)
 		if _return_at < 0.0 or absf(at - _return_at) > 0.01 or at - _t < GRID_SAFE:
@@ -752,6 +789,11 @@ func _pick_sea() -> String:
 			if state.mood != "storm":
 				continue                 # (the storm's own: only in one)
 			w *= STORM_K
+		var fighting: bool = state.section in ["fight", "tired"] or _jump == "fight"
+		if bool(Cues.CUES[n].get("fight", false)):
+			if not fighting:
+				continue                 # (the fight's own: only in one)
+			w *= FIGHT_K
 		pick.append(n)
 		weights.append(w)
 		total += w
@@ -872,6 +914,7 @@ func _play_queue(_delta: float) -> void:
 
 func _note(what: String, at := -1.0) -> void:
 	played.append([_t if at < 0.0 else at, what])
+	played_n += 1
 	if played.size() > PLAYED_N:
 		played.pop_front()
 	if _log_to != "":
@@ -906,7 +949,10 @@ func _mix(delta: float) -> void:
 	_dip = move_toward(_dip, DIP if _t < _dip_until else 1.0, delta / (0.05 if _t < _dip_until else 0.08))
 	var gain := _duck * (1.0 - _hush) * _dip
 	var lv := _asked if _asked != "rest" else sounding
-	_level = move_toward(_level, float(LEVEL.get(_family(lv) if lv.begins_with("sea_") else lv, 1.0)), delta * 0.5)
+	var want_level := float(LEVEL.get(_family(lv) if lv.begins_with("sea_") else lv, 1.0))
+	if lv.begins_with("sea_"):
+		want_level *= db_to_linear(HEAT_DB * state.heat)
+	_level = move_toward(_level, want_level, delta * 0.8)
 	_bed.volume_db = linear_to_db(maxf(gain * _level, 0.0001))
 	gain /= _dip                 # (the thunder itself isn't ducked)
 	for p in _stings:

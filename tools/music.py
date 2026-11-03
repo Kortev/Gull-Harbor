@@ -13,8 +13,9 @@ each is and its timing):
   sea_a..j, sea_t1/t2, sea_s1..3
                      the song: everything after the title is one endless song of eight-bar passages played one after
                      another (never the same twice running; t1 and t2 the theme's halves, t2 always after t1; s1-s3
-                     the storm's own, dark), 19 stems each, every layer the game has on the same chords (sea())
-  strike, leader_in, landed, thunder
+                     the storm's own, dark; f1-f3 the fight's, a chord a bar over a driving bass riff), 19 stems
+                     each, every layer the game has on the same chords (sea())
+  strike, fight_in, leader_in, landed, thunder
                      moments over the song: the hookup's hit, the fill into the theme for the leader, the hit when
                      he's landed, a lightning strike
   hunt_in, race_in, away_in, boatside_end, race_end, title_end
@@ -423,7 +424,7 @@ def master(tr, wet=0.22, rt=1.8, wow=0.0012, lp=8000.0, drive=1.6, norm=0.0, pea
 # A sting's (and the leader's fill's) silent pre-roll (s): audio/music.gd starts it a frame early, this far into the
 # silence that its hit lands on the beat.
 PRE = 0.06
-STINGS = {"strike", "thunder", "leader_in", "landed", "their_on", "lead_up", "lead_down", "countdown", "win", "lose", "tie",
+STINGS = {"strike", "fight_in", "thunder", "leader_in", "landed", "their_on", "lead_up", "lead_down", "countdown", "win", "lose", "tie",
           "hunt_in", "race_in", "away_in", "boatside_end", "race_end", "title_end"}
 
 
@@ -718,6 +719,28 @@ def moments():
     cue("landed", "sting", ["landed"], hit=0.0)
 
 
+def fight_in():
+    """The break after the strike: two bars of the drums alone driving into the fight (the song's turned dark under
+    it on the same bar): the war drums on the eighths building, toms rolling down the end of each bar, boots."""
+    q = 60.0 / FIGHT_BPM
+    e, s16, bar = q / 2, q / 4, 4 * q
+    tr = Track(2 * bar + 2.0, False)
+    for b in range(2):
+        t = b * bar
+        for i in range(8):
+            tr.add(war_drum(low=0.95), t + i * e, 0.0, (0.35 + 0.05 * i + 0.2 * b) * (1.0 if i % 2 == 0 else 0.7))
+        for k in (1, 3):
+            tr.add(stomp(), t + k * q, 0.05, 0.4)
+            tr.add(clap(), t + k * q + 0.003, 0.3, 0.18)
+        for i in range(8 if b == 1 else 4):
+            tr.add(war_drum(low=1.2 + 0.05 * i), t + (4 - (8 if b == 1 else 4) * 0.25) * q + i * s16, 0.3 - 0.08 * i,
+                   0.25 + 0.05 * i)
+    tr.add(crash(2.0), 2 * bar, 0.2, 0.25)
+    tr.add(war_drum(low=0.7), 2 * bar, 0.0, 0.8)
+    write("fight_in", master(tr, wet=0.18, rt=1.5), 0.85)
+    cue("fight_in", "sting", ["fight_in"], hit=0.0)
+
+
 def thunder():
     """Lightning: the biggest drums twice, the splash, the bow on a grinding semitone low down, the sub falling."""
     tr = Track(4.0, False)
@@ -846,6 +869,17 @@ SEA = {
     "s3": (["Bm", "G", "C", "F#"], "reed", [(None, 4), (71, 4), (74, 4), (72, 4), (71, 16), (None, 8), (66, 4),
                                            (67, 4), (66, 4), (61, 12)], False),
     # the theme's two halves, a chord a bar (audio/music.gd plays t2 straight after t1)
+    # the fight's own: a chord every bar, a driving bass riff under them (audio/music.gd turns the song into one on
+    # the bar after the strike, and keeps to them till he's tiring)
+    "f1": (["Bm", "Bm", "G", "A", "Bm", "Bm", "F#", "F#"], "reed", [(None, 8), (71, 2), (74, 2), (73, 4), (71, 8),
+                                                                   (None, 8), (66, 4), (67, 4), (66, 8), (61, 8),
+                                                                   (None, 8)], False),
+    "f2": (["Em", "C", "Bm", "F#", "Em", "C", "F#", "F#"], "reed", [(None, 4), (76, 4), (74, 4), (71, 4), (72, 8),
+                                                                   (71, 8), (None, 4), (69, 4), (67, 4), (66, 4),
+                                                                   (66, 8), (None, 8)], False),
+    "f3": (["Bm", "G", "Em", "F#", "Bm", "G", "C", "F#"], "reed", [(None, 8), (74, 4), (73, 4), (71, 8), (67, 8),
+                                                                  (None, 4), (71, 4), (72, 4), (71, 4), (70, 16)],
+           False),
     "t1": (THEME_CHORDS[:8], "whistle", theme_bars(0, 8), True),
     "t2": (THEME_CHORDS[8:], "whistle", theme_bars(8, 16), True),
 }
@@ -866,9 +900,14 @@ def sea():
             for i, j in enumerate(arp):
                 T["pick"].add(pluck(v[min(j, len(v) - 1)], 1.4, bright=0.35, decay=1.3, var=i % 3), t + i * e,
                               -0.25, 0.28 if i in (0, 4) else 0.2)
-            # bass: the root long on 1, the fifth on the and of 3
-            T["bass"].add(pluck(root, 2.2, bright=0.12, pos=0.3, decay=1.8), t, 0.0, 0.5)
-            T["bass"].add(pluck(root + 7, 1.2, bright=0.12, pos=0.3, decay=1.2), t + 2.5 * q, 0.0, 0.28)
+            # bass: the root long on 1, the fifth on the and of 3; in the fight's own, a riff driving the eighths
+            if name.startswith("f"):
+                for i, iv in enumerate((0, 0, 12, 0, 7, 0, 12, 7)):
+                    T["bass"].add(pluck(root + iv, 0.32, bright=0.3, pos=0.22, decay=0.8, mute=0.35, var=i % 3),
+                                  t + i * e, 0.0, 0.42 if i in (0, 4) else 0.32)
+            else:
+                T["bass"].add(pluck(root, 2.2, bright=0.12, pos=0.3, decay=1.8), t, 0.0, 0.5)
+                T["bass"].add(pluck(root + 7, 1.2, bright=0.12, pos=0.3, decay=1.2), t + 2.5 * q, 0.0, 0.28)
             # rain: the patter (sixteenths, soft) and a muted low pulse under it
             for i in range(16):
                 T["rain"].add(shaker(), t + i * s, 0.4 if i % 2 else -0.3, 0.07 if i % 4 == 2 else 0.04)
@@ -975,6 +1014,8 @@ def sea():
         CUES["sea_" + name]["bright"] = bright
         if name.startswith("s") and len(name) == 2:
             CUES["sea_" + name]["storm"] = True
+        if name.startswith("f"):
+            CUES["sea_" + name]["fight"] = True
         if name == "t1":
             CUES["sea_" + name]["then"] = "sea_t2"
         if name == "t2":
@@ -1086,6 +1127,7 @@ if __name__ == "__main__":
     sea()
     moments()
     strike()
+    fight_in()
     thunder()
     handoffs()
     rivals_stings()
