@@ -22,6 +22,7 @@ const JERK := 0.12
 
 var fails: Array[String] = []
 var sea: Sea
+var _wall := 0.0
 var _ha: Node
 var _hb: Node
 
@@ -40,7 +41,13 @@ func _ready() -> void:
 	_done()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	# (the sea's clock is the wall clock, but headless at a fixed 30 fps the frames run as fast as the machine lets
+	# them: the waves held to the game's pace, so the boats ride the sea as they would playing, however loaded it is)
+	var wall := Time.get_ticks_msec() / 1000.0
+	if _wall > 0.0 and sea != null and sea.ocean != null:
+		sea.ocean.clock_offset -= (wall - _wall) - delta
+	_wall = wall
 	# (both held at their way: nobody's at either wheel, and she'd coast down)
 	for pair: Array in [[_hb, B_SPEED], [_ha, A_SPEED]]:
 		var h: Node = pair[0]

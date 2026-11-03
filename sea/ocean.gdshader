@@ -92,6 +92,21 @@ uniform float hull2_beam = 1.1163;
 uniform float hull2_deck = 0.55;
 uniform float hull2_speed = 0.0;
 uniform float hull2_pad = 0.0;
+// each hull's sheer (her rail's cap over her origin, m): aft, and how much more it rises to her stem (ocean.gd's
+// set_hull, from boat/buoyancy.gd): the sea beside her is never drawn standing over it
+uniform vec2 hull_sheer = vec2(1.45, 0.95);
+uniform vec2 hull2_sheer = vec2(1.45, 0.95);
+// The waves of the GPU sea's swell and chop tiles that ocean.gd's height_at knows (each tile's biggest, as rolling
+// waves: the first near_swell the swell's, the rest the chop's), packed as `waves` is. Round a hull those two tiles
+// are drawn as just these: the water at her and under her is exactly the water she floats on (boat/buoyancy.gd), not
+// a sea with crests and troughs in it she never felt (the swell tile's other waves were half its height: walls of
+// water over her rail one moment, her hull over air the next). Further off, the whole sea again (NEAR: m past her
+// ends, all of it, out to none of it).
+uniform vec4 near_waves[72];
+uniform vec4 near_waves_b[72];
+uniform int near_count = 0;
+uniform int near_swell = 0;
+const vec2 NEAR = vec2(8.0, 40.0);
 
 
 // The FFT sea (sea/ocean_fft.gd): three tiles of the spectrum, each two textures (a: sideways x, z, height, slope x;
@@ -243,6 +258,17 @@ float hull_half(float z) {
 	return half_of(z, hull_length, hull_beam);
 }
 
+// How much of the sea at node-space point p is drawn as just height_at's waves (1 by a hull, 0 well off it).
+float near_of(vec2 p, mat4 xf, float len) {
+	return 1.0 - smoothstep(len * 0.5 + NEAR.x, len * 0.5 + NEAR.y, length(p - xf[3].xz));
+}
+
+// Her rail's cap over her origin at z along her (m): flat aft, rising forward to her stem.
+float sheer_of(float z, float len, vec2 sheer) {
+	float u = clamp((len * 0.5 - z) / len, 0.0, 1.0);
+	return sheer.x + sheer.y * pow(smoothstep(0.5, 1.0, u), 1.4);
+}
+
 // The water round a hull (this node's space in, out; `wash` gets the white water her way makes here).
 // Outside her the sea's left alone: no flattened band beside her, the swell comes right up her topsides (which hide
 // where it goes on inside them). At speed it heaps up along her: a bow wave off her forward shoulders, a lower
@@ -251,7 +277,8 @@ float hull_half(float z) {
 // The two meet across her topsides, the thickness of her hull (a hull 0.15 m mesh, ocean.gd's: no triangle reaches
 // from open water into her cockpit). (Done to the vertices, never by discarding pixels: a discard in the sea's shader
 // costs the whole sea its early depth test, a third of the frame.)
-vec3 hull_water(vec3 v, mat4 inv, mat4 xf, float len, float beam, float deck, float speed, float pad, inout float wash) {
+vec3 hull_water(vec3 v, mat4 inv, mat4 xf, float len, float beam, float deck, float speed, float pad, vec2 sheer,
+		inout float wash) {
 	vec3 b = (inv * vec4(v, 1.0)).xyz;
 	float hl = len * 0.5;
 	// how far outside her this is (m, from her sheer line seen from above; 0 inside her)
@@ -273,6 +300,15 @@ vec3 hull_water(vec3 v, mat4 inv, mat4 xf, float len, float beam, float deck, fl
 		float off = exp(-out_d / mix(0.9, 2.2, clamp(bow, 0.0, 1.0)));
 		b.y += (0.42 * bow + 0.14 * side + 0.12 * stern) * way * off;
 		wash = max(wash, clamp((0.9 * bow + 0.5 * side + 0.4 * stern) * way * exp(-out_d / 0.7), 0.0, 1.0));
+	}
+	// Beside her the sea never stands over her rail: she floats on it (boat/buoyancy.gd), so it hardly ever would, and
+	// where a sea's too steep for her and does, it comes aboard as water (boat/green_water.gd), not as a wall standing
+	// round her cut off at her hull. Taken down to just under her sheer against her, in a slope that lets the open sea
+	// be as high as it likes a few metres off (smoothly: no crease where it starts).
+	float cap = sheer_of(zc, len, sheer) - 0.06 + out_d * (0.35 + 0.12 * out_d);
+	if (b.y > cap - 0.3) {
+		float hk = max(0.3 - abs(b.y - cap), 0.0) / 0.3;
+		b.y = min(b.y, cap) - hk * hk * 0.075;
 	}
 	// inside her (her topsides' thickness to come in through, from her rubbing strake to her liner, and her transom)
 	// (and further out round her where the mesh is coarse, out of the middle: there no-one's close enough to see)
@@ -325,6 +361,37 @@ void vertex() {
 		vec4 b2 = textureLod(fft_b2, tile_uv(wq, fft_size.z), 0.0);
 		dxx = tg.x * b0.y + tg.y * b1.y + tg.z * b2.y;
 		dzz = tg.x * b0.z + tg.y * b1.z + tg.z * b2.z;
+		// round a hull, the swell and the chop tiles as just the waves height_at knows (near_waves): the sea she floats
+		// on; the ripples' tile stays (centimetres)
+		float near = 0.0;
+		if (hull_on) {
+			near = near_of(p.xz, hull_xf, hull_length);
+		}
+		if (hull2_on) {
+			near = max(near, near_of(p.xz, hull2_xf, hull2_length));
+		}
+		if (near > 0.0) {
+			vec3 kd = vec3(0.0);
+			float kxx = 0.0;
+			float kzz = 0.0;
+			for (int i = 0; i < 72; i++) {
+				if (i >= near_count) {
+					break;
+				}
+				vec4 w = near_waves[i];
+				vec4 b = near_waves_b[i];
+				float a = w.w * (i < near_swell ? sw : g);
+				float th = w.z * dot(w.xy, wq) - b.x * wave_time + b.y;
+				kd.xz += b.z * a * w.xy * cos(th);
+				kd.y += a * sin(th);
+				float sq = b.z * a * w.z * sin(th);
+				kxx -= sq * w.x * w.x;
+				kzz -= sq * w.y * w.y;
+			}
+			d = mix(tg.x * a0.xzy + tg.y * a1.xzy, kd, near) + tg.z * a2.xzy;
+			dxx = mix(tg.x * b0.y + tg.y * b1.y, kxx, near) + tg.z * b2.y;
+			dzz = mix(tg.x * b0.z + tg.y * b1.z, kzz, near) + tg.z * b2.z;
+		}
 	}
 	d += surf_at(wq, wave_time).xyz;
 	for (int i = 0; i < 32; i++) {
@@ -352,10 +419,12 @@ void vertex() {
 	VERTEX = p + d;
 	float wash = 0.0;
 	if (hull_on) {
-		VERTEX = hull_water(VERTEX, hull_inv, hull_xf, hull_length, hull_beam, hull_deck, hull_speed, hull_pad, wash);
+		VERTEX = hull_water(VERTEX, hull_inv, hull_xf, hull_length, hull_beam, hull_deck, hull_speed, hull_pad,
+				hull_sheer, wash);
 	}
 	if (hull2_on) {
-		VERTEX = hull_water(VERTEX, hull2_inv, hull2_xf, hull2_length, hull2_beam, hull2_deck, hull2_speed, hull2_pad, wash);
+		VERTEX = hull_water(VERTEX, hull2_inv, hull2_xf, hull2_length, hull2_beam, hull2_deck, hull2_speed, hull2_pad,
+				hull2_sheer, wash);
 	}
 	hull_wash = wash;
 	moved = VERTEX;

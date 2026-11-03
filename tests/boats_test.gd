@@ -11,6 +11,18 @@ const Kinds := preload("res://boat/kinds.gd")
 const Schools := preload("res://tuna/schools.gd")
 
 var fails: Array[String] = []
+var _sea: Node
+var _wall := 0.0
+
+
+## (the sea's clock is the wall clock, but headless at a fixed 30 fps the frames run as fast as they can: the waves
+## held to the game's pace, so the boat's heave per frame is what it would be playing, however fast this machine is)
+func _process(delta: float) -> void:
+	var wall := Time.get_ticks_msec() / 1000.0
+	if _wall > 0.0 and _sea != null:
+		var o: Node = _sea.get("ocean")
+		o.set("clock_offset", float(o.get("clock_offset")) - ((wall - _wall) - delta))
+	_wall = wall
 
 
 func _ready() -> void:
@@ -25,6 +37,7 @@ func _ready() -> void:
 			% [float(skiff["tank"]) * float(skiff["ahead"]), there, float(sport["tank"]) * float(sport["ahead"])])
 	var sea := (load("res://sea/sea.tscn") as PackedScene).instantiate() as Sea
 	add_child(sea)
+	_sea = sea
 	await get_tree().create_timer(0.3).timeout
 	sea.schools.set("_next", 9999.0)
 	var hold := sea.fish_hold
@@ -71,6 +84,9 @@ func _ready() -> void:
 		hold.head_in()
 		await get_tree().process_frame
 		hold.head_out(kind)
+		# (out on the open sea, not in the harbour's shelter: she floats, boat/buoyancy.gd, and the swell's full size)
+		await get_tree().process_frame
+		sea.boat.helm.set("at", Vector2(0.0, -900.0))
 		for cond: String in ["sunny", "rain", "heavy", "storm"]:
 			sea.set_condition(cond)
 			await get_tree().create_timer(6.0).timeout

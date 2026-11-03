@@ -52,9 +52,14 @@ const MAX_CHOP := 1.0
 const SHADER_SWELL := 20
 const SEA_SEED := 20261029
 ## Calm, the usual rain, a storm: (swell crest to trough m, chop, steepness 0..1, whitecaps 0..1).
+## The sea's significant height (height_at's, measured offshore) comes to about 0.85 of the swell's figure: calm 3.2 m
+## (a long swell, no wind), sunny 3.5, rain and heavy 4.4, a storm 5.4 (2026-11-02; it was 10.5, heavy 6.9, the rain 5:
+## no-one fishes for tuna in a 46 footer, let alone a 28 ft skiff, in a 35 ft sea, and the boats couldn't ride it). Big
+## but survivable: the storm's drama is in its steep breaking seas, the chop, the white water and the gusts, and in the
+## sets (_mods' swell sets: a band where the swell's half as big again comes through now and then).
 const CALM := [3.2, 0.5, 0.5, 0.0]
-const RAIN := [5.8, 0.6, 0.68, 0.45]
-const STORM := [12.0, 0.9, 0.9, 1.0]
+const RAIN := [5.0, 0.6, 0.68, 0.45]
+const STORM := [6.2, 0.9, 0.9, 1.0]
 ## How fast the rough patches drift with the wind (m/s), calm to storm: about the speed the chop's groups go, slow
 ## enough that the ripples riding them don't seem to stream past a boat that's lying still (at 4 to 12 they did).
 const GUSTS := Vector2(1.5, 5.0)
@@ -169,6 +174,7 @@ var _hull := Transform3D.IDENTITY
 var _hull_on := false
 var _hull_size := Vector2(14.0, 4.8)
 var _hull_deck := Vector2(0.55, 0.0)
+var _hull_sheer := Vector2(1.45, 0.95)
 ## (the sea mesh's points round each ring, _build_mesh)
 const RING_SEG := 320
 var _dirty := true
@@ -209,7 +215,7 @@ func _ready() -> void:
 	_mat.set_shader_parameter("curve_radius", CURVE_RADIUS)
 	_mat.set_shader_parameter("rain", rain)
 	if _hull_on:
-		set_hull(global_transform * _hull, _hull_size.x, _hull_size.y, _hull_deck.x, _hull_deck.y)
+		set_hull(global_transform * _hull, _hull_size.x, _hull_size.y, _hull_deck.x, _hull_deck.y, _hull_sheer)
 	var sea := MeshInstance3D.new()
 	sea.name = "Sea"
 	sea.mesh = _build_mesh()
@@ -336,6 +342,14 @@ func height_at(at: Vector3, ahead := 0.0, slack := 0.0) -> float:
 	if memo:
 		_memo[at] = h
 	return h
+
+
+## How far the sea's curved away under world point `at` (m down, from this node's middle: height_at counts it in).
+## Something floating on the sea works out its motion without it (boat/buoyancy.gd): the curve moves with this node,
+## and a hull doesn't heave because the mesh caught up with the camera.
+func curve_at(at: Vector3) -> float:
+	var p := to_local(at)
+	return pow(maxf(Vector2(p.x, p.z).length() - CURVE_START, 0.0), 2.0) / (2.0 * CURVE_RADIUS)
 
 
 ## How the water carries a hull floating at world point `at` (where she'd be on still water), heading `heading`
@@ -483,7 +497,9 @@ func normal_at(at: Vector3) -> Vector3:
 ## shows through it (ocean.gdshader's hull_water). Only the drawing: height_at is the open sea.
 ## Where she is, her length and her beam (m; art/boat.py's hull shape, stretched to fit), her cockpit sole (m over
 ## her origin) and her way through the water (m/s).
-func set_hull(boat: Transform3D, length := 14.0, beam := 4.8, deck := 0.55, speed := 0.0) -> void:
+func set_hull(boat: Transform3D, length := 14.0, beam := 4.8, deck := 0.55, speed := 0.0,
+		sheer := Vector2(1.45, 0.95)) -> void:
+	_hull_sheer = sheer
 	_hull_on = true
 	_hull_size = Vector2(length, beam)
 	_hull_deck = Vector2(deck, speed)
@@ -495,12 +511,14 @@ func set_hull(boat: Transform3D, length := 14.0, beam := 4.8, deck := 0.55, spee
 		_mat.set_shader_parameter("hull_deck", deck)
 		_mat.set_shader_parameter("hull_speed", speed)
 		_mat.set_shader_parameter("hull_pad", _gap_at(Vector2(_hull.origin.x, _hull.origin.z).length() + length * 0.5))
+		_mat.set_shader_parameter("hull_sheer", sheer)
 		_mat.set_shader_parameter("hull_xf", Projection(_hull))
 		_mat.set_shader_parameter("hull_inv", Projection(_hull.affine_inverse()))
 
 
 ## The other boat (Rivals): the sea meets her the same, so her deck stays dry to look at; `on` false lets it be.
-func set_other_hull(boat: Transform3D, length := 14.0, beam := 4.8, on := true, deck := 0.55, speed := 0.0) -> void:
+func set_other_hull(boat: Transform3D, length := 14.0, beam := 4.8, on := true, deck := 0.55, speed := 0.0,
+		sheer := Vector2(1.45, 0.95)) -> void:
 	if _mat == null:
 		return
 	_mat.set_shader_parameter("hull2_on", on)
@@ -511,6 +529,7 @@ func set_other_hull(boat: Transform3D, length := 14.0, beam := 4.8, on := true, 
 		_mat.set_shader_parameter("hull2_speed", speed)
 		var xf := global_transform.affine_inverse() * boat
 		_mat.set_shader_parameter("hull2_pad", _gap_at(Vector2(xf.origin.x, xf.origin.z).length() + length * 0.5))
+		_mat.set_shader_parameter("hull2_sheer", sheer)
 		_mat.set_shader_parameter("hull2_xf", Projection(xf))
 		_mat.set_shader_parameter("hull2_inv", Projection(xf.affine_inverse()))
 
@@ -786,6 +805,18 @@ func _update_waves() -> void:
 	_mat.set_shader_parameter("waves_b", wb)
 	_mat.set_shader_parameter("wave_count", wa.size())
 	_mat.set_shader_parameter("swell_count", _big.size() + mini(SHADER_SWELL, SWELL_N))
+	# (and every one of the swell's and the chop's that height_at sums: round a hull the GPU sea's those two tiles are
+	# drawn as just these, ocean.gdshader's near_waves, so the water at her is the water she floats on)
+	var na := PackedVector4Array()
+	var nb := PackedVector4Array()
+	for i in range(_big.size(), mini(_waves.size(), _big.size() + 72)):
+		var w := _waves[i]
+		na.append(Vector4(w[0], w[1], w[2], w[3]))
+		nb.append(Vector4(w[4], w[5], w[6], w[7]))
+	_mat.set_shader_parameter("near_waves", na)
+	_mat.set_shader_parameter("near_waves_b", nb)
+	_mat.set_shader_parameter("near_count", na.size())
+	_mat.set_shader_parameter("near_swell", mini((_spectrum.biggest[0] as Array).size(), na.size()))
 	_mat.set_shader_parameter("big_count", _big.size())
 	_mat.set_shader_parameter("fft_gain", hs)
 	_mat.set_shader_parameter("fft_fold", fold)

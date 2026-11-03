@@ -26,6 +26,13 @@ var _wait: Array[float] = []
 var _sheets: Array[GPUParticles3D] = []
 var _next_sheet := 0
 var _deck_wash: GPUParticles3D
+## The water itself on her deck (a sheet over her sole, _show_water), and her scuppers pouring it out over her transom.
+var _deck_water: MeshInstance3D
+var _drains: Array[GPUParticles3D] = []
+var _flow := Vector3.ZERO
+## How deep (m) the sheet runs over her deck just after a sea, and stands in her when she's as full as she can be.
+const STREAM_DEEP := 0.05
+const FULL_DEEP := 0.3
 
 
 func _ready() -> void:
@@ -37,6 +44,13 @@ func _ready() -> void:
 		_sheets.append(s)
 	_deck_wash = _wash()
 	add_child(_deck_wash)
+	_deck_water = _water_sheet()
+	add_child(_deck_water)
+	for i in 2:
+		var d := _drain()
+		d.name = "Scupper%d" % i
+		add_child(d)
+		_drains.append(d)
 	_place()
 
 
@@ -54,6 +68,12 @@ func _place() -> void:
 	var pm := _deck_wash.process_material as ParticleProcessMaterial
 	pm.emission_box_extents = Vector3(half.x, 0.01, half.z)
 	_deck_wash.position = Vector3(0.0, float(spec["deck"]) + 0.04, float(spec["length"]) * 0.12)
+	(_deck_water.mesh as PlaneMesh).size = Vector2(half.x * 2.0, half.z * 2.0)
+	_deck_water.position = Vector3(0.0, float(spec["deck"]), float(spec["length"]) * 0.12)
+	# (her scuppers: low in her transom's corners, just inside her topsides)
+	var stern := float(spec["length"]) * 0.5 - 0.05
+	for i in _drains.size():
+		_drains[i].position = Vector3((1.0 if i == 0 else -1.0) * half.x, float(spec["deck"]) + 0.03, stern)
 
 
 func _process(delta: float) -> void:
@@ -82,6 +102,27 @@ func _process(delta: float) -> void:
 		_told = false
 	_deck_wash.emitting = streaming > 0.05
 	_deck_wash.amount_ratio = clampf(streaming, 0.2, 1.0)
+	_show_water(delta)
+
+
+## The water on her deck: a sheet of it running aft just after a sea, as deep as what's in her (a skiff filling), and
+## pouring out of her scuppers at her transom corners while there's any.
+func _show_water(delta: float) -> void:
+	var depth := maxf(streaming * STREAM_DEEP, water * FULL_DEEP)
+	_deck_water.visible = depth > 0.004
+	for d in _drains:
+		d.emitting = depth > 0.01
+		d.amount_ratio = clampf(depth * 12.0, 0.25, 1.0)
+	if not _deck_water.visible:
+		return
+	var spec: Dictionary = boat.get("spec")
+	_deck_water.position.y = float(spec["deck"]) + depth
+	var m := _deck_water.material_override as StandardMaterial3D
+	m.albedo_color.a = clampf(0.35 + depth * 4.0, 0.35, 0.8)
+	# (running aft to the scuppers, sloshing side to side as she rolls)
+	var roll := boat.global_basis.get_euler().z
+	_flow += Vector3(-roll * 0.6, -(0.25 + streaming * 0.6), 0.0) * delta
+	m.uv1_offset = _flow
 
 
 ## A sea comes aboard at a spot on her rail (boat-local), `over` m deep: the sheet over the rail, the crash, the deck
@@ -121,6 +162,64 @@ func _sheet() -> GPUParticles3D:
 	p.lifetime = 1.3
 	p.one_shot = true
 	p.explosiveness = 0.8
+	return p
+
+
+## The water over her deck: sea-green, see-through, the noise's grain in it (big pixels, the sea's look) running aft.
+func _water_sheet() -> MeshInstance3D:
+	var mat := StandardMaterial3D.new()
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(0.36, 0.55, 0.56, 0.5)
+	mat.albedo_texture = _grain()
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	mat.uv1_scale = Vector3(0.6, 1.4, 1.0)
+	mat.roughness = 0.15
+	mat.metallic_specular = 0.8
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(2.0, 4.0)
+	var mi := MeshInstance3D.new()
+	mi.name = "DeckWater"
+	mi.mesh = plane
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.visible = false
+	return mi
+
+
+## The water's grain: a coarse noise, 24 pixels a tile (the pixel look), light streaks and dark.
+static func _grain() -> NoiseTexture2D:
+	var n := FastNoiseLite.new()
+	n.seed = 7
+	n.frequency = 0.12
+	var t := NoiseTexture2D.new()
+	t.width = 24
+	t.height = 24
+	t.seamless = true
+	t.noise = n
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(0.72, 0.8, 0.82))
+	ramp.set_color(1, Color(1.0, 1.0, 1.0))
+	t.color_ramp = ramp
+	return t
+
+
+## A scupper pouring the deck's water out over her transom: a spout falling into her wake.
+func _drain() -> GPUParticles3D:
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	pm.emission_box_extents = Vector3(0.06, 0.02, 0.02)
+	pm.direction = Vector3(0.0, -0.2, 1.0)
+	pm.spread = 12.0
+	pm.initial_velocity_min = 0.8
+	pm.initial_velocity_max = 1.4
+	pm.gravity = Vector3(0.0, -9.8, 0.0)
+	pm.scale_min = 0.4
+	pm.scale_max = 0.8
+	pm.color_ramp = _fade(0.8)
+	var p := _puffs(pm, true, 0.18, Color(0.7, 0.85, 0.86))
+	p.amount = 40
+	p.lifetime = 0.7
 	return p
 
 

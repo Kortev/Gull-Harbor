@@ -32,6 +32,9 @@ var _cam: Camera3D
 var _pose: Array = []
 var _wall := 0.0
 var as_other := false
+## (--green: a sea comes over her rail every few seconds, and the skiff half full: the water on her deck)
+var green := false
+var _green_t := 0.0
 
 
 func _ready() -> void:
@@ -40,6 +43,7 @@ func _ready() -> void:
 	get_window().always_on_top = true
 	for a in OS.get_cmdline_user_args():
 		as_other = as_other or a == "--as-other"
+		green = green or a == "--green"
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		if kv.size() < 2:
 			continue
@@ -100,6 +104,14 @@ func _process(delta: float) -> void:
 		return
 	if as_other:
 		_as_other.call_deferred()
+	if green and _pose.size() > 0:
+		_green_t -= delta
+		var g: Node = sea.boat.get("green")
+		if _green_t <= 0.0:
+			_green_t = 3.0
+			g.call("_aboard", (sea.boat.get("spec")["rail"] as Array)[1], 0.4)
+		if kind == "skiff":
+			g.set("water", maxf(float(g.get("water")), 0.5))
 	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	for n in get_tree().root.find_children("*", "CanvasLayer", true, false):
@@ -129,4 +141,4 @@ func _as_other() -> void:
 	var mat := (sea.ocean.get_node("Sea") as MeshInstance3D).material_override as ShaderMaterial
 	mat.set_shader_parameter("hull_on", false)
 	sea.ocean.call("set_other_hull", b.global_transform, float(b.get("length")), float(b.get("beam")), true,
-			float(b.get("deck")), float(b.get("helm").get("speed")))
+			float(b.get("deck")), float(b.get("helm").get("speed")), b.get("floating").get("sheer"))
