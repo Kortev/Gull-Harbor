@@ -16,7 +16,8 @@ const CHAPTERS := [
 		+ "A jump, X use, B put back, Y shove, LB/RB what's in your hands, L3 sprint, R3 dive, START the menu. "
 		+ "At the wheel the triggers are the throttle too. D-pad up talks, down's the VHF."],
 	["2. The loan", "Your boat belongs to First Coastal Savings & Loan.\n\n"
-		+ "Every 3 days (3 trips) the bank wants a payment: the quota. $5,000, then half as much again each time. "
+		+ "Every 3 days (3 trips) the bank wants a payment: the quota. $12,000 (sized for two of you), then 1.4 times as "
+		+ "much each time. Past two aboard, each extra hand takes a 12% share of every fish sold. "
 		+ "Every fish sold counts, and the money's yours to spend too. The bar top left is the quota.\n\n"
 		+ "Miss it and the bank takes the boat: the skiff and $1,000 again. Fuel comes off every sale ($60 the "
 		+ "skiff, $400 the sportfisher)."],
@@ -27,7 +28,8 @@ const CHAPTERS := [
 		+ "- Gulls over little splashes: no tuna. About a third of flocks.\n\n"
 		+ "The radar on the dash (2 km out, rings every 500 m) paints birds in the air: a tight return in the same "
 		+ "spot every sweep, drifting. Sea clutter round her and rain clutter change every sweep; buoys don't move. "
-		+ "It can't tell gulls from tuna birds: go and look.
+		+ "It shows birds, never what's under them: go and look, or send someone up the tower (out to 1.8 km, and "
+		+ "they'll call it down: BIRDS WORKING, TWO O'CLOCK!).
 
 "
 		+ "The plotter beside it (north up) shows her track and marks every flock you've picked out."],
@@ -43,6 +45,8 @@ const CHAPTERS := [
 		+ "Then send it out: pick the rod up, hold left mouse and let go to cast, or hold right mouse to let it "
 		+ "back off the stern (let go to thumb it). Q puts the rod in its holder to troll.\n\n"
 		+ "A mackerel tires out in 10 minutes. Wind it in (left mouse, rod in your hands) and put a fresh one on.\n\n"
+		+ "The well's water goes stale: one dies every 4 minutes or so unless someone pumps it. Hold E on the "
+		+ "pump beside the well. Murky water: pump.\n\n"
 		+ "Well empty? Jig more: the jig rod (3), stopped, rod out over the rail. Click to open the spool, click "
 		+ "to thumb it: the line's a colour every 10 m, and they're down where the green goes out. Tap to work "
 		+ "it, tap on the knock, hold to wind it up, click at the well to swing it in. Full well: it goes on ice "
@@ -60,7 +64,10 @@ const CHAPTERS := [
 		+ "- He jumps: drop the tip. He comes at you: wind like mad, never give him slack.\n"
 		+ "- The leader up at the rod tip: he'll go once more. Ease the drag.\n\n"
 		+ "A big one takes a long while and your arms go: swap on the rod. Alone: rod in its holder (Q), get on "
-		+ "the wheel. It fights on its drag as you left it; nobody wins line back."],
+		+ "the wheel. It fights on its drag as you left it; nobody wins line back, and on a run he takes it "
+		+ "twice as fast with nobody on the rod: put it in between his runs.\n\n"
+		+ "Two on at once (a double header: another bait across the same school goes while one's on): one in "
+		+ "hands, one in its holder till someone's free. Get the other lines in fast."],
 	["7. Driving during a fight", "Stern to the fish (A/D). Let it swing toward the bow and the line rubs on "
 		+ "her and wears through: swing the stern to it, or the angler walks to that corner.\n\n"
 		+ "Backing down (S) wins line back fast.\n\n"
@@ -82,7 +89,7 @@ const CHAPTERS := [
 		+ "The grade (#1, #2, #3), and why, is on the slip: quick and clean pays about twice a warm one.\n\n"
 		+ "The fish box (the pips top left) holds 2 (skiff) or 12 (sportfisher). Bring her home and tie up alongside the fish pier to sell."],
 	["10. Boats and gear", "The skiff: 2 rods, quick, handy alone or with two. Box for 2.\n"
-		+ "The sportfisher ($20,000, or $2,500 a day chartered): 4 rods, box for 12, slow to turn, and the tuna "
+		+ "The sportfisher ($20,000, or $2,500 a day chartered): 5 rods (the shotgun way back off the tower), box for 12, slow to turn, and the tuna "
 		+ "door means wiring. She wants a crew. Her fighting chair and seats: E to sit, E or jump to get up. Her tuna "
 		+ "tower: E on its ladder to climb; from up there you can tell what birds are on much further off.\n\n"
 		+ "Gear lasts the run: a two-speed reel (winds a quarter faster), heavier line (rubs the hull longer)."],

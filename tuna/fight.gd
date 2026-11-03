@@ -174,6 +174,8 @@ const BACK_SPEED := 2.2
 const TOW := 0.01
 ## A beaten fish kept tight is led round off the stern this fast (rad/s, at full pressure).
 const LEAD := 0.35
+## A rod left in its holder: how much faster he takes line on a run, with nobody on it.
+const HOLDER_RUN := 1.8
 
 var kg := 150.0
 var nature := "runner"
@@ -213,7 +215,8 @@ var from := 7.05
 ## angler stands aft, `reach` (0..1) of the way out to the corner the fish is on.
 var tip := Vector2(NAN, NAN)
 var reach := 0.0
-## The rod's in its holder with nobody on it (rods.gd): nobody winds or lifts; the drag as it was set plays him.
+## The rod's in its holder with nobody on it (rods.gd): nobody winds or lifts; the drag as it was set plays him, and on
+## his runs he takes line HOLDER_RUN times as fast as he would off a rod someone's on (it just bows to him).
 var in_holder := false
 ## Gear from the dock (boat/fish_hold.gd, rods.gd sets these): a two-speed reel winds faster, heavier line takes more
 ## rubbing and is a little stronger.
@@ -433,6 +436,10 @@ func step(dt: float, crank: float, rod_pitch: float, _side: float, drag_set: flo
 	if move in ["run", "surge"] and move_t < KICK_T:
 		resp *= 2.0
 		want = sp * v_free() * 1.3          # (his first strokes: he's going, whatever's on the line)
+	if in_holder and want > 0.0 and move in ["run", "surge"]:
+		# (nobody on the rod: nobody to lean back on him, ease the rod over or thumb the spool, the rod just bows to
+		# him and the drag renders; on a run he takes line HOLDER_RUN times as fast)
+		want *= HOLDER_RUN
 	if _burst > 0.0:
 		want *= 1.0 + 0.5 * _burst / BURST
 		_burst = maxf(_burst - dt, 0.0)

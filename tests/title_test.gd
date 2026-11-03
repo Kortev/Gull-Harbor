@@ -65,6 +65,29 @@ func _ready() -> void:
 	Net.host(PORT)
 	await get_tree().process_frame
 	_check(str(t.get("_page")) == "lobby", "hosting opens the crew list")
+	# Rivals is even, always: START won't go with uneven teams, and says why (the odd one out told it's them)
+	t.call("_start_pressed")
+	await get_tree().process_frame
+	_check(t.up and str(t.get("_note")).contains("1 V 1 OR 2 V 2"), "alone: START won't go: %s" % t.get("_note"))
+	var slots: Dictionary = sea.crew.slots
+	slots[2] = 1
+	slots[3] = 2
+	sea.vs.teams = {1: 0, 2: 1, 3: 0}
+	var odd := str(sea.vs.call("team_problem", 3))
+	var rest := str(sea.vs.call("team_problem", 1))
+	_check(odd.contains("ODD ONE OUT") and rest.contains("3 ABOARD") and not rest.contains("ODD ONE OUT"),
+			"three aboard: the last aboard's told to wait (%s), the rest why (%s)" % [odd, rest])
+	t.call("_start_pressed")
+	await get_tree().process_frame
+	_check(t.up and str(t.get("_note")).begins_with("CAN'T START"), "and START won't go: %s" % t.get("_note"))
+	slots.erase(3)
+	sea.vs.teams = {1: 0, 2: 0}
+	var uneven := str(sea.vs.call("team_problem", 1))
+	_check(uneven.contains("UNEVEN") and uneven.contains("SWAP"), "two on one boat: %s" % uneven)
+	sea.vs.teams = {1: 0, 2: 1}
+	_check(str(sea.vs.call("team_problem", 1)).is_empty(), "one a boat: even, it can start")
+	slots.erase(2)
+	sea.vs.teams = {1: 0}
 	t.call("_start")
 	await get_tree().process_frame
 	_check(bool(sea.vs.on) and not t.up, "START: two boats on the water, the title down")

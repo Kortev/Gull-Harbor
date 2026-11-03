@@ -60,6 +60,8 @@ const READ := 0.8
 const BETWEEN := 1.2
 ## Days won to win the match.
 const MATCH := 2
+## The most a side (for now: 2 v 2; three and four a side need bigger boats).
+const MAX_SIDE := 2
 ## The countdown to casting off (s); after a weigh-in, how long before the results card comes up (s).
 const COUNT := 10.0
 const CARD_IN := 2.5
@@ -199,6 +201,34 @@ func host_set_on(want: bool) -> void:
 		_switch.rpc(want, t, [], wins)
 	else:
 		_switch(want, t, [], wins)
+
+
+## Rivals is even, always: one against one or two against two (three and four a side come later, with bigger boats).
+## Why the teams as they stand can't race ("" if they can): for the lobby (ui/title.gd won't START) and the odd one
+## out told to wait. `who` (a peer id, or 0): whose screen it is, so the odd one out is told it's them.
+func team_problem(who := 0) -> String:
+	var crew: Node = sea.get("crew")
+	var slots: Dictionary = crew.get("slots") if crew != null else {}
+	var n := [0, 0]
+	for id: int in slots:
+		n[int(teams.get(id, 0))] += 1
+	var total: int = n[0] + n[1]
+	if total < 2:
+		return "RIVALS IS 1 V 1 OR 2 V 2: SEND A FRIEND THE CODE"
+	if total > 2 * MAX_SIDE:
+		return "RIVALS IS 2 V 2 AT MOST FOR NOW: %d ABOARD, SOMEONE SITS THIS ONE OUT" % total
+	if total % 2 == 1:
+		# (the odd one out: the last aboard)
+		var last := -1
+		for id: int in slots:
+			if last < 0 or int(slots[id]) > int(slots[last]):
+				last = id
+		if who != 0 and who == last:
+			return "%d ABOARD: YOU'RE THE ODD ONE OUT. WAIT FOR A FOURTH, OR LEAVE" % total
+		return "%d ABOARD: RIVALS IS 1 V 1 OR 2 V 2. ONE WAITS, OR BRING A FOURTH" % total
+	if n[0] != n[1]:
+		return "UNEVEN: BOAT A HAS %d, BOAT B HAS %d. SOMEONE SWAP BOATS" % [n[0], n[1]]
+	return ""
 
 
 ## Host: someone new aboard, on the boat with fewer (crew/crew.gd asks before making them, so they're made on her,

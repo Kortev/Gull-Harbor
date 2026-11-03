@@ -17,7 +17,9 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var rods := sea.rods
-	_check(rods.rods.size() == 4, "four rods out")
+	_check(rods.rods.size() == 5, "five rods out on the sportfisher")
+	_check(rods.names[4] == "shotgun" and (rods.baits[4] as Vector3).z > 70.0 and absf((rods.baits[4] as Vector3).x) < 1.0,
+			"the fifth's the shotgun, way back down the middle (%s)" % rods.baits[4])
 	rods.request_grab(2)
 	_check(rods.rods[2].holder == 1, "E on rod 2: it's yours")
 	rods.request_grab(0)
@@ -63,9 +65,10 @@ func _ready() -> void:
 	# tangles it, every time
 	_hold_fish(rods, 1.2)
 	await get_tree().process_frame
-	_check(int(rods.lines_out()[0]) == 3 and str(rods.crew_says(false, 0.0)).begins_with("REEL THE OTHER LINES IN"),
-			"a fish on, three lines still out: %s" % rods.crew_says(false, 0.0))
+	_check(int(rods.lines_out()[0]) == rods.rods.size() - 1 and str(rods.crew_says(false, 0.0)).begins_with("REEL THE OTHER LINES IN"),
+			"a fish on, %d lines still out: %s" % [rods.rods.size() - 1, rods.crew_says(false, 0.0)])
 	rods._host_line(3, true)          # (the port line in: rod 1's the one he goes for)
+	rods._host_line(4, true)          # (and the shotgun, down the middle, near it)
 	var bait1: Vector3 = rods.rods[1].spot - rods.stern
 	var at1 := atan2(bait1.x, bait1.z)
 	var held := 0.0
@@ -146,6 +149,25 @@ func _ready() -> void:
 	await get_tree().create_timer(0.5).timeout
 	_check(bool(r3.get("hooked")) and not bool(r3.get("clip_on")) and falling > 0.5 and float(r3.get("clip_k")) < 0.01,
 			"a strike pops the line out of the clip, and it falls to the rod (%.2f, then %.2f)" % [falling, r3.get("clip_k")])
+	# the shotgun: its line runs up to a clip high on the back of her tower, and from there way back down the middle
+	var r4: Node3D = rods.rods[4]
+	if r4.get("bait_in"):
+		rods._host_line(4, false)
+	while rods.flying(4):
+		await get_tree().process_frame
+	await get_tree().create_timer(2.5).timeout
+	var c4: Vector3 = sea.boat.global_transform.affine_inverse() * (r4.get("clip") as Vector3)
+	var tower_top: Vector3 = sea.boat.spec["tower"]
+	_check(bool(r4.get("clip_on")) and float(r4.get("clip_k")) > 0.99 and c4.y > tower_top.y and absf(c4.x) < 0.5,
+			"the shotgun runs up through a clip high on the tower, on her centreline (%s)" % c4)
+	var end4: Vector3 = sea.boat.global_transform.affine_inverse() * (r4.get("line_end") as Vector3)
+	_check(end4.z > 60.0 and absf(end4.x) < 8.0, "and its bait's way back astern, down the middle (%s)" % end4)
+	var pole: Array = r4.get("pole")
+	_check(pole.size() == 2 and (pole[1] as Vector3).y > (pole[0] as Vector3).y + 3.0, "on a halyard up the tower")
+	rods.strike(4, 150.0)
+	await get_tree().create_timer(0.6).timeout
+	_check(bool(r4.get("hooked")) and not bool(r4.get("clip_on")) and float(r4.get("clip_k")) < 0.01,
+			"a strike pops the shotgun out of its clip too")
 	for f in fails:
 		print("FAIL ", f)
 	print("RODS TEST ", "PASSED" if fails.is_empty() else "FAILED")

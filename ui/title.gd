@@ -13,7 +13,8 @@ extends CanvasLayer
 ##   QUIT
 ## The version (core/version.gd) sits small in the bottom right corner.
 ## Rivals asks HOST or JOIN. Hosting opens the crew list (who's aboard which boat, the join code to send, a
-## Steam invite) and the host's START; joining is your Steam friends with a boat out, or typing in their code. START
+## Steam invite) and the host's START (Rivals: only with even teams, 1 v 1 or 2 v 2; it says why not, and tells the
+## odd one out to wait); joining is your Steam friends with a boat out, or typing in their code. START
 ## (or SOLO) closes it for everyone aboard: the letters fade and a short intro plays, the camera pulling up and out
 ## over the harbour mouth and sweeping back in low past the boats at the pier, a line or two in big pixel letters (what
 ## the day is), then gliding down into your eyes on the dock, no cut. Any key or click skips on to the glide.
@@ -74,8 +75,6 @@ var _keys: Array[Transform3D] = []
 var _caption: Control
 var _from: Transform3D
 var _friends_in := 0.0
-## Rivals' START pressed with a boat nobody's aboard: it asked; pressed again, it goes.
-var _sure := false
 ## The settings page, over the title while it's open.
 var settings: SettingsPage
 ## The achievements page, the same.
@@ -139,7 +138,6 @@ func _ready() -> void:
 
 ## Turn to a page of the title: its choices.
 func _go(page: String) -> void:
-	_sure = _sure and page == "lobby" and empty_boat() >= 0
 	_page = page
 	_pick = 0
 	_items.clear()
@@ -183,7 +181,8 @@ func _go(page: String) -> void:
 		"lobby":
 			_items = []
 			if Net.is_host():
-				_items.append(["START ANYWAY" if _sure else "START", "EVERYONE TO THE DOCK.", _start_pressed])
+				_items.append(["START", "EVERYONE TO THE DOCK." if rivals_problem().is_empty()
+						else "EVEN TEAMS FIRST.", _start_pressed])
 				if Net.mode == "steam":
 					_items.append(["INVITE A FRIEND", "", func() -> void: Net.steam.call("invite")])
 				elif not Net.code.is_empty():
@@ -268,29 +267,22 @@ func _swap() -> void:
 	vs.call("ask_team", 1 - int(vs.get("my_team")))
 
 
-## Host's START: in Rivals with a boat nobody's aboard it asks first (there'd be nobody to race); again, it goes.
+## Host's START: Rivals only starts with even teams, 1 v 1 or 2 v 2 (vs/vs.gd's team_problem says why not).
 func _start_pressed() -> void:
-	var empty := empty_boat()
-	if empty >= 0 and not _sure:
-		_sure = true
-		_note = "NOBODY'S ON BOAT %s YET: SEND A FRIEND THE CODE, OR START AGAIN TO GO ALONE" % "AB"[empty]
+	var why := rivals_problem()
+	if not why.is_empty():
+		_note = "CAN'T START: " + why
 		_go("lobby")
 		return
-	_sure = false
 	_start()
 
 
-## Rivals' lobby: a boat with nobody aboard her (0 A, 1 B), -1 if both have a crew (or it's not Rivals).
-func empty_boat() -> int:
+## In the Rivals lobby, why it can't start yet ("" if it can, or it isn't Rivals).
+func rivals_problem() -> String:
 	var vs := sea.get("vs") as Node
 	if _mode != "rivals" and not bool(vs.get("on")):
-		return -1
-	var teams: Dictionary = vs.get("teams")
-	var ids: Array = ((sea.get("crew") as Node).get("slots") as Dictionary).keys()
-	for c in 2:
-		if not ids.any(func(id: int) -> bool: return int(teams.get(id, 0)) == c):
-			return c
-	return -1
+		return ""
+	return str(vs.call("team_problem", Net.my_id()))
 
 
 ## Host: off the title, everyone aboard with you (rivals: two boats first).
@@ -644,5 +636,10 @@ func _draw_crew(at: Vector2) -> float:
 		y += 30
 	elif not Net.is_host():
 		_text(Vector2(at.x, y), "WAITING FOR THE HOST TO START", DIM, 2)
+		y += 22
+	# (Rivals: why it can't start yet, on everyone's screen, the odd one out told it's them)
+	var why := rivals_problem() if rivals else ""
+	if not why.is_empty():
+		_text(Vector2(at.x, y), why, Color(1.0, 0.7, 0.5), 2)
 		y += 22
 	return y + 10

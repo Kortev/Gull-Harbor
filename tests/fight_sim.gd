@@ -2,7 +2,8 @@ extends Node
 ## How often a fish gets away, and why: many whole fights, headless, played by test anglers (tests/fight_bot.gd)
 ## with the boat round them (a captain a second late on the wheel and swapping on the rod, or alone with the holder),
 ## and the other lines out at the hookup, wound in one by one (a crew gets to them sooner than one alone). Prints a
-## table; checks nothing. Run: godot --headless --path . res://tests/fight_sim.tscn
+## table; checks nothing. Run: godot --headless --path . res://tests/fight_sim.tscn (after --: --solo, --style=good,
+## --kg=300,400, --quick to leave out the lines-left-out table).
 
 const Fight := preload("res://tuna/fight.gd")
 const Bot := preload("res://tests/fight_bot.gd")
@@ -11,14 +12,19 @@ const DT := 1.0 / 30.0
 const N := 20
 const KGS := [35.0, 150.0, 300.0, 400.0]
 ## The other baits in the spread (bearings off her stern, m out), as the sportfisher trolls them (boat/kinds.gd).
-const SPREAD := [[-0.27, 56.0], [-0.14, 39.0], [0.27, 56.0]]
+const SPREAD := [[-0.27, 56.0], [-0.14, 39.0], [0.27, 56.0], [0.0, 78.0]]
+## Alone, a sensible angler trolls only her two corner lines (five is a crew's spread): the other one.
+const SOLO_SPREAD := [[-0.14, 39.0]]
 
 
 func _ready() -> void:
 	var only := ""
+	var kgs: Array = KGS
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--style="):
 			only = a.substr(8)
+		if a.begins_with("--kg="):
+			kgs = Array(a.substr(5).split(",")).map(func(k: String) -> float: return float(k))
 	var styles := ["good", "sloppy", "distracted"]
 	if not only.is_empty() and not only in styles:
 		styles = [only]
@@ -26,7 +32,7 @@ func _ready() -> void:
 		if not only.is_empty() and style != only:
 			continue
 		for n: int in ([1] if "--solo" in OS.get_cmdline_user_args() else [1, 2]):
-			for kg: float in KGS:
+			for kg: float in kgs:
 				var ends := {}
 				var times: Array[float] = []
 				var wide := 0.0
@@ -43,7 +49,7 @@ func _ready() -> void:
 				print("SIM %-10s %s %3d kg: landed %2d/%d, median %3.0f s, off the stern %2.0f%% of the time  %s"
 						% [style, "alone" if n == 1 else "crew ", kg, times.size(), N, med, 100.0 * wide / total, ends])
 	# and a crew that never reels the other lines in: his runs across them
-	for kg: float in [35.0, 150.0, 300.0]:
+	for kg: float in ([] if "--quick" in OS.get_cmdline_user_args() else [35.0, 150.0, 300.0]):
 		var ends := {}
 		for s in N:
 			var r := _fight(kg, 500 + s, "sloppy", 2, true)
@@ -61,7 +67,7 @@ func _fight(kg: float, seed_value: int, style: String, n: int, left_out := false
 	var t := 0.0
 	var mem := {}
 	var boat := {}
-	var lines: Array = SPREAD.duplicate(true)
+	var lines: Array = (SPREAD if n >= 2 else SOLO_SPREAD).duplicate(true)
 	var foul := 0.0
 	var tangled_t := -1.0
 	var tangled_k := 0
@@ -75,7 +81,13 @@ func _fight(kg: float, seed_value: int, style: String, n: int, left_out := false
 		# the other lines: wound in one by one; his run across one still out tangles it, and then that one's wound in
 		# first, as soon as someone gets to it
 		if not lines.is_empty() and t > first + every * float(wound) and not left_out:
-			lines.pop_front()
+			# (a good crew winds in the one he's heading for first, as the shouts say; the rest just go along them)
+			var nearest := 0
+			for k in lines.size():
+				if absf(wrapf(f.bearing - float(lines[k][0]), -PI, PI)) \
+						< absf(wrapf(f.bearing - float(lines[nearest][0]), -PI, PI)):
+					nearest = k
+			lines.remove_at(nearest if style == "good" else 0)
 			wound += 1
 		var b := wrapf(f.bearing, -PI, PI)
 		var crossing := -1
