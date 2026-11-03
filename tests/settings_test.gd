@@ -97,7 +97,8 @@ func _ready() -> void:
 			% [dpitch2, dpitch])
 	await _frames(2)
 	_check(is_equal_approx((me.get("cam") as Camera3D).fov, 90.0), "the field of view's in your eyes")
-	_check(is_equal_approx(_db("Master"), linear_to_db(0.8)) and is_equal_approx(_db("Effects"), linear_to_db(0.5))
+	_check(is_equal_approx(_db("Master"), linear_to_db(0.8))
+			and is_equal_approx(_db("Effects"), linear_to_db(0.5) + float(Settings.TRIM.get("Effects", 0.0)))
 			and is_equal_approx(_db("Voice"), linear_to_db(0.25)), "each bus at its loudness (%.1f, %.1f, %.1f dB)"
 			% [_db("Master"), _db("Effects"), _db("Voice")])
 	_check(AudioServer.is_bus_mute(AudioServer.get_bus_index("Music")), "music at 0: muted")

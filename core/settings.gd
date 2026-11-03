@@ -36,6 +36,12 @@ const PATH := "user://settings.cfg"
 ## Where they're kept ("": nowhere, in tests and screenshots, unless a test points it somewhere).
 var path := PATH
 const BUSES := ["Effects", "Voice", "Music"]
+## The mix's own gain staging under the sliders (dB): measured on a whole trip (tools/loudness.py with the game's bus
+## meters) the effects ran hot (peaks over 0 dB, the master clipping) and the whole loud (-11.7 LUFS); trimmed, the
+## game sits round -16 LUFS with the music about 4 dB under the effects. And a limiter last on the master
+## (MASTER_CEILING dB), so nothing that stacks up ever clips.
+const TRIM := {"Effects": -6.0, "Music": -3.0}
+const MASTER_CEILING := -1.0
 ## The actions the keys page lists, in its order, and what it calls them.
 const REBINDABLE := [["move_forward", "FORWARD"], ["move_back", "BACK"], ["move_left", "LEFT"],
 		["move_right", "RIGHT"], ["jump", "JUMP"], ["sprint", "SPRINT"], ["swim_down", "DIVE"],
@@ -91,6 +97,14 @@ func _ready() -> void:
 			var i := AudioServer.bus_count - 1
 			AudioServer.set_bus_name(i, b)
 			AudioServer.set_bus_send(i, "Master")
+	var master := AudioServer.get_bus_index("Master")
+	var has_limiter := false
+	for k in AudioServer.get_bus_effect_count(master):
+		has_limiter = has_limiter or AudioServer.get_bus_effect(master, k) is AudioEffectHardLimiter
+	if not has_limiter:
+		var lim := AudioEffectHardLimiter.new()
+		lim.ceiling_db = MASTER_CEILING
+		AudioServer.add_bus_effect(master, lim)
 	Pad.bind()
 	get_tree().root.content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
 	get_tree().root.size_changed.connect(_ui_scale)
@@ -302,7 +316,7 @@ func _apply_volume(bus: String) -> void:
 		return
 	var v := float(volume[bus])
 	AudioServer.set_bus_mute(i, v <= 0.001)
-	AudioServer.set_bus_volume_db(i, linear_to_db(maxf(v, 0.001)))
+	AudioServer.set_bus_volume_db(i, linear_to_db(maxf(v, 0.001)) + float(TRIM.get(bus, 0.0)))
 
 
 func _apply_display() -> void:

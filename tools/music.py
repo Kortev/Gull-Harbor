@@ -727,7 +727,7 @@ def thunder():
     tr.add(bowed(35, 2.2, attack=0.04, release=1.2, bright=0.5), 0.0, -0.2, 0.42)
     tr.add(bowed(36, 2.2, attack=0.04, release=1.2, bright=0.5), 0.0, 0.2, 0.36)
     tr.add(sub_swell(2.0, 23, 1.0), 0.0, 0.0, 0.6)
-    write("thunder", master(tr, wet=0.3, rt=2.4), 0.9)
+    write("thunder", master(tr, wet=0.3, rt=2.4), 0.8)
     cue("thunder", "sting", ["thunder"], hit=0.0)
 
 
