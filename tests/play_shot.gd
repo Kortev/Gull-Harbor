@@ -13,6 +13,7 @@ extends Node
 
 const Sea := preload("res://sea/sea.gd")
 const FightBot := preload("res://tests/fight_bot.gd")
+const Rig := preload("res://rods/rig.gd")
 var OUT := "res://docs/shots/play/"
 ## The port the boat's hosted on (--port=: another, so two runs side by side don't meet).
 var PORT := 7824
@@ -617,7 +618,8 @@ func _drive(points: Array, top: float, tag: String) -> void:
 	_speed(false)
 
 
-## Off the wheel, each rod picked up in turn and cast astern (left mouse held, let go), and put back in its holder.
+## Off the wheel, each rod baited (a mackerel netted out of the live well and hooked through the nose: the hooks go
+## out bare, rods/rig.gd), picked up and cast astern (left mouse held, let go), and put back in its holder.
 func _cast_all() -> void:
 	if sea.boat.helm.is_mine():
 		await _key(KEY_E)
@@ -627,6 +629,8 @@ func _cast_all() -> void:
 	for r in sea.rods.rods:
 		if r.hooked or not r.bait_in:
 			continue
+		if not r.baited:
+			await _bait(r)
 		me.set("_yaw", PI + (0.35 if r.index % 2 == 0 else -0.35))
 		me.set("_pitch", 0.1)
 		sea.rods.request_grab(r.index)
@@ -643,6 +647,59 @@ func _cast_all() -> void:
 		sea.rods.request_return(r.index)
 		await _wait(0.5)
 	await _shot("baits_out")
+
+
+## Rod r baited by hand: walk to the live well, E on its lid (open), E again (one netted into your fist), walk to the
+## rod, E on it and click as the hook's point comes to the fish's nose.
+func _bait(r: Node) -> void:
+	var me: Node = sea.crew.me
+	var well: Node3D = sea.boat.live_well
+	await _walk_to(_local(well.global_position), 1.2)
+	var act: Node = well.get("_act")
+	act.call("interact", me)
+	await _wait(0.3)
+	act.call("interact", me)
+	await _wait(0.4)
+	_check(not str(me.hands.carrying()).is_empty(), "netted a mackerel out for rod %d" % r.index)
+	await _walk_to(_local(r.global_position), 1.6)
+	(r.get("_grab") as Node).call("interact", me)
+	var rig: Node = sea.rods.rig
+	var t := 0.0
+	while not r.baited and t < 8.0:
+		await get_tree().process_frame
+		t += get_process_delta_time()
+		_hold("use_primary", rig.get("phase") == "aim" and absf(float(rig.get("point")) - Rig.NOSE) < 0.006)
+	_hold("use_primary", false)
+	_check(r.baited, "hooked a mackerel on rod %d (%.1f s)" % [r.index, t])
+
+
+## Walks on the keys to within `near` m of `spot` (on her deck, her frame): down her side, then in to it.
+func _walk_to(spot: Vector3, near: float) -> void:
+	var me: Node = sea.crew.me
+	me.force_input = true
+	var at: Vector3 = me.call("local_position")
+	var lane := signf(at.x if absf(at.x) > 0.05 else 1.0) * 0.85
+	for p: Vector3 in [Vector3(lane, 0, at.z), Vector3(lane, 0, spot.z), spot]:
+		var t := 0.0
+		while t < 6.0:
+			var d: Vector3 = p - (me.call("local_position") as Vector3)
+			d.y = 0.0
+			var left: Vector3 = spot - (me.call("local_position") as Vector3)
+			left.y = 0.0
+			if d.length() < 0.25 or left.length() < near:
+				break
+			me.set("_yaw", atan2(-d.x, -d.z))
+			_hold("move_forward", true)
+			await get_tree().process_frame
+			t += get_process_delta_time()
+		_hold("move_forward", false)
+	var off: Vector3 = spot - (me.call("local_position") as Vector3)
+	off.y = 0.0
+	print("QA walked to %s: %.2f m off" % [spot, off.length()])
+
+
+func _local(p: Vector3) -> Vector3:
+	return sea.boat.global_transform.affine_inverse() * p
 
 
 func _interact_wheel() -> void:
