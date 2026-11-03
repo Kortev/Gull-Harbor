@@ -21,19 +21,29 @@ func _fish(more := {}) -> Dictionary:
 	return f
 
 
-## (--sea) The sea alone through the weather: fair (drifting, then running hard), rain, a storm, night, fog, a
-## sunny dusk.
+## (--sea) Tied up, casting off (the scenic silence, the song back on the theme out past the mouth), fair (drifting,
+## then running hard), rain, a storm with its lightning, night, fog.
 func _weather() -> Array:
-	return [
-		[0.0, {"docked": false, "condition": "calm", "day": 0.3}],
-		[17.0, {"docked": false, "condition": "calm", "day": 0.3, "speed": 0.9}],
-		[35.0, {"docked": false, "condition": "rain", "day": 0.4}],
-		[70.0, {"docked": false, "condition": "storm", "day": 0.5}],
-		[105.0, {"docked": false, "condition": "calm", "night": true, "day": 1.2}],
-		[140.0, {"docked": false, "condition": "fog", "day": 0.6}],
-		[170.0, {"docked": false, "condition": "sunny", "day": 0.95}],
-		[205.0, {}],
+	var storm := {"docked": false, "condition": "storm", "day": 0.5, "past_mouth": 2000.0}
+	var bolt := storm.duplicate()
+	bolt["flash"] = 1.0
+	var steps: Array = [
+		[0.0, {"docked": true, "condition": "calm", "day": 0.0}],
+		[8.0, {"docked": false, "condition": "calm", "day": 0.02, "past_mouth": -200.0}],
+		[30.0, {"docked": false, "condition": "calm", "day": 0.05, "past_mouth": 160.0}],
+		[50.0, {"docked": false, "condition": "calm", "day": 0.3, "speed": 0.9, "past_mouth": 2000.0}],
+		[68.0, {"docked": false, "condition": "rain", "day": 0.4, "past_mouth": 2000.0}],
+		[100.0, storm],
 	]
+	for t: float in [112.0, 121.0, 127.0, 138.0, 146.0, 158.0]:
+		steps.append([t, bolt])
+		steps.append([t + 0.25, storm])
+	steps.append_array([
+		[170.0, {"docked": false, "condition": "calm", "night": true, "day": 1.2, "past_mouth": 2000.0}],
+		[200.0, {"docked": false, "condition": "fog", "day": 0.6, "past_mouth": 2000.0}],
+		[225.0, {}],
+	])
+	return steps
 
 
 ## [from s, world]: each holds till the next.
