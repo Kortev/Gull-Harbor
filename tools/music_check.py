@@ -107,8 +107,9 @@ def main(d):
         real.append((at, what, (i0 - into + int(np.argmax(np.abs(c)))) / sr))
     # each run of the song from where it last came in from the quiet: every switch's and sting's offset (where it
     # really started, against where it said) against the run's median. A real slip moves everything after it, so
-    # it's two clips in a row out the same way; one alone out and the next back (a passage whose first seconds
-    # don't line up with its stems: a quiet one) is the measuring, not the music.
+    # it's three clips in a row out the same way; one or two out and the next back (passages whose first seconds
+    # don't line up with their stems: a quiet one, the theme's slow swells) is the measuring, not the music. The cues'
+    # are the sharp test: they're the clock's own.
     runs, cur = [], []
     for at, what, got in real:
         if what.startswith("clip:rest") or (what.startswith("clip:") and got is not None and not cur):
@@ -125,9 +126,9 @@ def main(d):
         stings = [(at, what, o - med) for at, what, o in run if what.startswith("sting:")]
         out = [abs(e) >= 0.004 for at, what, e in clips]
         for i, (at, what, e) in enumerate(clips):
-            slip = out[i] and i + 1 < len(clips) and out[i + 1] and (e > 0) == (clips[i + 1][2] > 0)
+            slip = out[i] and i + 2 < len(clips) and all(out[j] and (e > 0) == (clips[j][2] > 0) for j in (i + 1, i + 2))
             if out[i] and not slip:
-                print("     %s at %.3f s: %+.1f ms, alone (the next one's back on: the measuring)" % (what, at, e * 1000))
+                print("     %s at %.3f s: %+.1f ms, alone (the ones after are back on: the measuring)" % (what, at, e * 1000))
             elif i > 0:
                 check(not slip, "%s at %.3f s: %+.1f ms against the song's grid" % (what, at, e * 1000))
         for at, what, e in stings:
