@@ -1,12 +1,13 @@
 extends RefCounted
-## What every one of the crew carries (crew/hands.gd): a knife, a gaff, a light jig rod, a chum scoop, a bait. One's
+## What every one of the crew carries (crew/hands.gd): a knife, a gaff, a light jig rod, a chum scoop, a bait, a tin
+## whistle. One's
 ## in your hands at a time (the hotbar, keys 1-5 or the wheel). The models are art/gear.py's (crew/gear/*.glb), low
 ## and chunky with tiny crunchy textures like everything else; each one's origin is where your right hand grips it,
 ## its working end along -z (ahead of your hand), its top up. Some have marks hands.gd poses by: "grip_l" (where the
 ## left hand goes on the two-handed ones), "tip" (the jig rod's, where the line leaves), "hook" (the gaff's point),
 ## "rig" (the jig hanging off the tip, swinging), "tail" (the mackerel's, flicking), "Chum" (a scoopful).
 
-const ITEMS: Array[String] = ["knife", "gaff", "jig", "scoop", "bait"]
+const ITEMS: Array[String] = ["knife", "gaff", "jig", "scoop", "bait", "whistle"]
 const MODELS := {
 	"knife": preload("res://crew/gear/knife.glb"),
 	"gaff": preload("res://crew/gear/gaff.glb"),
@@ -22,6 +23,8 @@ static func make(item: String) -> Node3D:
 	var root := Node3D.new()
 	root.name = item.capitalize()
 	var scene := MODELS.get(item) as PackedScene
+	if item == "whistle":
+		root.add_child(_whistle())
 	if scene:
 		var model := scene.instantiate() as Node3D
 		model.name = "Model"
@@ -42,6 +45,43 @@ static func make(item: String) -> Node3D:
 	for mi in root.find_children("*", "MeshInstance3D", true, false):
 		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return root
+
+
+## A tin whistle (made here, it's that simple): a thin tin tube along -z from where your hand holds it, its green
+## mouthpiece toward you (+z), three finger holes on top.
+static func _whistle() -> Node3D:
+	var m := Node3D.new()
+	m.name = "Model"
+	var tin := StandardMaterial3D.new()
+	tin.albedo_color = Color(0.66, 0.68, 0.7)
+	tin.metallic = 0.6
+	tin.roughness = 0.45
+	var green := StandardMaterial3D.new()
+	green.albedo_color = Color(0.2, 0.42, 0.28)
+	var dark := StandardMaterial3D.new()
+	dark.albedo_color = Color(0.06, 0.06, 0.07)
+	for part: Array in [[0.008, 0.22, -0.05, tin], [0.0095, 0.06, 0.09, green]]:
+		var c := CylinderMesh.new()
+		c.top_radius = float(part[0])
+		c.bottom_radius = float(part[0]) * 0.92
+		c.height = float(part[1])
+		c.radial_segments = 6
+		c.rings = 1
+		c.material = part[3]
+		var mi := MeshInstance3D.new()
+		mi.mesh = c
+		mi.rotation = Vector3(-PI * 0.5, 0.0, 0.0)          # (a cylinder's along y: along -z)
+		mi.position = Vector3(0.0, 0.0, float(part[2]))
+		m.add_child(mi)
+	for z: float in [-0.04, -0.075, -0.11]:
+		var b := BoxMesh.new()
+		b.size = Vector3(0.007, 0.004, 0.007)
+		b.material = dark
+		var hole := MeshInstance3D.new()
+		hole.mesh = b
+		hole.position = Vector3(0.0, 0.0075, z)
+		m.add_child(hole)
+	return m
 
 
 ## Your own gloved hand in first person, `side` "r" or "l": an orange rubber deck glove in a fist round a handle along

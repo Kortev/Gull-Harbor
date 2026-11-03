@@ -13,6 +13,10 @@ extends Node3D
 ## own: the jig rod jigs (boat/jig.gd), a full scoop winds up while you hold it and throws when you let go
 ## (boat/chum.gd). A trolling rod, the harpoon or the wheel in your hands, and the kit's put away.
 ##
+## The tin whistle (slot 6): hold left mouse and it sounds, up to your lips; look higher for a higher note. Every note
+## is one of the chord the band's playing (audio/music.gd's whistle_note()) and starts on its next eighth, so whatever
+## you play sits in the music; everyone aboard hears it, from where you're standing.
+##
 ## Empty-handed, left mouse is your bare hands on what you look at (a fish's tail to pump it, its body to pin it down):
 ## your gloves come up into view to do it.
 ##
@@ -40,6 +44,7 @@ const HOLDS := {
 	"bait": [Vector3(-0.1, 0.09, -0.12), Vector3(0.12, 1.3, 0.05)],
 	"dead": [Vector3(-0.1, 0.09, -0.12), Vector3(0.12, 1.3, 0.05)],
 	"bare": [Vector3(-0.08, -0.04, -0.1), Vector3(-0.5, 0.15, 0.0)],
+	"whistle": [Vector3(-0.04, -0.02, -0.06), Vector3(0.25, 0.55, -0.2)],
 }
 const TWO_HANDED: Array[String] = ["gaff", "scoop"]
 const LEFT_ROLL := {"gaff": -1.2, "scoop": -0.9}
@@ -48,7 +53,14 @@ const ELBOWS := {"r": Vector3(0.42, -0.72, 0.06), "l": Vector3(-0.42, -0.72, 0.0
 ## How each item sits in the others' view of you, in your right glove: tipped up from along your forearm (radians),
 ## so the knife and the jig rod point out and up, the gaff and the scoop down toward the deck ahead, the bait hanging
 ## by its tail.
-const IN_GLOVE := {"knife": 0.5, "gaff": -0.35, "jig": 0.95, "scoop": -0.2, "bait": -1.3, "dead": -1.3}
+const IN_GLOVE := {"knife": 0.5, "gaff": -0.35, "jig": 0.95, "scoop": -0.2, "bait": -1.3, "dead": -1.3,
+		"whistle": 0.4}
+## The whistle: how loud (dB), how far it carries (m to half), how far up or down you look for its lowest and highest
+## notes (radians), and how long it takes to bring it up to your lips (s).
+const PIPE_DB := -6.0
+const PIPE_UNIT := 5.0
+const PIPE_LOOK := Vector2(-0.5, 0.8)
+const PIPE_UP := 0.12
 ## The one-off moves (s): a stab at nothing, the gaff's strike, a dip of the scoop, a throw.
 const MOVES := {"knife": 0.3, "gaff": 0.5, "scoop": 0.55, "throw": 0.5}
 ## The jig hanging off the rod tip on its bit of line (m), swinging.
@@ -92,6 +104,14 @@ var _was_cam: Transform3D
 var _was_vel := Vector3.ZERO
 ## Each hanging jig's end (its sinker, global) this frame and last (rig node -> [now, before]).
 var _rigs := {}
+## The whistle: blowing it (left mouse held), the note sounding (midi, 0: none), the next one and when it's due
+## (Music's time), how far up to your lips it is (0..1), and its sound.
+var blowing := false
+var note := 0
+var _next_note := 0
+var _next_at := INF
+var _blow := 0.0
+var _pipe: AudioStreamPlayer3D
 
 
 func _ready() -> void:
@@ -223,6 +243,8 @@ func press(down: bool) -> void:
 		"knife", "gaff":
 			_move(item)           # (a swing at nothing)
 			player.call("gesture", "reach")
+		"whistle":
+			blowing = true
 
 
 func _move(kind: String) -> void:
@@ -231,6 +253,10 @@ func _move(kind: String) -> void:
 
 
 func _release() -> void:
+	if blowing:
+		blowing = false
+		_next_at = INF
+		_play_note(0)
 	if is_instance_valid(_target):
 		_target.call("use_item", player, item, false)
 	_target = null
@@ -254,6 +280,7 @@ func _work() -> Dictionary:
 
 
 func _process(delta: float) -> void:
+	_pipe_tick(delta)
 	var want := "" if stowed() else shown_item()
 	if want.is_empty() and player.is_multiplayer_authority() and str(_work().get("kind", "")) in ["pin", "pump"]:
 		want = "bare"          # (your gloves up to do it)
@@ -402,6 +429,12 @@ func _goal() -> Transform3D:
 			var w := smoothstep(0.0, 1.0, wind)
 			at += Vector3(0.08, 0.14, 0.22) * w
 			rot += Vector3(0.9, -0.25, -0.35) * w
+		"whistle":
+			# up to your lips, the end pointed down ahead, your fingers working the holes
+			var b := smoothstep(0.0, 1.0, _blow)
+			# (your hand from low on the right to just under your chin in the middle: the mouthpiece at your lips)
+			at += Vector3(-0.19, 0.17, 0.18) * b + Vector3(0.0, sin(t * 7.0), 0.0) * 0.002 * b
+			rot += Vector3(-0.75, -0.55, 0.25) * b
 		"bait":
 			# it kicks in your fist now and then
 			var kick := maxf(0.0, sin(t * 1.3))
@@ -562,6 +595,66 @@ func _show(which: String) -> void:
 		if player.is_multiplayer_authority():
 			for mi in _glove.find_children("*", "MeshInstance3D", true, false):
 				(mi as MeshInstance3D).layers = 1 << 19      # (your own camera leaves it out, as it does your body)
+
+
+## The whistle: while you blow, the note you're looking at (one of the band's chord), changed on its next eighth;
+## let go and it stops.
+func _pipe_tick(delta: float) -> void:
+	_blow = move_toward(_blow, 1.0 if (blowing and item == "whistle") or note > 0 else 0.0, delta / PIPE_UP)
+	if is_instance_valid(_glove) and _shown == "whistle":
+		# (as the others see you: tipped up toward your face while it sounds)
+		_glove.rotation.x = -PI * 0.5 + float(IN_GLOVE["whistle"]) - 1.5 * _blow
+	if not blowing or not player.is_multiplayer_authority():
+		return
+	var music: Node = get_node_or_null("/root/Music")
+	var cam := player.get("cam") as Camera3D
+	if music == null or cam == null:
+		return
+	var look := asin(clampf(-cam.global_basis.z.y, -1.0, 1.0))
+	var want := int(music.call("whistle_note", inverse_lerp(PIPE_LOOK.x, PIPE_LOOK.y, look)))
+	if want != note and want != _next_note:
+		_next_note = want
+		_next_at = float(music.call("next_tick", 2))
+	if float(music.call("now")) >= _next_at - 0.008:
+		_next_at = INF
+		_play_note(_next_note)
+		_next_note = 0
+
+
+## Sounds note `m` (0: stops it, short) here, and on everyone else's machine.
+func _play_note(m: int) -> void:
+	note = m
+	_sound(m)
+	if Net.in_session():
+		_pipe_note.rpc(m)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _pipe_note(m: int) -> void:
+	if multiplayer.get_remote_sender_id() == player.get_multiplayer_authority():
+		note = m
+		_sound(m)
+
+
+func _sound(m: int) -> void:
+	if _pipe == null:
+		_pipe = AudioStreamPlayer3D.new()
+		_pipe.name = "Whistle"
+		_pipe.bus = &"Effects" if AudioServer.get_bus_index(&"Effects") >= 0 else &"Master"
+		_pipe.unit_size = PIPE_UNIT
+		_pipe.position = Vector3(0.0, 1.55, 0.0)
+		player.add_child(_pipe)
+	if m <= 0:
+		if _pipe.playing:
+			var tw := create_tween()
+			tw.tween_property(_pipe, "volume_db", -40.0, 0.06)
+			tw.tween_callback(_pipe.stop)
+		return
+	var music: Node = get_node_or_null("/root/Music")
+	_pipe.stream = music.call("note_stream", m) if music != null else null
+	_pipe.volume_db = PIPE_DB
+	if _pipe.stream != null:
+		_pipe.play()
 
 
 ## The jig rod's tip as drawn (boat/jig.gd hangs its line off it): in your first-person hands, or in the glove

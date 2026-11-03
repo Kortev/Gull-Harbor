@@ -95,6 +95,9 @@ var mood := "calm"
 var danger := 0.0
 var fight_id := ""
 var parting := false
+## Meant to be all but silent now: the hush after a loss, him in the air, the harpoon flying, the quiet under Rivals'
+## countdown and card (tools/music_check.py leaves these out of "never quiet").
+var still := false
 ## s of the loss's silence left (music.gd drops everything at once while it's on).
 var hush := 0.0
 ## How bright a sea passage to pick next (0 dark .. 1 bright).
@@ -446,6 +449,7 @@ func _mask(w: Dictionary, f: Dictionary, dt: float) -> void:
 	for k: String in masks.keys():
 		if not gains.has(k):
 			masks.erase(k)
+	still = hush > 0.0 or air or flying or section == "rest"
 
 
 ## A stem's level as it should sound (its gain under its mask).

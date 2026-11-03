@@ -148,6 +148,15 @@ def main(d):
     # 5. never quiet but where it should be: him in the air (27-28.6 s), the harpoon flying (56-57), the hush after
     # the loss (96-102.5)
     hush = [(26.9, 28.9), (55.9, 57.3), (95.9, 102.6)]
+    # (a log with its own "still" marks, as the game writes it: those are the quiet times, and the half second after)
+    stills = [float(p[0]) for p in played if p[1] in ("still:on", "still:off")]
+    if stills:
+        marks_on = [float(p[0]) for p in played if p[1] == "still:on"]
+        marks_off = [float(p[0]) for p in played if p[1] == "still:off"]
+        hush = []
+        for a in marks_on:
+            b = min([x for x in marks_off if x > a] + [len(mono) / sr])
+            hush.append((a - 0.1, b + 2.5))
     gaps = []
     t = 0.5
     while t + 1.0 < len(mono) / sr - 0.5:

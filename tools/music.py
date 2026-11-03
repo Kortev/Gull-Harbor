@@ -436,8 +436,8 @@ GD = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "audio", "mu
 
 
 def cue(name, kind, files, bpm=0.0, bar_beats=4, bars=0, loop=False, **more):
-    """kind: bed (a section: its stems played together, looped), sting (a one-shot over
-    whatever's playing), filler (between two sections, exactly its length)."""
+    """kind: bed (a section: its stems played together, looped), sting (a one-shot over whatever's playing), filler
+    (between two sections, exactly its length), notes (the deck whistle's, one file a note from `low` up)."""
     d = {"kind": kind, "files": files, "bpm": bpm, "bar_beats": bar_beats, "bars": bars, "loop": loop}
     if name in STINGS:
         d["pre"] = PRE
@@ -452,7 +452,7 @@ def seam_ok(x):
     return jump <= max(moves, 1e-3), jump, moves
 
 
-def stems(name, tracks, bpm, bar_beats, bars, level=0.85, kind="bed", **mk):
+def stems(name, tracks, bpm, bar_beats, bars, level=0.85, kind="bed", chords=None, chord_beats=0, **mk):
     """A section as stems (dict name -> Track, all one length): each mastered just like the whole mix (by the whole
     mix's peak, so they keep their balance), written ../music/<name>_<stem>.ogg, checked: the stems sum back to the
     whole (the warmth's the only bend in it, light), and each loop's seam is clean."""
@@ -479,6 +479,10 @@ def stems(name, tracks, bpm, bar_beats, bars, level=0.85, kind="bed", **mk):
     print("  %s: %d stems, sum vs whole %.1f dB" % (name, len(xs), err))
     cue(name, kind, ["%s_%s" % (name, k) for k in tracks], bpm, bar_beats, bars, ts[0].loop,
         stems=list(tracks), length=n / SR)
+    if chords:
+        # (what's playing when: one chord each chord_beats beats, a bar each by default; the deck whistle's notes)
+        CUES[name]["chords"] = list(chords)
+        CUES[name]["chord_beats"] = chord_beats or bar_beats
 
 
 def write_cues():
@@ -615,7 +619,7 @@ def fight_section(name, prog, drone, tune=None, high=None, heat=0):
         melody(T["tune"], tune, 0.0, e, reed, -0.15, 0.36, legato=0.96, octave=-1 if high else 0)
     if high:
         melody(T["tune"], high, 0.0, e, whistle, 0.1, 0.4, legato=0.9)
-    stems(name, T, FIGHT_BPM, 4, len(prog), level=0.8, wet=0.2, rt=1.5)
+    stems(name, T, FIGHT_BPM, 4, len(prog), level=0.8, wet=0.2, rt=1.5, chords=prog)
 
 
 # --- THE THEME: Bluefin's own tune, everywhere --------------------------------------------------------------------
@@ -693,7 +697,8 @@ def title():
     melody(tr, THEME, 20 * bar, e, reed, -0.15, 0.3, legato=0.96, octave=-1)
     melody(tr, [(None, 8), (None, 8), (69, 2), (74, 2), (78, 12)], 36 * bar, e, whistle, 0.1, 0.32)
     write("title", master(tr, wet=0.26, rt=2.0), 0.82)
-    cue("title", "bed", ["title"], FIGHT_BPM, 4, len(prog), True, stems=["main"], length=len(prog) * bar)
+    cue("title", "bed", ["title"], FIGHT_BPM, 4, len(prog), True, stems=["main"], length=len(prog) * bar,
+        chords=prog, chord_beats=4)
 
 
 TIRED_TUNE = [(71, 3), (74, 1), (79, 4), (78, 2), (76, 2), (74, 4), (73, 2), (74, 2), (76, 4), (74, 6), (None, 2),
@@ -767,7 +772,7 @@ def hunt():
             # the theme's first three notes, far off (an octave up in the bells)
             for k, m in enumerate((81, 86, 90) if b % 4 == 0 else (83, 86, 88)):
                 T["glint"].add(bell(m, 3.0), t + (1.5 + k) * q, 0.4 if k % 2 else -0.3, 0.11)
-    stems("hunt", T, FIGHT_BPM, 4, len(prog), level=0.55, wet=0.28, rt=2.0)
+    stems("hunt", T, FIGHT_BPM, 4, len(prog), level=0.55, wet=0.28, rt=2.0, chords=prog)
 
 
 def gaff():
@@ -793,7 +798,7 @@ def gaff():
                                    var=i % 3), t + i * s, 0.35, 0.12)
     T["bed"].add(bowed(42, bars * bar * 0.98, attack=1.5, release=1.0, bright=0.25), 0.0, -0.2, 0.3)
     T["shimmer"].add(line_sing(90, bars * bar * 0.96, beat=6.0, attack=1.0), 0.0, 0.0, 0.08)
-    stems("gaff", T, FIGHT_BPM, 4, bars, level=0.7, wet=0.22, rt=1.6)
+    stems("gaff", T, FIGHT_BPM, 4, bars, level=0.7, wet=0.22, rt=1.6, chords=["F#"] * bars)
 
 
 def afterglow():
@@ -826,7 +831,8 @@ def afterglow():
     melody(tr, [(69, 2), (74, 2), (78, 12)], 9 * bar, e, whistle, 0.1, 0.3)
     x = master(tr, wet=0.26, rt=2.0)
     write("afterglow", x, 0.8)
-    cue("afterglow", "bed", ["afterglow"], FIGHT_BPM, 4, len(prog), False, stems=["main"], length=x.shape[1] / SR)
+    cue("afterglow", "bed", ["afterglow"], FIGHT_BPM, 4, len(prog), False, stems=["main"], length=x.shape[1] / SR,
+        chords=prog, chord_beats=4)
 
 
 def harbour():
@@ -848,7 +854,7 @@ def harbour():
          (71, 2), (74, 1), (76, 2), (74, 1), (71, 2), (67, 1), (69, 3), (71, 2), (74, 1), (76, 1), (79, 1), (76, 1),
          (74, 2), (72, 1), (71, 3)]
     melody(T["reed"], A, 0.0, q, reed, -0.1, 0.3, legato=0.95)
-    stems("harbour", T, bpm, 3, len(prog), level=0.5, wet=0.34, rt=2.4)
+    stems("harbour", T, bpm, 3, len(prog), level=0.5, wet=0.34, rt=2.4, chords=prog)
 
 
 # --- THE RACE HOME: a jig in E dorian, 12/8 at 112 (the sea's own bar), 16 bars, four stems -----------------------
@@ -908,7 +914,8 @@ def race():
     melody(b, tune, 0.0, e, whistle, 0.1, 0.55, legato=0.9)
     melody(b, tune, 16 * half, e, whistle, 0.1, 0.42, legato=0.9)
     melody(b, tune, 16 * half, e, reed, -0.15, 0.38, legato=0.92, octave=-1)
-    stems("race", {"a": a, "b": b, "c": c, "d": d}, FIGHT_BPM, 4, len(prog) // 2, level=0.85, wet=0.18, rt=1.4)
+    stems("race", {"a": a, "b": b, "c": c, "d": d}, FIGHT_BPM, 4, len(prog) // 2, level=0.85, wet=0.18, rt=1.4,
+          chords=prog, chord_beats=2)
 
 
 # --- THE SEA: an endless song in B minor / D at 112 (the hunt's and the fight's own), eight-bar passages -----------
@@ -997,12 +1004,29 @@ def sea():
         for i in range(8):
             T["fill"].add(frame_drum() if i < 4 else war_drum(low=1.3 - 0.06 * i), t + i * s, 0.15 * (i % 2 - 0.5),
                           0.18 + 0.05 * i)
-        stems("sea_" + name, T, FIGHT_BPM, 4, len(prog), level=0.6, wet=0.3, rt=2.2)
+        stems("sea_" + name, T, FIGHT_BPM, 4, len(prog), level=0.6, wet=0.3, rt=2.2, chords=prog)
         CUES["sea_" + name]["bright"] = bright
         if name == "t1":
             CUES["sea_" + name]["then"] = "sea_t2"
         if name == "t2":
             CUES["sea_" + name]["after_only"] = True
+
+
+# --- THE DECK WHISTLE: a tin whistle you play by hand (crew/hands.gd), every note it can sound -------------------
+
+WHISTLE = (62, 90)
+
+
+def deck_whistle():
+    """One note each, D4 to F#6, a few seconds held (you hold the mouse, it sounds; you let go, it stops short)."""
+    files = []
+    for m in range(WHISTLE[0], WHISTLE[1] + 1):
+        tr = Track(3.2, False)
+        tr.add(whistle(m, 3.0, vib=0.005, breath=0.06), 0.0, 0.0, 1.0)
+        name = "note_%d" % m
+        write(name, master(tr, wet=0.12, rt=1.2, wow=0.0), 0.7, comp=0.8)
+        files.append(name)
+    cue("whistle", "notes", files, low=WHISTLE[0], high=WHISTLE[1])
 
 
 def rivals_stings():
@@ -1099,6 +1123,7 @@ if __name__ == "__main__":
     harbour()
     race()
     rivals_stings()
+    deck_whistle()
     countdown()
     stings()
     write_cues()

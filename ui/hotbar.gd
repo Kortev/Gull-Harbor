@@ -7,7 +7,7 @@ extends Control
 
 const Kit := preload("res://crew/kit.gd")
 const NAMES := {"knife": "Knife", "gaff": "Gaff", "jig": "Jig rod", "scoop": "Chum scoop", "bait": "Live mackerel",
-		"dead": "Dead mackerel"}
+		"dead": "Dead mackerel", "whistle": "Tin whistle"}
 const CELL := 48.0
 const GAP := 6.0
 ## Each item drawn 16 px square, doubled: a character a pixel, from PALETTE ("." left clear). The scoop's chum ("m",
@@ -51,6 +51,12 @@ const SPRITES := {
 		".....GGGGG......", "...GGKGKGKGG..GG", "..GxGKGKGKGKGGG.", ".SGiGGKGKGKGGGG.",
 		"..SSSSSSSSSSG.GG", "...SSSSSSSSS...G", ".....SSSSS......", "................",
 		"................", "................", "................", "................",
+	],
+	"whistle": [
+		"................", "................", ".............ak.", "............asd.",
+		"...........asd..", "..........akd...", ".........asd....", "........asd.....",
+		".......akd......", "......asd.......", ".....asd........", "....akd.........",
+		"...ggd..........", "..ggg...........", "..gg............", "................",
 	],
 }
 

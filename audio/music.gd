@@ -47,8 +47,8 @@ const EARLY := 0.0018
 ## The shortest fade in (beats): a loop coming in at full (the strike, the leader).
 const ENTER := 0.1
 ## Each section's level (a share).
-const LEVEL := {"sea": 0.8, "title": 1.0, "harbour": 0.7, "hunt": 0.8, "fight": 0.85, "tired": 0.85, "leader": 0.9, "gaff": 0.85,
-		"afterglow": 0.9, "race": 1.0}
+const LEVEL := {"sea": 0.8, "title": 1.0, "harbour": 0.7, "hunt": 0.8, "fight": 0.85, "tired": 0.85, "leader": 0.9,
+		"gaff": 0.85, "afterglow": 0.9, "race": 1.0}
 const STING_LEVEL := {"strike": 1.0, "their_on": 0.7, "lead_up": 0.8, "lead_down": 0.8, "countdown": 1.0, "win": 1.0,
 		"lose": 1.0, "tie": 1.0}
 ## The stings that play over the others (on their own player).
@@ -90,6 +90,12 @@ var world_test := {}
 ## the last PLAYED_N.
 var played: Array = []
 const PLAYED_N := 64
+## Run with -- --music-log=<file>: everything played, and when it was meant to be all but silent ("still:on"/"off"),
+## kept whole and written there as JSON when the game closes (tools/music_check.py reads it beside the movie maker's
+## .wav).
+var _log_to := ""
+var _log: Array = []
+var _still := false
 
 var _bed: AudioStreamPlayer
 var _it: AudioStreamInteractive
@@ -159,6 +165,9 @@ func _ready() -> void:
 	add_child(_clock)
 	_clock.play()
 	_bus_effects.call_deferred()
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--music-log="):
+			_log_to = a.substr(12)
 
 
 func _ogg(file: String, c: Dictionary) -> AudioStreamOggVorbis:
@@ -337,6 +346,54 @@ func hush(seconds: float) -> void:
 	state.hush = maxf(state.hush, seconds)
 
 
+# ------------------------------------------------------------------ the deck whistle (crew/hands.gd)
+
+## Each chord's own notes (pitch classes), and D major's pentatonic for when nothing's on a grid.
+const CHORD_TONES := {"D": [2, 6, 9], "G": [7, 11, 2], "A": [9, 1, 4], "Bm": [11, 2, 6], "Em": [4, 7, 11],
+		"F#": [6, 10, 1], "C": [0, 4, 7], "Dm": [2, 5, 9], "Am": [9, 0, 4], "F": [5, 9, 0]}
+const PENTATONIC := [2, 4, 6, 9, 11]
+## The whistle's notes picked from (midi): its sweet two octaves.
+const WHISTLE_RANGE := Vector2i(69, 88)
+
+
+## The chord playing now ("" with nothing on a grid): from the sounding section's chords (audio/music_cues.gd).
+func chord_now() -> String:
+	var c: Dictionary = Cues.CUES.get(sounding, {})
+	var chords: Array = c.get("chords", [])
+	if chords.is_empty() or float(c.get("bpm", 0.0)) <= 0.0:
+		return ""
+	var span := 60.0 / float(c["bpm"]) * int(c.get("chord_beats", 4))
+	return str(chords[posmod(int(floorf((_t - _start) / span + 0.0001)), chords.size())])
+
+
+## The note the deck whistle sounds at `k` (0 .. 1: how far up you're looking): always one of the chord's own notes,
+## so whatever you play sits in the band.
+func whistle_note(k: float) -> int:
+	var tones: Array = CHORD_TONES.get(chord_now(), PENTATONIC)
+	var notes: Array[int] = []
+	for m in range(WHISTLE_RANGE.x, WHISTLE_RANGE.y + 1):
+		if posmod(m, 12) in tones:
+			notes.append(m)
+	return notes[clampi(int(k * notes.size()), 0, notes.size() - 1)]
+
+
+## The next line of what's playing, `div` to a beat (2: the next eighth), in now()'s time; now if it's off the grid.
+func next_tick(div := 2) -> float:
+	var c: Dictionary = _clips.get(sounding, {})
+	if not c.has("bpm"):
+		return _t
+	var unit := 60.0 / float(c["bpm"]) / float(div)
+	return _start + ceilf((_t - _start) / unit - 0.0001) * unit
+
+
+## The whistle's note `m` (midi), as a sound.
+func note_stream(m: int) -> AudioStream:
+	var n := "note_%d" % m
+	if not _streams.has(n):
+		_streams[n] = load(DIR + n + ".ogg") if ResourceLoader.exists(DIR + n + ".ogg") else null
+	return _streams[n]
+
+
 # ------------------------------------------------------------------ the frame
 
 func _process(delta: float) -> void:
@@ -350,10 +407,21 @@ func _process(delta: float) -> void:
 		_on(e)
 	_land()
 	_chain()
+	if state.still != _still:
+		_still = state.still
+		_note("still:" + ("on" if _still else "off"))
 	_ask(cue)
 	_apply(delta)
 	_play_queue(delta)
 	_mix(delta)
+
+
+func _exit_tree() -> void:
+	if _log_to != "":
+		var f := FileAccess.open(_log_to, FileAccess.WRITE)
+		if f != null:
+			f.store_string(JSON.stringify({"played": _log, "fps": Engine.physics_ticks_per_second}))
+			f.close()
 
 
 func _audio_t() -> float:
@@ -603,6 +671,8 @@ func _note(what: String, at := -1.0) -> void:
 	played.append([_t if at < 0.0 else at, what])
 	if played.size() > PLAYED_N:
 		played.pop_front()
+	if _log_to != "":
+		_log.append([_t if at < 0.0 else at, what])
 
 
 ## The duck, the pocket, the muffle, the pause, the hush.
