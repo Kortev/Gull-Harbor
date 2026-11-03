@@ -16,7 +16,7 @@ const FightTutor := preload("res://ui/fight_tutor.gd")
 const CALLER := "VHF 16 \u00b7 Dale, the bank"
 ## Tip id -> what Dale says. (The alongside one depends on the boat: _alongside_text.)
 const TIPS := {
-	"out": "Dale, from the bank. Tuna feed under birds. Find a flock.",
+	"out": "Dale, from the bank. Your boat payment's due every 3 trips. Tuna feed under birds: find a flock.",
 	"flock": "Diving birds, white water? Bluefin. Go. Birds sitting? Wait for them.",
 	"fast": "Ease her down to troll: nothing bites at speed. Get out ahead of them, drag your baits across their nose.",
 	"bite": "That's a reel screaming. Grab the rod!",

@@ -45,7 +45,7 @@ const BITE_SPEED := 6.0
 ## twenty minutes a bait: one every ten minutes or so trolling two).
 const STRAY := 1.0 / 1200.0
 ## With a fish already on: how keen the rest of a school is on another bait across it (x its usual), and a stray (x).
-const DOUBLE := 0.25
+const DOUBLE := 0.08
 const LONE := 0.015
 ## Where a travelling school eats: from AHEAD.x m behind its middle to AHEAD.y m ahead of its edge, within SIDE m of its
 ## edge to either side. Working a slick (not going anywhere) it eats all round.

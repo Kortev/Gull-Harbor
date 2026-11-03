@@ -3,7 +3,7 @@ extends CanvasLayer
 ## and a word or two for what's under it. In a fight: the ring round the dot fills and reddens with the strain (a thin
 ## inner one for your arms once they start to go, a thin red outer one for the line wearing on the hull), a word or
 ## two on what to do, and under that the metres to boatside (green winning, red losing) and the fish's fight left.
-## Top left the trip: the quota as a bar (what's aboard ghosted on), the day, the fish box as pips. At the wheel her
+## Top left the trip: the boat payment as a bar (what's aboard ghosted on), when it's due, the fish box as pips. At the wheel her
 ## knots and a throttle bar, bottom left (the dash's screens have the middle); with a fish on, the plotter. Notices, a
 ## few words, top middle, and fade. The fight's word and a notice sit on a dark band just their width, so they read
 ## over a bright sky or a dark sea alike, a size down if they'd run off a narrow screen. Every key named
@@ -269,8 +269,9 @@ func _draw_tally() -> void:
 	var made := earned >= quota
 	_text(_tally, Vector2(0, 12), "%s / %s" % [_trip["earned_text"], _trip["quota_text"]], SMALL,
 			Color(GREEN if made else CREAM, 0.9))
-	_text(_tally, Vector2(0, 12), "Day %d/%d" % [int(_trip["day"]), int(_trip["days"])], SMALL, Color(CREAM, 0.75),
-			HORIZONTAL_ALIGNMENT_RIGHT, w)
+	var left := int(_trip["days"]) - int(_trip["day"]) + 1
+	_text(_tally, Vector2(0, 12), "paid" if made else ("due today" if left <= 1 else "due in %d days" % left), SMALL,
+			Color(CREAM, 0.75), HORIZONTAL_ALIGNMENT_RIGHT, w)
 	_tally.draw_rect(Rect2(0, 20, w, 6), Color(0, 0, 0, 0.5))
 	var aboard := clampf((earned + float(_trip["aboard"])) / quota, 0.0, 1.0)
 	_tally.draw_rect(Rect2(0, 20, w * aboard, 6), Color(1, 1, 1, 0.5))

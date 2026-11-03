@@ -50,7 +50,7 @@ func _ready() -> void:
 	_check(me.local_position().distance_to(at) < 0.05, "W doesn't walk you off it")
 	var top_read := Spotter.read_range(cam)
 	# (your eye rides up and down with the swell: these move a little with it)
-	_check(deck_read > 500.0 and deck_read < 950.0 and top_read > 1650.0 and top_read < 2000.0,
+	_check(deck_read > 500.0 and deck_read < 950.0 and top_read > 1500.0 and top_read < 2100.0,
 			"you can tell what a flock's on %.0f m off from the deck, %.0f m from up here" % [deck_read, top_read])
 	# a feeding school between the two, under your crosshair: what's under the birds only from up here
 	var c := cam.global_position

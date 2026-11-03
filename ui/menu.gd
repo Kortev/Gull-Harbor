@@ -4,7 +4,7 @@ extends CanvasLayer
 ##
 ## At the dock the harbour is the menu: you walk to the chandlery, the bait shop, the broker's board, the buyer's and
 ## the harbor master's (sea/places.gd). The pause card there has THE HARBOUR BOARD as well, the old board, in case:
-## one screen, nothing to scroll. Along the top the harbour, the day and the bank. Left, the quota (a bar, what's
+## one screen, nothing to scroll. Along the top the harbour, the day and the bank. Left, the boat payment (a bar, what's
 ## left to make and by when) and the last trip's slip (each fish, the costs, the trip). Right, the boats side by side
 ## (a line each, take her, buy her or charter her) and the chandlery's gear, a row each. Along the bottom one big
 ## CAST OFF (the skipper's: a crewmate sees WAITING FOR THE SKIPPER), and the skipper's NEW CAREER under it (pressed
@@ -406,7 +406,7 @@ func _fill_board(hold: Node, docked: bool) -> void:
 		_dock.add_child(_label("THE BANK TOOK THE BOAT. A NEW RUN: THE SKIFF AND $%s" % _money(FishHold.START_CASH),
 				BODY, BAD))
 	elif verdict == "met":
-		_dock.add_child(_label("QUOTA MADE! THE NEXT ONE: $%s IN %d DAYS" % [_money(int(sold["next"])),
+		_dock.add_child(_label("BOAT PAYMENT MADE! THE NEXT: $%s IN %d DAYS" % [_money(int(sold["next"])),
 				FishHold.DAYS], BODY, GOOD))
 	var cols := HBoxContainer.new()
 	cols.add_theme_constant_override("separation", 14)
@@ -423,7 +423,7 @@ func _fill_board(hold: Node, docked: bool) -> void:
 	# the quota: a bar, and what's left by when
 	var quota := int(hold.get("quota"))
 	var earned := int(hold.get("earned"))
-	var q := _section(left, "QUOTA %d" % int(hold.get("quota_n")))
+	var q := _section(left, str(hold.call("due_text")))
 	q.add_child(_label("$%s OF $%s" % [_money(earned), _money(quota)], BIG, GOOD if earned >= quota else CREAM))
 	var bar := ProgressBar.new()
 	bar.max_value = maxf(quota, 1)
@@ -437,8 +437,8 @@ func _fill_board(hold: Node, docked: bool) -> void:
 	bg.bg_color = Color(0.16, 0.19, 0.22)          # (empty, it's still a bar: what's to fill)
 	bar.add_theme_stylebox_override("background", bg)
 	q.add_child(bar)
-	q.add_child(_label("MADE: ON TO THE NEXT" if earned >= quota else "$%s MORE BY DAY %d, OR THE BANK TAKES HER"
-			% [_money(quota - earned), FishHold.DAYS], SMALL, DIM))
+	q.add_child(_label("PAID: SHE'S YOURS TILL THE NEXT ONE" if earned >= quota else "$%s MORE, OR THE BANK TAKES HER"
+			% _money(quota - earned), SMALL, DIM))
 	# the last trip's slip
 	var slip := _section(left, "" if sold.is_empty() else "THE LAST TRIP")
 	if sold.is_empty():
@@ -481,7 +481,8 @@ func _fill_board(hold: Node, docked: bool) -> void:
 		short.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		short.custom_minimum_size = Vector2(240, 0)
 		b.add_child(short)
-		b.add_child(_label("%d RODS   FUEL $%s A TRIP" % [(spec["rods"] as Array).size(), _money(int(spec["fuel"]))],
+		b.add_child(_label("%d RODS   FUEL $%s A TRIP   PAYMENT $%s" % [(spec["rods"] as Array).size(),
+				_money(int(spec["fuel"])), _money(int(spec.get("payment", 0)))],
 				SMALL, DIM))
 		if owned.has(k):
 			var take := _button("TAKING HER" if k == picked else "TAKE HER", func() -> void: hold.call("pick", k))

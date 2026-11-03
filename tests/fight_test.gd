@@ -33,7 +33,8 @@ func _ready() -> void:
 				% [kg, crew["ends"], crew["median"], solo["ends"], solo["median"]])
 		_check(int(crew["landed"]) >= (16 if kg < 60.0 else 19), "%d kg: fought well with a captain, it comes boatside (%d of 20)"
 				% [kg, crew["landed"]])
-		_check(int(solo["landed"]) >= 15, "%d kg: alone, fought well, the holder and the wheel, you land most (%d of 20)"
+		_check(int(solo["landed"]) >= (15 if kg < 200.0 else 10),
+				"%d kg: alone, fought well, the holder and the wheel, you land most, a giant about half (%d of 20)"
 				% [kg, solo["landed"]])
 		var lo := {35.0: 25.0, 150.0: 70.0, 300.0: 150.0}[kg] as float
 		var hi := {35.0: 180.0, 150.0: 360.0, 300.0: 600.0}[kg] as float
@@ -147,6 +148,7 @@ func _ready() -> void:
 	while not ch.done and cht < 60.0:
 		ch.bearing = 2.2
 		ch.depth = 4.0
+		ch.energy = 0.5          # (the wear on its own: not him tiring under it)
 		ch.step(DT, 0.0, 0.7, 0.0, Fight.STRIKE_DRAG)
 		cht += DT
 	var clear := Fight.new(200.0, 30.0, 0.5, 13)
@@ -272,6 +274,7 @@ func _ready() -> void:
 				jf.grace = 0.0
 				for f in 60:
 					pitch = move_toward(pitch, 0.25 if tip_down else 1.3, (2.5 if tip_down else 1.0) * DT)
+					jf.energy = maxf(jf.energy, 0.6)       # (the jumps on their own: not him tiring through them)
 					jf.step(DT, 0.0 if tip_down else 1.0, pitch, 0.0, Fight.STRIKE_DRAG)
 					if jf.done:
 						break

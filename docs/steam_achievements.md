@@ -18,8 +18,8 @@ at once. **Publish** the changes when they're all in.
 | `ONE_THROW` | One Throw | Stick a bluefin with the harpoon on the first throw. | Your throw sticks a fish nobody has missed yet. |
 | `GRADE_ONE` | Number One | Sell a bluefin graded #1. | Heading in, a fish in the sale grades #1 (landed fast, bled and iced quick). |
 | `TON` | A Ton Ashore | Sell 1,000 kg of bluefin, all told. | Kilos sold from the boat you're on, added up over every game. |
-| `QUOTA` | Paid Up | Make a quota for the bank. | The quota's last day's sale makes it. |
-| `THREE_QUOTAS` | Keeping Her | Make three quotas in one run. | The third quota in one run made. |
+| `QUOTA` | Paid Up | Make a boat payment. | The payment's last day's sale makes it. |
+| `THREE_QUOTAS` | Keeping Her | Make three boat payments in a row. | The third payment in a row (one run) made. |
 | `SPORTFISHER` | Bigger Boat | Buy the sportfisher. | Bought at the dock (your own career). |
 | `LIVE_BAIT` | Live Bait | Jig a mackerel into the live well. | You jig one and the well takes it. |
 | `CREW` | Many Hands | Land a bluefin with a friend aboard. | A fish lands while someone else is aboard your boat (your side, in Rivals). |

@@ -30,10 +30,13 @@ extends Node
 ## start that's never saved. Tests and screenshots (headless, a scene under tests/, a sea not at the root, --shot)
 ## never read or write it (`save_path` is "" there, unless a test sets it).
 ##
-## The run (Lethal Company's quota): the crew owes the bank for the boat. Each quota is a sum to sell within DAYS
-## trips (one a day). Every fish sold counts toward it and goes in the bank to spend at the dock. Make the quota by
-## the last day's sale and there's a bigger one (quota_for); miss it and the bank takes the boat: the run's over,
-## its story on the slip, and a new one starts from the skiff and START_CASH.
+## The run: the crew owes the bank for the boat. Every DAYS trips (one a day) a boat payment's due, the same every
+## time for the boat you own (the biggest you've bought: boat/kinds.gd's "payment"; quota_for): the skiff's is small,
+## the sportfisher's bigger, but she catches more. It only goes up when you buy a bigger boat (from the next payment
+## on), so a bigger boat always pays its way. Every fish sold counts toward it and goes in the bank to spend at the
+## dock. Make it by the last day's sale and the next period starts; miss it and the bank takes the boat: the run's
+## over, its story on the slip, and a new one starts from the skiff and START_CASH. (`quota` is the payment due,
+## `quota_n` which payment of the run it is.)
 ##
 ## The host keeps the books and tells everyone after every change (_sync).
 
@@ -58,9 +61,6 @@ const CHARTER := 2500
 ## The run: trips to make each quota in, and the money a new run starts with.
 const DAYS := 3
 const START_CASH := 1000
-## The quotas: the first, and how much bigger each one after is.
-const QUOTA_START := 12000.0
-const QUOTA_GROW := 1.4
 ## Each crewmate aboard past the second takes this much of the gross of every fish sold (a "Share, <name>" line on the
 ## slip). Two aboard keep it all; a third and a fourth hand earn their keep in what they let you catch.
 const SHARE := 0.12
@@ -104,8 +104,8 @@ var trip_t0 := 0.0
 var kind := "skiff"
 var owned: Array = ["skiff"]
 var gear: Array = []
-## The run: which quota (1, 2, ...), what it is, what's been sold toward it, which day of it this is (1..DAYS), the
-## run's fish and its biggest, and the most quotas any run has made.
+## The run: which boat payment (1, 2, ...), what it is, what's been sold toward it, which day of it this is (1..DAYS),
+## the run's fish and its biggest, and the most payments any run has made in a row.
 var quota_n := 1
 var quota := 0
 var earned := 0
@@ -706,7 +706,7 @@ func _settle() -> void:
 		sale["verdict"] = "met"
 		quota_n += 1
 		best_run = maxi(best_run, quota_n - 1)
-		quota = quota_for(quota_n)
+		quota = quota_for(owned)      # (the boat she's paying off now: a bigger one bought since, its payment)
 		sale["next"] = quota
 		earned = 0
 		day = 1
@@ -719,24 +719,44 @@ func _settle() -> void:
 	sale["bank"] = bank
 
 
-## A fresh run: the skiff, START_CASH, no gear, the first quota.
+## A fresh run: the skiff, START_CASH, no gear, the skiff's payment.
 func _new_run() -> void:
 	bank = START_CASH
 	owned = ["skiff"]
 	gear = []
 	kind = "skiff"
 	quota_n = 1
-	quota = quota_for(1)
+	quota = quota_for(owned)
 	earned = 0
 	day = 1
 	run_fish = 0
 	run_biggest = 0.0
 
 
-## Quota n: QUOTA_START for the first (sized for two aboard: alone it's a stretch, and there's no discount for it),
-## QUOTA_GROW times as much each time after (to the nearest $500): $12,000, $17,000, $23,500, $33,000...
-static func quota_for(n: int) -> int:
-	return roundi(QUOTA_START * pow(QUOTA_GROW, n - 1) / 500.0) * 500
+## The boat payment for a crew owning boats `boats` (kinds): the biggest of theirs (boat/kinds.gd's "payment"), the
+## same every DAYS trips. A boat chartered for the day doesn't change it.
+static func quota_for(boats: Array) -> int:
+	var most := 0
+	for k: Variant in boats:
+		if Kinds.KINDS.has(str(k)):
+			most = maxi(most, int(Kinds.KINDS[str(k)].get("payment", 0)))
+	return most if most > 0 else int(Kinds.KINDS["skiff"].get("payment", 0))
+
+
+## The payment from the next period on (a bigger boat bought since this one started: hers).
+func next_payment() -> int:
+	return quota_for(owned)
+
+
+## How many days till the payment's due, counting today's trip (1: today's sale).
+func days_left() -> int:
+	return DAYS - day + 1
+
+
+## "BOAT PAYMENT DUE IN 3 DAYS" / "... DUE TODAY", for the cards and the HUD.
+func due_text() -> String:
+	var n := days_left()
+	return "BOAT PAYMENT DUE TODAY" if n <= 1 else "BOAT PAYMENT DUE IN %d DAYS" % n
 
 
 ## Host: off the dock and out to the grounds in boat `k` (or the one picked), at dawn.
@@ -1883,12 +1903,17 @@ func _load() -> void:
 	best_run = int(_number(cfg, "run", "best_run", 0))
 	if cfg.has_section_key("run", "quota"):
 		quota_n = maxi(int(_number(cfg, "run", "quota_n", 1)), 1)
-		quota = maxi(int(_number(cfg, "run", "quota", quota_for(quota_n))), quota_for(quota_n))      # (an old run: the new sums)
 		earned = int(_number(cfg, "run", "earned", 0))
 		day = clampi(int(_number(cfg, "run", "day", 1)), 1, DAYS)
 		run_fish = int(_number(cfg, "run", "run_fish", 0))
 		run_biggest = float(_number(cfg, "run", "run_biggest", 0.0))
-	# (else a save from before the quota: its bank, boats and gear; the first quota starts now)
+	# (else a save from before the quota: its bank, boats and gear; the first payment starts now)
+	# (the payment this period: as saved if it's a boat's payment, else an old run's rising quota or none, and it's
+	# the boat's flat payment now)
+	var saved := int(_number(cfg, "run", "quota", 0))
+	var payments := Kinds.KINDS.keys().filter(func(kk: String) -> bool: return owned.has(kk)).map(
+			func(kk: String) -> int: return int(Kinds.KINDS[kk].get("payment", 0)))
+	quota = saved if payments.has(saved) else quota_for(owned)
 	fuel = clampf(float(_number(cfg, "boat", "fuel", fuel)), 0.0, 1.0)
 	ice = maxi(int(_number(cfg, "boat", "ice", 0)), 0)
 	well = clampi(int(_number(cfg, "boat", "well", 0)), 0, WELL_MAX)

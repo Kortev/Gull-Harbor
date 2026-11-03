@@ -83,7 +83,7 @@ func _ready() -> void:
 	var grades: Array = (hold.sale["lines"] as Array).map(func(l: Array) -> String: return str(l[1]))
 	_check(grades.has("#1") and a.has("GRADE_ONE"), "a #1 sold (%s): Number One" % [grades])
 	_check(is_equal_approx(a.kg_sold, 1100.0) and a.has("TON"), "1,100 kg sold in all: A Ton Ashore")
-	_check(not a.has("QUOTA"), "no quota made on the first day")
+	_check(not a.has("QUOTA"), "no boat payment made on the first day")
 	# Rivals: a day and the match
 	sea.vs.host_set_on(true)
 	await _frames(3)
@@ -188,7 +188,7 @@ func _page() -> void:
 	a.kg_sold = 640.0
 	_check(a.progress("TON") == [640.0, Achievements.TON_KG], "A Ton Ashore not yet: 640 of 1000 kg")
 	sea.fish_hold.best_run = 1
-	_check(a.progress("THREE_QUOTAS", Page.run_of(sea.fish_hold)) == [1, 3], "Keeping Her: 1 of 3 quotas in a run")
+	_check(a.progress("THREE_QUOTAS", Page.run_of(sea.fish_hold)) == [1, 3], "Keeping Her: 1 of 3 payments in a row")
 	_check(a.progress("FIRST_FISH").is_empty(), "nothing counted for the rest")
 	page.queue_redraw()
 	await _frames(2)
