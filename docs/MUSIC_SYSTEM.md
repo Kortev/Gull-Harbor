@@ -4,6 +4,44 @@ Status: **approved 2026-11-02, being built** with the recommended answers: folk-
 about-to-part moment, pure synth, pure silence on a loss, and the hunt layer on birds you can see (they are on
 screen anyway, so it tells you nothing the sea doesn't). Written 2026-11-02 against `claude/zealous-mendel-h2udij` at a416062.
 
+## As built (2026-11-03): one song
+
+**It's one song now (Kortev: "the same song, reacting to what's happening, playing certain sounds on different
+beats, instead of changing the song").** This supersedes the sections in the plan below and the notes after this
+one.
+- **After the title, everything is one endless song:** fourteen 8-bar passages (`sea_a`..`sea_j`, the theme's
+  halves `sea_t1`/`sea_t2`) in D / B minor at 112. Each passage has the same 17 layers on its own chords, so any
+  state is just a mix:
+  - pad, bass, guitar pick, lead, and high (the climax);
+  - rain, storm and night (the weather);
+  - run (her speed), and a fill into the next passage;
+  - pulse and glint (birds working);
+  - beat (the heartbeat), drive (the war drums), tension, deep and heavy (a fish on).
+- **What's happening only moves the layers** (`music_state.gd`'s `_wants()`), and how bright a passage comes next
+  (dark in a fight, the weather's own otherwise). The sections (sea, harbour, hunt, fight, tired, leader, gaff,
+  afterglow, race) are mixes, not songs.
+- **What happens is a cue over it on the grid:**
+  - the strike's hit on the next beat;
+  - the birds' bells (`hunt_in`), casting off (`away_in`) and the race called (`race_in`), as lead-ins ending on the
+    downbeat;
+  - boatside (`boatside_end`) and home made (`race_end`), as hits;
+  - for the leader, a fill ending on the bar and a jump to the theme (`sea_t1`) on it;
+  - for landing him, the `landed` hit on the downbeat and the theme (unless it's playing already).
+- **Passages join on the bar with a half-beat crossfade at most** (JOIN). There are no section switches left to
+  smear.
+- **The "music cuts off while driving" report:** the old hunt section (no tune, a thin pulse) took over whenever
+  birds came near. That's gone: birds only add their layers to the song.
+- **The title** is its own piece in ten stems, following the weather on screen:
+  - fair: whistle and band;
+  - rain: the patter, and a softer whistle;
+  - storm: no whistle, the theme low on the bow over the storm's drums;
+  - night: the bells;
+  - fog: a far whistle.
+
+  Its last chord rings into the song (`title_end`).
+- The harbour waltz and the race jig are retired. The dock is the same song played quietly, and the race home is
+  its drive and run layers building against the clock.
+
 ## As built (2026-11-02)
 
 **Bluefin's theme (Kortev: "at least one really recognisable tune that's beautiful").** `THEME` in tools/music.py
