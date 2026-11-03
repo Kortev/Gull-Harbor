@@ -344,6 +344,14 @@ func height_at(at: Vector3, ahead := 0.0, slack := 0.0) -> float:
 	return h
 
 
+## How far the sea's curved away under world point `at` (m down, from this node's middle: height_at counts it in).
+## Something floating on the sea works out its motion without it (boat/buoyancy.gd): the curve moves with this node,
+## and a hull doesn't heave because the mesh caught up with the camera.
+func curve_at(at: Vector3) -> float:
+	var p := to_local(at)
+	return pow(maxf(Vector2(p.x, p.z).length() - CURVE_START, 0.0), 2.0) / (2.0 * CURVE_RADIUS)
+
+
 ## How the water carries a hull floating at world point `at` (where she'd be on still water), heading `heading`
 ## (boat/helm.gd's: her bow toward -Z turned by it), `length` by `beam` m: the waves' orbits move the water sideways
 ## as well as up and down (the same rolling waves height_at rides), and what floats on it goes round with it. A long

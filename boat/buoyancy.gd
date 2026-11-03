@@ -171,7 +171,9 @@ func at(now: float, mid: Vector2, yaw: float) -> Vector3:
 			while _t < now:
 				_step()
 	var a := clampf((now - (_t - DT)) / DT, 0.0, 1.0)
-	return Vector3(lerpf(_s0[0], _s1[0], a), lerpf(_s0[2], _s1[2], a), lerpf(_s0[4], _s1[4], a))
+	# (on the sea as it's drawn, curving away from the middle of its mesh: her motion's worked out on it flat)
+	var curve := float(ocean.call("curve_at", Vector3(mid.x, 0.0, mid.y)))
+	return Vector3(lerpf(_s0[0], _s1[0], a) - curve, lerpf(_s0[2], _s1[2], a), lerpf(_s0[4], _s1[4], a))
 
 
 ## Where she is (x, z) and her heading at wave time `t`, along her track (a step past it, carried on).
@@ -199,9 +201,14 @@ func _depths(s: PackedFloat64Array, t: float) -> PackedFloat64Array:
 	for i in cells.size():
 		var c := cells[i]
 		var p := origin + b * Vector3(c.x, 0.0, c.y)
-		var h := float(ocean.call("height_at", Vector3(p.x, 0.0, p.z), ahead))
-		out[i] = h - p.y + draft - sink
+		out[i] = _flat(Vector3(p.x, 0.0, p.z), ahead) - p.y + draft - sink
 	return out
+
+
+## The sea's height at world point p, `ahead` s from now, flat (the curve away to the horizon left out: it moves with
+## the sea's mesh, not with the water).
+func _flat(p: Vector3, ahead: float) -> float:
+	return float(ocean.call("height_at", p, ahead)) + float(ocean.call("curve_at", p))
 
 
 ## Set down on the water at `now`, still: a plane through the water under her cells, her waterline on it.
@@ -216,7 +223,7 @@ func _settle(now: float) -> void:
 	var hm := 0.0
 	for c in cells:
 		var p := turn * Vector3(c.x, 0.0, c.y)
-		var h := float(ocean.call("height_at", Vector3(mid.x + p.x, 0.0, mid.y + p.z), ahead))
+		var h := _flat(Vector3(mid.x + p.x, 0.0, mid.y + p.z), ahead)
 		hs.append(h)
 		a += c.z
 		hm += c.z * h
