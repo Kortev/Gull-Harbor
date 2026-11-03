@@ -650,6 +650,6 @@ All 33 points were reviewed.
 1. **Crew pay:** none. The whole crew shares one wallet: the boat's money. No per-player shares or wages. (This replaces both the 12% share and the wages idea.)
 2. **Skiff bilge:** hand pump only. No automatic pump.
 3. **Rivals 1v1:** yes, as proposed. An inshore ledge, 120–200 kg fish, 20-minute rounds, scored on weight plus how beaten your hooked fish is at the horn.
-4. **Rivals boats:** any team may choose a bigger boat, but every boat has a player cap. A team of 4 can't take a two-person boat. (The skiff's exact cap, 2 or 3, is still to confirm.)
+4. **Rivals boats:** any team may choose a bigger boat, but every boat has a player cap. A team of 4 can't take a two-person boat. The skiff's cap is **2**, so three or more need the sportfisher. The walkthroughs that put three on the skiff are void; the sportfisher's balance must work for 3 and 4.
 5. **Fight calls:** the Shout key only, plus Dale's tips. No automatic crew shouts.
 6. **Fight length:** about 16–18 min for a 300 kg fish, and about 30 min for rare 600 kg trophies.
