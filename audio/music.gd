@@ -19,8 +19,11 @@ extends Node
 ##   every bar of the song carries a tiny tick (its "mark" stem, MARK_HZ), the bed plays through a bus of its own
 ##   (BED_BUS) where it's captured and then filtered out, and each bar the clock's put right on where its tick really
 ##   was (_listen()), so however long it plays, nothing drifts off the beat.
-## - the only silences: a fish lost (HUSH_FADE: everything gone at once), him in the air, the harpoon flying, and the
-##   quiet under Rivals' countdown and card.
+## - the silences: the scenic ones (casting off, the band lets the song go over SCENIC_FADE s and you sail out to the
+##   sea alone, till it's counted back in on the bar on the theme; a rest on a long quiet stretch), a fish lost
+##   (HUSH_FADE: everything gone at once), him in the air, the harpoon flying, and the quiet under Rivals' countdown
+##   and card. In a storm, its own dark passages, and each lightning strike ducks the band (DIP) into the thunder's
+##   hit on the next beat.
 ## - the mix: all of it down a little while the radio or a voice is on (DUCK_BUSES), with a dip where voices sit (the
 ##   pocket) rather than more of a drop; muffled underwater; quieter and dulled under the pause card; a limiter last.
 
@@ -54,13 +57,20 @@ const JOIN := 0.5
 const LEVEL := {"sea": 1.0, "title": 1.0}
 const STING_LEVEL := {"strike": 1.0, "their_on": 0.7, "lead_up": 0.8, "lead_down": 0.8, "countdown": 1.0, "win": 1.0,
 		"lose": 1.0, "tie": 1.0, "landed": 1.0, "leader_in": 1.0, "hunt_in": 0.8, "away_in": 0.8, "race_in": 0.9,
-		"boatside_end": 0.9, "race_end": 0.9, "title_end": 0.8}
+		"boatside_end": 0.9, "race_end": 0.9, "title_end": 0.8, "thunder": 1.0}
 ## The cues that play over the others (on their own player), not cutting them.
 const SMALL := ["their_on", "lead_up", "lead_down", "hunt_in", "away_in", "race_in", "boatside_end", "race_end",
 		"title_end"]
 ## A fish lost: everything down to nothing over this long (s): quicker than you'd hear as a fade, slow enough not to
 ## click.
 const HUSH_FADE := 0.08
+## The scenic silences: the band let go over this long (s), and back in over this long (s) on its bar.
+const SCENIC_FADE := 6.0
+const SCENIC_IN := 0.12
+## Lightning: the band ducked to this share from the flash till the thunder's hit.
+const DIP := 0.25
+## In a storm, its own passages this much likelier than the rest (and never out of one).
+const STORM_K := 12.0
 ## While the radio or a voice is on: down to these shares (by whose it is), back up DUCK_HOLD s after they stop; the
 ## level (dB) on their bus that counts as on; the pocket (dB) cut where voices sit (1 and 3.2 kHz) while they're on,
 ## and the duck halved with it.
@@ -110,6 +120,10 @@ const PLAYED_N := 64
 ## .wav).
 var _log_to := ""
 var _log: Array = []
+## (and, with the log on, every bus's peak level each BUS_EVERY s, for tools/loudness.py: [time, {bus: dB}])
+var _buses: Array = []
+var _bus_t := 0.0
+const BUS_EVERY := 0.25
 var _still := false
 
 var _bed: AudioStreamPlayer
@@ -129,7 +143,11 @@ var _seas: Array = []       # the sea's passages (sea_a ...)
 var _rng := RandomNumberGenerator.new()
 var _sea_was := ""
 var _fill := 0.0            # the sounding passage's fill stem, opened for its last bar
-var _jump := ""             # into the theme on the bar: "leader" (with its fill) or "landed" (with its hit)
+var _jump := ""             # into the theme on the bar: "leader" (with its fill), "landed" (with its hit), "theme"
+var _quiet := 1.0           # the scenic silence's gate on the song (1: open)
+var _return_at := -1.0      # when the gate opens again (our clock; -1: not asked)
+var _dip := 1.0
+var _dip_until := -1.0
 var _clock: AudioStreamPlayer
 var _clock_last := 0.0
 var _clock_wraps := 0
@@ -425,6 +443,15 @@ func _process(delta: float) -> void:
 	_land()
 	_jumps()
 	_chain()
+	if _log_to != "":
+		_bus_t -= delta
+		if _bus_t <= 0.0:
+			_bus_t = BUS_EVERY
+			var b := {}
+			for i in AudioServer.bus_count:
+				b[AudioServer.get_bus_name(i)] = snappedf(maxf(AudioServer.get_bus_peak_volume_left_db(i, 0),
+						AudioServer.get_bus_peak_volume_right_db(i, 0)), 0.1)
+			_buses.append([snappedf(_t, 0.01), b])
 	if state.still != _still:
 		_still = state.still
 		_note("still:" + ("on" if _still else "off"))
@@ -439,7 +466,7 @@ func _exit_tree() -> void:
 		var f := FileAccess.open(_log_to, FileAccess.WRITE)
 		if f != null:
 			f.store_string(JSON.stringify({"played": _log, "fps": Engine.physics_ticks_per_second, "heard": heard,
-					"put_right": put_right}))
+					"put_right": put_right, "buses": _buses}))
 			f.close()
 
 
@@ -470,7 +497,21 @@ func _on(e: String) -> void:
 		"birds":
 			_lead_in("hunt_in")
 		"away":
+			if state.scenic == "":
+				_lead_in("away_in")       # (a storm: no silence, straight out into it)
+		"scenic":
+			_return_at = -1.0
+		"return", "return_theme":
 			_lead_in("away_in")
+			_return_at = float(_queue[-1]["at"]) + float(Cues.CUES.get("away_in", {}).get("length", 0.0))
+			if e == "return_theme":
+				_jump = "theme"
+		"wake":
+			_return_at = _next("beat", 0.0)
+		"lightning":
+			var at := _next("beat", 0.05)
+			_queue.append({"name": "thunder", "at": at, "from": 0.0})
+			_dip_until = at
 		"race":
 			_lead_in("race_in")
 		"boatside":
@@ -578,7 +619,13 @@ func _jumps() -> void:
 		return
 	var at := _next("bar", 0.0)
 	var in_theme := sounding in ["sea_t1", "sea_t2"]
-	if _jump == "leader":
+	if _jump == "theme":
+		# (onto the bar the song comes back in on: ask in the bar before it)
+		if _return_at < 0.0 or absf(at - _return_at) > 0.01 or at - _t < GRID_SAFE:
+			if _return_at < 0.0 or at > _return_at + 0.01:
+				_jump = ""
+			return
+	elif _jump == "leader":
 		var fill := float(Cues.CUES.get("leader_in", {}).get("length", 0.0))
 		_fill_wait += get_process_delta_time()
 		if _fill_wait < FILL_WAIT and (at - _t < fill or at - _t > fill + FILL_SLOP):
@@ -588,7 +635,8 @@ func _jumps() -> void:
 	else:
 		if at - _t < GRID_SAFE:
 			return
-		_queue.append({"name": "landed", "at": at, "from": 0.0})
+		if _jump == "landed":
+			_queue.append({"name": "landed", "at": at, "from": 0.0})
 	_jump = ""
 	if in_theme:
 		return
@@ -700,6 +748,10 @@ func _pick_sea() -> String:
 		var w := 0.1 + (state.bright if bool(Cues.CUES[n].get("bright", true)) else 1.0 - state.bright)
 		if Cues.CUES[n].has("then"):
 			w *= THEME_K
+		if bool(Cues.CUES[n].get("storm", false)):
+			if state.mood != "storm":
+				continue                 # (the storm's own: only in one)
+			w *= STORM_K
 		pick.append(n)
 		weights.append(w)
 		total += w
@@ -751,8 +803,15 @@ static func _family(n: String) -> String:
 
 
 ## Each stem of the section wanted at its level (the clips going out keep theirs while they fade; one of the same
-## family still sounding, the next passage or the fight's next section waiting on the grid, follows along).
+## family still sounding, the next passage or the fight's next section waiting on the grid, follows along). Under it
+## all the scenic gate: let go slowly as the silence comes, opened quickly on the bar it ends on.
 func _apply(delta: float) -> void:
+	if _return_at >= 0.0 and _t >= _return_at - 0.005:
+		_quiet = move_toward(_quiet, 1.0, delta / SCENIC_IN)
+		if _quiet >= 1.0:
+			_return_at = -1.0
+	elif state.scenic != "":
+		_quiet = move_toward(_quiet, 0.0, delta / SCENIC_FADE)
 	var c: Dictionary = _clips.get(_asked, {})
 	if c.is_empty():
 		return
@@ -784,6 +843,8 @@ func _set_volumes(n: String, fresh: bool) -> void:
 			g = 1.0
 		elif s == "fill":
 			g = _fill if n == sounding else 0.0      # (the passage going out has it; the one coming in, not yet)
+		if s != "mark":
+			g *= _quiet
 		sync.set_sync_stream_volume(k, linear_to_db(maxf(g, 0.0001)))
 
 
@@ -842,10 +903,12 @@ func _mix(delta: float) -> void:
 	_duck = move_toward(_duck, want, delta * (1.6 if want < _duck else 0.4))
 	# the hush: a fish lost, everything gone at once, then the sea alone
 	_hush = move_toward(_hush, 1.0 if state.hush > 0.0 else 0.0, delta / (HUSH_FADE if state.hush > 0.0 else 1.5))
-	var gain := _duck * (1.0 - _hush)
+	_dip = move_toward(_dip, DIP if _t < _dip_until else 1.0, delta / (0.05 if _t < _dip_until else 0.08))
+	var gain := _duck * (1.0 - _hush) * _dip
 	var lv := _asked if _asked != "rest" else sounding
 	_level = move_toward(_level, float(LEVEL.get(_family(lv) if lv.begins_with("sea_") else lv, 1.0)), delta * 0.5)
 	_bed.volume_db = linear_to_db(maxf(gain * _level, 0.0001))
+	gain /= _dip                 # (the thunder itself isn't ducked)
 	for p in _stings:
 		p.volume_db = linear_to_db(maxf(gain * float(STING_LEVEL.get(str(p.get_meta("cue", "")), 1.0)), 0.0001))
 	if _eq != null:
@@ -909,6 +972,16 @@ func world(sea: Node) -> Dictionary:
 	elif float(sea.get("home_by")) > 0.0 and not docked:
 		w["race_left"] = float(sea.get("home_by")) - now_s
 	w["birds"] = _birds(sea)
+	var fx: Node = sea.get("sea_fx")
+	if fx != null:
+		w["flash"] = float(fx.get("_flash"))
+	var marks: Node = sea.get("landmarks")
+	var helm0: Node = (sea.get("boat") as Node).get("helm") if sea.get("boat") != null else null
+	if marks != null and marks.has_method("breakwater_arms") and helm0 != null:
+		var arms: Array = marks.call("breakwater_arms")
+		var mouth := ((arms[0][1] as Vector2) + (arms[1][1] as Vector2)) * 0.5
+		var at: Vector2 = helm0.get("at")
+		w["past_mouth"] = mouth.y - at.y          # (the open sea's toward -z)
 	var boat: Node = sea.get("boat")
 	var helm: Node = boat.get("helm") if boat != null else null
 	if helm != null and helm.has_method("top_speed"):

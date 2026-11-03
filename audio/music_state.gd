@@ -18,6 +18,7 @@ extends RefCounted
 ##   lbs: [yours, theirs] (Rivals, out there); their_on: how many fish they've got on
 ##   condition: the weather (sea.gd's CONDITIONS); night: bool; day: day fraction (0 dawn .. 1 dusk)
 ##   birds: 0..1, how near feeding birds are (1 right there); speed: 0..1 of her top speed ahead
+##   flash: the lightning's (sea/sea_fx.gd: 1 as it strikes); past_mouth: m she's out past the harbour mouth
 ##   fights: [{id, kg, tension (bend / what the line takes), spool (0..1 of the reel gone), depth, line_out, move,
 ##            slack, airborne, surging, contact (0..1 of the line worn on her), props (s under her props), tangled}]
 ##   alongside: [ids up alongside]; draw: the harpoon's wind-up 0..1; flying: the harpoon's in the air
@@ -48,7 +49,7 @@ const SMOOTH := {
 	"high": [1.0, 4.0, 8.6], "rain": [4.0, 5.0, 0.0], "storm": [4.0, 6.0, 0.0], "night": [5.0, 5.0, 0.0],
 	"run": [2.0, 4.0, 4.3], "fill": [0.01, 0.01, 0.0], "pulse": [1.5, 3.0, 0.0], "glint": [2.0, 4.0, 0.0],
 	"beat": [0.2, 0.3, 0.0], "drive": [0.25, 3.0, 4.3], "tension": [0.5, 2.5, 4.3], "deep": [1.5, 4.0, 4.3],
-	"heavy": [2.0, 4.0, 0.0], "main": [0.01, 0.01, 0.0], "counter": [2.0, 3.0, 0.0], "guitar": [2.0, 3.0, 0.0],
+	"heavy": [2.0, 4.0, 0.0], "gale": [4.0, 6.0, 0.0], "pound": [0.25, 3.0, 4.3], "main": [0.01, 0.01, 0.0], "counter": [2.0, 3.0, 0.0], "guitar": [2.0, 3.0, 0.0],
 	"drums": [2.0, 3.0, 0.0], "low": [3.0, 3.0, 0.0],
 }
 const SMOOTH_ELSE := [1.0, 2.0, 0.0]
@@ -59,13 +60,14 @@ const SEA := {
 	"calm": {"pad": 0.8, "bass": 0.7, "pick": 1.0, "lead": 0.9},
 	"fog": {"pad": 1.0, "bass": 0.35, "pick": 0.25, "lead": 0.45, "night": 0.3},
 	"rain": {"pad": 0.8, "bass": 0.8, "pick": 0.6, "lead": 0.35, "rain": 1.0},
-	"storm": {"pad": 1.0, "bass": 1.0, "rain": 0.6, "storm": 1.0},
+	"storm": {"pad": 1.0, "bass": 1.0, "rain": 0.6, "storm": 1.0, "gale": 1.0, "lead": 0.45, "tension": 0.3,
+			"deep": 0.4, "pound": 0.35},
 	"night": {"pad": 0.75, "bass": 0.45, "pick": 0.5, "lead": 0.3, "night": 1.0},
 }
 const SEA_STEMS := ["pad", "bass", "pick", "lead", "high", "rain", "storm", "night", "run", "fill", "pulse", "glint",
-		"beat", "drive", "tension", "deep", "heavy"]
+		"beat", "drive", "tension", "deep", "heavy", "gale", "pound"]
 ## The song's layers that are the weather's (the rest are what's happening).
-const WEATHER := ["rain", "storm", "night"]
+const WEATHER := ["rain", "storm", "night", "gale"]
 ## How bright a passage each section leans to (0 dark .. 1 bright; -1: the weather's own), and the theme's halves
 ## asked for at the leader and for landing him (audio/music.gd jumps to sea_t1 on the bar).
 const SECTION_BRIGHT := {"fight": 0.1, "tired": 0.4, "gaff": 0.3, "race": 0.6, "afterglow": 1.0}
@@ -78,6 +80,15 @@ const BRIGHT := {"calm": 0.75, "fog": 0.35, "rain": 0.3, "storm": 0.0, "night": 
 const DUSK := 0.75
 ## Landed: the song lifted (the afterglow) this long (s: eight bars at 112).
 const AFTER := 17.1
+## The scenic silences: casting off, the band lets the song go and you sail out to the sea and the harbour alone, till
+## she's SCENIC_PAST m out past the harbour mouth (or SCENIC_OUT s), and the song comes back in on the theme; and on
+## a long quiet stretch at sea in fair weather (SCENIC_EVERY s, between, of nothing happening), the band rests for
+## SCENIC_REST s. Never in a storm (the storm's music is its own weather); birds or a fish break it at once.
+const SCENIC_PAST := 150.0
+const SCENIC_OUT := 90.0
+const SCENIC_EVERY := Vector2(180.0, 300.0)
+const SCENIC_REST := 20.0
+const SCENIC_MOODS := ["calm", "fog", "night"]
 ## A fish lost: dead silence this long (s), then the sea again.
 const HUSH := 6.0
 ## A fish gone from alongside: this long to see it in the hold (landed) before it counts as got away.
@@ -101,7 +112,9 @@ var gains := {}
 var masks := {}
 ## What happened this step: "strike", "lost", "landed", "leader", "boatside", "birds" (first working near), "away"
 ## (cast off), "race" (the race home called), "home" (made it), "their_on", "lead_up", "lead_down", "countdown",
-## "card:win" (lose, tie), "dawn".
+## "card:win" (lose, tie), "dawn", "lightning" (a strike in a storm), "scenic" (the band lets the song go), "return"
+## (it comes back in on the bar, with a lead-in), "return_theme" (on the theme: out of the harbour), "wake" (broken at
+## once: birds, a fish, the storm).
 var events: Array[String] = []
 ## The mood at sea, and the worst fight's danger (0..1) and its id ("" none).
 var mood := "calm"
@@ -113,6 +126,12 @@ var parting := false
 var still := false
 ## s of the loss's silence left (music.gd drops everything at once while it's on).
 var hush := 0.0
+## A scenic silence on ("out": sailing out of the harbour; "rest": a quiet stretch), and how long it's been.
+var scenic := ""
+var _scenic_t := 0.0
+var _plain_t := 0.0
+var _rest_due := 240.0
+var _flash_armed := true
 ## How bright a sea passage to pick next (0 dark .. 1 bright).
 var bright := 0.75
 
@@ -172,6 +191,9 @@ func step(w: Dictionary, dt: float) -> void:
 	var wants := _wants(w, f)
 	_smooth(wants, dt)
 	_mask(w, f, dt)
+	_scenic(w, dt)
+	still = still or scenic != ""
+	_lightning(w)
 	bright = float(BRIGHT.get(mood, 0.5)) * lerpf(1.0, 0.5, smoothstep(DUSK, 1.0, float(w.get("day", 0.0))))
 	if SECTION_BRIGHT.has(section):
 		bright = float(SECTION_BRIGHT[section])
@@ -331,6 +353,54 @@ func _section(w: Dictionary, f: Dictionary) -> String:
 	return "sea"
 
 
+## The scenic silences: in on casting off (in fair weather, or fog, or at night) and on a long quiet stretch, out
+## past the harbour mouth or after a while (the song back on the bar), broken at once by birds, a fish or a storm.
+func _scenic(w: Dictionary, dt: float) -> void:
+	var plain := section == "sea" and events.is_empty()
+	if scenic == "":
+		if events.has("away") and mood in SCENIC_MOODS:
+			_start_scenic("out")
+		elif plain and mood in SCENIC_MOODS:
+			_plain_t += dt
+			if _plain_t >= _rest_due:
+				_start_scenic("rest")
+		else:
+			_plain_t = 0.0
+		return
+	_scenic_t += dt
+	if not section in ["sea", "harbour"] or not mood in SCENIC_MOODS or hush > 0.0:
+		_end_scenic("wake")
+	elif scenic == "out" and (float(w.get("past_mouth", -INF)) >= SCENIC_PAST or _scenic_t >= SCENIC_OUT):
+		_end_scenic("return_theme")
+	elif scenic == "rest" and _scenic_t >= SCENIC_REST:
+		_end_scenic("return")
+
+
+func _start_scenic(kind: String) -> void:
+	scenic = kind
+	_scenic_t = 0.0
+	_plain_t = 0.0
+	_rest_due = _rng.randf_range(SCENIC_EVERY.x, SCENIC_EVERY.y)
+	events.append("scenic")
+
+
+func _end_scenic(how: String) -> void:
+	scenic = ""
+	_plain_t = 0.0
+	events.append(how)
+
+
+## Lightning in a storm: a strike as the flash comes (sea_fx's flash jumping up), once each.
+func _lightning(w: Dictionary) -> void:
+	var f := float(w.get("flash", 0.0))
+	if f >= 0.9 and _flash_armed:
+		_flash_armed = false
+		if mood == "storm" and section != "title":
+			events.append("lightning")
+	elif f < 0.3:
+		_flash_armed = true
+
+
 ## Each stem's level wanted (before smoothing): the title's own, or the song's layers for what's happening.
 func _wants(w: Dictionary, f: Dictionary) -> Dictionary:
 	if section == "title":
@@ -376,6 +446,7 @@ func _wants(w: Dictionary, f: Dictionary) -> Dictionary:
 			want["pick"] = 1.0
 			want["bass"] = 1.0
 			want["drive"] = 0.5 * clampf(_after / AFTER, 0.0, 1.0)
+			want["pound"] = 0.6 * smoothstep(AFTER * 0.5, AFTER, _after)
 		"race":
 			_race(w, want, run)
 	return want
@@ -412,9 +483,11 @@ func _race(w: Dictionary, want: Dictionary, run: float) -> void:
 	want["lead"] = maxf(float(want["lead"]), 0.6)
 	if st > 0:
 		want["high"] = smoothstep(0.4, 0.8, p)
+	want["pound"] = maxf(float(want["pound"]), 0.7 * smoothstep(0.8, 0.95, p))
 	if st < 0:
 		want["drive"] = maxf(float(want["drive"]), smoothstep(LAST + 30.0, LAST, left))
 		want["tension"] = smoothstep(LAST, LAST - 60.0, left)
+		want["pound"] = maxf(float(want["pound"]), smoothstep(LAST, LAST - 45.0, left))
 
 
 ## A fish on: the heartbeat (gone on a slack line), the drums on his runs, the tension as the line nears going, the
@@ -453,6 +526,17 @@ func _fight(w: Dictionary, f: Dictionary, want: Dictionary) -> void:
 			maxf(smoothstep(0.2, 0.8, danger), 0.6 * smoothstep(0.5, 0.85, spool)))
 	want["deep"] = deep
 	want["heavy"] = heavy
+	# the whole drum section: on his runs, the backing showing, the leader, a storm; tiring, a little
+	var pound := 0.7 if drive >= 0.99 else 0.0
+	if spool > 0.5:
+		pound = maxf(pound, smoothstep(0.5, 0.8, spool))
+	if section == "leader":
+		pound = 1.0
+	elif section == "tired":
+		pound = maxf(pound, 0.3)
+	if mood == "storm":
+		pound = maxf(pound, 0.6)
+	want["pound"] = pound
 	want["run"] = 0.0
 	want["pick"] = float(want["pick"]) * 0.5
 	want["lead"] = {"fight": 0.25, "tired": 0.7, "leader": 1.0}.get(section, 0.25)
@@ -510,7 +594,7 @@ func _mask(w: Dictionary, f: Dictionary, dt: float) -> void:
 	for k: String in masks.keys():
 		if not gains.has(k):
 			masks.erase(k)
-	still = hush > 0.0 or air or flying or section == "rest"
+	still = hush > 0.0 or air or flying or section == "rest" or scenic != ""
 
 
 ## A stem's level as it should sound (its gain under its mask).

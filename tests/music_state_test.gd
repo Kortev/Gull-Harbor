@@ -17,6 +17,8 @@ var fails: Array[String] = []
 func _ready() -> void:
 	_sea()
 	_hunt()
+	_storm()
+	_scenic()
 	_fight()
 	_fair()
 	_flap()
@@ -51,8 +53,8 @@ func _sea() -> void:
 			"the storm coming on: its drums rising as the guitar goes, not switched (%.2f, %.2f)"
 			% [s.level("storm"), s.level("pick")])
 	_run(s, {"condition": "storm", "docked": false, "day": 0.3}, 7.0)
-	_check(s.level("storm") > 0.95 and s.level("pick") == 0.0 and s.level("lead") == 0.0 and s.bright == 0.0,
-			"a storm: the drums and the drone, no tune, the dark passages")
+	_check(s.level("storm") > 0.95 and s.level("pick") == 0.0 and s.level("lead") < 0.5 and s.bright == 0.0,
+			"a storm: the drums and the drone, no guitar, only the concertina's low line, the dark passages")
 	_run(s, {"condition": "rain", "docked": false, "day": 0.3}, 8.0)
 	_check(s.level("rain") > 0.95 and s.level("storm") < 0.05, "rain: the patter")
 	_run(s, {"condition": "calm", "docked": false, "night": true}, 8.0)
@@ -96,6 +98,61 @@ func _sea() -> void:
 			print("  %s: %s" % [o.section, keys])
 	_check(same, "one song: the dock, the sea, birds, a fish on, tiring, the leader, boatside, landed, the race "
 			+ "home, all the same song's layers")
+
+
+## A storm: its own layers (the gale's strings, drums rolling, the wind's howl; the drum section; the tension never
+## quite off; the deep), and each lightning strike a cue.
+func _storm() -> void:
+	var s := State.new(41)
+	_run(s, {"docked": false, "condition": "storm", "day": 0.4}, 8.0)
+	_check(s.level("gale") > 0.95 and s.level("pound") > 0.3 and s.level("tension") > 0.25 and s.level("pick") == 0.0,
+			"a storm: the gale, the drums, the tension never quite off, no guitar (gale %.2f, pound %.2f, tension %.2f)"
+			% [s.level("gale"), s.level("pound"), s.level("tension")])
+	var ev := _run(s, {"docked": false, "condition": "storm", "flash": 1.0}, DT)
+	_check(ev.has("lightning"), "lightning: its cue")
+	ev = _run(s, {"docked": false, "condition": "storm", "flash": 0.95}, 0.2)
+	_check(not ev.has("lightning"), "once a strike")
+	_run(s, {"docked": false, "condition": "storm", "flash": 0.0}, 0.2)
+	ev = _run(s, {"docked": false, "condition": "storm", "flash": 1.0}, DT)
+	_check(ev.has("lightning"), "and the next")
+	var c := State.new(42)
+	ev = _run(c, {"docked": false, "condition": "calm", "flash": 1.0}, DT)
+	_check(not ev.has("lightning"), "no storm, no cue")
+	var f := State.new(43)
+	_run(f, {"docked": false, "fights": [_fish({"move": "run"})]}, 2.0)
+	_check(f.level("pound") > 0.6, "his run: the whole drum section in (%.2f)" % f.level("pound"))
+	_run(f, {"docked": false, "fights": [_fish({"move": "spiral", "line_out": 10.0})]}, 2.0)
+	_check(f.level("pound") > 0.95, "the leader: all of it")
+
+
+## The scenic silences: casting off in fair weather the band lets go till she's out past the harbour mouth, then
+## back on the theme; a long quiet stretch, a rest; birds or a fish break them at once; never in a storm.
+func _scenic() -> void:
+	var s := State.new(44)
+	_run(s, {"docked": true, "condition": "calm"}, 1.0)
+	var ev := _run(s, {"docked": false, "condition": "calm", "past_mouth": -200.0}, DT)
+	_check(ev.has("away") and ev.has("scenic") and s.scenic == "out" and s.still,
+			"casting off: the band lets the song go (%s)" % [ev])
+	ev = _run(s, {"docked": false, "condition": "calm", "past_mouth": 0.0}, 20.0)
+	_check(s.scenic == "out" and not ev.has("return_theme"), "through the harbour: still the sea alone")
+	ev = _run(s, {"docked": false, "condition": "calm", "past_mouth": 160.0}, DT)
+	_check(ev.has("return_theme") and s.scenic == "", "out past the mouth: back in, on the theme")
+	var st := State.new(45)
+	_run(st, {"docked": true, "condition": "storm"}, 1.0)
+	ev = _run(st, {"docked": false, "condition": "storm", "past_mouth": -200.0}, DT)
+	_check(ev.has("away") and st.scenic == "", "casting off into a storm: no silence, its music")
+	var b := State.new(46)
+	_run(b, {"docked": true, "condition": "fog"}, 1.0)
+	_run(b, {"docked": false, "condition": "fog", "past_mouth": -100.0}, 5.0)
+	ev = _run(b, {"docked": false, "condition": "fog", "past_mouth": -50.0, "birds": 0.7}, DT)
+	_check(ev.has("wake") and b.scenic == "", "birds while she's still going out: it breaks at once")
+	var r := State.new(47)
+	_run(r, {"docked": false, "condition": "calm"}, 1.0)
+	r.set("_rest_due", 30.0)
+	ev = _run(r, {"docked": false, "condition": "calm"}, 31.0)
+	_check(ev.has("scenic") and r.scenic == "rest", "a long quiet stretch: the band rests")
+	ev = _run(r, {"docked": false, "condition": "calm"}, 21.0)
+	_check(ev.has("return") and r.scenic == "", "and comes back in")
 
 
 func _hunt() -> void:
