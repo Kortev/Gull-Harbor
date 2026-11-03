@@ -16,7 +16,7 @@ extends Node3D
 
 const Spray := preload("res://rods/spray.gd")
 const Fight := preload("res://tuna/fight.gd")
-const HITSTOP := 0.13
+const HITSTOP := 0.2
 ## The flecks' time at the very hit (then eased back to 1 over HITSTOP).
 const HIT_SLOW := 0.06
 const KICK_LEN := 0.6
@@ -163,7 +163,8 @@ func _process(delta: float) -> void:
 		r.set("slam", slam_at(t) if r.get("hooked") else 0.0)
 		if me != null and me.get("frame") == boat:
 			var d := me.global_position.distance_to(r.global_position)
-			kick = maxf(kick, kick_at(t) * clampf(1.0 - (d - 5.0) / 20.0, 0.0, 1.0))
+			# (the strike's felt all over her: at the wheel, up the bow, anywhere aboard)
+			kick = maxf(kick, kick_at(t) * maxf(clampf(1.0 - (d - 5.0) / 20.0, 0.0, 1.0), 0.7))
 		if t > 2.0:
 			r.set("slam", 0.0)
 			_struck.erase(i)

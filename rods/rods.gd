@@ -20,6 +20,7 @@ const Fight := preload("res://tuna/fight.gd")
 const Sfx := preload("res://audio/sfx.gd")
 const FightHud := preload("res://ui/fight_hud.gd")
 const FightTutor := preload("res://ui/fight_tutor.gd")
+const FightCoach := preload("res://ui/fight_coach.gd")
 const Tuna := preload("res://tuna/tuna.gd")
 const Splash := preload("res://sea/splash.gd")
 const FightFx := preload("res://rods/fight_fx.gd")
@@ -121,6 +122,8 @@ var _letting_mine := false
 var rig: Node3D
 var _shook := false
 var _fight_hud: FightHud
+var _crank_now := false
+var _rumble_in := 0.0
 ## The first fish you ever hook, taught a step at a time (ui/fight_tutor.gd): made with the fight HUD.
 var tutor: FightTutor
 var _whoosh: AudioStreamPlayer3D
@@ -971,8 +974,18 @@ func _strike(i: int, kg: float, t: float, bearing: float, seed_value: int) -> vo
 	r.fight = null
 	r.wear = 0.0
 	r.set_meta("seed", seed_value)
+	r.set_meta("struck_at", _now())
 	fx.struck(r)
-	Settings.buzz(0.4, 0.2, 0.5)       # (the reel screaming)
+	# everyone aboard: FISH ON! ROD n! across the screen, the crew yelling it, the pad kicking in your hands
+	var crew := sea.get("crew") as Node
+	if crew != null and crew.get("me") != null:
+		Settings.buzz(0.9, 1.0, 0.45)       # (the hit, then the reel screaming)
+		if _fight_hud != null:
+			_fight_hud.strike(i + 1, _name_of(i), r.holder == 0, r.holder == Net.my_id() and r.holder != 0)
+		if calls != null:
+			calls.call_out("FISH ON! ROD %d!" % (i + 1), crew.has_method("boat_of") and (crew.get("slots") as Dictionary).size() > 1)
+	else:
+		Settings.buzz(0.4, 0.2, 0.5)       # (the reel screaming)
 
 
 @rpc("authority", "call_local", "reliable")
@@ -980,8 +993,12 @@ func _off(i: int, why: String) -> void:
 	if i < 0 or i >= rods.size():
 		return        # (a rod she hasn't got: a word from before she was rebuilt)
 	var r := rods[i]
-	if r.holder == Net.my_id() and _fight_hud != null and r.hooked and not why.is_empty():
-		_fight_hud.lost(why)
+	if _fight_hud != null and r.hooked and not r.alongside and not why.is_empty():
+		var crew_now := sea.get("crew") as Node
+		if r.holder == Net.my_id() and r.holder != 0:
+			_fight_hud.lost(why)
+		elif crew_now != null and crew_now.get("me") != null:
+			_fight_hud.lost(why, false, i + 1)      # (everyone aboard: HE'S GONE, ROD n, and why)
 	if r.hooked and not r.alongside and not why.is_empty():
 		# the line goes: the reel dead quiet, the rod straight, the line falling slack; and the music drops away
 		r.lost_it(why in PARTED)
@@ -1096,17 +1113,56 @@ func _show_fight_hud(hud: Node, mine: Rod) -> void:
 		tutor.rods = self
 		tutor.sea = sea
 		hud.add_child(tutor)
+		_fight_hud.coach.keep = tutor.keep
 	if _fight_hud == null:
 		return
-	tutor.tick(get_process_delta_time(), mine)
+	var dt := get_process_delta_time()
+	tutor.tick(dt, mine)
+	_mark_rods(mine)
 	if mine == null or not mine.hooked or mine.alongside or mine.fight == null:
 		_fight_hud.show_fight({})
 		return
 	var f := mine.fight as Fight
-	# (what you'd see glancing down at your reel: the spool and the drag lever; and the screen's edges when the line's
-	# about to go)
+	# (what you'd see glancing down at your reel: the spool and the drag lever, the line left, the bend; and the
+	# screen's edges when the line's about to go)
+	var danger := smoothstep(0.72, 1.0, f.t_fish / f.strength())
 	_fight_hud.show_fight({"spool": mine.line_out / Fight.CAPACITY, "drag": mine.drag, "spin": mine.spool_turn,
-			"danger": smoothstep(0.72, 1.0, f.t_fish / f.strength())})
+			"danger": danger, "bend": f.strain, "out": f.line_out, "rod": mine.index + 1, "fight": f,
+			"pitch": mine.aim_pitch, "crank": _crank_now, "since": _now() - float(mine.get_meta("struck_at", _now()))})
+	# and in your hands, on the pad: the line's tension as a steady hum that tightens with the bend, the drag slipping
+	# a buzz that climbs with the run, near parting a hard throb (the same feel every fight, so it's learned)
+	_rumble_in -= dt
+	if _rumble_in <= 0.0:
+		_rumble_in = 0.1
+		var bend := clampf(f.strain, 0.0, 1.0)
+		var weak := 0.08 + 0.45 * bend * bend if f.stretch > -0.3 else 0.0
+		var strong := 0.0
+		if f.slipping:
+			strong = 0.2 + 0.4 * clampf(f.paying / 10.0, 0.0, 1.0)
+		if f.grinding:
+			strong = maxf(strong, 0.3)
+		if danger > 0.0:
+			strong = maxf(strong, danger * (0.6 + 0.4 * sin(_now() * 20.0)))
+		Settings.buzz(weak, strong, 0.14)
+
+
+## A marker on each rod with a fish on that isn't in your hands (ui/fight_hud.gd draws them): which rod, him in a
+## word, and E: TAKE THE ROD (nobody's on it) or who's on it. Only aboard her.
+func _mark_rods(mine: Rod) -> void:
+	var list := []
+	var crew := sea.get("crew") as Node
+	var me: Node = crew.get("me") if crew != null else null
+	if me != null:
+		for r in rods:
+			if r == mine or not r.hooked or r.alongside:
+				continue
+			var w := FightCoach.word_of(r.move, r.paying > 0.6, r.stretch < -0.5, r.energy, 1.0, r.depth)
+			var who := ""
+			if r.holder != 0:
+				who = str(crew.call("call_sign", r.holder)) if crew.has_method("call_sign") else "SOMEONE"
+			list.append({"at": r.tip_position() + Vector3.UP * 0.25, "i": r.index, "word": w[0], "free": r.holder == 0,
+					"who": who})
+	_fight_hud.marks(list)
 
 
 ## Everyone (tuna/landing.gd): rod i's fish is up alongside, beaten: no more fight on it.
@@ -1250,6 +1306,8 @@ func set_drag(r: Rod, to: float) -> void:
 	else:
 		Sfx.play_at(r, "ui.tick", 0.0, 0.7, lerpf(0.8, 1.3, r.drag))
 	Settings.buzz(0.1, 0.05, 0.05)
+	if _fight_hud != null and r.holder == Net.my_id():
+		_fight_hud.dragged(r.drag, r.drag > was)       # (what that notch does, by the reel)
 
 
 func _process(delta: float) -> void:
@@ -1395,7 +1453,11 @@ func _process(delta: float) -> void:
 		crew_n = int(landing.call("_crew_aboard"))       # (the other boat's view of a side has no crew of its own)
 	calls.tick(delta, mine, crew_n, float(helm.get("throttle")))
 	if mine != null and mine.hooked:
-		hud.call("fight", calls.line(), 0.0)          # (the crew shouting, if there's anything to shout)
+		# (the crew shouting, if there's anything to shout; else a line of his about to foul another, what to do)
+		var shout := calls.line()
+		if shout.is_empty():
+			shout = _foul_warning()
+		hud.call("fight", shout, 0.0)
 	else:
 		_trend_out = -1.0
 		_trend = 0.0
@@ -1435,6 +1497,20 @@ func _process(delta: float) -> void:
 	hud.call("plot", fish)
 
 
+## For whoever's on the rod: another line out that he's tangled in or heading for, and what to do about it (or "").
+func _foul_warning() -> String:
+	for r in rods:
+		if r.tangled >= 0 and r.auto_in == 0:
+			return "TANGLED IN THE %s LINE! Q: ROD IN THE HOLDER, E ON THAT ONE, WIND IT IN" 					% _name_of(r.index).to_upper()
+	var near: Rod = null
+	for r in rods:
+		if r.foul > 0.0 and (near == null or r.foul > near.foul):
+			near = r
+	if near != null:
+		return "HE'S HEADING FOR THE %s LINE! GET IT IN: Q, THEN E ON IT" % _name_of(near.index).to_upper()
+	return ""
+
+
 ## What the fight needs of you while you're off the rod, most urgent first (or ""). At the wheel: the props, a
 ## beaten fish circling under her (hands off: there's no chasing him round), the line under her or on her hull, him
 ## gone off to the side (which key swings her stern to him: A brings it to starboard, D to port); and the rod waiting
@@ -1452,6 +1528,11 @@ func crew_says(at_wheel: bool, throttle: float) -> String:
 	var side := "STARBOARD" if b >= 0.0 else "PORT"
 	var hd := sqrt(maxf(on.line_out * on.line_out - on.depth * on.depth, 0.0))
 	var far := absf(b)
+	# just struck, nobody on it and nothing in your hands: at the wheel, where to go and what to press first (off it,
+	# the marker on the rod says it; the other lines still out come first, below)
+	var fresh := on.holder == 0 and held_by(Net.my_id()) == null 			and _now() - float(on.get_meta("struck_at", -INF)) < 12.0
+	if fresh and at_wheel and far <= Fight.UNDER - 0.2:
+		return "FISH ON ROD %d! E: LEAVE THE WHEEL, GO TAKE IT" % (on.index + 1)
 	if at_wheel:
 		if far > Fight.UNDER - 0.2 and on.depth < 25.0 and absf(throttle) > 0.05:
 			return "OUT OF GEAR! HE'S UNDER THE PROPS!"
@@ -1477,6 +1558,8 @@ func crew_says(at_wheel: bool, throttle: float) -> String:
 		return "HE'S OFF TO %s! %s: SWING HER STERN TO HIM" % [side, key]
 	if int(lines[0]) > 0:
 		return "REEL THE OTHER LINES IN! E ON EACH ROD"
+	if fresh:
+		return "FISH ON ROD %d! E ON IT: TAKE THE ROD" % (on.index + 1)
 	if on.holder != 0 and on.holder != Net.my_id() and on.arms < 0.25:
 		return "YOUR MATE'S ARMS ARE GOING! E ON THE ROD: TAKE OVER"
 	if on.holder == 0 and far < Fight.SQUARE:
@@ -1632,6 +1715,7 @@ func _fight_mine(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	# (the pad's trigger reels as hard as it's pulled; a mouse button's all the way)
 	var crank := Input.get_action_strength("use_primary") if live and Input.is_action_pressed("use_primary") else 0.0
 	var heave := live and Input.is_action_pressed("use_secondary")
+	_crank_now = crank > 0.1
 	var fight := r.fight as Fight
 	if fight == null or fight.in_holder:
 		fight = _new_fight(r)
@@ -1953,7 +2037,8 @@ func _outrigger(r: Rod, boat: Node3D, tangled_in: bool, delta: float) -> void:
 		r.clip = Vector3.INF         # (her kind's changed: no outrigger for it now)
 		r.pole = []
 	if r.clip_on and not clipped and r.hooked:
-		Sfx.play_point(self, r.clip, "collar.pop", 0.9)
+		Sfx.play_point(self, r.clip, "collar.pop", 1.0)
+		Sfx.play_point(self, r.clip, "sea.crack", 0.7, 1.6)       # (the clip's crack, carrying over the boat)
 	r.clip_on = clipped
 	# (up the outrigger slowly as the bait settles back; off it and down fast when it pops)
 	r.clip_k = move_toward(r.clip_k, 1.0 if clipped else 0.0, delta * (0.8 if clipped else 3.0))

@@ -292,7 +292,9 @@ func _ready() -> void:
 	wav.loop_begin = 0
 	wav.loop_end = wav.data.size() / 2
 	_scream.stream = wav
-	_scream.unit_size = 6.0
+	# (loud and carrying: you hear a strike from the wheel, from the bow, from the cabin, and where it came from)
+	_scream.unit_size = 12.0
+	_scream.max_db = 10.0
 	_scream.volume_db = 4.0
 	_scream.position = Vector3(0, 0.1, 0.37)
 	add_child(_scream)
@@ -398,13 +400,14 @@ func _process(delta: float) -> void:
 	noise.clicks = (maxf(paying, 0.0) * 14.0 * small + 140.0 * maxf(slam, 0.0)) if hooked \
 			else (maxf(_len_v, 0.0) * 14.0 if letting else 0.0)     # (a bait let back: the clicker on)
 	noise.strain = strain + 0.3 * maxf(slam, 0.0) if hooked else 0.0
+	noise.taut = clampf(strain, 0.0, 1.2) if hooked and not alongside and slack < 0.05 else 0.0
 	var hiss_k := clampf((maxf(paying, 0.0) + cutting) / 9.0, 0.0, 1.0) * clampf(strain * 1.4, 0.3, 1.0)
 	noise.hiss = hiss_k if hooked else 0.0
 	if hooked and paying > 0.6:
 		if not _scream.playing:
 			_scream.play()
 		_scream.pitch_scale = clampf((0.75 + paying / 14.0) * lerpf(1.0, 1.6, noise.arbor), 0.75, 2.2)
-		_scream.volume_db = lerpf(-6.0, 6.0, clampf(paying / 10.0, 0.0, 1.0))
+		_scream.volume_db = lerpf(-6.0, 6.0, clampf(paying / 10.0, 0.0, 1.0)) + 4.0 * clampf(slam, 0.0, 1.0)
 	elif _scream.playing:
 		_scream.stop()
 	if reeling > 0.05 and not _whir.playing:
@@ -626,7 +629,7 @@ func interact_prompt(player: Node) -> String:
 		if alongside:
 			return "Hold it"   # (keep it up alongside for the harpoon: tuna/landing.gd)
 		if hooked:
-			return "Grab it!"
+			return "TAKE THE ROD! FISH ON"
 		if tangled >= 0:
 			return "Clear the tangle"
 		if bool(spread.call("fighting")):
