@@ -11,55 +11,11 @@ const CUES := {
 	   "afterglow"
 	  ],
 	  "kind": "bed",
-	  "length": 26.84921875,
+	  "length": 26.817125,
 	  "loop": false,
 	  "stems": [
 	   "main"
 	  ]
-	 },
-	 "calm_1": {
-	  "bar_beats": 4,
-	  "bars": 0,
-	  "bpm": 0.0,
-	  "files": [
-	   "calm_1"
-	  ],
-	  "kind": "phrase",
-	  "loop": false,
-	  "mood": "calm"
-	 },
-	 "calm_2": {
-	  "bar_beats": 4,
-	  "bars": 0,
-	  "bpm": 0.0,
-	  "files": [
-	   "calm_2"
-	  ],
-	  "kind": "phrase",
-	  "loop": false,
-	  "mood": "calm"
-	 },
-	 "calm_3": {
-	  "bar_beats": 4,
-	  "bars": 0,
-	  "bpm": 0.0,
-	  "files": [
-	   "calm_3"
-	  ],
-	  "kind": "phrase",
-	  "loop": false,
-	  "mood": "calm"
-	 },
-	 "calm_4": {
-	  "bar_beats": 4,
-	  "bars": 0,
-	  "bpm": 0.0,
-	  "files": [
-	   "calm_4"
-	  ],
-	  "kind": "phrase",
-	  "loop": false,
-	  "mood": "calm"
 	 },
 	 "countdown": {
 	  "bar_beats": 4,
@@ -72,18 +28,6 @@ const CUES := {
 	  "kind": "sting",
 	  "loop": false,
 	  "pre": 0.06
-	 },
-	 "dawn": {
-	  "bar_beats": 4,
-	  "bars": 0,
-	  "bpm": 0.0,
-	  "files": [
-	   "dawn"
-	  ],
-	  "kind": "phrase",
-	  "length": 25.0145625,
-	  "loop": false,
-	  "mood": "dawn"
 	 },
 	 "fight": {
 	  "bar_beats": 4,
@@ -114,30 +58,6 @@ const CUES := {
 	   "deep",
 	   "tune"
 	  ]
-	 },
-	 "fog_1": {
-	  "bar_beats": 4,
-	  "bars": 0,
-	  "bpm": 0.0,
-	  "files": [
-	   "fog_1"
-	  ],
-	  "kind": "phrase",
-	  "length": 20.31396875,
-	  "loop": false,
-	  "mood": "fog"
-	 },
-	 "fog_2": {
-	  "bar_beats": 4,
-	  "bars": 0,
-	  "bpm": 0.0,
-	  "files": [
-	   "fog_2"
-	  ],
-	  "kind": "phrase",
-	  "length": 18.47290625,
-	  "loop": false,
-	  "mood": "fog"
 	 },
 	 "gaff": {
 	  "bar_beats": 4,
@@ -269,30 +189,6 @@ const CUES := {
 	  "loop": false,
 	  "pre": 0.06
 	 },
-	 "night_1": {
-	  "bar_beats": 4,
-	  "bars": 0,
-	  "bpm": 0.0,
-	  "files": [
-	   "night_1"
-	  ],
-	  "kind": "phrase",
-	  "length": 22.12215625,
-	  "loop": false,
-	  "mood": "night"
-	 },
-	 "night_2": {
-	  "bar_beats": 4,
-	  "bars": 0,
-	  "bpm": 0.0,
-	  "files": [
-	   "night_2"
-	  ],
-	  "kind": "phrase",
-	  "length": 21.30984375,
-	  "loop": false,
-	  "mood": "night"
-	 },
 	 "race": {
 	  "bar_beats": 2,
 	  "bars": 32,
@@ -313,53 +209,167 @@ const CUES := {
 	   "d"
 	  ]
 	 },
-	 "rain_1": {
+	 "sea_a": {
 	  "bar_beats": 4,
-	  "bars": 0,
-	  "bpm": 0.0,
+	  "bars": 8,
+	  "bpm": 112.0,
+	  "bright": true,
 	  "files": [
-	   "rain_1"
+	   "sea_a_pad",
+	   "sea_a_bass",
+	   "sea_a_pick",
+	   "sea_a_lead",
+	   "sea_a_rain",
+	   "sea_a_storm",
+	   "sea_a_night"
 	  ],
-	  "kind": "phrase",
-	  "length": 22.45353125,
-	  "loop": false,
-	  "mood": "rain"
+	  "kind": "bed",
+	  "length": 17.14284375,
+	  "loop": true,
+	  "stems": [
+	   "pad",
+	   "bass",
+	   "pick",
+	   "lead",
+	   "rain",
+	   "storm",
+	   "night"
+	  ]
 	 },
-	 "rain_2": {
+	 "sea_b": {
 	  "bar_beats": 4,
-	  "bars": 0,
-	  "bpm": 0.0,
+	  "bars": 8,
+	  "bpm": 112.0,
+	  "bright": true,
 	  "files": [
-	   "rain_2"
+	   "sea_b_pad",
+	   "sea_b_bass",
+	   "sea_b_pick",
+	   "sea_b_lead",
+	   "sea_b_rain",
+	   "sea_b_storm",
+	   "sea_b_night"
 	  ],
-	  "kind": "phrase",
-	  "length": 21.2343125,
-	  "loop": false,
-	  "mood": "rain"
+	  "kind": "bed",
+	  "length": 17.14284375,
+	  "loop": true,
+	  "stems": [
+	   "pad",
+	   "bass",
+	   "pick",
+	   "lead",
+	   "rain",
+	   "storm",
+	   "night"
+	  ]
 	 },
-	 "storm_1": {
+	 "sea_c": {
 	  "bar_beats": 4,
-	  "bars": 0,
-	  "bpm": 0.0,
+	  "bars": 8,
+	  "bpm": 112.0,
+	  "bright": false,
 	  "files": [
-	   "storm_1"
+	   "sea_c_pad",
+	   "sea_c_bass",
+	   "sea_c_pick",
+	   "sea_c_lead",
+	   "sea_c_rain",
+	   "sea_c_storm",
+	   "sea_c_night"
 	  ],
-	  "kind": "phrase",
-	  "length": 17.9634375,
-	  "loop": false,
-	  "mood": "storm"
+	  "kind": "bed",
+	  "length": 17.14284375,
+	  "loop": true,
+	  "stems": [
+	   "pad",
+	   "bass",
+	   "pick",
+	   "lead",
+	   "rain",
+	   "storm",
+	   "night"
+	  ]
 	 },
-	 "storm_2": {
+	 "sea_d": {
 	  "bar_beats": 4,
-	  "bars": 0,
-	  "bpm": 0.0,
+	  "bars": 8,
+	  "bpm": 112.0,
+	  "bright": false,
 	  "files": [
-	   "storm_2"
+	   "sea_d_pad",
+	   "sea_d_bass",
+	   "sea_d_pick",
+	   "sea_d_lead",
+	   "sea_d_rain",
+	   "sea_d_storm",
+	   "sea_d_night"
 	  ],
-	  "kind": "phrase",
-	  "length": 17.024125,
-	  "loop": false,
-	  "mood": "storm"
+	  "kind": "bed",
+	  "length": 17.14284375,
+	  "loop": true,
+	  "stems": [
+	   "pad",
+	   "bass",
+	   "pick",
+	   "lead",
+	   "rain",
+	   "storm",
+	   "night"
+	  ]
+	 },
+	 "sea_e": {
+	  "bar_beats": 4,
+	  "bars": 8,
+	  "bpm": 112.0,
+	  "bright": true,
+	  "files": [
+	   "sea_e_pad",
+	   "sea_e_bass",
+	   "sea_e_pick",
+	   "sea_e_lead",
+	   "sea_e_rain",
+	   "sea_e_storm",
+	   "sea_e_night"
+	  ],
+	  "kind": "bed",
+	  "length": 17.14284375,
+	  "loop": true,
+	  "stems": [
+	   "pad",
+	   "bass",
+	   "pick",
+	   "lead",
+	   "rain",
+	   "storm",
+	   "night"
+	  ]
+	 },
+	 "sea_f": {
+	  "bar_beats": 4,
+	  "bars": 8,
+	  "bpm": 112.0,
+	  "bright": false,
+	  "files": [
+	   "sea_f_pad",
+	   "sea_f_bass",
+	   "sea_f_pick",
+	   "sea_f_lead",
+	   "sea_f_rain",
+	   "sea_f_storm",
+	   "sea_f_night"
+	  ],
+	  "kind": "bed",
+	  "length": 17.14284375,
+	  "loop": true,
+	  "stems": [
+	   "pad",
+	   "bass",
+	   "pick",
+	   "lead",
+	   "rain",
+	   "storm",
+	   "night"
+	  ]
 	 },
 	 "strike": {
 	  "bar_beats": 4,

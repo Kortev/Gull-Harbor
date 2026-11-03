@@ -1,6 +1,6 @@
 extends Node
 ## The music's state (audio/music_state.gd), no sound at all: game pictures in, section, stems and events out. The quiet
-## at sea and its phrases by the weather; birds working bring in the hunt; the strike; a fresh fish's runs drive it,
+## sea's endless song by the weather; birds working bring in the hunt; the strike; a fresh fish's runs drive it,
 ## his sounding takes it deep, a slack line drops the pulse, him in the air all but stops it, the line about to part
 ## strips it to the heartbeat and one note; tiring, the tune; the leader; boatside, the harpoon; landed, the
 ## afterglow; lost, silence. It never hears the hook's hold. Rivals: their fish on, the lead, the race home behind.
@@ -13,7 +13,7 @@ var fails: Array[String] = []
 
 
 func _ready() -> void:
-	_quiet()
+	_sea()
 	_hunt()
 	_fight()
 	_fair()
@@ -38,39 +38,47 @@ func _fish(more := {}) -> Dictionary:
 	return f
 
 
-func _quiet() -> void:
+func _sea() -> void:
 	var s := State.new(7)
-	var w := {"condition": "calm", "docked": false, "day": 0.3}
-	var ev := _run(s, w, 17.0)
-	var ph := ev.filter(func(e: String) -> bool: return e.begins_with("phrase:"))
-	_check(s.section == "rest" and ph.size() == 1 and str(ph[0]).begins_with("phrase:calm_"),
-			"at sea, nothing on: the quiet, a calm phrase soon (%s)" % [ph])
-	_check(s.phrase_wait > 40.0, "and a long silence after it (%.0f s)" % s.phrase_wait)
-	ev = _run(s, w, 40.0)
-	_check(ev.filter(func(e: String) -> bool: return e.begins_with("phrase:")).is_empty(), "no phrase in the silence")
-	var st := State.new(3)
-	ev = _run(st, {"condition": "storm", "docked": false, "day": 0.3}, 17.0)
-	ph = ev.filter(func(e: String) -> bool: return e.begins_with("phrase:"))
-	_check(ph.size() == 1 and str(ph[0]).begins_with("phrase:storm_") and st.mood == "storm",
-			"a storm: only its low swells, no tune (%s)" % [ph])
-	var tk := State.new(5)
-	ev = _run(tk, {"condition": "fog", "docked": false, "day": 0.3, "talking": true}, 30.0)
-	_check(ev.filter(func(e: String) -> bool: return e.begins_with("phrase:")).is_empty(),
-			"nobody starts a phrase over the radio")
+	_run(s, {"condition": "calm", "docked": false, "day": 0.3}, 6.0)
+	_check(s.section == "sea" and s.level("pick") > 0.95 and s.level("lead") > 0.85 and s.level("storm") == 0.0,
+			"at sea, nothing on: the sea's song, fair weather's guitar and lead (%s)" % s.section)
+	_check(s.bright > 0.7, "leaning to the bright passages (%.2f)" % s.bright)
+	_run(s, {"condition": "storm", "docked": false, "day": 0.3}, 1.0)
+	_check(s.level("storm") > 0.1 and s.level("storm") < 0.9 and s.level("pick") > 0.1,
+			"the storm coming on: its drums rising as the guitar goes, not switched (%.2f, %.2f)"
+			% [s.level("storm"), s.level("pick")])
+	_run(s, {"condition": "storm", "docked": false, "day": 0.3}, 7.0)
+	_check(s.level("storm") > 0.95 and s.level("pick") == 0.0 and s.level("lead") == 0.0 and s.bright == 0.0,
+			"a storm: the drums and the drone, no tune, the dark passages")
+	_run(s, {"condition": "rain", "docked": false, "day": 0.3}, 8.0)
+	_check(s.level("rain") > 0.95 and s.level("storm") < 0.05, "rain: the patter")
+	_run(s, {"condition": "calm", "docked": false, "night": true}, 8.0)
+	_check(s.mood == "night" and s.level("night") > 0.95, "dark: the night's bells")
+	_run(s, {"condition": "calm", "docked": false, "day": 0.98}, 0.1)
+	_check(s.bright < 0.45, "dusk: darker (%.2f)" % s.bright)
 	var dn := State.new(1)
 	_run(dn, {"docked": true}, 1.0)
-	ev = _run(dn, {"docked": false, "day": 0.02, "condition": "calm"}, 0.5)
-	_check(ev.has("dawn") and ev.has("phrase:dawn"), "heading out at first light: the dawn's phrase (%s)" % [ev])
-	ev = _run(dn, {"docked": false, "day": 0.03, "condition": "night"}, 1.0)
+	var ev := _run(dn, {"docked": false, "day": 0.02, "condition": "rain"}, DT)
+	_check(ev.has("dawn") and dn.bright == 1.0, "heading out at first light: a bright passage next (%s)" % [ev])
+	ev = _run(dn, {"docked": false, "day": 0.03, "condition": "rain"}, 1.0)
 	_check(not ev.has("dawn"), "once a trip")
-	_run(dn, {"docked": false, "condition": "calm", "night": true}, 0.1)
-	_check(dn.mood == "night", "dark: the night's mood")
+	# never quiet at sea, whatever happens, but for the hush
+	var n := State.new(2)
+	var quiet := 0.0
+	for w: Dictionary in [{"docked": false}, {"docked": false, "birds": 0.5}, {"docked": true},
+			{"docked": true, "condition": "storm"}, {"docked": false, "race_left": 100.0}, {"docked": false}]:
+		for i in int(6.0 / DT):
+			n.step(w, DT)
+			if n.section == "rest":
+				quiet += DT
+	_check(quiet == 0.0, "never quiet, out or in, birds or none, any weather (%.1f s quiet)" % quiet)
 
 
 func _hunt() -> void:
 	var s := State.new(2)
 	_run(s, {"docked": false, "birds": 0.05}, 1.0)
-	_check(s.section == "rest", "birds far off: nothing")
+	_check(s.section == "sea", "birds far off: the sea")
 	_run(s, {"docked": false, "birds": 0.6}, 3.0)
 	_check(s.section == "hunt" and s.level("pulse") > 0.9 and s.level("tick") > 0.4,
 			"birds working near: the hunt (pulse %.2f, tick %.2f)" % [s.level("pulse"), s.level("tick")])
@@ -79,11 +87,11 @@ func _hunt() -> void:
 	_run(s, {"docked": true}, 1.0)
 	_check(s.section == "harbour", "tied up: the harbour")
 	var h := State.new(21)
-	var ev := _run(h, {"docked": true, "condition": "storm"}, 17.0)
-	_check(h.section == "rest" and (ev.has("phrase:storm_1") or ev.has("phrase:storm_2")),
-			"tied up in a thunderstorm: no waltz, the storm's own low swells (%s, %s)" % [h.section, ev])
+	_run(h, {"docked": true, "condition": "storm"}, 8.0)
+	_check(h.section == "sea" and h.level("storm") > 0.95, "tied up in a thunderstorm: no waltz, the sea's storm (%s)"
+			% h.section)
 	_run(h, {"docked": true, "condition": "heavy"}, 1.0)
-	_check(h.section == "rest", "a downpour at the dock: no waltz either")
+	_check(h.section == "sea", "a downpour at the dock: no waltz either")
 	_run(h, {"docked": true, "condition": "rain"}, 3.0)
 	_check(h.section == "harbour" and h.level("reed") == 0.0 and h.level("guitar") < 0.7,
 			"rain: the guitar alone, quieter (%.2f)" % h.level("guitar"))
@@ -203,17 +211,19 @@ func _ends() -> void:
 	_check(s.level("pulse") < 0.05 and s.level("bed") < 0.1, "the harpoon in the air: silence")
 	ev = _run(s, {"docked": false, "alongside": [], "landed": 1}, DT)
 	_check(ev.has("landed") and s.section == "afterglow", "he's in: the afterglow (%s)" % s.section)
-	_check(s.phrase_wait > 45.0, "and a long quiet after (%.0f s)" % s.phrase_wait)
 	_run(s, {"docked": false, "landed": 1}, 30.0)
-	_check(s.section == "rest", "then the quiet (%s)" % s.section)
+	_check(s.section == "sea", "then the sea again (%s)" % s.section)
 	# lost
 	var l := State.new(11)
 	_run(l, {"docked": false, "fights": [_fish()]}, 2.0)
 	ev = _run(l, {"docked": false}, DT)
 	_check(ev.has("lost") and l.hush >= 5.9 and l.section == "rest", "the line goes: lost, the hush (%.1f s)" % l.hush)
-	_check(l.phrase_wait >= 60.0, "no phrase for a minute after (%.0f s)" % l.phrase_wait)
 	ev = _run(l, {"docked": false, "birds": 0.9}, 3.0)
 	_check(l.section == "rest", "even birds wait out the silence")
+	_run(l, {"docked": false}, 3.5)
+	_check(l.section == "sea", "then the sea comes back (%s)" % l.section)
+	_run(l, {"docked": false, "fights": [_fish()]}, 2.0)
+	_run(l, {"docked": false}, DT)
 	ev = _run(l, {"docked": false, "fights": [_fish({"id": "1:9.00"})]}, DT)
 	_check(ev.has("strike") and l.hush == 0.0 and l.section == "fight", "but another fish on breaks it")
 	# away from alongside

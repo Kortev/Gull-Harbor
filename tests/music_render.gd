@@ -1,7 +1,7 @@
 extends Node
 ## The music played through the real mixer and written down (Godot's movie maker: the frames and a .wav of
-## everything heard), for tools/music_check.py to listen to: a whole fish from the birds to the afterglow, then
-## another lost. No sea, no game: audio/music.gd is handed each moment's world (world_test). At the end the clips
+## everything heard), for tools/music_check.py to listen to: the sea, a whole fish from the birds to the
+## afterglow, then another lost, and the sea again for two of its passages. No sea, no game: audio/music.gd is handed each moment's world (world_test). At the end the clips
 ## and stings it played, and when, go next to the .wav as <name>.json.
 ## Run: tools/music_check.sh   (or: godot --path . --fixed-fps 30 --write-movie <dir>/f.png
 ##      res://tests/music_render.tscn -- --out=<dir>/f.json; python tools/music_check.py <dir>)
@@ -12,12 +12,26 @@ var m: Node
 var t := 0.0
 var out := ""
 var until := INF
+var weather := false
 
 
 func _fish(more := {}) -> Dictionary:
 	var f := {"id": "0:1.00", "tension": 0.3, "spool": 0.2, "depth": 10.0, "line_out": 150.0, "move": "run"}
 	f.merge(more, true)
 	return f
+
+
+## (--sea) The sea alone through the weather: fair, rain, a storm, night, a fair dusk.
+func _weather() -> Array:
+	return [
+		[0.0, {"docked": false, "condition": "calm", "day": 0.3}],
+		[35.0, {"docked": false, "condition": "rain", "day": 0.4}],
+		[70.0, {"docked": false, "condition": "storm", "day": 0.5}],
+		[105.0, {"docked": false, "condition": "calm", "night": true, "day": 1.2}],
+		[140.0, {"docked": false, "condition": "fog", "day": 0.6}],
+		[170.0, {"docked": false, "condition": "sunny", "day": 0.95}],
+		[205.0, {}],
+	]
 
 
 ## [from s, world]: each holds till the next.
@@ -43,7 +57,7 @@ func _script() -> Array:
 		[56.8, at.call({"landed": 1})],
 		[88.0, at.call({"landed": 1, "fights": [_fish({"id": "1:88.0"})]})],
 		[96.0, at.call({"landed": 1})],
-		[106.0, {}],
+		[146.0, {}],
 	]
 
 
@@ -54,11 +68,13 @@ func _ready() -> void:
 			out = a.substr(6)
 		elif a.begins_with("--until="):
 			until = float(a.substr(8))
+		elif a == "--sea":
+			weather = true
 
 
 func _process(delta: float) -> void:
 	t += delta
-	var s := _script()
+	var s := _weather() if weather else _script()
 	var w: Dictionary = s[0][1]
 	for step: Array in s:
 		if t >= float(step[0]):

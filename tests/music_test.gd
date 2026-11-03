@@ -1,8 +1,9 @@
 extends Node
 ## The music (audio/music.gd) follows the real game, and its switches land on the grid: the title theme while the
-## title's up; SOLO, and once the glide's done the quiet at sea (a phrase soon after); dusk and the race home on the
+## title's up; SOLO, and once the glide's done the harbour; heading out, the sea's endless song, one passage into
+## the next on its grid; dusk and the race home on the
 ## next bar, its rhythm first; tied up, the harbour; a fish on, the strike's sting and the fight on the next beat;
-## the radio ducks it. Rivals: the countdown's sting (nothing else under it), and the results card's as its stamp
+## the radio ducks it. Never quiet but under Rivals' countdown and card. Rivals: the countdown's sting (nothing else under it), and the results card's as its stamp
 ## lands (your boat won: win). audio/music_state.gd's own test has the music's mind; this is it playing.
 ## Run: godot --headless --fixed-fps 30 --path . res://tests/music_test.tscn
 
@@ -24,6 +25,7 @@ func _ready() -> void:
 	add_child(sea)
 	await get_tree().process_frame
 	sea.schools.set("_next", 9999.0)
+	sea.set_condition("calm")          # (the weather's dice: a storm at the dock has no waltz)
 	var t := Title.new()
 	t.name = "Title"
 	t.sea = sea
@@ -45,20 +47,21 @@ func _ready() -> void:
 	_check(m.sounding == "harbour" and _on_grid("clip:harbour", "bar"), "on the title's bar")
 	sea.fish_hold.head_out()
 	await _frames(2)
-	_check(m.cue == "rest", "heading out: the quiet at sea (%s)" % m.cue)
-	await _secs(1.5)
-	_check(m.sounding == "rest" and _on_grid("clip:rest", "beat"), "on the harbour's beat")
-	waited = 0.0
-	while m.phrase == "" and waited < 20.0:
-		await get_tree().process_frame
-		waited += DT
-	_check(m.phrase != "", "a phrase soon after (%s, %.0f s in)" % [m.phrase, waited])
+	_check(m.cue == "sea", "heading out: the sea's song (%s)" % m.cue)
+	await _secs(2.5)
+	_check(m.sounding.begins_with("sea_") and _on_grid("clip:" + m.sounding, "bar"), "on the harbour's bar (%s)"
+			% m.sounding)
+	var first: String = m.sounding
+	await _secs(18.0)
+	_check(m.sounding.begins_with("sea_") and m.sounding != first and _on_grid("clip:" + m.sounding, "bar"),
+			"and on into another passage as that one ends, on its grid (%s, %s)" % [first, m.sounding])
 	# dusk: the race home (time's up in Sea.HOME s)
 	sea.call("_set_home", float(sea.ocean.wave_time) + Sea.HOME)
 	await _frames(2)
 	_check(m.cue == "race", "dusk, still out: the race home (%s)" % m.cue)
 	await _secs(0.5)
-	_check(m.sounding == "race", "from the quiet, straight in")
+	_check(m.sounding == "race" or m.cue == "race", "the jig on the sea's next bar")
+	await _secs(2.0)
 	var mix: Array = m.race_mix()
 	_check(float(mix[0]) == 1.0 and float(mix[2]) < 0.1 and float(mix[3]) == 0.0,
 			"the time just started: the rhythm, no urgency (%s)" % [mix])
