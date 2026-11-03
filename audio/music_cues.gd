@@ -3,32 +3,31 @@ extends RefCounted
 ## timing (bpm: beats a minute, bar_beats, bars), whether it loops, its stems; stings their hit (s in).
 
 const CUES := {
-	 "afterglow": {
+	 "away_in": {
 	  "bar_beats": 4,
-	  "bars": 10,
-	  "bpm": 112.0,
-	  "chord_beats": 4,
-	  "chords": [
-	   "D",
-	   "D",
-	   "G",
-	   "D",
-	   "A",
-	   "D",
-	   "G",
-	   "Em",
-	   "A",
-	   "D"
-	  ],
+	  "bars": 0,
+	  "bpm": 0.0,
 	  "files": [
-	   "afterglow"
+	   "away_in"
 	  ],
-	  "kind": "bed",
-	  "length": 25.44190625,
+	  "kind": "sting",
+	  "lead_in": true,
+	  "length": 1.0714285714285714,
 	  "loop": false,
-	  "stems": [
-	   "main"
-	  ]
+	  "pre": 0.06
+	 },
+	 "boatside_end": {
+	  "bar_beats": 4,
+	  "bars": 0,
+	  "bpm": 0.0,
+	  "files": [
+	   "boatside_end"
+	  ],
+	  "hit": 0.0,
+	  "kind": "sting",
+	  "loop": false,
+	  "pre": 0.06,
+	  "tail": true
 	 },
 	 "countdown": {
 	  "bar_beats": 4,
@@ -42,145 +41,30 @@ const CUES := {
 	  "loop": false,
 	  "pre": 0.06
 	 },
-	 "fight": {
+	 "hunt_in": {
 	  "bar_beats": 4,
-	  "bars": 16,
-	  "bpm": 112.0,
-	  "chord_beats": 4,
-	  "chords": [
-	   "Bm",
-	   "Bm",
-	   "G",
-	   "G",
-	   "Em",
-	   "Em",
-	   "F#",
-	   "F#",
-	   "Bm",
-	   "Bm",
-	   "G",
-	   "G",
-	   "Em",
-	   "Em",
-	   "F#",
-	   "F#"
-	  ],
+	  "bars": 0,
+	  "bpm": 0.0,
 	  "files": [
-	   "fight_bed",
-	   "fight_pulse",
-	   "fight_drive",
-	   "fight_shaker",
-	   "fight_click",
-	   "fight_tension",
-	   "fight_tension_hi",
-	   "fight_deep",
-	   "fight_tune",
-	   "fight_heavy"
+	   "hunt_in"
 	  ],
-	  "kind": "bed",
-	  "length": 34.28571875,
-	  "loop": true,
-	  "stems": [
-	   "bed",
-	   "pulse",
-	   "drive",
-	   "shaker",
-	   "click",
-	   "tension",
-	   "tension_hi",
-	   "deep",
-	   "tune",
-	   "heavy"
-	  ]
+	  "kind": "sting",
+	  "lead_in": true,
+	  "length": 1.0714285714285714,
+	  "loop": false,
+	  "pre": 0.06
 	 },
-	 "gaff": {
+	 "landed": {
 	  "bar_beats": 4,
-	  "bars": 4,
-	  "bpm": 112.0,
-	  "chord_beats": 4,
-	  "chords": [
-	   "F#",
-	   "F#",
-	   "F#",
-	   "F#"
-	  ],
+	  "bars": 0,
+	  "bpm": 0.0,
 	  "files": [
-	   "gaff_bed",
-	   "gaff_pulse",
-	   "gaff_shimmer"
+	   "landed"
 	  ],
-	  "kind": "bed",
-	  "length": 8.5714375,
-	  "loop": true,
-	  "stems": [
-	   "bed",
-	   "pulse",
-	   "shimmer"
-	  ]
-	 },
-	 "harbour": {
-	  "bar_beats": 3,
-	  "bars": 16,
-	  "bpm": 84.0,
-	  "chord_beats": 3,
-	  "chords": [
-	   "G",
-	   "C",
-	   "G",
-	   "D",
-	   "G",
-	   "C",
-	   "D",
-	   "G",
-	   "Em",
-	   "C",
-	   "G",
-	   "D",
-	   "G",
-	   "C",
-	   "D",
-	   "G"
-	  ],
-	  "files": [
-	   "harbour_guitar",
-	   "harbour_reed"
-	  ],
-	  "kind": "bed",
-	  "length": 34.28571875,
-	  "loop": true,
-	  "stems": [
-	   "guitar",
-	   "reed"
-	  ]
-	 },
-	 "hunt": {
-	  "bar_beats": 4,
-	  "bars": 8,
-	  "bpm": 112.0,
-	  "chord_beats": 4,
-	  "chords": [
-	   "Bm",
-	   "Bm",
-	   "Bm",
-	   "Bm",
-	   "G",
-	   "G",
-	   "F#",
-	   "F#"
-	  ],
-	  "files": [
-	   "hunt_pulse",
-	   "hunt_tick",
-	   "hunt_glint"
-	  ],
-	  "kind": "bed",
-	  "length": 17.14284375,
-	  "loop": true,
-	  "stems": [
-	   "pulse",
-	   "tick",
-	   "glint"
-	  ]
+	  "hit": 0.0,
+	  "kind": "sting",
+	  "loop": false,
+	  "pre": 0.06
 	 },
 	 "lead_down": {
 	  "bar_beats": 4,
@@ -206,57 +90,15 @@ const CUES := {
 	  "loop": false,
 	  "pre": 0.06
 	 },
-	 "leader": {
-	  "bar_beats": 4,
-	  "bars": 8,
-	  "bpm": 112.0,
-	  "chord_beats": 4,
-	  "chords": [
-	   "Bm",
-	   "G",
-	   "D",
-	   "A",
-	   "G",
-	   "D",
-	   "A",
-	   "D"
-	  ],
-	  "files": [
-	   "leader_bed",
-	   "leader_pulse",
-	   "leader_drive",
-	   "leader_shaker",
-	   "leader_click",
-	   "leader_tension",
-	   "leader_tension_hi",
-	   "leader_deep",
-	   "leader_tune",
-	   "leader_heavy"
-	  ],
-	  "kind": "bed",
-	  "length": 17.14284375,
-	  "loop": true,
-	  "stems": [
-	   "bed",
-	   "pulse",
-	   "drive",
-	   "shaker",
-	   "click",
-	   "tension",
-	   "tension_hi",
-	   "deep",
-	   "tune",
-	   "heavy"
-	  ]
-	 },
 	 "leader_in": {
 	  "bar_beats": 4,
 	  "bars": 0,
-	  "bpm": 112.0,
+	  "bpm": 0.0,
 	  "files": [
 	   "leader_in"
 	  ],
-	  "kind": "filler",
+	  "kind": "sting",
+	  "lead_in": true,
 	  "length": 1.0714285714285714,
 	  "loop": false,
 	  "pre": 0.06
@@ -273,60 +115,31 @@ const CUES := {
 	  "loop": false,
 	  "pre": 0.06
 	 },
-	 "race": {
+	 "race_end": {
 	  "bar_beats": 4,
-	  "bars": 16,
-	  "bpm": 112.0,
-	  "chord_beats": 2,
-	  "chords": [
-	   "Em",
-	   "Em",
-	   "D",
-	   "D",
-	   "Em",
-	   "Em",
-	   "Bm",
-	   "Em",
-	   "G",
-	   "D",
-	   "Em",
-	   "Bm",
-	   "G",
-	   "D",
-	   "Bm",
-	   "Em",
-	   "Em",
-	   "Em",
-	   "D",
-	   "D",
-	   "Em",
-	   "Em",
-	   "Bm",
-	   "Em",
-	   "G",
-	   "D",
-	   "Em",
-	   "Bm",
-	   "G",
-	   "D",
-	   "Bm",
-	   "Em"
-	  ],
+	  "bars": 0,
+	  "bpm": 0.0,
 	  "files": [
-	   "race_a",
-	   "race_b",
-	   "race_c",
-	   "race_d"
+	   "race_end"
 	  ],
-	  "kind": "bed",
-	  "length": 34.28571875,
-	  "loop": true,
-	  "stems": [
-	   "a",
-	   "b",
-	   "c",
-	   "d"
-	  ]
+	  "hit": 0.0,
+	  "kind": "sting",
+	  "loop": false,
+	  "pre": 0.06,
+	  "tail": true
+	 },
+	 "race_in": {
+	  "bar_beats": 4,
+	  "bars": 0,
+	  "bpm": 0.0,
+	  "files": [
+	   "race_in"
+	  ],
+	  "kind": "sting",
+	  "lead_in": true,
+	  "length": 1.0714285714285714,
+	  "loop": false,
+	  "pre": 0.06
 	 },
 	 "sea_a": {
 	  "bar_beats": 4,
@@ -349,11 +162,19 @@ const CUES := {
 	   "sea_a_bass",
 	   "sea_a_pick",
 	   "sea_a_lead",
+	   "sea_a_high",
 	   "sea_a_rain",
 	   "sea_a_storm",
 	   "sea_a_night",
 	   "sea_a_run",
-	   "sea_a_fill"
+	   "sea_a_fill",
+	   "sea_a_pulse",
+	   "sea_a_glint",
+	   "sea_a_beat",
+	   "sea_a_drive",
+	   "sea_a_tension",
+	   "sea_a_deep",
+	   "sea_a_heavy"
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
@@ -363,11 +184,19 @@ const CUES := {
 	   "bass",
 	   "pick",
 	   "lead",
+	   "high",
 	   "rain",
 	   "storm",
 	   "night",
 	   "run",
-	   "fill"
+	   "fill",
+	   "pulse",
+	   "glint",
+	   "beat",
+	   "drive",
+	   "tension",
+	   "deep",
+	   "heavy"
 	  ]
 	 },
 	 "sea_b": {
@@ -391,11 +220,19 @@ const CUES := {
 	   "sea_b_bass",
 	   "sea_b_pick",
 	   "sea_b_lead",
+	   "sea_b_high",
 	   "sea_b_rain",
 	   "sea_b_storm",
 	   "sea_b_night",
 	   "sea_b_run",
-	   "sea_b_fill"
+	   "sea_b_fill",
+	   "sea_b_pulse",
+	   "sea_b_glint",
+	   "sea_b_beat",
+	   "sea_b_drive",
+	   "sea_b_tension",
+	   "sea_b_deep",
+	   "sea_b_heavy"
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
@@ -405,11 +242,19 @@ const CUES := {
 	   "bass",
 	   "pick",
 	   "lead",
+	   "high",
 	   "rain",
 	   "storm",
 	   "night",
 	   "run",
-	   "fill"
+	   "fill",
+	   "pulse",
+	   "glint",
+	   "beat",
+	   "drive",
+	   "tension",
+	   "deep",
+	   "heavy"
 	  ]
 	 },
 	 "sea_c": {
@@ -433,11 +278,19 @@ const CUES := {
 	   "sea_c_bass",
 	   "sea_c_pick",
 	   "sea_c_lead",
+	   "sea_c_high",
 	   "sea_c_rain",
 	   "sea_c_storm",
 	   "sea_c_night",
 	   "sea_c_run",
-	   "sea_c_fill"
+	   "sea_c_fill",
+	   "sea_c_pulse",
+	   "sea_c_glint",
+	   "sea_c_beat",
+	   "sea_c_drive",
+	   "sea_c_tension",
+	   "sea_c_deep",
+	   "sea_c_heavy"
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
@@ -447,11 +300,19 @@ const CUES := {
 	   "bass",
 	   "pick",
 	   "lead",
+	   "high",
 	   "rain",
 	   "storm",
 	   "night",
 	   "run",
-	   "fill"
+	   "fill",
+	   "pulse",
+	   "glint",
+	   "beat",
+	   "drive",
+	   "tension",
+	   "deep",
+	   "heavy"
 	  ]
 	 },
 	 "sea_d": {
@@ -475,11 +336,19 @@ const CUES := {
 	   "sea_d_bass",
 	   "sea_d_pick",
 	   "sea_d_lead",
+	   "sea_d_high",
 	   "sea_d_rain",
 	   "sea_d_storm",
 	   "sea_d_night",
 	   "sea_d_run",
-	   "sea_d_fill"
+	   "sea_d_fill",
+	   "sea_d_pulse",
+	   "sea_d_glint",
+	   "sea_d_beat",
+	   "sea_d_drive",
+	   "sea_d_tension",
+	   "sea_d_deep",
+	   "sea_d_heavy"
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
@@ -489,11 +358,19 @@ const CUES := {
 	   "bass",
 	   "pick",
 	   "lead",
+	   "high",
 	   "rain",
 	   "storm",
 	   "night",
 	   "run",
-	   "fill"
+	   "fill",
+	   "pulse",
+	   "glint",
+	   "beat",
+	   "drive",
+	   "tension",
+	   "deep",
+	   "heavy"
 	  ]
 	 },
 	 "sea_e": {
@@ -517,11 +394,19 @@ const CUES := {
 	   "sea_e_bass",
 	   "sea_e_pick",
 	   "sea_e_lead",
+	   "sea_e_high",
 	   "sea_e_rain",
 	   "sea_e_storm",
 	   "sea_e_night",
 	   "sea_e_run",
-	   "sea_e_fill"
+	   "sea_e_fill",
+	   "sea_e_pulse",
+	   "sea_e_glint",
+	   "sea_e_beat",
+	   "sea_e_drive",
+	   "sea_e_tension",
+	   "sea_e_deep",
+	   "sea_e_heavy"
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
@@ -531,11 +416,19 @@ const CUES := {
 	   "bass",
 	   "pick",
 	   "lead",
+	   "high",
 	   "rain",
 	   "storm",
 	   "night",
 	   "run",
-	   "fill"
+	   "fill",
+	   "pulse",
+	   "glint",
+	   "beat",
+	   "drive",
+	   "tension",
+	   "deep",
+	   "heavy"
 	  ]
 	 },
 	 "sea_f": {
@@ -559,11 +452,19 @@ const CUES := {
 	   "sea_f_bass",
 	   "sea_f_pick",
 	   "sea_f_lead",
+	   "sea_f_high",
 	   "sea_f_rain",
 	   "sea_f_storm",
 	   "sea_f_night",
 	   "sea_f_run",
-	   "sea_f_fill"
+	   "sea_f_fill",
+	   "sea_f_pulse",
+	   "sea_f_glint",
+	   "sea_f_beat",
+	   "sea_f_drive",
+	   "sea_f_tension",
+	   "sea_f_deep",
+	   "sea_f_heavy"
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
@@ -573,11 +474,19 @@ const CUES := {
 	   "bass",
 	   "pick",
 	   "lead",
+	   "high",
 	   "rain",
 	   "storm",
 	   "night",
 	   "run",
-	   "fill"
+	   "fill",
+	   "pulse",
+	   "glint",
+	   "beat",
+	   "drive",
+	   "tension",
+	   "deep",
+	   "heavy"
 	  ]
 	 },
 	 "sea_g": {
@@ -601,11 +510,19 @@ const CUES := {
 	   "sea_g_bass",
 	   "sea_g_pick",
 	   "sea_g_lead",
+	   "sea_g_high",
 	   "sea_g_rain",
 	   "sea_g_storm",
 	   "sea_g_night",
 	   "sea_g_run",
-	   "sea_g_fill"
+	   "sea_g_fill",
+	   "sea_g_pulse",
+	   "sea_g_glint",
+	   "sea_g_beat",
+	   "sea_g_drive",
+	   "sea_g_tension",
+	   "sea_g_deep",
+	   "sea_g_heavy"
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
@@ -615,11 +532,19 @@ const CUES := {
 	   "bass",
 	   "pick",
 	   "lead",
+	   "high",
 	   "rain",
 	   "storm",
 	   "night",
 	   "run",
-	   "fill"
+	   "fill",
+	   "pulse",
+	   "glint",
+	   "beat",
+	   "drive",
+	   "tension",
+	   "deep",
+	   "heavy"
 	  ]
 	 },
 	 "sea_h": {
@@ -643,11 +568,19 @@ const CUES := {
 	   "sea_h_bass",
 	   "sea_h_pick",
 	   "sea_h_lead",
+	   "sea_h_high",
 	   "sea_h_rain",
 	   "sea_h_storm",
 	   "sea_h_night",
 	   "sea_h_run",
-	   "sea_h_fill"
+	   "sea_h_fill",
+	   "sea_h_pulse",
+	   "sea_h_glint",
+	   "sea_h_beat",
+	   "sea_h_drive",
+	   "sea_h_tension",
+	   "sea_h_deep",
+	   "sea_h_heavy"
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
@@ -657,11 +590,19 @@ const CUES := {
 	   "bass",
 	   "pick",
 	   "lead",
+	   "high",
 	   "rain",
 	   "storm",
 	   "night",
 	   "run",
-	   "fill"
+	   "fill",
+	   "pulse",
+	   "glint",
+	   "beat",
+	   "drive",
+	   "tension",
+	   "deep",
+	   "heavy"
 	  ]
 	 },
 	 "sea_i": {
@@ -685,11 +626,19 @@ const CUES := {
 	   "sea_i_bass",
 	   "sea_i_pick",
 	   "sea_i_lead",
+	   "sea_i_high",
 	   "sea_i_rain",
 	   "sea_i_storm",
 	   "sea_i_night",
 	   "sea_i_run",
-	   "sea_i_fill"
+	   "sea_i_fill",
+	   "sea_i_pulse",
+	   "sea_i_glint",
+	   "sea_i_beat",
+	   "sea_i_drive",
+	   "sea_i_tension",
+	   "sea_i_deep",
+	   "sea_i_heavy"
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
@@ -699,11 +648,19 @@ const CUES := {
 	   "bass",
 	   "pick",
 	   "lead",
+	   "high",
 	   "rain",
 	   "storm",
 	   "night",
 	   "run",
-	   "fill"
+	   "fill",
+	   "pulse",
+	   "glint",
+	   "beat",
+	   "drive",
+	   "tension",
+	   "deep",
+	   "heavy"
 	  ]
 	 },
 	 "sea_j": {
@@ -727,11 +684,19 @@ const CUES := {
 	   "sea_j_bass",
 	   "sea_j_pick",
 	   "sea_j_lead",
+	   "sea_j_high",
 	   "sea_j_rain",
 	   "sea_j_storm",
 	   "sea_j_night",
 	   "sea_j_run",
-	   "sea_j_fill"
+	   "sea_j_fill",
+	   "sea_j_pulse",
+	   "sea_j_glint",
+	   "sea_j_beat",
+	   "sea_j_drive",
+	   "sea_j_tension",
+	   "sea_j_deep",
+	   "sea_j_heavy"
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
@@ -741,11 +706,19 @@ const CUES := {
 	   "bass",
 	   "pick",
 	   "lead",
+	   "high",
 	   "rain",
 	   "storm",
 	   "night",
 	   "run",
-	   "fill"
+	   "fill",
+	   "pulse",
+	   "glint",
+	   "beat",
+	   "drive",
+	   "tension",
+	   "deep",
+	   "heavy"
 	  ]
 	 },
 	 "sea_t1": {
@@ -769,11 +742,19 @@ const CUES := {
 	   "sea_t1_bass",
 	   "sea_t1_pick",
 	   "sea_t1_lead",
+	   "sea_t1_high",
 	   "sea_t1_rain",
 	   "sea_t1_storm",
 	   "sea_t1_night",
 	   "sea_t1_run",
-	   "sea_t1_fill"
+	   "sea_t1_fill",
+	   "sea_t1_pulse",
+	   "sea_t1_glint",
+	   "sea_t1_beat",
+	   "sea_t1_drive",
+	   "sea_t1_tension",
+	   "sea_t1_deep",
+	   "sea_t1_heavy"
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
@@ -783,11 +764,19 @@ const CUES := {
 	   "bass",
 	   "pick",
 	   "lead",
+	   "high",
 	   "rain",
 	   "storm",
 	   "night",
 	   "run",
-	   "fill"
+	   "fill",
+	   "pulse",
+	   "glint",
+	   "beat",
+	   "drive",
+	   "tension",
+	   "deep",
+	   "heavy"
 	  ],
 	  "then": "sea_t2"
 	 },
@@ -813,11 +802,19 @@ const CUES := {
 	   "sea_t2_bass",
 	   "sea_t2_pick",
 	   "sea_t2_lead",
+	   "sea_t2_high",
 	   "sea_t2_rain",
 	   "sea_t2_storm",
 	   "sea_t2_night",
 	   "sea_t2_run",
-	   "sea_t2_fill"
+	   "sea_t2_fill",
+	   "sea_t2_pulse",
+	   "sea_t2_glint",
+	   "sea_t2_beat",
+	   "sea_t2_drive",
+	   "sea_t2_tension",
+	   "sea_t2_deep",
+	   "sea_t2_heavy"
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
@@ -827,11 +824,19 @@ const CUES := {
 	   "bass",
 	   "pick",
 	   "lead",
+	   "high",
 	   "rain",
 	   "storm",
 	   "night",
 	   "run",
-	   "fill"
+	   "fill",
+	   "pulse",
+	   "glint",
+	   "beat",
+	   "drive",
+	   "tension",
+	   "deep",
+	   "heavy"
 	  ]
 	 },
 	 "strike": {
@@ -869,57 +874,6 @@ const CUES := {
 	  "kind": "sting",
 	  "loop": false,
 	  "pre": 0.06
-	 },
-	 "tired": {
-	  "bar_beats": 4,
-	  "bars": 16,
-	  "bpm": 112.0,
-	  "chord_beats": 4,
-	  "chords": [
-	   "G",
-	   "D",
-	   "A",
-	   "Bm",
-	   "G",
-	   "D",
-	   "A",
-	   "A",
-	   "Em",
-	   "G",
-	   "D",
-	   "A",
-	   "Bm",
-	   "G",
-	   "A",
-	   "D"
-	  ],
-	  "files": [
-	   "tired_bed",
-	   "tired_pulse",
-	   "tired_drive",
-	   "tired_shaker",
-	   "tired_click",
-	   "tired_tension",
-	   "tired_tension_hi",
-	   "tired_deep",
-	   "tired_tune",
-	   "tired_heavy"
-	  ],
-	  "kind": "bed",
-	  "length": 34.28571875,
-	  "loop": true,
-	  "stems": [
-	   "bed",
-	   "pulse",
-	   "drive",
-	   "shaker",
-	   "click",
-	   "tension",
-	   "tension_hi",
-	   "deep",
-	   "tune",
-	   "heavy"
-	  ]
 	 },
 	 "title": {
 	  "bar_beats": 4,
@@ -969,14 +923,45 @@ const CUES := {
 	   "D"
 	  ],
 	  "files": [
-	   "title"
+	   "title_lead",
+	   "title_counter",
+	   "title_guitar",
+	   "title_bass",
+	   "title_pad",
+	   "title_drums",
+	   "title_rain",
+	   "title_storm",
+	   "title_night",
+	   "title_low"
 	  ],
 	  "kind": "bed",
-	  "length": 85.71428571428571,
+	  "length": 85.71428125,
 	  "loop": true,
 	  "stems": [
-	   "main"
+	   "lead",
+	   "counter",
+	   "guitar",
+	   "bass",
+	   "pad",
+	   "drums",
+	   "rain",
+	   "storm",
+	   "night",
+	   "low"
 	  ]
+	 },
+	 "title_end": {
+	  "bar_beats": 4,
+	  "bars": 0,
+	  "bpm": 0.0,
+	  "files": [
+	   "title_end"
+	  ],
+	  "hit": 0.0,
+	  "kind": "sting",
+	  "loop": false,
+	  "pre": 0.06,
+	  "tail": true
 	 },
 	 "whistle": {
 	  "bar_beats": 4,

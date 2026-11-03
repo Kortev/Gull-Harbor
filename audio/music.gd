@@ -1,25 +1,23 @@
 extends Node
-## The music (an autoload, `Music`), on the Music bus (core/settings.gd's slider): a fish-shed folk band that's mostly
-## silent, playing what's happening out there. docs/MUSIC_SYSTEM.md is the design; tools/music.py renders it into
-## res://music/ and writes audio/music_cues.gd (each cue's files, stems and timing).
+## The music (an autoload, `Music`), on the Music bus (core/settings.gd's slider): a fish-shed folk band playing one
+## song that never stops, the game playing the band. docs/MUSIC_SYSTEM.md is the design; tools/music.py renders it
+## into res://music/ and writes audio/music_cues.gd (each cue's files, stems, chords and timing).
 ##
 ## Each frame it reads the sea into a plain picture (world()) and hands it to audio/music_state.gd, which says what's
-## wanted: the section (the sea, title, harbour, hunt, the fight's three, gaff, afterglow, the race home), each of its
-## stems' levels, and what just happened (the strike, a fish lost or landed, their fish on, the lead changing, the
-## dawn). Here's the band playing it:
-## - the sections are clips of one AudioStreamInteractive (the "bed"), each an AudioStreamSynchronized of its stems,
-##   so they're locked to the sample and the switches between them land on the beat or the bar in the mixer itself
-##   (_transitions()). The fight's tired and fresh halves change on a four-bar phrase; into the leader, a two-beat
-##   drum fill (leader_in) over the last two beats of a bar and the leader on its downbeat.
-## - the stems' levels move every frame (the state smooths them); a melodic stem (GATED: the tune) only comes in at
-##   the top of a phrase.
-## - stings over it (the strike, their fish on, the lead, Rivals' countdown and card) start on the next beat or bar of
-##   whatever's playing, on our own clock (a silent player's position: the mixer's time, not the frame's).
-## - at sea, an endless song: eight-bar passages (sea_a..f, in the hunt's and the fight's key and time), each next one
-##   picked as the last ends (never the same twice running, bright or dark by the weather and the hour) and joined on
-##   its last beat, the weather bringing its stems up and down. The only silences: a fish lost, him in the air, the
-##   harpoon flying.
-## - a fish lost: everything gone at once (HUSH_FADE), and silence.
+## happening (the section: the title, or out there the sea, the harbour, birds, the fight's three, boatside, landed,
+## the race home), each layer's level, and what just happened. Here's the band playing it:
+## - the title is its own piece (the theme, its stems by the weather on it); everything after is ONE song: eight-bar
+##   passages (sea_a..j, and the theme's halves sea_t1, sea_t2) of one AudioStreamInteractive, each an
+##   AudioStreamSynchronized of the same 17 layers, played one after another (each next one picked as the last's
+##   final bar begins: never the same twice running, bright or dark by what's happening). What happens never changes
+##   the song: it brings its layers up and down on the same chords (a fish on: the heartbeat, the drums, the
+##   tension...), and the band plays cues over it on the beat (cue()): the strike's hit, the birds' bells, a fill and
+##   the theme for the leader, the hit and the theme when he's in, the race called, home made, casting off.
+## - the switches between passages land on the bar in the mixer itself (sample-locked), a half-beat's crossfade at
+##   most: never a slow smear; cues start on our own clock (a silent player's position: the mixer's time), each with
+##   a silent pre-roll so its hit lands on the line, lead-ins ending exactly on the downbeat.
+## - the only silences: a fish lost (HUSH_FADE: everything gone at once), him in the air, the harpoon flying, and the
+##   quiet under Rivals' countdown and card.
 ## - the mix: all of it down a little while the radio or a voice is on (DUCK_BUSES), with a dip where voices sit (the
 ##   pocket) rather than more of a drop; muffled underwater; quieter and dulled under the pause card; a limiter last.
 
@@ -27,32 +25,36 @@ const State := preload("res://audio/music_state.gd")
 const Cues := preload("res://audio/music_cues.gd")
 const DIR := "res://music/"
 const BUS := &"Music"
-const SECTIONS := ["title", "harbour", "hunt", "fight", "tired", "leader", "gaff", "afterglow", "race"]
+## What's happening out there that the song plays (all of it the one song).
+const SONG := ["sea", "harbour", "hunt", "fight", "tired", "leader", "gaff", "afterglow", "race"]
 const FIGHT := ["fight", "tired", "leader"]
-## Stems that only come in at the top of a PHRASE_BARS phrase (and then over GATE_IN s).
-const GATED := ["tune"]
+## Layers that only come in at the top of a PHRASE_BARS phrase (and then over GATE_IN s): the climax's high lead.
+const GATED := ["high"]
 const PHRASE_BARS := 4
 const GATE_IN := 0.12
 ## A switch asked this close (s) to the grid line it'd land on might land on the next one instead: it waits till the
 ## line's passed.
 const GRID_SAFE := 0.04
-## The leader's fill: asked this close (s past its length) before the bar it ends on; after FILL_WAIT s of no luck
-## (a slow frame rate), the leader without it.
+## The leader's fill: the jump into the theme's asked this close (s past the fill's length) before the bar it lands
+## on; after FILL_WAIT s of no luck (a slow frame rate), without it.
 const FILL_SLOP := 0.07
 const FILL_WAIT := 6.0
 ## The mixer takes a switch on the grid a little early (measured: 0-4 ms, 1.8 on average, tools/music_check.py), and
 ## the next switch counts from where it really came in: our clock takes the same off each time, or it'd drift off the
 ## bed a little more with every passage of the sea.
 const EARLY := 0.0018
-## The shortest fade in (beats): a loop coming in at full (the strike, the leader).
+## The shortest fade in (beats): a loop coming in at full (the title into the song); and one passage into another,
+## on the bar (beats: each one's first sample is its own tail wrapped round, so never a hard cut).
 const ENTER := 0.1
-## Each section's level (a share).
-const LEVEL := {"sea": 0.8, "title": 1.0, "harbour": 0.7, "hunt": 0.8, "fight": 0.85, "tired": 0.85, "leader": 0.9,
-		"gaff": 0.85, "afterglow": 0.9, "race": 1.0}
+const JOIN := 0.5
+## The title's and the song's levels (a share).
+const LEVEL := {"sea": 1.0, "title": 1.0}
 const STING_LEVEL := {"strike": 1.0, "their_on": 0.7, "lead_up": 0.8, "lead_down": 0.8, "countdown": 1.0, "win": 1.0,
-		"lose": 1.0, "tie": 1.0}
-## The stings that play over the others (on their own player).
-const SMALL := ["their_on", "lead_up", "lead_down"]
+		"lose": 1.0, "tie": 1.0, "landed": 1.0, "leader_in": 1.0, "hunt_in": 0.8, "away_in": 0.8, "race_in": 0.9,
+		"boatside_end": 0.9, "race_end": 0.9, "title_end": 0.8}
+## The cues that play over the others (on their own player), not cutting them.
+const SMALL := ["their_on", "lead_up", "lead_down", "hunt_in", "away_in", "race_in", "boatside_end", "race_end",
+		"title_end"]
 ## A fish lost: everything down to nothing over this long (s): quicker than you'd hear as a fade, slow enough not to
 ## click.
 const HUSH_FADE := 0.08
@@ -114,7 +116,7 @@ var _seas: Array = []       # the sea's passages (sea_a ...)
 var _rng := RandomNumberGenerator.new()
 var _sea_was := ""
 var _fill := 0.0            # the sounding passage's fill stem, opened for its last bar
-var _strike_due := false    # a strike, its hit waiting for the fight to be asked for
+var _jump := ""             # into the theme on the bar: "leader" (with its fill) or "landed" (with its hit)
 var _clock: AudioStreamPlayer
 var _clock_last := 0.0
 var _clock_wraps := 0
@@ -182,7 +184,8 @@ func _ogg(file: String, c: Dictionary) -> AudioStreamOggVorbis:
 	return s
 
 
-## The bed: every section a clip (its stems in step), the quiet (rest) a clip of silence, the leader's fill.
+## The bed: the title and each of the song's passages a clip (its stems in step), the quiet (rest) a clip of
+## silence.
 func _build_bed() -> void:
 	_it = AudioStreamInteractive.new()
 	_rng.randomize()
@@ -190,7 +193,7 @@ func _build_bed() -> void:
 		if n.begins_with("sea_"):
 			_seas.append(n)
 	_seas.sort()
-	var names: Array = ["rest"] + SECTIONS + _seas
+	var names: Array = ["rest", "title"] + _seas
 	_it.clip_count = names.size()
 	for i in names.size():
 		var n: String = names[i]
@@ -217,9 +220,6 @@ func _build_bed() -> void:
 		_it.set_clip_stream(i, sync)
 		_clips[n] = {"index": i, "sync": sync, "stems": c["stems"], "bpm": float(c["bpm"]),
 				"bar_beats": int(c["bar_beats"]), "loop": bool(c["loop"])}
-		if not bool(c["loop"]):
-			_it.set_clip_auto_advance(i, AudioStreamInteractive.AUTO_ADVANCE_ENABLED)
-			_it.set_clip_auto_advance_next_clip(i, names.find(_seas[0]) if not _seas.is_empty() else 0)
 	_rest = 0
 	_it.initial_clip = 0
 	for t: Array in _transitions():
@@ -241,38 +241,21 @@ func _index(n: String) -> int:
 	return AudioStreamInteractive.CLIP_ANY
 
 
-## [from, to, leave (when), enter (where), fade, fade beats]: the most particular wins. A loop's first sample is its
-## end's tail wrapped round, never silence, so nothing comes in at full without ENTER beats of fade. (No filler clips:
-## Godot doesn't fade from a filler into what's next, so the leader's fill is a sting, timed to end on the bar.)
+## [from, to, leave (when), enter (where), fade, fade beats]: the most particular wins. One passage into the next,
+## and the jumps into the theme, on the bar with a half-beat's crossfade (JOIN); the title into the song on its bar
+## (its ending rings over: title_end); out to the quiet on the beat; back from it over a bar.
 func _transitions() -> Array:
 	var I := AudioStreamInteractive
 	var t: Array = [
-		["*", "*", I.TRANSITION_FROM_TIME_NEXT_BAR, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, 2.0],
+		["*", "*", I.TRANSITION_FROM_TIME_NEXT_BAR, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, JOIN],
 		["*", "rest", I.TRANSITION_FROM_TIME_NEXT_BEAT, I.TRANSITION_TO_TIME_START, I.FADE_OUT, 2.0],
 		["title", "rest", I.TRANSITION_FROM_TIME_NEXT_BEAT, I.TRANSITION_TO_TIME_START, I.FADE_OUT, 4.0],
 		["*", "title", I.TRANSITION_FROM_TIME_IMMEDIATE, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, 2.0],
-		["*", "fight", I.TRANSITION_FROM_TIME_NEXT_BEAT, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, 1.0],
-		["rest", "fight", I.TRANSITION_FROM_TIME_IMMEDIATE, I.TRANSITION_TO_TIME_START, I.FADE_IN, ENTER],
-		["fight", "tired", I.TRANSITION_FROM_TIME_NEXT_BAR, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, 1.0],
-		["tired", "fight", I.TRANSITION_FROM_TIME_NEXT_BAR, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, 1.0],
-		["fight", "leader", I.TRANSITION_FROM_TIME_NEXT_BAR, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, ENTER],
-		["tired", "leader", I.TRANSITION_FROM_TIME_NEXT_BAR, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, ENTER],
-		["*", "afterglow", I.TRANSITION_FROM_TIME_NEXT_BEAT, I.TRANSITION_TO_TIME_START, I.FADE_OUT, 1.0],
-		["*", "race", I.TRANSITION_FROM_TIME_NEXT_BAR, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, 4.0],
-		["*", "harbour", I.TRANSITION_FROM_TIME_NEXT_BAR, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, 4.0],
-		["*", "hunt", I.TRANSITION_FROM_TIME_NEXT_BAR, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, 4.0],
+		["rest", "title", I.TRANSITION_FROM_TIME_IMMEDIATE, I.TRANSITION_TO_TIME_START, I.FADE_IN, 2.0],
 	]
-	for to: String in SECTIONS:
-		if to != "fight":
-			t.append(["rest", to, I.TRANSITION_FROM_TIME_IMMEDIATE, I.TRANSITION_TO_TIME_START, I.FADE_IN, 2.0])
-	# the sea: in over a bar from anything, back after the hush over a bar; one passage into the next on its last
-	# beat, a beat's crossfade (each one's tail is wrapped round its own start, not the next's)
 	for a: String in _seas:
-		t.append(["*", a, I.TRANSITION_FROM_TIME_NEXT_BAR, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, 4.0])
 		t.append(["rest", a, I.TRANSITION_FROM_TIME_IMMEDIATE, I.TRANSITION_TO_TIME_START, I.FADE_IN, 4.0])
-		for b: String in _seas:
-			if a != b:
-				t.append([a, b, I.TRANSITION_FROM_TIME_END, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, 1.0])
+		t.append(["title", a, I.TRANSITION_FROM_TIME_NEXT_BAR, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, ENTER])
 	return t
 
 
@@ -317,13 +300,6 @@ func level(n: String) -> float:
 ## The duck now (1: none, DUCK: under the radio).
 func duck() -> float:
 	return _duck
-
-
-## The race home's stems now: [rhythm, tune, urgency, last chance], each 0..1.
-func race_mix() -> Array:
-	if cue != "race" and sounding != "race":
-		return [0.0, 0.0, 0.0, 0.0]
-	return [level("a"), level("b"), level("c"), level("d")]
 
 
 ## Where the sounding clip is: [bar, beat in it] (from 0; -1 when there's no grid: the quiet).
@@ -406,6 +382,7 @@ func _process(delta: float) -> void:
 	for e: String in state.events:
 		_on(e)
 	_land()
+	_jumps()
 	_chain()
 	if state.still != _still:
 		_still = state.still
@@ -444,10 +421,20 @@ func _on(e: String) -> void:
 	match e:
 		"strike":
 			_hush = 0.0
-			if _asked in FIGHT:
-				_sting_at("strike", "beat")      # (another fish, the fight already on)
-			else:
-				_strike_due = true               # (the hit lands with the fight coming in: _ask)
+			_sting_at("strike", "beat")
+		"leader", "landed":
+			_jump = e
+			_fill_wait = 0.0
+		"birds":
+			_lead_in("hunt_in")
+		"away":
+			_lead_in("away_in")
+		"race":
+			_lead_in("race_in")
+		"boatside":
+			_sting_at("boatside_end", "beat")
+		"home":
+			_sting_at("race_end", "beat")
 		"their_on":
 			_sting_at("their_on", "beat")
 		"lead_up", "lead_down":
@@ -461,6 +448,16 @@ func _on(e: String) -> void:
 		_:
 			if e.begins_with("card:"):
 				_sting_at(e.substr(5), "now")
+
+
+## A lead-in (two beats long): ending exactly on the next downbeat it has time for.
+func _lead_in(n: String) -> void:
+	var c: Dictionary = _clips.get(sounding, {})
+	var length := float(Cues.CUES.get(n, {}).get("length", 0.0))
+	if not c.has("bpm"):
+		_queue.append({"name": n, "at": _t, "from": 0.0})
+		return
+	_queue.append({"name": n, "at": _next("bar", length + 0.03) - length, "from": 0.0})
 
 
 ## A sting on the next grid line of whatever's playing ("now", "beat", "bar").
@@ -490,13 +487,14 @@ func _land() -> void:
 		_note("clip:" + sounding, _start)
 
 
-## Asks the bed for `to` (if it isn't already it), working out where the switch will land.
+## Asks the bed for `to` ("title", "rest", or anything of the song's: a passage of it), working out where the
+## switch will land.
 func _ask(to: String) -> void:
-	if _hush > 0.5 and to != "rest" and not to in FIGHT:
+	if _hush > 0.5 and not to in FIGHT and to != "title":
 		to = "rest"
-	if to == "sea":
+	if to in SONG:
 		if _asked.begins_with("sea_"):
-			return                 # (one passage into the next: _chain)
+			return                 # (the song's playing: one passage into the next, _chain; the theme, _jumps)
 		to = _pick_sea()
 	if to == _asked:
 		return
@@ -510,38 +508,54 @@ func _ask(to: String) -> void:
 	var lf: int = _leave(from, to)
 	var grid: String = {AudioStreamInteractive.TRANSITION_FROM_TIME_NEXT_BEAT: "beat",
 			AudioStreamInteractive.TRANSITION_FROM_TIME_NEXT_BAR: "bar"}.get(lf, "now")
-	# the fight's fresh and tired halves trade on a phrase: wait for its last bar
-	if from in ["fight", "tired"] and to in ["fight", "tired"]:
-		var c: Dictionary = _clips[from]
-		var bar := 60.0 / float(c["bpm"]) * int(c["bar_beats"])
-		if _next("phrase", 0.0) - _t > bar + 0.001:
-			return
 	var at := _next(grid, 0.0)
 	if grid != "now" and at - _t < GRID_SAFE:
 		return                     # (too near the line to know which side the mixer takes it: next frame)
 	if grid != "now":
 		at -= EARLY
-	# into the leader: the fill over the bar's last two beats, the leader on the downbeat (ask in the frame or two
-	# before the fill's due; FILL_WAIT s on and it's gone without it)
-	if to == "leader" and from in ["fight", "tired"]:
+	var pb := _bed.get_stream_playback() as AudioStreamPlaybackInteractive
+	if pb == null:
+		return
+	pb.switch_to_clip_by_name(StringName(to))
+	if from == "title" and to.begins_with("sea_"):
+		_queue.append({"name": "title_end", "at": at, "from": 0.0})      # (the title's last chord rings on into it)
+	_asked = to
+	_landing = {"to": to, "at": at}
+	if to != "rest":
+		_set_volumes(to, true)
+
+
+## Into the theme on the bar: for the leader, its fill over the bar's last two beats and the theme's second half on
+## the downbeat... its first half, sea_t1, then its second (t2 always follows); for landing him, the hit on the
+## downbeat and its first half. In the theme already, only the fill or the hit.
+func _jumps() -> void:
+	if _jump == "" or not _landing.is_empty() or not sounding.begins_with("sea_") or _asked != sounding:
+		return
+	var at := _next("bar", 0.0)
+	var in_theme := sounding in ["sea_t1", "sea_t2"]
+	if _jump == "leader":
 		var fill := float(Cues.CUES.get("leader_in", {}).get("length", 0.0))
 		_fill_wait += get_process_delta_time()
 		if _fill_wait < FILL_WAIT and (at - _t < fill or at - _t > fill + FILL_SLOP):
 			return
 		if at - _t >= fill:
 			_queue.append({"name": "leader_in", "at": at - fill, "from": 0.0})
-	_fill_wait = 0.0
+	else:
+		if at - _t < GRID_SAFE:
+			return
+		_queue.append({"name": "landed", "at": at, "from": 0.0})
+	_jump = ""
+	if in_theme:
+		return
 	var pb := _bed.get_stream_playback() as AudioStreamPlaybackInteractive
 	if pb == null:
 		return
-	pb.switch_to_clip_by_name(StringName(to))
-	_asked = to
-	_landing = {"to": to, "at": at}
-	if _strike_due and to in FIGHT:
-		_strike_due = false
-		_queue.append({"name": "strike", "at": at, "from": 0.0})
-	if to != "rest":
-		_set_volumes(to, true)
+	pb.switch_to_clip_by_name(&"sea_t1")
+	_sea_was = sounding
+	_asked = "sea_t1"
+	_fill = 0.0
+	_landing = {"to": "sea_t1", "at": at - EARLY}
+	_set_volumes("sea_t1", true)
 
 
 ## The sea's next passage: by how bright the weather and the hour want it (the state's `bright`), never the one
@@ -581,7 +595,8 @@ const FILL := Vector2(0.2, 0.5)
 ## At sea, in a passage's last bar: the next one asked for, to come in on its end (and, now and then, its fill
 ## stem opened for the bar: a drum fill on its last two beats, locked to it).
 func _chain() -> void:
-	if cue != "sea" or not _landing.is_empty() or not sounding.begins_with("sea_") or _asked != sounding:
+	if not cue in SONG or _jump != "" or not _landing.is_empty() or not sounding.begins_with("sea_") \
+			or _asked != sounding:
 		return
 	var length := float(Cues.CUES[sounding]["length"])
 	var c: Dictionary = _clips[sounding]
@@ -605,7 +620,7 @@ func _chain() -> void:
 
 
 static func _family(n: String) -> String:
-	return "sea" if n.begins_with("sea_") else ("fight" if n in FIGHT else n)
+	return "sea" if n.begins_with("sea_") else n
 
 
 ## Each stem of the section wanted at its level (the clips going out keep theirs while they fade; one of the same

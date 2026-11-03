@@ -1,9 +1,11 @@
 extends Node
-## The music's state (audio/music_state.gd), no sound at all: game pictures in, section, stems and events out. The quiet
-## sea's endless song by the weather; birds working bring in the hunt; the strike; a fresh fish's runs drive it,
-## his sounding takes it deep, a slack line drops the pulse, him in the air all but stops it, the line about to part
-## strips it to the heartbeat and one note; tiring, the tune; the leader; boatside, the harpoon; landed, the
-## afterglow; lost, silence. It never hears the hook's hold. Rivals: their fish on, the lead, the race home behind.
+## The music's state (audio/music_state.gd), no sound at all: game pictures in, section, stems and events out. It's
+## one song whatever's happening (the same layers always), the weather playing it; birds working bring in the pulse
+## and the bells; the strike; a fresh fish's runs drive it, his sounding takes it deep, a slack line drops the
+## heartbeat, him in the air all but stops it, the line about to part strips it to the heartbeat and one note; tiring,
+## the song's tune comes back; the leader, the climax; boatside, the harpoon; landed, the song lifted; lost, silence.
+## It never hears the hook's hold. Rivals: their fish on, the lead, the race home behind. The cues: birds, casting
+## off, boatside, the race called, home made.
 ## Run: godot --headless --path . res://tests/music_state_test.tscn
 
 const State := preload("res://audio/music_state.gd")
@@ -77,6 +79,23 @@ func _sea() -> void:
 			if n.section == "rest":
 				quiet += DT
 	_check(quiet == 0.0, "never quiet, out or in, birds or none, any weather (%.1f s quiet)" % quiet)
+	# one song: whatever's happening, the same layers
+	var o := State.new(3)
+	var same := true
+	for w: Dictionary in [{"docked": true}, {"docked": false}, {"docked": false, "birds": 0.6},
+			{"docked": false, "fights": [_fish()]}, {"docked": false, "fights": [_fish({"move": "circle"})]},
+			{"docked": false, "fights": [_fish({"line_out": 10.0})]}, {"docked": false, "alongside": ["0:1.00"]},
+			{"docked": false, "landed": 1}, {"docked": false, "race_left": 100.0}]:
+		_run(o, w, 5.0)
+		var keys: Array = o.gains.keys()
+		keys.sort()
+		var want: Array = State.SEA_STEMS.duplicate()
+		want.sort()
+		same = same and keys == want
+		if keys != want:
+			print("  %s: %s" % [o.section, keys])
+	_check(same, "one song: the dock, the sea, birds, a fish on, tiring, the leader, boatside, landed, the race "
+			+ "home, all the same song's layers")
 
 
 func _hunt() -> void:
@@ -84,8 +103,13 @@ func _hunt() -> void:
 	_run(s, {"docked": false, "birds": 0.05}, 1.0)
 	_check(s.section == "sea", "birds far off: the sea")
 	_run(s, {"docked": false, "birds": 0.6}, 3.0)
-	_check(s.section == "hunt" and s.level("pulse") > 0.9 and s.level("tick") > 0.4,
-			"birds working near: the hunt (pulse %.2f, tick %.2f)" % [s.level("pulse"), s.level("tick")])
+	_check(s.section == "hunt" and s.level("pulse") > 0.9 and s.level("glint") > 0.4 and s.level("pad") > 0.5,
+			"birds working near: the pulse ticking, the bells, the song on under them (pulse %.2f, glint %.2f)"
+			% [s.level("pulse"), s.level("glint")])
+	var bi := State.new(31)
+	_run(bi, {"docked": false}, 1.0)
+	var bev := _run(bi, {"docked": false, "birds": 0.6}, DT)
+	_check(bev.has("birds"), "the first sight of them: the bells' cue")
 	_run(s, {"docked": false, "birds": 0.08}, 1.0)
 	_check(s.section == "hunt", "it holds as they drift off a little")
 	var e := State.new(22)
@@ -96,17 +120,15 @@ func _hunt() -> void:
 	_check(e.section == "sea", "then the sea")
 	_run(s, {"docked": true}, 1.0)
 	_check(s.section == "harbour", "tied up: the harbour")
+	_check(s.level("pick") < 0.75 and s.level("drive") == 0.0, "the song quiet, the guitar soft, no drums")
 	var h := State.new(21)
 	_run(h, {"docked": true, "condition": "storm"}, 8.0)
-	_check(h.section == "sea" and h.level("storm") > 0.95, "tied up in a thunderstorm: no waltz, the sea's storm (%s)"
-			% h.section)
-	_run(h, {"docked": true, "condition": "heavy"}, 1.0)
-	_check(h.section == "sea", "a downpour at the dock: no waltz either")
-	_run(h, {"docked": true, "condition": "rain"}, 3.0)
-	_check(h.section == "harbour" and h.level("reed") == 0.0 and h.level("guitar") < 0.7,
-			"rain: the guitar alone, quieter (%.2f)" % h.level("guitar"))
-	_run(h, {"docked": true, "condition": "fog"}, 5.0)
-	_check(h.level("reed") > 0.7 and h.level("guitar") < 0.3, "fog: the concertina far off, the guitar barely")
+	_check(h.section == "harbour" and h.level("storm") > 0.95 and h.level("pick") == 0.0,
+			"tied up in a thunderstorm: the song's storm, no guitar (%s)" % h.section)
+	_run(h, {"docked": true, "condition": "rain"}, 8.0)
+	_check(h.level("rain") > 0.9 and h.level("pick") < 0.5, "rain at the dock: the patter, the guitar quieter")
+	var aw := _run(h, {"docked": false, "condition": "rain"}, DT)
+	_check(aw.has("away"), "casting off: its cue")
 
 
 func _fight() -> void:
@@ -115,10 +137,12 @@ func _fight() -> void:
 	var ev := _run(s, {"docked": false, "fights": [_fish()]}, DT)
 	_check(ev.has("strike") and s.section == "fight", "fish on: the strike, the fight (%s)" % s.section)
 	_run(s, {"docked": false, "fights": [_fish()]}, 1.0)
-	_check(s.level("drive") > 0.95 and s.level("pulse") > 0.95 and s.level("tension") < 0.3 and s.level("tune") == 0.0,
-			"his first run: drive %.2f, pulse %.2f, tension %.2f, no tune" % [s.level("drive"), s.level("pulse"),
-			s.level("tension")])
-	_check(s.level("shaker") > 0.9 and s.level("click") == 0.0, "by day the shaker")
+	_check(s.level("drive") > 0.95 and s.level("beat") > 0.95 and s.level("tension") < 0.3 and s.level("high") == 0.0,
+			"his first run: drive %.2f, the heartbeat %.2f, tension %.2f, no climax" % [s.level("drive"),
+			s.level("beat"), s.level("tension")])
+	_run(s, {"docked": false, "fights": [_fish()]}, 3.0)
+	_check(s.level("pad") > 0.5 and s.level("bass") > 0.5 and s.level("lead") < 0.3,
+			"the song carries on under it, its tune stepping back (lead %.2f)" % s.level("lead"))
 	# sounding
 	_run(s, {"docked": false, "fights": [_fish({"move": "sound", "depth": 90.0})]}, 3.0)
 	_check(s.level("deep") > 0.9, "sounding deep: the deep comes in (%.2f)" % s.level("deep"))
@@ -126,31 +150,31 @@ func _fight() -> void:
 	_check(s.level("drive") < 0.5, "and the drive eases off once it's held its bars (%.2f)" % s.level("drive"))
 	# slack, he shakes
 	_run(s, {"docked": false, "fights": [_fish({"move": "shake", "slack": true})]}, 0.4)
-	_check(s.level("pulse") < 0.05, "a slack line: the pulse drops out (%.2f)" % s.level("pulse"))
+	_check(s.level("beat") < 0.05, "a slack line: the heartbeat drops out (%.2f)" % s.level("beat"))
 	_run(s, {"docked": false, "fights": [_fish({"move": "run"})]}, 0.4)
-	_check(s.level("pulse") > 0.95, "tight again: back")
+	_check(s.level("beat") > 0.95, "tight again: back")
 	# in the air
 	_run(s, {"docked": false, "fights": [_fish({"move": "jump", "airborne": true})]}, 0.2)
-	_check(s.level("drive") <= 0.16 and s.level("bed") <= 0.16 and s.level("pulse") <= 0.16,
+	_check(s.level("drive") <= 0.16 and s.level("pad") <= 0.16 and s.level("beat") <= 0.16,
 			"him in the air: all but silence (drive %.2f)" % s.level("drive"))
 	_run(s, {"docked": false, "fights": [_fish({"move": "run"})]}, 0.3)
 	_check(s.level("drive") > 0.9, "back in: everything back (%.2f)" % s.level("drive"))
 	# about to part
 	_run(s, {"docked": false, "fights": [_fish({"tension": 0.62})]}, 0.25)
 	_check(s.parting and s.level("drive") < 0.02 and s.level("deep") < 0.02 and s.level("tension") > 0.99
-			and s.level("pulse") > 0.95 and absf(s.level("bed") - 0.3) < 0.05,
-			"the line about to part: the heartbeat and one note (drive %.2f, tension %.2f, bed %.2f)"
-			% [s.level("drive"), s.level("tension"), s.level("bed")])
+			and s.level("beat") > 0.95 and s.level("pad") < 0.35 and s.level("pick") < 0.02 and s.level("lead") < 0.02,
+			"the line about to part: the heartbeat and one note (drive %.2f, tension %.2f, pad %.2f)"
+			% [s.level("drive"), s.level("tension"), s.level("pad")])
 	_run(s, {"docked": false, "fights": [_fish({"tension": 0.42})]}, 0.8)
 	_check(not s.parting and s.level("drive") > 0.5 and s.level("tension") > 0.9,
 			"eased, still loaded: the band back, the tension stem with it (%.2f)" % s.level("drive"))
 	_run(s, {"docked": false, "fights": [_fish({"spool": 0.8, "tension": 0.2})]}, 2.0)
-	_check(s.level("tension_hi") > 0.6 and s.level("drive") > 0.8,
-			"the spool emptying: the high tremolo, the drive held (%.2f)" % s.level("tension_hi"))
+	_check(s.level("tension") > 0.45 and s.level("drive") > 0.8,
+			"the spool emptying: the tension, the drive held (%.2f)" % s.level("tension"))
 	# tiring
 	_run(s, {"docked": false, "fights": [_fish({"move": "circle", "spool": 0.2})]}, 5.0)
-	_check(s.section == "tired" and s.level("tune") > 0.8, "circling: tired, the tune (%s, %.2f)"
-			% [s.section, s.level("tune")])
+	_check(s.section == "tired" and s.level("lead") > 0.6, "circling: tired, the song's tune coming back (%s, %.2f)"
+			% [s.section, s.level("lead")])
 	_run(s, {"docked": false, "fights": [_fish({"move": "circle", "spool": 0.2})]}, 4.0)
 	_check(s.level("tension") < 0.5, "a played fish, the rod easy: the tension eases (%.2f)" % s.level("tension"))
 	_run(s, {"docked": false, "fights": [_fish({"move": "surge", "spool": 0.2})]}, 1.0)
@@ -159,11 +183,12 @@ func _fight() -> void:
 	_check(s.section == "leader" and ev.has("leader"), "the leader up: the leader (%s)" % s.section)
 	_run(s, {"docked": false, "fights": [_fish({"move": "run", "line_out": 30.0})]}, 2.0)
 	_check(s.section == "leader", "his last run off the leader: still the leader")
+	_check(s.level("high") > 0.9 and s.level("lead") > 0.95, "the climax: the lead up high (%.2f)" % s.level("high"))
 	# night, storm
 	var n := State.new(6)
 	_run(n, {"docked": false, "night": true, "condition": "storm", "fights": [_fish({"depth": 5.0})]}, 2.0)
-	_check(n.level("click") > 0.9 and n.level("shaker") == 0.0 and n.level("deep") >= 0.5,
-			"a storm at night: the click not the shaker, the deep under it")
+	_check(n.level("storm") > 0.5 and n.level("deep") >= 0.5 and n.level("drive") > 0.9,
+			"a fight in a storm at night: the storm's drums and the deep under it")
 	var g := State.new(6)
 	_run(g, {"docked": false, "fights": [_fish({"kg": 380.0})]}, 3.0)
 	var sm := State.new(6)
@@ -220,13 +245,18 @@ func _ends() -> void:
 	var s := State.new(10)
 	_run(s, {"docked": false, "fights": [_fish({"line_out": 10.0})]}, 1.0)
 	var ev := _run(s, {"docked": false, "alongside": ["0:1.00"], "landed": 0}, 0.5)
-	_check(s.section == "gaff" and not ev.has("lost"), "up alongside: the gaff, nothing lost (%s)" % s.section)
-	_run(s, {"docked": false, "alongside": ["0:1.00"], "landed": 0, "draw": 1.0}, 0.5)
-	_check(s.level("shimmer") > 0.95, "winding up the harpoon: the shimmer rises")
+	_check(s.section == "gaff" and not ev.has("lost") and ev.has("boatside"),
+			"up alongside: boatside's cue, nothing lost (%s)" % s.section)
+	_run(s, {"docked": false, "alongside": ["0:1.00"], "landed": 0}, 4.0)
+	_check(s.level("beat") > 0.95 and s.level("drive") < 0.4, "the heartbeat, the drums down")
+	_run(s, {"docked": false, "alongside": ["0:1.00"], "landed": 0, "draw": 1.0}, 1.0)
+	_check(s.level("tension") > 0.95, "winding up the harpoon: the tension rises with it")
 	_run(s, {"docked": false, "alongside": ["0:1.00"], "landed": 0, "flying": true}, 0.15)
-	_check(s.level("pulse") < 0.05 and s.level("bed") < 0.1, "the harpoon in the air: silence")
+	_check(s.level("beat") < 0.05 and s.level("pad") < 0.1, "the harpoon in the air: silence")
 	ev = _run(s, {"docked": false, "alongside": [], "landed": 1}, DT)
 	_check(ev.has("landed") and s.section == "afterglow", "he's in: the afterglow (%s)" % s.section)
+	_run(s, {"docked": false, "landed": 1}, 3.0)
+	_check(s.level("lead") > 0.95 and s.level("high") > 0.5, "the song lifted, the theme up high")
 	_run(s, {"docked": false, "landed": 1}, 30.0)
 	_check(s.section == "sea", "then the sea again (%s)" % s.section)
 	# lost
@@ -267,13 +297,19 @@ func _rivals() -> void:
 	_check(ev.has("lead_down"), "then they've taken it")
 	var r := State.new(15)
 	_run(r, {"docked": false, "race_left": 340.0, "standing": 0}, 5.0)
-	_check(r.section == "race" and r.level("a") == 1.0 and r.level("c") < 0.05 and r.level("d") == 0.0,
-			"the race home: the rhythm, no urgency yet")
+	_check(r.section == "race" and r.level("run") > 0.55 and r.level("drive") < 0.05,
+			"the race home: under way, no urgency yet")
 	_run(r, {"docked": false, "race_left": 60.0, "standing": -1}, 6.0)
-	_check(r.level("c") > 0.95 and r.level("d") > 0.3, "behind with a minute left: the urgency, the last chance (%.2f)"
-			% r.level("d"))
-	_run(r, {"docked": false, "race_left": 50.0, "standing": 1}, 6.0)
-	_check(r.level("b") > 0.84 and r.level("d") < 0.5, "ahead: the tune up, the last chance going")
+	_check(r.level("drive") > 0.95 and r.level("tension") > 0.3,
+			"behind with a minute left: the drums, the tension (%.2f)" % r.level("tension"))
+	_run(r, {"docked": false, "race_left": 50.0, "standing": 1}, 10.0)
+	_check(r.level("high") > 0.84 and r.level("tension") < 0.5, "ahead: the tune up high, the tension going")
+	var rc := State.new(18)
+	_run(rc, {"docked": false}, 1.0)
+	var rev := _run(rc, {"docked": false, "race_left": 300.0}, DT)
+	_check(rev.has("race"), "the race home called: its cue")
+	rev = _run(rc, {"docked": true}, DT)
+	_check(rev.has("home"), "home made: its cue")
 	var f := State.new(16)
 	_run(f, {"docked": false, "race_left": 200.0}, 2.0)
 	_run(f, {"docked": false, "race_left": 199.0, "fights": [_fish()]}, 1.0)

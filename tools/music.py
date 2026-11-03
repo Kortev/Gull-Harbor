@@ -8,23 +8,20 @@ wow, a gentle saturation and a low-pass round 8 kHz: warm and a bit worn, never 
 
 The cues (audio/music.gd plays them as docs/MUSIC_SYSTEM.md describes; audio/music_cues.gd, written here, says what
 each is and its timing):
-  title              the theme (THEME: the game's own tune) whole, 4/4 in D at 112, 40 bars, loops
-  harbour            tied up: a slow waltz in G, 2 stems (guitar, reed), loops
+  title              the theme (THEME: the game's own tune) whole, 4/4 in D at 112, 40 bars, loops; 10 stems, the
+                     weather's among them (the title's own sea plays it)
   sea_a..j, sea_t1/t2
-                     at sea: an endless song, eight-bar passages played one after another (never the same twice
-                     running; t1 and t2 the theme's halves, t2 always after t1), 9 stems each (pad, bass, pick, lead,
-                     rain, storm, night, run under way, fill into the next) brought up by the weather
-  hunt               birds working: B minor at 112, 3 stems (pulse, tick, glint), loops
-  fight, tired, leader
-                     the fight: B minor at 112 (tired turning to D, the leader in D), the same 9 stems each (bed,
-                     pulse, drive, shaker, click, tension, tension_hi, deep, tune), loops; leader_in the two-beat
-                     fill between; strike the hookup's hit
-  gaff               boatside, the harpoon up: held on F#, 3 stems (bed, pulse, shimmer), loops
-  afterglow          landed: the hit and the tune come home, a one-shot
-  race               the race home at dusk: a jig in E dorian in the sea's bar (12/8 at 112), 4 stems (a: the
-                     rhythm, b: the tune, c: the urgency, d: the last chance), loops
+                     the song: everything after the title is one endless song of eight-bar passages played one after
+                     another (never the same twice running; t1 and t2 the theme's halves, t2 always after t1), 17
+                     stems each, every layer the game has on the same chords (sea())
+  strike, leader_in, landed
+                     the fish's moments over the song: the hookup's hit, the fill into the theme for the leader, the
+                     hit when he's landed
+  hunt_in, race_in, away_in, boatside_end, race_end, title_end
+                     cues over the song: lead-ins two beats long into a downbeat, endings that ring on
   countdown          Rivals' countdown: COUNT (10) s building to the hit on GO, then its tail
   win, lose, tie     the results card's stamp; their_on, lead_up, lead_down Rivals' stings out there
+  note_62..90        the deck tin whistle's notes
 
 A section's stems are mastered alike and by the whole mix's peak (stems()), so they keep their balance and sum back
 to the whole; every stem of it is exactly as long as its bars.
@@ -410,7 +407,8 @@ def master(tr, wet=0.22, rt=1.8, wow=0.0012, lp=8000.0, drive=1.6, norm=0.0, pea
 # A sting's (and the leader's fill's) silent pre-roll (s): audio/music.gd starts it a frame early, this far into the
 # silence that its hit lands on the beat.
 PRE = 0.06
-STINGS = {"strike", "leader_in", "their_on", "lead_up", "lead_down", "countdown", "win", "lose", "tie"}
+STINGS = {"strike", "leader_in", "landed", "their_on", "lead_up", "lead_down", "countdown", "win", "lose", "tie",
+          "hunt_in", "race_in", "away_in", "boatside_end", "race_end", "title_end"}
 
 
 def write(name, x, level=0.0, comp=0.62):
@@ -423,9 +421,18 @@ def write(name, x, level=0.0, comp=0.62):
         x = np.concatenate([np.zeros((2, int(round(PRE * SR)))), x], axis=1)
     path = os.path.join(OUT, name + ".ogg")
     data = np.ascontiguousarray(x.T.astype(np.float32))
-    with sf.SoundFile(path, "w", SR, 2, format="OGG", subtype="VORBIS", compression_level=comp) as f:
-        for i in range(0, data.shape[0], 4096):
-            f.write(data[i:i + 4096])
+    for tries in range(20):
+        try:
+            with sf.SoundFile(path, "w", SR, 2, format="OGG", subtype="VORBIS", compression_level=comp) as f:
+                for i in range(0, data.shape[0], 4096):
+                    f.write(data[i:i + 4096])
+            break
+        except sf.LibsndfileError:
+            # (an open Godot editor reimporting it holds it a moment)
+            if tries == 19:
+                raise
+            import time
+            time.sleep(0.5)
     print("%-18s %5.1f s  %4d KB" % (name, x.shape[1] / SR, os.path.getsize(path) // 1024))
 
 
@@ -526,13 +533,10 @@ def melody(tr, notes, t0, step, inst, pan=0.1, gain=1.0, legato=0.95, octave=0):
     return t
 
 
-# --- THE FIGHT: B minor, 4/4 at 112; three sections, the same nine stems ------------------------------------------
-# audio/music.gd brings each stem up and down with the fight (docs/MUSIC_SYSTEM.md): the bed always; the pulse but
-# for a gap on a slack line; the drive on his runs (the shaker by day, the click at night); the tension as the line
-# nears parting (tension_hi as the spool empties); the deep while he sounds; the tune once he's tiring.
+# --- THE SONG'S TIME AND ITS CHORDS' NOTES ---------------------------------------------------------------------
+# Everything at sea is one song at 112, in D and its B minor (sea()); the title's the theme in the same time and key.
 
 FIGHT_BPM = 112.0
-FIGHT_STEMS = ("bed", "pulse", "drive", "shaker", "click", "tension", "tension_hi", "deep", "tune", "heavy")
 ROOT = {"Bm": 35, "G": 31, "Em": 28, "F#": 30, "D": 38, "A": 33, "C": 36}
 # over each chord, the note the tremolo worries at (a ninth, or the flat ninth over F#)
 TENSE = {"Bm": 73, "G": 69, "Em": 66, "F#": 67, "D": 76, "A": 71}
@@ -547,79 +551,6 @@ def _runs(prog):
         else:
             out.append([c, i, 1])
     return out
-
-
-def fight_section(name, prog, drone, tune=None, high=None, heat=0):
-    """heat 0: fresh (the runs), 1: tired (circling, the tune), 2: the leader (everything, the heartbeat on every
-    beat)."""
-    q = 60.0 / FIGHT_BPM
-    e, s, bar = q / 2, q / 4, 4 * q
-    secs = len(prog) * bar
-    T = {k: Track(secs, True) for k in FIGHT_STEMS}
-    for b, c in enumerate(prog):
-        t = b * bar
-        r = ROOT[c] + 12
-        # bed: a dark pad an octave down, the drone under it (a bar at a time, each overlapping the next)
-        T["bed"].add(pad([x - 12 if x > 57 else x for x in PAD[c]], bar, attack=0.5, release=0.9, bright=0.2, seed=b),
-                     t, 0.0, 0.3)
-        T["bed"].add(reed(drone, bar * 1.04, attack=0.3, release=0.3, swell=0.1), t, -0.1, 0.16)
-        # pulse: the heartbeat (on 1 and 3; every beat at the leader) and the muted bass eighths, the last up a step
-        for k in range(4 if heat == 2 else 2):
-            at = t + k * (q if heat == 2 else 2 * q)
-            g = 0.8 if k == 0 else 0.55
-            T["pulse"].add(heartbeat(), at, 0.0, g)
-            T["pulse"].add(heartbeat(), at + 0.16, 0.0, g * 0.62)
-        for i in range(8):
-            m = r + (12 if i in (3, 6) else 0)
-            T["pulse"].add(pluck(m, 0.3, bright=0.2, pos=0.25, decay=0.9, mute=0.55, var=i % 3), t + i * e, -0.05,
-                           0.42 if i % 2 == 0 else 0.3)
-        # drive: the war drum on 1, the and of 2, and 3; boots on 2 and 4; ghosts between; a fill every other bar
-        hits = [(0, 1.0), (3, 0.6), (4, 0.85), (7, 0.45)] if heat < 2 else [(i, 0.9 if i % 2 == 0 else 0.55)
-                                                                           for i in range(8)]
-        for i, g in hits:
-            T["drive"].add(war_drum(low=1.0), t + i * e, 0.0, 0.55 * g)
-        for k in (1, 3):
-            T["drive"].add(stomp(), t + k * q, 0.05, 0.4)
-            if heat >= 1:
-                T["drive"].add(clap(), t + k * q + 0.004, 0.25, 0.16)
-        for i in (3, 7, 11, 15):
-            T["drive"].add(frame_drum(), t + i * s, 0.0, 0.12)
-        if b % 2 == 1:
-            for i in range(4):
-                T["drive"].add(war_drum(low=1.25 + 0.12 * i), t + 3 * q + i * s, 0.15 - 0.1 * i, 0.22 + 0.07 * i)
-        # shaker (by day) and click (at night): the sixteenths, leaning on the off-beats
-        for i in range(16):
-            T["shaker"].add(shaker(), t + i * s, 0.45, 0.11 if i % 4 == 2 else 0.055)
-            T["click"].add(woodblock(f=640.0 if i % 4 == 2 else 520.0), t + i * s, 0.4,
-                           0.09 if i % 4 == 2 else (0.03 if i % 2 else 0.0))
-        # tension: one high note picked fast over each chord, the line singing over it; tension_hi a fourth higher
-        tn = TENSE[c]
-        for i in range(16):
-            T["tension"].add(pluck(tn, 0.2, bright=0.6, pos=0.22, decay=0.4, mute=0.4, var=i % 3), t + i * s, 0.4,
-                             0.13 + 0.06 * (i % 4 == 0))
-            T["tension_hi"].add(pluck(tn + 5, 0.16, bright=0.7, pos=0.2, decay=0.3, mute=0.45, var=i % 3),
-                                t + i * s + s * 0.5, -0.35, 0.1 + 0.05 * (i % 4 == 0))
-    for c, b0, n in _runs(prog):
-        t, d = b0 * bar, n * bar
-        T["tension"].add(line_sing(TENSE[c] + 12, d * 0.95, attack=0.6, release=0.6), t, 0.2, 0.07)
-        T["tension_hi"].add(line_sing(TENSE[c] + 17, d * 0.95, beat=5.0, attack=0.4, release=0.5), t, -0.2, 0.06)
-        # deep: a bowed note low on each chord, and the sea's own sub under each run of it
-        T["deep"].add(bowed(ROOT[c] + 12, d * 0.97, attack=0.7, release=0.8, bright=0.25, seed=b0), t, -0.15, 0.4)
-        T["deep"].add(bowed(ROOT[c] + 19, d * 0.9, attack=1.2, release=0.8, bright=0.2, seed=b0 + 1), t + 0.2, 0.2,
-                      0.16)
-        T["deep"].add(sub_swell(d, ROOT[c] - 12 if ROOT[c] >= 36 else ROOT[c], 1.0), t, 0.0, 0.3)
-        # heavy: a giant's weight (it's felt on the rod: audio/music_state.gd brings it up with his size): the bow an
-        # octave down, the biggest drum on each one, the sub under it
-        T["heavy"].add(bowed(ROOT[c], d * 0.97, attack=0.9, release=0.9, bright=0.15, seed=b0 + 7), t, 0.0, 0.42)
-        T["heavy"].add(sub_swell(d, ROOT[c] - 12 if ROOT[c] >= 36 else ROOT[c], 1.0), t, 0.0, 0.35)
-        for k in range(n):
-            T["heavy"].add(war_drum(low=0.72), t + k * bar, 0.0, 0.5)
-            T["heavy"].add(war_drum(low=0.72), t + k * bar + 2.5 * (bar / 4), 0.0, 0.3)
-    if tune:
-        melody(T["tune"], tune, 0.0, e, reed, -0.15, 0.36, legato=0.96, octave=-1 if high else 0)
-    if high:
-        melody(T["tune"], high, 0.0, e, whistle, 0.1, 0.4, legato=0.9)
-    stems(name, T, FIGHT_BPM, 4, len(prog), level=0.8, wet=0.2, rt=1.5, chords=prog)
 
 
 # --- THE THEME: Bluefin's own tune, everywhere --------------------------------------------------------------------
@@ -656,70 +587,71 @@ def theme_check():
 
 def title():
     """Four bars of the guitar (the bells ringing its first three notes), the theme on the whistle, the theme again
-    with the concertina under it an octave down and the drums in, a tag home. Loops."""
+    with the concertina under it an octave down and the drums in, a tag home. Loops. In stems, so the title's sea
+    plays it (audio/music_state.gd): the whistle and the band in fair weather; in rain the patter under it and the
+    whistle softer; in a storm no whistle at all, the theme low on the bow over the storm's drums; at night the
+    bells; in fog almost only the pad and a far whistle."""
     theme_check()
     q = 60.0 / FIGHT_BPM
-    e, bar = q / 2, 4 * q
+    e, s16, bar = q / 2, q / 4, 4 * q
     prog = ["D", "G", "D", "A"] + THEME_CHORDS + THEME_CHORDS + ["G", "A", "D", "D"]
-    tr = Track(len(prog) * bar, True)
+    names = ("lead", "counter", "guitar", "bass", "pad", "drums", "rain", "storm", "night", "low")
+    T = {k: Track(len(prog) * bar, True) for k in names}
     arp = [0, 2, 3, 4, 3, 2, 3, 2]
     for b, c in enumerate(prog):
         t = b * bar
         v = CH[c]
         second = 20 <= b < 36
         for i, j in enumerate(arp):
-            tr.add(pluck(v[min(j, len(v) - 1)], 1.5, bright=0.42, decay=1.3, var=i % 3),
-                   t + i * e + RNG.uniform(0, 0.006), -0.25, 0.3 if i in (0, 4) else 0.22)
+            T["guitar"].add(pluck(v[min(j, len(v) - 1)], 1.5, bright=0.42, decay=1.3, var=i % 3),
+                            t + i * e + RNG.uniform(0, 0.006), -0.25, 0.3 if i in (0, 4) else 0.22)
         root = v[0] - 12 if v[0] >= 45 else v[0]
-        tr.add(pluck(root, 2.0, bright=0.15, pos=0.3, decay=1.6), t, 0.0, 0.52)
-        tr.add(pluck(root + 7, 1.2, bright=0.15, pos=0.3, decay=1.2), t + 2.5 * q, 0.0, 0.3)
-        tr.add(pad(PAD[c], bar, attack=0.6, release=1.0, seed=b), t, 0.0, 0.16)
+        T["bass"].add(pluck(root, 2.0, bright=0.15, pos=0.3, decay=1.6), t, 0.0, 0.52)
+        T["bass"].add(pluck(root + 7, 1.2, bright=0.15, pos=0.3, decay=1.2), t + 2.5 * q, 0.0, 0.3)
+        T["pad"].add(pad(PAD[c], bar, attack=0.6, release=1.0, seed=b), t, 0.0, 0.16)
         if 12 <= b < 36:
             for i in range(8):
-                tr.add(shaker(), t + i * e, 0.4, 0.1 if i % 2 == 0 else 0.06)
+                T["drums"].add(shaker(), t + i * e, 0.4, 0.1 if i % 2 == 0 else 0.06)
         if second:
-            tr.add(frame_drum(), t, 0.0, 0.5)
-            tr.add(frame_drum(), t + 2 * q, 0.0, 0.38)
-            tr.add(stomp(), t + q, 0.05, 0.22)
-            tr.add(stomp(), t + 3 * q, 0.05, 0.22)
+            T["drums"].add(frame_drum(), t, 0.0, 0.5)
+            T["drums"].add(frame_drum(), t + 2 * q, 0.0, 0.38)
+            T["drums"].add(stomp(), t + q, 0.05, 0.22)
+            T["drums"].add(stomp(), t + 3 * q, 0.05, 0.22)
             if b % 4 == 3:
                 for i in range(4):
-                    tr.add(frame_drum(), t + 3 * q + i * q / 4, 0.0, 0.18 + 0.06 * i)
+                    T["drums"].add(frame_drum(), t + 3 * q + i * q / 4, 0.0, 0.18 + 0.06 * i)
             for k in (1, 3):
-                tr.strum([x + 12 for x in v[-3:]], t + k * q, spread=0.008, dur=0.25, gain=0.2, pan=0.35,
-                         bright=0.7, pos=0.25, decay=0.5, mute=0.6)
+                T["guitar"].strum([x + 12 for x in v[-3:]], t + k * q, spread=0.008, dur=0.25, gain=0.2, pan=0.35,
+                                  bright=0.7, pos=0.25, decay=0.5, mute=0.6)
+        # the weather's: rain's patter, the storm's drums half-time, the night's bells on the chord
+        for i in range(16):
+            T["rain"].add(shaker(), t + i * s16, 0.4 if i % 2 else -0.3, 0.07 if i % 4 == 2 else 0.04)
+        T["storm"].add(war_drum(low=0.9), t, 0.0, 0.5)
+        T["storm"].add(war_drum(low=0.9), t + 2.5 * q, 0.0, 0.32)
+        for k, at in ((b % 3, 0.5), ((b + 1) % 3, 2.5)):
+            T["night"].add(bell(v[-1 - k] + 12 if v[-1 - k] + 24 >= 96 else v[-1 - k] + 24, 3.0), t + at * q,
+                           0.35 if k % 2 else -0.35, 0.1)
+    for c, b0, n in _runs(prog):
+        T["storm"].add(bowed(ROOT[c] + 12, n * bar * 0.97, attack=1.0, release=1.0, bright=0.2, seed=b0), b0 * bar,
+                       -0.1, 0.3)
+        T["storm"].add(sub_swell(n * bar, ROOT[c] if ROOT[c] < 36 else ROOT[c] - 12, 1.0), b0 * bar, 0.0, 0.3)
     # the bells: its first three notes, ringing out in the intro
     for b in (0, 2):
         for k, m in enumerate((81, 86, 90)):
-            tr.add(bell(m, 3.0), b * bar + k * q, 0.3, 0.14)
-    melody(tr, THEME, 4 * bar, e, whistle, 0.1, 0.5, legato=0.93)
-    melody(tr, THEME, 20 * bar, e, whistle, 0.1, 0.48, legato=0.93)
-    melody(tr, THEME, 20 * bar, e, reed, -0.15, 0.3, legato=0.96, octave=-1)
-    melody(tr, [(None, 8), (None, 8), (69, 2), (74, 2), (78, 12)], 36 * bar, e, whistle, 0.1, 0.32)
-    write("title", master(tr, wet=0.26, rt=2.0), 0.82)
-    cue("title", "bed", ["title"], FIGHT_BPM, 4, len(prog), True, stems=["main"], length=len(prog) * bar,
-        chords=prog, chord_beats=4)
-
-
-TIRED_TUNE = [(71, 3), (74, 1), (79, 4), (78, 2), (76, 2), (74, 4), (73, 2), (74, 2), (76, 4), (74, 6), (None, 2),
-              (71, 3), (74, 1), (79, 4), (81, 2), (79, 2), (78, 4), (76, 4), (73, 2), (76, 2), (76, 6), (None, 2),
-              (79, 3), (78, 1), (76, 4), (74, 3), (76, 1), (79, 4), (81, 4), (78, 4), (76, 6), (73, 2),
-              (74, 3), (73, 1), (71, 4), (74, 3), (76, 1), (79, 4), (78, 2), (76, 2), (73, 4), (74, 8)]
-def fight():
-    fight_section("fight", ["Bm", "Bm", "G", "G", "Em", "Em", "F#", "F#"] * 2, 35, heat=0)
-    fight_section("tired", ["G", "D", "A", "Bm", "G", "D", "A", "A", "Em", "G", "D", "A", "Bm", "G", "A", "D"], 38,
-                  tune=TIRED_TUNE, heat=1)
-    # the leader: the theme's second half, soaring (the whistle on it, the concertina under)
-    fight_section("leader", THEME_CHORDS[8:], 38, tune=theme_bars(8, 16), high=theme_bars(8, 16), heat=2)
-    # into the leader: two beats of the war drum climbing, exactly two beats long (a filler: the leader starts after)
-    q = 60.0 / FIGHT_BPM
-    tr = Track(2 * q, False)
-    for i in range(8):
-        tr.add(war_drum(low=1.0 + 0.09 * i), i * q / 4, 0.0, 0.35 + 0.08 * i)
-    tr.add(swell_noise(2 * q), 0.0, 0.0, 0.18)
-    tr.add(pluck(33, 1.0, bright=0.2, pos=0.3, decay=0.8), 0.0, 0.0, 0.4)
-    write("leader_in", exact(master(tr, wet=0.12, rt=1.2), int(round(2 * q * SR))), 0.8)
-    cue("leader_in", "filler", ["leader_in"], FIGHT_BPM, 4, 0, False, length=2 * q)
+            T["lead"].add(bell(m, 3.0), b * bar + k * q, 0.3, 0.14)
+    melody(T["lead"], THEME, 4 * bar, e, whistle, 0.1, 0.5, legato=0.93)
+    melody(T["lead"], THEME, 20 * bar, e, whistle, 0.1, 0.48, legato=0.93)
+    melody(T["counter"], THEME, 20 * bar, e, reed, -0.15, 0.3, legato=0.96, octave=-1)
+    melody(T["lead"], [(None, 8), (None, 8), (69, 2), (74, 2), (78, 12)], 36 * bar, e, whistle, 0.1, 0.32)
+    # low: the theme on the bow, an octave and more down (the storm's, in place of the whistle)
+    for at in (4, 20):
+        t0 = at * bar
+        for m, ln in THEME:
+            if m is not None:
+                T["low"].add(bowed(m - 24, ln * e * 0.98, attack=0.12, release=0.4, bright=0.45, vib=0.006), t0,
+                             -0.05, 0.3)
+            t0 += ln * e
+    stems("title", T, FIGHT_BPM, 4, len(prog), level=0.82, wet=0.26, rt=2.0, chords=prog)
 
 
 def exact(x, n):
@@ -731,6 +663,27 @@ def exact(x, n):
     f = int(0.004 * SR)
     x[:, -f:] *= np.linspace(1.0, 0.0, f)
     return x
+
+
+def moments():
+    """The song's moments, played over it on its grid: the fill into the leader (two beats, ending on the bar), and
+    the hit when he's landed (the whole band's D, the drum, the splash, the whistle high: on the downbeat)."""
+    q = 60.0 / FIGHT_BPM
+    tr = Track(2 * q, False)
+    for i in range(8):
+        tr.add(war_drum(low=1.0 + 0.09 * i), i * q / 4, 0.0, 0.35 + 0.08 * i)
+    tr.add(swell_noise(2 * q), 0.0, 0.0, 0.18)
+    tr.add(pluck(33, 1.0, bright=0.2, pos=0.3, decay=0.8), 0.0, 0.0, 0.4)
+    write("leader_in", exact(master(tr, wet=0.12, rt=1.2), int(round(2 * q * SR))), 0.8)
+    cue("leader_in", "sting", ["leader_in"], length=2 * q, lead_in=True)
+    tr = Track(5.0, False)
+    tr.strum(CH["D"] + [74], 0.0, spread=0.01, dur=3.0, gain=1.25, pan=-0.15, bright=0.7, decay=1.8)
+    tr.add(war_drum(), 0.0, 0.0, 0.9)
+    tr.add(crash(2.6), 0.0, 0.2, 0.22)
+    tr.add(pluck(38, 3.0, bright=0.2, pos=0.3, decay=1.8), 0.0, 0.0, 0.8)
+    tr.add(whistle(86, 1.6, vib=0.006), 0.02, 0.1, 0.38)
+    write("landed", master(tr, wet=0.26, rt=2.0), 0.85)
+    cue("landed", "sting", ["landed"], hit=0.0)
 
 
 def strike():
@@ -749,183 +702,74 @@ def strike():
     cue("strike", "sting", ["strike"], hit=0.0)
 
 
-def hunt():
-    """Birds working: the fight's world, held back. The bass ticking over on B, the shaker, a glint now and then."""
+# --- LEAD-INS AND ENDINGS: the song's cues, the way a band would play them --------------------------------------
+# Lead-ins are two beats long, ending exactly on a downbeat (birds sighted, the race home called, casting off);
+# endings are a hit and its ring on a downbeat (boatside, home made, the title giving way to the song). Played over
+# the song, never instead of it.
+
+def handoffs():
     q = 60.0 / FIGHT_BPM
-    e, bar = q / 2, 4 * q
-    prog = ["Bm"] * 4 + ["G", "G", "F#", "F#"]
-    T = {k: Track(len(prog) * bar, True) for k in ("pulse", "tick", "glint")}
-    for b, c in enumerate(prog):
-        t = b * bar
-        r = ROOT[c] + 12
-        for i in range(8):
-            T["pulse"].add(pluck(r + (12 if i == 5 else 0), 0.28, bright=0.15, pos=0.25, decay=0.8, mute=0.6,
-                                 var=i % 3), t + i * e, -0.05, 0.4 if i in (0, 3) else 0.24)
-        T["pulse"].add(heartbeat(), t, 0.0, 0.45)
-        T["pulse"].add(heartbeat(), t + 0.16, 0.0, 0.28)
-        T["pulse"].add(pad([x - 12 if x > 57 else x for x in PAD[c]], bar, attack=0.8, release=1.0, bright=0.15,
-                           seed=40 + b), t, 0.0, 0.14)
-        for i in range(8):
-            T["tick"].add(shaker(), t + i * e, 0.45, 0.08 if i % 2 else 0.05)
-        T["tick"].add(woodblock(f=880.0), t + 7 * e, 0.3, 0.06)
-        if b % 2 == 0:
-            # the theme's first three notes, far off (an octave up in the bells)
-            for k, m in enumerate((81, 86, 90) if b % 4 == 0 else (83, 86, 88)):
-                T["glint"].add(bell(m, 3.0), t + (1.5 + k) * q, 0.4 if k % 2 else -0.3, 0.11)
-    stems("hunt", T, FIGHT_BPM, 4, len(prog), level=0.55, wet=0.28, rt=2.0, chords=prog)
-
-
-def gaff():
-    """Boatside, the harpoon up: held on F# (it won't resolve till he's in), the heartbeat on every beat, a shimmer
-    rising with the throw's wind-up."""
-    q = 60.0 / FIGHT_BPM
-    e, s, bar = q / 2, q / 4, 4 * q
-    bars = 4
-    T = {k: Track(bars * bar, True) for k in ("bed", "pulse", "shimmer")}
-    for b in range(bars):
-        t = b * bar
-        T["bed"].add(reed(30, bar * 1.04, attack=0.3, release=0.3, swell=0.15), t, -0.1, 0.2)
-        T["bed"].add(reed(37, bar * 1.04, attack=0.3, release=0.3, swell=0.15), t, 0.1, 0.14)
-        T["bed"].add(pad([42, 49, 54, 59], bar, attack=0.6, release=0.9, bright=0.2, seed=60 + b), t, 0.0, 0.25)
-        for k in range(4):
-            T["pulse"].add(heartbeat(), t + k * q, 0.0, 0.7)
-            T["pulse"].add(heartbeat(), t + k * q + 0.15, 0.0, 0.42)
-        for i in range(8):
-            T["pulse"].add(pluck(42, 0.26, bright=0.2, pos=0.25, decay=0.8, mute=0.6, var=i % 3), t + i * e, -0.05,
-                           0.3)
-        for i in range(16):
-            T["shimmer"].add(pluck(78 if i % 2 == 0 else 79, 0.16, bright=0.7, pos=0.2, decay=0.3, mute=0.4,
-                                   var=i % 3), t + i * s, 0.35, 0.12)
-    T["bed"].add(bowed(42, bars * bar * 0.98, attack=1.5, release=1.0, bright=0.25), 0.0, -0.2, 0.3)
-    T["shimmer"].add(line_sing(90, bars * bar * 0.96, beat=6.0, attack=1.0), 0.0, 0.0, 0.08)
-    stems("gaff", T, FIGHT_BPM, 4, bars, level=0.7, wet=0.22, rt=1.6, chords=["F#"] * bars)
-
-
-def afterglow():
-    """He's in: the hit (the whole band's D, the drum, the whistle high), then the theme's first half coming home over
-    the guitar picking, the concertina joining it, and away. A one-shot, ten bars and its ring."""
-    q = 60.0 / FIGHT_BPM
-    e, bar = q / 2, 4 * q
-    prog = ["D"] + THEME_CHORDS[:8] + ["D"]
-    tr = Track(len(prog) * bar + 3.0, False)
-    tr.strum(CH["D"] + [74], 0.0, spread=0.01, dur=3.0, gain=1.25, pan=-0.15, bright=0.7, decay=1.8)
+    s16 = q / 4
+    # lead-ins: exactly two beats long, the downbeat after them
+    def lead_in(name, tr):
+        write(name, exact(master(tr, wet=0.2, rt=1.6), int(round(2 * q * SR))), 0.7)
+        cue(name, "sting", [name], length=2 * q, lead_in=True)
+    # into the hunt: the bells climbing the theme's first three notes, the shaker swelling
+    tr = Track(2 * q, False)
+    for k, m in enumerate((69, 74, 78, 81)):
+        tr.add(bell(m + 12, 2.0), k * q / 2, 0.3 - 0.2 * k, 0.12 + 0.03 * k)
+    for i in range(8):
+        tr.add(shaker(), i * s16, 0.4, 0.03 + 0.012 * i)
+    lead_in("hunt_in", tr)
+    # into the race: the drum rolling up, the whistle's pickup into the jig
+    tr = Track(2 * q, False)
+    for i in range(8):
+        tr.add(frame_drum(), i * s16, 0.0, 0.2 + 0.07 * i)
+    tr.add(swell_noise(2 * q), 0.0, 0.0, 0.12)
+    melody(tr, [(76, 1), (79, 1), (83, 1), (86, 1)], q, q / 4, whistle, 0.1, 0.35, legato=0.85)
+    lead_in("race_in", tr)
+    # away from the dock: a strum up and the whistle's A-D, into the sea
+    tr = Track(2 * q, False)
+    tr.strum(CH["A"], 0.0, down=False, spread=0.03, dur=1.2, gain=0.5, bright=0.45, decay=1.0)
+    melody(tr, [(69, 2), (74, 2)], q, q / 2, whistle, 0.1, 0.35, legato=0.9)
+    lead_in("away_in", tr)
+    # into the fight is the strike itself; into the leader, leader_in (moments())
+    # tails: a last hit and its ring
+    def tail(name, tr):
+        write(name, master(tr, wet=0.3, rt=2.2), 0.7)
+        cue(name, "sting", [name], hit=0.0, tail=True)
+    # the fight to boatside: a big drum and a splash, the bow swelling and gone
+    tr = Track(4.0, False)
     tr.add(war_drum(), 0.0, 0.0, 0.9)
-    tr.add(crash(2.6), 0.0, 0.2, 0.22)
-    tr.add(pluck(38, 3.0, bright=0.2, pos=0.3, decay=1.8), 0.0, 0.0, 0.8)
-    tr.add(whistle(86, 1.6, vib=0.006), 0.02, 0.1, 0.38)
-    arp = [0, 2, 3, 4, 3, 2, 1, 2]
-    for b, c in enumerate(prog):
-        t = b * bar
-        v = CH[c]
-        if 1 <= b < 9:
-            for i, j in enumerate(arp):
-                tr.add(pluck(v[min(j, len(v) - 1)], 1.5, bright=0.45, decay=1.3, var=i % 3), t + i * e, -0.25, 0.3)
-            root = v[0] - 12 if v[0] >= 45 else v[0]
-            tr.add(pluck(root, 1.6, bright=0.15, pos=0.3, decay=1.3), t, 0.0, 0.5)
-            tr.add(frame_drum(), t, 0.0, 0.3)
-        if b >= 1:
-            tr.add(pad(PAD[c], bar, attack=0.6, release=1.2 if b < 9 else 3.0, seed=70 + b), t, 0.0, 0.18)
-    melody(tr, theme_bars(0, 8), bar, e, whistle, 0.1, 0.46, legato=0.93)
-    melody(tr, theme_bars(4, 8), 5 * bar, e, reed, -0.1, 0.3, legato=0.96, octave=-1)
-    tr.strum(CH["D"], 9 * bar, spread=0.05, dur=3.5, gain=0.7, bright=0.4, decay=2.2)
-    melody(tr, [(69, 2), (74, 2), (78, 12)], 9 * bar, e, whistle, 0.1, 0.3)
-    x = master(tr, wet=0.26, rt=2.0)
-    write("afterglow", x, 0.8)
-    cue("afterglow", "bed", ["afterglow"], FIGHT_BPM, 4, len(prog), False, stems=["main"], length=x.shape[1] / SR,
-        chords=prog, chord_beats=4)
+    tr.add(crash(2.4), 0.0, 0.2, 0.25)
+    tr.add(bowed(42, 1.8, attack=0.05, release=1.2, bright=0.5), 0.0, -0.1, 0.4)
+    tail("boatside_end", tr)
+    # the race home, made: the jig's last chord, the drum, the ring
+    tr = Track(4.5, False)
+    tr.strum(CH["Em"], 0.0, spread=0.012, dur=3.2, gain=1.0, bright=0.6, decay=1.8)
+    tr.add(frame_drum(), 0.0, 0.0, 0.7)
+    tr.add(whistle(83, 1.4, vib=0.006), 0.02, 0.1, 0.3)
+    tail("race_end", tr)
+    # the title gone (FISH): the theme's last chord ringing out under the harbour
+    tr = Track(5.0, False)
+    tr.strum(CH["D"] + [74], 0.0, spread=0.03, dur=4.0, gain=0.8, bright=0.45, decay=2.4)
+    for k, m in enumerate((81, 86, 90)):
+        tr.add(bell(m, 3.5), k * q, 0.3, 0.12)
+    tail("title_end", tr)
 
 
-def harbour():
-    """Tied up: a slow waltz in the fish shed, the guitar picking, the concertina far off down the quay."""
-    bpm = 84.0
-    q = 60.0 / bpm
-    bar = 3 * q
-    prog = ["G", "C", "G", "D", "G", "C", "D", "G", "Em", "C", "G", "D", "G", "C", "D", "G"]
-    T = {k: Track(len(prog) * bar, True) for k in ("guitar", "reed")}
-    for b, c in enumerate(prog):
-        t = b * bar
-        v = CH[c]
-        root = v[0] - 12 if v[0] >= 45 else v[0]
-        T["guitar"].add(pluck(root, 2.0, bright=0.15, pos=0.3, decay=1.6), t, 0.0, 0.5)
-        for k in (1, 2):
-            T["guitar"].strum(v[-3:], t + k * q, spread=0.012, dur=1.0, gain=0.3, pan=-0.2, bright=0.35, decay=1.0)
-        T["guitar"].add(pad(PAD[c], bar, attack=0.8, release=1.2, bright=0.2, seed=80 + b), t, 0.0, 0.1)
-    A = [(None, 3), (None, 3), (67, 3), (66, 3), (None, 3), (64, 3), (66, 2), (69, 1), (67, 3),
-         (71, 2), (74, 1), (76, 2), (74, 1), (71, 2), (67, 1), (69, 3), (71, 2), (74, 1), (76, 1), (79, 1), (76, 1),
-         (74, 2), (72, 1), (71, 3)]
-    melody(T["reed"], A, 0.0, q, reed, -0.1, 0.3, legato=0.95)
-    stems("harbour", T, bpm, 3, len(prog), level=0.5, wet=0.34, rt=2.4, chords=prog)
-
-
-# --- THE RACE HOME: a jig in E dorian, 12/8 at 112 (the sea's own bar), 16 bars, four stems -----------------------
-# The same bar as the sea and the fight (four beats at 112), each beat in three: the sea goes into it on its bar and
-# nothing changes speed. (Each "half" below is two beats, a 6/8 bar of the old jig.)
-
-def race():
-    q = 60.0 / FIGHT_BPM
-    e = q / 3
-    half = 6 * e
-    halves = ["Em", "Em", "D", "D", "Em", "Em", "Bm", "Em", "G", "D", "Em", "Bm", "G", "D", "Bm", "Em"]
-    prog = halves * 2
-    secs = len(prog) * half
-    a, b, c, d = Track(secs, True), Track(secs, True), Track(secs, True), Track(secs, True)
-    pat = [(0, True, 1.0), (2, False, 0.55), (3, True, 0.85), (5, False, 0.55)]
-    for i, ch in enumerate(prog):
-        t = i * half
-        v = CH[ch]
-        # a: the strum and the bass and the drum
-        for k, down, g in pat:
-            a.strum(v, t + k * e, down=down, spread=0.011, dur=0.5, gain=0.6 * g, pan=-0.2, bright=0.5,
-                    decay=0.7, mute=0.35)
-        root = v[0] - 12 if v[0] >= 45 else v[0]
-        a.add(pluck(root, 0.6, bright=0.15, pos=0.3, decay=0.9), t, 0.0, 0.6)
-        a.add(pluck(root + 7, 0.5, bright=0.15, pos=0.3, decay=0.8), t + 3 * e, 0.0, 0.45)
-        a.add(frame_drum(), t, 0.0, 0.55)
-        a.add(frame_drum(), t + 3 * e, 0.0, 0.4)
-        a.add(frame_drum(), t + 5 * e, 0.0, 0.16)
-        # c: the urgency: the drum rolling every eighth, the shaker, a low drone pulse, the ukulele's tremolo
-        for k in range(6):
-            c.add(frame_drum(), t + k * e, 0.0, 0.2 + (0.12 if k in (0, 3) else 0.0))
-            c.add(shaker(), t + k * e, 0.45, 0.13 if k in (0, 3) else 0.08)
-            c.add(shaker(), t + (k + 0.5) * e, 0.45, 0.045)
-        c.add(reed(40, half * 0.9, attack=0.05, swell=0.5), t, -0.1, 0.18)
-        top = v[-1] + (12 if v[-1] < 66 else 0)
-        for k in range(12):
-            c.add(pluck(top, 0.15, bright=0.6, pos=0.22, decay=0.35, mute=0.4, var=k % 3), t + k * e * 0.5, 0.4,
-                  0.09)
-        c.add(pad(PAD[ch], half, attack=0.3, release=0.5, bright=0.4, seed=i), t, 0.0, 0.12)
-        # d: the last chance (behind, the clock nearly out): the war drum on every eighth, boots and a clap
-        for k in range(6):
-            d.add(war_drum(low=1.0 if k in (0, 3) else 1.2), t + k * e, 0.0, 0.42 if k in (0, 3) else 0.24)
-        d.add(stomp(), t, 0.05, 0.45)
-        d.add(stomp(), t + 3 * e, 0.05, 0.4)
-        d.add(clap(), t + 3 * e, 0.25, 0.22)
-    # b: the tune (the old jig's, up a tone into E dorian), whistle the first time, the concertina doubling it an
-    # octave down the second
-    tune = [(69, 1), (74, 1), (74, 1), (69, 1), (74, 1), (76, 1), (77, 1), (76, 1), (74, 1), (72, 1), (69, 2),
-            (67, 1), (72, 1), (72, 1), (67, 1), (72, 1), (74, 1), (76, 1), (74, 1), (72, 1), (69, 1), (67, 2),
-            (69, 1), (74, 1), (74, 1), (76, 1), (77, 1), (79, 1), (81, 2), (79, 1), (77, 1), (76, 1), (74, 1),
-            (72, 1), (69, 1), (72, 1), (76, 2), (72, 1), (74, 2), (69, 1), (74, 3),
-            (69, 1), (72, 1), (77, 1), (69, 1), (72, 1), (77, 1), (67, 1), (72, 1), (76, 1), (67, 1), (72, 1),
-            (76, 1), (77, 1), (76, 1), (74, 1), (76, 1), (77, 1), (79, 1), (76, 2), (72, 1), (69, 3),
-            (69, 1), (72, 1), (77, 1), (81, 2), (77, 1), (79, 1), (76, 1), (72, 1), (76, 2), (79, 1),
-            (76, 1), (74, 1), (72, 1), (71, 1), (72, 1), (76, 1), (74, 3), (69, 1), (74, 2)]
-    tune = [(m + 2 if m is not None else None, ln) for m, ln in tune]
-    melody(b, tune, 0.0, e, whistle, 0.1, 0.55, legato=0.9)
-    melody(b, tune, 16 * half, e, whistle, 0.1, 0.42, legato=0.9)
-    melody(b, tune, 16 * half, e, reed, -0.15, 0.38, legato=0.92, octave=-1)
-    stems("race", {"a": a, "b": b, "c": c, "d": d}, FIGHT_BPM, 4, len(prog) // 2, level=0.85, wet=0.18, rt=1.4,
-          chords=prog, chord_beats=2)
-
-
-# --- THE SEA: an endless song in B minor / D at 112 (the hunt's and the fight's own), eight-bar passages -----------
+# --- THE SONG: one endless song in D and B minor at 112, eight-bar passages, every layer on every one -----------
 # audio/music.gd plays one passage after another, picking the next as each ends (never the same twice running; bright
-# ones in fair weather, dark ones in foul and at dusk), so it never goes round the same way twice. Every passage has
-# the same stems, and the weather and the hour bring them up and down (audio/music_state.gd): the pad and the bass
-# always; the guitar picking and the lead in fair weather; the rain's patter; the storm's war drums and drone; the
-# night's bells. In the fight's key and time, so the birds, the strike and the fight come in on the beat.
+# ones in fair weather, dark ones in foul, at dusk and in a fight; the theme's halves for the leader and for landing
+# him), so it never goes round the same way twice. It never changes song: what happens brings its layers up and down
+# (audio/music_state.gd) on the same chords: the weather's (the pad and the bass always, the guitar and the lead in
+# fair weather, the rain's patter, the storm's drums and drone, the night's bells), her speed (run), birds working
+# (pulse, glint), a fish on (beat: the heartbeat and the muted bass; drive: the war drums; tension: the tremolo and
+# the singing line, as the line nears going; deep: while he sounds; heavy: a giant), the climax (high: the lead an
+# octave up), and a fill into the next passage now and then.
 
-SEA_STEMS = ("pad", "bass", "pick", "lead", "rain", "storm", "night", "run", "fill")
+SEA_STEMS = ("pad", "bass", "pick", "lead", "high", "rain", "storm", "night", "run", "fill", "pulse", "glint",
+             "beat", "drive", "tension", "deep", "heavy")
 SEA = {
     # name: (chords, two bars each), the lead's instrument, the lead [(midi, eighths)], bright
     "a": (["D", "A", "Bm", "G"], "whistle", [(None, 4), (74, 4), (76, 2), (78, 6), (None, 2), (76, 4), (73, 4), (76, 6),
@@ -999,12 +843,60 @@ def sea():
             T["storm"].add(bowed(ROOT[c] + 12, d * 0.97, attack=1.0, release=1.0, bright=0.2, seed=b0), t, -0.1, 0.3)
             T["storm"].add(sub_swell(d, ROOT[c] if ROOT[c] < 36 else ROOT[c] - 12, 1.0), t, 0.0, 0.3)
         melody(T["lead"], lead, 0.0, e, whistle if lead_inst == "whistle" else reed, 0.1, 0.32, legato=0.94)
+        # high: the lead an octave up on the whistle, the concertina an octave under it (the climax)
+        melody(T["high"], lead, 0.0, e, whistle, 0.15, 0.26, legato=0.92, octave=1 if lead_inst == "reed" else 0)
+        melody(T["high"], lead, 0.0, e, reed, -0.2, 0.22, legato=0.96, octave=-1 if lead_inst == "whistle" else 0)
+        # the fish's layers, on these same chords
+        for b, c in enumerate(prog):
+            t = b * bar
+            r = ROOT[c] + 12
+            # pulse (birds working): the bass ticking over muted, soft; glint: the theme's first notes in the bells
+            for i in range(8):
+                T["pulse"].add(pluck(r + (12 if i == 5 else 0), 0.28, bright=0.15, pos=0.25, decay=0.8, mute=0.6,
+                                     var=i % 3), t + i * e, -0.05, 0.36 if i in (0, 3) else 0.22)
+                T["pulse"].add(shaker(), t + i * e, 0.45, 0.07 if i % 2 else 0.045)
+            if b % 2 == 0:
+                for k, m in enumerate((81, 86, 90) if b % 4 == 0 else (83, 86, 88)):
+                    T["glint"].add(bell(m, 3.0), t + (1.5 + k) * q, 0.4 if k % 2 else -0.3, 0.11)
+            # beat: the heartbeat on 1 and 3, the muted bass eighths, the last up a step
+            for k in range(2):
+                T["beat"].add(heartbeat(), t + k * 2 * q, 0.0, 0.8 if k == 0 else 0.55)
+                T["beat"].add(heartbeat(), t + k * 2 * q + 0.16, 0.0, 0.5 if k == 0 else 0.34)
+            for i in range(8):
+                T["beat"].add(pluck(r + (12 if i in (3, 6) else 0), 0.3, bright=0.2, pos=0.25, decay=0.9, mute=0.55,
+                                    var=i % 3), t + i * e, -0.05, 0.4 if i % 2 == 0 else 0.28)
+            # drive: the war drum on 1, the and of 2 and 3; boots on 2 and 4 with a clap; the shaker's sixteenths;
+            # a fill every other bar
+            for i, g in [(0, 1.0), (3, 0.6), (4, 0.85), (7, 0.45)]:
+                T["drive"].add(war_drum(), t + i * e, 0.0, 0.5 * g)
+            for k in (1, 3):
+                T["drive"].add(stomp(), t + k * q, 0.05, 0.38)
+                T["drive"].add(clap(), t + k * q + 0.004, 0.25, 0.14)
+            for i in range(16):
+                T["drive"].add(shaker(), t + i * s, 0.45, 0.1 if i % 4 == 2 else 0.05)
+            if b % 2 == 1:
+                for i in range(4):
+                    T["drive"].add(war_drum(low=1.25 + 0.12 * i), t + 3 * q + i * s, 0.15 - 0.1 * i, 0.2 + 0.07 * i)
+            # tension: one high note picked fast over the chord (its ninth, the flat ninth over F#)
+            for i in range(16):
+                T["tension"].add(pluck(TENSE[c], 0.2, bright=0.6, pos=0.22, decay=0.4, mute=0.4, var=i % 3),
+                                 t + i * s, 0.4, 0.12 + 0.06 * (i % 4 == 0))
+            # heavy: a giant's: the biggest drum on 1 and the and of 3
+            T["heavy"].add(war_drum(low=0.72), t, 0.0, 0.5)
+            T["heavy"].add(war_drum(low=0.72), t + 2.5 * q, 0.0, 0.3)
+        for c, b0, n in _runs(prog):
+            t, d = b0 * bar, n * bar
+            T["tension"].add(line_sing(TENSE[c] + 12, d * 0.95, attack=0.6, release=0.6), t, 0.2, 0.07)
+            T["deep"].add(bowed(ROOT[c] + 12, d * 0.97, attack=0.7, release=0.8, bright=0.25, seed=b0 + 3), t, -0.15,
+                          0.4)
+            T["deep"].add(sub_swell(d, ROOT[c] - 12 if ROOT[c] >= 36 else ROOT[c], 1.0), t, 0.0, 0.3)
+            T["heavy"].add(bowed(ROOT[c], d * 0.97, attack=0.9, release=0.9, bright=0.15, seed=b0 + 7), t, 0.0, 0.42)
         # fill: a drum fill over the passage's last two beats, into the next (audio/music.gd opens it now and then)
         t = (len(prog) - 1) * bar + 2 * q
         for i in range(8):
             T["fill"].add(frame_drum() if i < 4 else war_drum(low=1.3 - 0.06 * i), t + i * s, 0.15 * (i % 2 - 0.5),
                           0.18 + 0.05 * i)
-        stems("sea_" + name, T, FIGHT_BPM, 4, len(prog), level=0.6, wet=0.3, rt=2.2, chords=prog)
+        stems("sea_" + name, T, FIGHT_BPM, 4, len(prog), level=0.95, wet=0.26, rt=2.0, chords=prog)
         CUES["sea_" + name]["bright"] = bright
         if name == "t1":
             CUES["sea_" + name]["then"] = "sea_t2"
@@ -1114,14 +1006,10 @@ def stings():
 
 if __name__ == "__main__":
     title()
-    fight()
     sea()
+    moments()
     strike()
-    hunt()
-    gaff()
-    afterglow()
-    harbour()
-    race()
+    handoffs()
     rivals_stings()
     deck_whistle()
     countdown()

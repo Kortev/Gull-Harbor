@@ -3,6 +3,11 @@ extends RefCounted
 ## frame: world(); the tests hand it their own). No nodes, no sound: section, stem levels and events, all testable
 ## headless. docs/MUSIC_SYSTEM.md is the design.
 ##
+## After the title it's one song (tools/music.py's sea(): eight-bar passages, every layer on every one), and nothing
+## here changes the song: what's happening (the section: sea, harbour, hunt, fight, tired, leader, gaff, afterglow,
+## race) is only which of its layers are up, and how bright a passage to play next; what happens (the events) is a
+## cue the band plays over it on the beat.
+##
 ## It only hears what you could: the rod's bend against what the line will take, the spool, the line on her, his moves.
 ## Never the hook's hold or how tired he is: the music never tells you what you couldn't feel.
 ##
@@ -39,13 +44,12 @@ const PARTING := 0.85
 const PARTED := 0.72
 ## Each stem: [attack s (0 to full), release s (full to 0), hold s (once up, it stays at least this long)].
 const SMOOTH := {
-	"bed": [0.5, 2.0, 0.0], "pulse": [0.2, 0.3, 0.0], "drive": [0.25, 3.0, 4.3], "shaker": [0.25, 3.0, 4.3],
-	"click": [0.25, 3.0, 4.3], "tension": [0.5, 2.5, 4.3], "tension_hi": [1.0, 3.0, 4.3], "deep": [1.5, 4.0, 4.3],
-	"tune": [1.0, 4.0, 8.6], "tick": [1.5, 3.0, 0.0], "glint": [2.0, 4.0, 0.0], "shimmer": [0.15, 0.4, 0.0],
-	"a": [2.0, 4.0, 0.0], "b": [4.0, 4.0, 0.0], "c": [4.0, 4.0, 0.0], "d": [3.0, 4.0, 0.0],
-	"pad": [3.0, 4.0, 0.0], "bass": [3.0, 4.0, 0.0], "pick": [4.0, 5.0, 0.0], "lead": [4.0, 5.0, 0.0],
-	"rain": [4.0, 5.0, 0.0], "storm": [4.0, 6.0, 0.0], "night": [5.0, 5.0, 0.0], "run": [2.0, 4.0, 4.3],
-	"heavy": [2.0, 4.0, 0.0], "fill": [0.01, 0.01, 0.0],
+	"pad": [3.0, 4.0, 0.0], "bass": [2.0, 4.0, 0.0], "pick": [2.5, 3.0, 0.0], "lead": [2.5, 3.0, 4.3],
+	"high": [1.0, 4.0, 8.6], "rain": [4.0, 5.0, 0.0], "storm": [4.0, 6.0, 0.0], "night": [5.0, 5.0, 0.0],
+	"run": [2.0, 4.0, 4.3], "fill": [0.01, 0.01, 0.0], "pulse": [1.5, 3.0, 0.0], "glint": [2.0, 4.0, 0.0],
+	"beat": [0.2, 0.3, 0.0], "drive": [0.25, 3.0, 4.3], "tension": [0.5, 2.5, 4.3], "deep": [1.5, 4.0, 4.3],
+	"heavy": [2.0, 4.0, 0.0], "main": [0.01, 0.01, 0.0], "counter": [2.0, 3.0, 0.0], "guitar": [2.0, 3.0, 0.0],
+	"drums": [2.0, 3.0, 0.0], "low": [3.0, 3.0, 0.0],
 }
 const SMOOTH_ELSE := [1.0, 2.0, 0.0]
 ## The sea's stems by mood (an endless song: the pad and the bass always, the guitar and the lead in fair weather, the
@@ -58,7 +62,13 @@ const SEA := {
 	"storm": {"pad": 1.0, "bass": 1.0, "rain": 0.6, "storm": 1.0},
 	"night": {"pad": 0.75, "bass": 0.45, "pick": 0.5, "lead": 0.3, "night": 1.0},
 }
-const SEA_STEMS := ["pad", "bass", "pick", "lead", "rain", "storm", "night", "run", "fill"]
+const SEA_STEMS := ["pad", "bass", "pick", "lead", "high", "rain", "storm", "night", "run", "fill", "pulse", "glint",
+		"beat", "drive", "tension", "deep", "heavy"]
+## The song's layers that are the weather's (the rest are what's happening).
+const WEATHER := ["rain", "storm", "night"]
+## How bright a passage each section leans to (0 dark .. 1 bright; -1: the weather's own), and the theme's halves
+## asked for at the leader and for landing him (audio/music.gd jumps to sea_t1 on the bar).
+const SECTION_BRIGHT := {"fight": 0.1, "tired": 0.4, "gaff": 0.3, "race": 0.6, "afterglow": 1.0}
 ## Under way: the sea's run stem (and the bass with it) from this share of her top speed to that.
 const RUN := Vector2(0.25, 0.8)
 ## A fish this heavy (kg) to that: the fight's heavy stem in (a giant's weight, felt on the rod).
@@ -66,12 +76,12 @@ const HEAVY := Vector2(120.0, 320.0)
 const BRIGHT := {"calm": 0.75, "fog": 0.35, "rain": 0.3, "storm": 0.0, "night": 0.35}
 ## Dusk: past this far through the day the sea leans darker (to half as bright by its end).
 const DUSK := 0.75
+## Landed: the song lifted (the afterglow) this long (s: eight bars at 112).
+const AFTER := 17.1
 ## A fish lost: dead silence this long (s), then the sea again.
 const HUSH := 6.0
 ## A fish gone from alongside: this long to see it in the hold (landed) before it counts as got away.
 const LANDED_WAIT := 1.2
-## The weather there's no waltz in, tied up: the sea's song in its storm instead.
-const STORMY := ["storm", "heavy"]
 ## Birds: in at this near, out under this; once in, the hunt holds at least this long (s: four bars at 112), so birds
 ## at the edge of sight don't flicker it.
 const HUNT_HOLD := 8.6
@@ -89,7 +99,8 @@ var section := "sea"
 ## Each of its stems' level now (0..1), smoothed; and the fast mask over the fight's (the jump, the line parting).
 var gains := {}
 var masks := {}
-## What happened this step: "strike", "lost", "landed", "leader", "their_on", "lead_up", "lead_down", "countdown",
+## What happened this step: "strike", "lost", "landed", "leader", "boatside", "birds" (first working near), "away"
+## (cast off), "race" (the race home called), "home" (made it), "their_on", "lead_up", "lead_down", "countdown",
 ## "card:win" (lose, tie), "dawn".
 var events: Array[String] = []
 ## The mood at sea, and the worst fight's danger (0..1) and its id ("" none).
@@ -146,12 +157,24 @@ func step(w: Dictionary, dt: float) -> void:
 		if not (section in FIGHT and want in FIGHT and want != "leader" and _section_t < SECTION_HOLD):
 			if want == "leader" and section in FIGHT:
 				events.append("leader")
+			if want == "gaff" and section in FIGHT:
+				events.append("boatside")
+			if want == "hunt" and section == "sea":
+				events.append("birds")
+			if want == "race" and not section in FIGHT and section != "race":
+				events.append("race")
+			if section == "race" and want == "harbour":
+				events.append("home")
+			if section == "harbour" and want in ["sea", "hunt", "race"]:
+				events.append("away")
 			section = want
 			_section_t = 0.0
 	var wants := _wants(w, f)
 	_smooth(wants, dt)
 	_mask(w, f, dt)
 	bright = float(BRIGHT.get(mood, 0.5)) * lerpf(1.0, 0.5, smoothstep(DUSK, 1.0, float(w.get("day", 0.0))))
+	if SECTION_BRIGHT.has(section):
+		bright = float(SECTION_BRIGHT[section])
 	if events.has("dawn"):
 		bright = 1.0
 
@@ -226,9 +249,8 @@ func _edges(w: Dictionary, fights: Array) -> void:
 	if got:
 		_gone.clear()
 		events.append("landed")
-		# the afterglow till its last chord's ringing (its last two bars): the sea comes in under the ring
-		var ag: Dictionary = Cues.CUES.get("afterglow", {})
-		_after = (int(ag.get("bars", 10)) - 2) * int(ag.get("bar_beats", 4)) * 60.0 / float(ag.get("bpm", 112.0))
+		# the afterglow: the song lifts into the theme for eight bars (audio/music.gd jumps to it on the bar)
+		_after = AFTER
 	else:
 		for id: String in _gone.keys():
 			if _t - float(_gone[id]) >= LANDED_WAIT:
@@ -302,72 +324,103 @@ func _section(w: Dictionary, f: Dictionary) -> String:
 	if float(w.get("race_left", -1.0)) >= 0.0:
 		return "race"
 	if bool(w.get("docked", false)):
-		return "sea" if str(w.get("condition", "calm")) in STORMY else "harbour"
+		return "harbour"
 	var birds := float(w.get("birds", 0.0))
 	if birds >= BIRDS_IN or (section == "hunt" and (birds >= BIRDS_OUT or _section_t < HUNT_HOLD)):
 		return "hunt"
 	return "sea"
 
 
-## Each stem's level wanted (before smoothing).
+## Each stem's level wanted (before smoothing): the title's own, or the song's layers for what's happening.
 func _wants(w: Dictionary, f: Dictionary) -> Dictionary:
+	if section == "title":
+		return _title()
+	if section == "rest":
+		return {}
+	var want := {}
+	var m: Dictionary = SEA.get(mood, SEA["calm"])
+	for k: String in SEA_STEMS:
+		want[k] = float(m.get(k, 0.0))
+	var run := smoothstep(RUN.x, RUN.y, float(w.get("speed", 0.0)))
 	match section:
-		"title", "afterglow":
-			return {"main": 1.0}
-		"harbour":
-			return _harbour(w)
 		"sea":
-			var want := {}
-			var m: Dictionary = SEA.get(mood, SEA["calm"])
-			for k: String in SEA_STEMS:
-				want[k] = float(m.get(k, 0.0))
 			# under way: the drums' eighths and the bass pushing; the faster she goes, the more
-			var run := smoothstep(RUN.x, RUN.y, float(w.get("speed", 0.0)))
 			want["run"] = run * (0.5 if mood == "storm" else 1.0)
 			want["bass"] = maxf(float(want["bass"]), 0.6 + 0.4 * run)
-			return want
+		"harbour":
+			# tied up: the song quiet, the guitar and the lead soft, no drums (but the weather's)
+			want["pick"] = float(want["pick"]) * 0.7
+			want["lead"] = float(want["lead"]) * 0.5
+			want["bass"] = float(want["bass"]) * 0.6
 		"hunt":
+			# birds working: the bass ticking over, the bells; the lead holding back a little, the run still on
 			var b := float(w.get("birds", 0.0))
-			return {"pulse": smoothstep(0.05, 0.6, b), "tick": smoothstep(0.3, 0.8, b),
-					"glint": 0.8 * smoothstep(0.05, 0.4, b)}
-		"gaff":
-			return {"bed": 1.0, "pulse": 1.0, "shimmer": maxf(float(w.get("draw", 0.0)), 0.15)}
-		"race":
-			return _race(w)
+			want["pulse"] = smoothstep(0.05, 0.6, b)
+			want["glint"] = 0.8 * smoothstep(0.05, 0.4, b)
+			want["lead"] = float(want["lead"]) * 0.6
+			want["run"] = run * 0.6
 		"fight", "tired", "leader":
-			return _fight(w, f)
-	return {}
+			_fight(w, f, want)
+		"gaff":
+			# boatside: the heartbeat, the drums down, the tension rising with the harpoon's wind-up
+			want["beat"] = 1.0
+			want["drive"] = 0.25
+			want["tension"] = maxf(float(w.get("draw", 0.0)), 0.15)
+			want["deep"] = 0.3
+			want["lead"] = 0.2
+			want["pick"] = 0.3
+		"afterglow":
+			# he's in: the song lifted, the theme up high, the drums carrying on and easing
+			want["lead"] = 1.0
+			want["high"] = 0.85
+			want["pick"] = 1.0
+			want["bass"] = 1.0
+			want["drive"] = 0.5 * clampf(_after / AFTER, 0.0, 1.0)
+		"race":
+			_race(w, want, run)
+	return want
 
 
-## Tied up, by the weather: the waltz in fair weather; in rain the guitar alone, quieter; in fog the concertina far
-## off down the quay, the guitar barely; at night both soft. (A storm or a downpour: no waltz at all, STORMY.)
-func _harbour(w: Dictionary) -> Dictionary:
-	match str(w.get("condition", "calm")):
+## The title's stems by the weather on it: the whistle and the band in fair weather; in rain the patter under it,
+## the whistle softer; in a storm no whistle, the theme low on the bow over the storm's drums; at night the bells; in
+## fog almost only the pad and a far whistle.
+func _title() -> Dictionary:
+	var t := {"lead": 1.0, "counter": 1.0, "guitar": 1.0, "bass": 1.0, "pad": 1.0, "drums": 1.0, "rain": 0.0,
+			"storm": 0.0, "night": 0.0, "low": 0.0}
+	match mood:
 		"rain":
-			return {"guitar": 0.6, "reed": 0.0}
+			t.merge({"lead": 0.55, "counter": 0.8, "guitar": 0.7, "drums": 0.6, "rain": 1.0}, true)
+		"storm":
+			t.merge({"lead": 0.0, "counter": 0.4, "guitar": 0.25, "drums": 0.0, "storm": 1.0, "low": 1.0}, true)
 		"fog":
-			return {"guitar": 0.25, "reed": 0.8}
-	if bool(w.get("night", false)):
-		return {"guitar": 0.6, "reed": 0.45}
-	return {"guitar": 1.0, "reed": 1.0}
+			t.merge({"lead": 0.5, "counter": 0.2, "guitar": 0.3, "bass": 0.5, "drums": 0.0, "night": 0.4}, true)
+		"night":
+			t.merge({"lead": 0.6, "counter": 0.6, "guitar": 0.6, "bass": 0.7, "pad": 0.9, "drums": 0.3, "night": 1.0},
+					true)
+	return t
 
 
-func _race(w: Dictionary) -> Dictionary:
+## The race home: under way, the drums building as the time runs out; ahead, the tune up high; behind at the end,
+## the tension and everything.
+func _race(w: Dictionary, want: Dictionary, run: float) -> void:
 	var left := float(w.get("race_left", HOME))
 	var p := clampf(1.0 - left / HOME, 0.0, 1.0)
 	var st := int(w.get("standing", 0))
-	var tune := 0.3 + 0.7 * smoothstep(0.05, 0.4, p)
+	want["run"] = maxf(run, 0.6)
+	want["drive"] = smoothstep(0.3, 0.85, p)
+	want["beat"] = smoothstep(0.5, 0.9, p)
+	want["lead"] = maxf(float(want["lead"]), 0.6)
 	if st > 0:
-		tune = maxf(tune, 0.85)
-	var urge := smoothstep(0.5, 0.88, p)
-	var last := 0.0
+		want["high"] = smoothstep(0.4, 0.8, p)
 	if st < 0:
-		urge = maxf(urge, smoothstep(LAST + 30.0, LAST, left))
-		last = smoothstep(LAST, LAST - 60.0, left)
-	return {"a": 1.0, "b": tune, "c": urge, "d": last}
+		want["drive"] = maxf(float(want["drive"]), smoothstep(LAST + 30.0, LAST, left))
+		want["tension"] = smoothstep(LAST, LAST - 60.0, left)
 
 
-func _fight(w: Dictionary, f: Dictionary) -> Dictionary:
+## A fish on: the heartbeat (gone on a slack line), the drums on his runs, the tension as the line nears going, the
+## deep while he sounds, a giant's weight; the song's own melody stepping back for it (and coming back as he tires:
+## the hope), the lead up high at the leader.
+func _fight(w: Dictionary, f: Dictionary, want: Dictionary) -> void:
 	var mv := str(f.get("move", ""))
 	var spool := float(f.get("spool", 0.0))
 	var drive := 0.6
@@ -388,18 +441,22 @@ func _fight(w: Dictionary, f: Dictionary) -> Dictionary:
 		drive = maxf(drive, 0.8)
 	if spool > 0.5:
 		drive = maxf(drive, 0.85)
-	var night := bool(w.get("night", false))
 	var depth := float(f.get("depth", 0.0))
 	var deep := 1.0 if mv in ["sound", "dog"] or depth > 40.0 else (0.3 if depth > 20.0 else 0.0)
 	if str(w.get("condition", "")) == "storm":
 		deep = maxf(deep, 0.5)
 	var heavy := smoothstep(HEAVY.x, HEAVY.y, float(f.get("kg", 0.0)))
 	deep = maxf(deep, 0.5 * heavy)
-	return {"heavy": heavy, "bed": 1.0, "pulse": 0.0 if bool(f.get("slack", false)) else 1.0, "drive": drive,
-			"shaker": 0.0 if night else drive, "click": drive if night else 0.0,
-			"tension": maxf(smoothstep(LOADED.x, LOADED.y, float(f.get("tension", 0.0))), smoothstep(0.2, 0.8, danger)),
-			"tension_hi": maxf(smoothstep(0.5, 0.85, spool), 0.6 * smoothstep(0.7, 0.95, danger)),
-			"deep": deep, "tune": {"tired": 0.85, "leader": 1.0}.get(section, 0.0)}
+	want["beat"] = 0.0 if bool(f.get("slack", false)) else 1.0
+	want["drive"] = drive
+	want["tension"] = maxf(smoothstep(LOADED.x, LOADED.y, float(f.get("tension", 0.0))),
+			maxf(smoothstep(0.2, 0.8, danger), 0.6 * smoothstep(0.5, 0.85, spool)))
+	want["deep"] = deep
+	want["heavy"] = heavy
+	want["run"] = 0.0
+	want["pick"] = float(want["pick"]) * 0.5
+	want["lead"] = {"fight": 0.25, "tired": 0.7, "leader": 1.0}.get(section, 0.25)
+	want["high"] = 1.0 if section == "leader" else 0.0
 
 
 func _smooth(wants: Dictionary, dt: float) -> void:
@@ -439,11 +496,13 @@ func _mask(w: Dictionary, f: Dictionary, dt: float) -> void:
 	for k: String in gains:
 		var m := 1.0
 		if parting:
-			m = {"bed": 0.3, "pulse": 1.0, "tension": 1.0, "heavy": 0.5}.get(k, 0.0)
+			m = {"pad": 0.3, "beat": 1.0, "tension": 1.0, "heavy": 0.5}.get(k, 0.0)
+		if (air or parting) and k in WEATHER:
+			m = 0.0 if air else 0.3
 		if air:
 			m = minf(m, 0.15)
 		if flying:
-			m = 0.08 if k == "bed" else 0.0
+			m = 0.08 if k == "pad" else 0.0
 		var cur := float(masks.get(k, 1.0))
 		masks[k] = move_toward(cur, m, dt / (0.08 if m < cur else 0.2))
 		if parting and k == "tension":
