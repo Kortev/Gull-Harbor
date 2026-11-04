@@ -507,7 +507,10 @@ func _host_well(delta: float) -> void:
 		well -= 1
 		dead += 1
 		_host_changed()
-		_well_died.rpc() if Net.in_session() else _well_died()
+		if Net.in_session():
+			_well_died.rpc()
+		else:
+			_well_died()
 
 
 @rpc("authority", "call_local", "reliable")

@@ -8,12 +8,16 @@ extends Node
 ##            harpoon, the haul, bleeding and icing, the pause card, home through the mouth, alongside the float, her
 ##            lines thrown and made fast, the hoist and the buyer's scale, the slip, day two
 ##   host / join   co-op on one machine: two windows, the host's boat and a friend aboard her, through a catch
+##   demo     the music's demo reel (tools/music_demo.sh records it, the music panel on, a caption for each part):
+##            the title, FISH, casting off and out through the mouth, the sea's song in each weather in turn (fair,
+##            rain, a storm, night, fog), then fair again and a whole fish, the birds to the landed hit
 ## The bank's a test file, never yours. Run (needs a window):
 ##   godot --path . --resolution 1600x900 res://tests/play_shot.tscn -- --part=trip [--fast] [--out=<dir>]
 
 const Sea := preload("res://sea/sea.gd")
 const FightBot := preload("res://tests/fight_bot.gd")
 const Rig := preload("res://rods/rig.gd")
+const PixFont := preload("res://ui/pixfont.gd")
 var OUT := "res://docs/shots/play/"
 ## The port the boat's hosted on (--port=: another, so two runs side by side don't meet).
 var PORT := 7824
@@ -30,10 +34,49 @@ var fails: Array[String] = []
 ## alone that stops the world): off only while it's testing the pause card itself.
 var live := true
 
+## The demo: the wall clock last frame (the sea's runs on it, the movie maker's frames don't), the time into the
+## recording, the caption up and how long it's been, the weather easing from one to the next ([from, to, s in, s]).
+var _wall := 0.0
+var _clock := 0.0
+var _caption := ""
+var _caption_t := 0.0
+var _caption_box: Control
+var _blend: Array = []
+## The demo's weathers: [condition, night, s], each a song's way in and on; and how long a caption stays.
+const DEMO_WEATHER := [["calm", false, 75.0], ["rain", false, 75.0], ["storm", false, 75.0], ["calm", true, 75.0],
+		["fog", false, 75.0]]
+## The demo's catch: the chase to the birds at most this long (s), a bite put on after this long trolling without
+## one, and that fish's kilos.
+const DEMO_CHASE := 60.0
+const DEMO_BITE := 40.0
+const DEMO_KG := 180.0
+const CAPTION_S := 6.0
+const BLEND_S := 8.0
 
-func _process(_delta: float) -> void:
+
+func _process(delta: float) -> void:
 	if live and sea != null and is_instance_valid(sea) and sea.fish_hold != null and not sea.fish_hold.docked 			and (sea.title == null or not sea.title.busy()) and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	if part != "demo" or sea == null or not is_instance_valid(sea):
+		return
+	# (the sea's clock is the wall clock; the movie maker's frames aren't: held to the game's pace, frame for frame)
+	var wall := Time.get_ticks_msec() / 1000.0
+	if _wall > 0.0:
+		sea.ocean.clock_offset -= (wall - _wall) - delta
+	_wall = wall
+	_clock += delta
+	_caption_t += delta
+	if _caption_box != null:
+		_caption_box.queue_redraw()
+	if not _blend.is_empty():
+		# (after the sea's own pinned weather each frame: process_priority)
+		_blend[2] = float(_blend[2]) + delta
+		var m := smoothstep(0.0, 1.0, float(_blend[2]) / float(_blend[3]))
+		if m >= 1.0:
+			sea.set_condition(str(_blend[1]))
+			_blend.clear()
+		else:
+			sea.set_weather(str(_blend[0]), str(_blend[1]), m)
 
 
 func _ready() -> void:
@@ -46,6 +89,16 @@ func _ready() -> void:
 		elif a.begins_with("--port="):
 			PORT = int(a.trim_prefix("--port="))
 	fast = OS.get_cmdline_user_args().has("--fast")
+	if part == "demo":
+		process_priority = 100         # (the weather's ease after the sea's own each frame)
+		var layer := CanvasLayer.new()
+		layer.layer = 119
+		_caption_box = Control.new()
+		_caption_box.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_caption_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_caption_box.draw.connect(_draw_caption)
+		layer.add_child(_caption_box)
+		add_child(layer)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT))
 	sea = (load("res://sea/sea.tscn") as PackedScene).instantiate() as Sea
 	# (the game's own scene, as it boots: BACK TO THE TITLE reloads it, and this bot stays)
@@ -238,6 +291,82 @@ func _after_title() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE))
 
 
+## The music's demo reel, as it'd be played: the title, FISH, the dock, casting off and out past the mouth, then the
+## sea's song in each weather (eased from one to the next, cruising slowly), then fair again and a whole fish. Each
+## part's caption and its time into the recording printed ("DEMO <s> <caption>"), for the video's chapters.
+func _demo() -> void:
+	_say("THE TITLE")
+	await _wait(6.0)
+	await _fish()
+	_say("TIED UP IN THE HARBOUR")
+	await _wait(4.0)
+	await _cast_off()
+	_say("CASTING OFF")
+	var mouth: float = sea.harbour.call("_shore", 0.0) - 210.0
+	await _drive([Vector2(sea.boat.helm.at.x - 6.0, sea.boat.helm.at.y - 40.0), Vector2(0.0, mouth + 60.0),
+			Vector2(0.0, mouth - 120.0)], 0.7, "")
+	_say("OUT PAST THE MOUTH")
+	await _drive([Vector2(0.0, mouth - 500.0)], 1.0, "")
+	var names := {"calm": "FAIR WEATHER", "rain": "RAIN", "storm": "A STORM", "fog": "FOG"}
+	for w: Array in DEMO_WEATHER:
+		var was := str(sea.condition)
+		if str(w[0]) != was:
+			sea.weather.pinned = was
+			_blend = [was, str(w[0]), 0.0, BLEND_S]
+		else:
+			sea.set_condition(was)         # (held: the sea's own weather doesn't turn meanwhile)
+		sea.set_night(bool(w[1]))
+		_say("NIGHT" if bool(w[1]) else str(names.get(str(w[0]), str(w[0]).to_upper())))
+		await _cruise(float(w[2]))
+	if str(sea.condition) != "calm":
+		sea.weather.pinned = str(sea.condition)
+		_blend = [str(sea.condition), "calm", 0.0, BLEND_S]
+	_say("FAIR AGAIN: LOOKING FOR BIRDS")
+	await _catch()
+	await _wait(16.0)
+
+
+## At the wheel a while, slowly on (her speed's drums only just in), holding her course.
+func _cruise(s: float) -> void:
+	if not sea.boat.helm.is_mine():
+		await _interact_wheel()
+	var h := atan2(_fwd().x, -_fwd().y)
+	var t := 0.0
+	while t < s:
+		await get_tree().process_frame
+		t += get_process_delta_time()
+		_steer_heading(h)
+		_hold("move_forward", sea.boat.helm.speed < 4.0)
+	_hold("move_forward", false)
+	_steer_to(Vector2.INF)
+
+
+## What the demo's caption says of each of his moves, the first time it shows.
+const MOVE_SAID := {"run": "HE RUNS", "surge": "A SURGE", "sound": "HE SOUNDS DEEP", "dog": "DOGGING DEEP",
+		"shake": "HE SHAKES HIS HEAD", "jump": "HE JUMPS", "charge": "HE CHARGES THE BOAT",
+		"circle": "TIRING: HE CIRCLES", "spiral": "SPIRALLING UP"}
+
+
+func _say_demo(text: String) -> void:
+	if part == "demo":
+		_say(text)
+
+
+func _say(text: String) -> void:
+	_caption = text
+	_caption_t = 0.0
+	print("DEMO %.1f %s" % [_clock, text])
+
+
+func _draw_caption() -> void:
+	var a := clampf(minf(_caption_t / 0.5, (CAPTION_S - _caption_t) / 0.8), 0.0, 1.0)
+	if a <= 0.0 or _caption.is_empty():
+		return
+	var at := Vector2(28.0, 64.0)          # (top left, under the tally: Dale's radio has the bottom)
+	PixFont.draw(_caption_box, at + Vector2(4, 4), _caption, Color(0, 0, 0, 0.6 * a), 4)
+	PixFont.draw(_caption_box, at, _caption, Color(1.0, 0.95, 0.85, a), 4)
+
+
 ## The hunt, the troll, the bite, the fight, the harpoon, the haul, the bleed and ice (tests/trip_test.gd's bot, on
 ## the game itself).
 func _catch() -> void:
@@ -264,6 +393,7 @@ func _catch() -> void:
 	sea.boat.helm.request(false)
 	await _wait(0.5)
 	await _face_point(Vector3(_xz(school).x, 3.0, _xz(school).y))
+	_say_demo("BIRDS WORKING")
 	await _wait(0.6)
 	await _shot("birds")
 	await _interact_wheel()
@@ -283,12 +413,16 @@ func _catch() -> void:
 			_speed(true)
 		if d < 160.0 and sea.boat.helm.speed < 4.0:
 			break
+		if part == "demo" and (d < 200.0 or t > DEMO_CHASE):
+			break                       # (the reel's: off the throttle once near them, or after a minute)
 	_hold("move_forward", false)
 	_steer_to(Vector2.INF)
 	_speed(false)
 	await _shot("slowed")
+	_say_demo("BAITS OUT")
 	await _cast_all()
 	await _interact_wheel()
+	_say_demo("TROLLING THROUGH THEM")
 	await _shot("trolling")
 	var hooked := -1
 	t = 0.0
@@ -296,8 +430,9 @@ func _catch() -> void:
 	while hooked < 0 and t < 360.0:
 		await get_tree().process_frame
 		t += get_process_delta_time()
-		var want := maxf(float(school.speed), 1.0) + 0.3
-		if sea.schools.schools.has(school):
+		var want := 1.3
+		if is_instance_valid(school) and sea.schools.schools.has(school):
+			want = maxf(float(school.speed), 1.0) + 0.3
 			var spot := _alongside(school)
 			_steer_to(spot)
 			if spot.distance_to(sea.boat.helm.at) > 45.0:
@@ -306,12 +441,19 @@ func _catch() -> void:
 		for r in sea.rods.rods:
 			if r.hooked:
 				hooked = r.index
+		if part == "demo" and hooked < 0 and t > DEMO_BITE:
+			# (the reel's: no bite yet, so one's put on a line that's out, a fish of DEMO_KG)
+			for r in sea.rods.rods:
+				if not r.bait_in:
+					sea.rods.strike(r.index, DEMO_KG)
+					break
 	_hold("move_forward", false)
 	_steer_to(Vector2.INF)
 	_speed(false)
 	_check(hooked >= 0, "a bite (after %.0f s trolling)" % t)
 	if hooked < 0:
 		return
+	_say_demo("FISH ON: THE STRIKE")
 	await _shot("the_bite")
 	await _wait(1.0)
 	await _shot("the_bite_2")
@@ -344,6 +486,13 @@ func _catch() -> void:
 			sea.rods.bot_aim = Vector3(float(act["pitch"]), float(act["side"]), 0.0)
 			_hold("use_primary", float(act["crank"]) > 0.5)
 		var key := str(rod.move)
+		if part == "demo" and w > 4.0 and _caption_t > CAPTION_S + 2.0:
+			if not shots.has("leader") and rod.fight != null and bool(rod.fight.cues().get("leader", false)):
+				shots["leader"] = true
+				_say("ON THE LEADER")
+			elif not shots.has("said_" + key) and MOVE_SAID.has(key):
+				shots["said_" + key] = true
+				_say(str(MOVE_SAID[key]))
 		if not shots.has(key) and w > 2.0:
 			shots[key] = true
 			_speed(false)
@@ -355,6 +504,7 @@ func _catch() -> void:
 	_check(rod.alongside and sea.landing.fish.has(rod.index), "fought it to the boat (%.0f s)" % w)
 	if not sea.landing.fish.has(rod.index):
 		return
+	_say_demo("BOATSIDE: THE HARPOON")
 	await _wait(0.5)
 	await _shot("boatside")
 	var landing := sea.landing
@@ -388,6 +538,7 @@ func _catch() -> void:
 			await _shot("haul")
 	landing._ask_pull_as(Net.my_id(), -1)
 	_check(not sea.fish_hold.fish.is_empty(), "hauled aboard")
+	_say_demo("LANDED")
 	await _wait(1.2)
 	var deck: Dictionary = sea.fish_hold._deck
 	if not deck.is_empty():

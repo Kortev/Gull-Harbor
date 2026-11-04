@@ -360,11 +360,17 @@ func _race_home() -> void:
 		return
 	if fish_hold.docked:
 		if home_by >= 0.0:
-			_set_home.rpc(-1.0) if Net.in_session() else _set_home(-1.0)
+			if Net.in_session():
+				_set_home.rpc(-1.0)
+			else:
+				_set_home(-1.0)
 		return
 	var now := float(ocean.get("wave_time"))
 	if home_by < 0.0 and float(fish_hold.day_fraction()) >= 1.0:
-		_set_home.rpc(now + HOME) if Net.in_session() else _set_home(now + HOME)
+		if Net.in_session():
+			_set_home.rpc(now + HOME)
+		else:
+			_set_home(now + HOME)
 	elif (home_by > 0.0 and now >= home_by) or boat.helm.dry:
 		send_tow(boat)
 
