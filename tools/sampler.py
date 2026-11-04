@@ -57,7 +57,7 @@ class Kit:
         self.takes = []
         d = os.path.join(ROOT, *folder.split("/"))
         for f in sorted(os.listdir(d)):
-            if re.search(rx, f):
+            if f.lower().endswith(".wav") and re.search(rx, f):
                 lab = _label(f) if octave is not None else None
                 self.takes.append(Take(os.path.join(d, f), sr, None if lab is None else lab + octave))
         assert self.takes, "no samples in %s (python tools/fetch_samples.py)" % d

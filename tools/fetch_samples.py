@@ -252,6 +252,8 @@ def main():
             sys.exit("%s: %d bytes, expected %d" % (path, got, size))
         os.replace(to + ".part", to)
         print("  %s" % path)
+    # (Godot leaves the folder alone: no imports of 200 MB of recordings, nothing of it in a build)
+    open(os.path.join(OUT, ".gdignore"), "w").close()
     print("done")
 
 

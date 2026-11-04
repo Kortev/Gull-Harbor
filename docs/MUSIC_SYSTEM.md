@@ -1,8 +1,55 @@
-# Bluefin's adaptive music: the design
+# Bluefin's music: the design
 
-Status: **approved 2026-11-02, being built** with the recommended answers: folk-noir, strip to a heartbeat at the
-about-to-part moment, pure synth, pure silence on a loss, and the hunt layer on birds you can see (they are on
-screen anyway, so it tells you nothing the sea doesn't). Written 2026-11-02 against `claude/zealous-mendel-h2udij` at a416062.
+## The design now (2026-11-04, the rethink): a few songs, the fight, the strike
+
+**Kortev: "I think we kind of need to rethink this system in general... I just want everything to feel very
+immersive... especially the strike cue, that was really good, and I think we can make that even better... I want it
+to feel like, wow."** Picked: a few whole songs and a fight with layers, three cues. Everything below this section is
+the history of the system it replaced: a band reacting to everything (a dozen cues, quick masks, passages chained
+part by part on a clock of its own), built and tested without anyone hearing it in the real game (its clock was
+broken there until 2026-11-04), and too busy once it worked (a hit and a duck on every flash of a storm's lightning).
+
+What plays:
+- **The title's piece** while the title's up (the theme, its layers by the weather on screen); its last chord rings
+  on as the song comes in.
+- **A song for each weather** (tools/music.py `songs()`): fair, rain, fog, night and the storm, each rendered whole
+  (its parts in order, arranged as a band would play them: the intro sparse, a verse's tune and then its
+  counter-melody, choruses with the lead up high the last time, a bridge, the outro; a drum fill into each chorus
+  and bridge; each part's tail ringing into the next, the last round into the first). Two layers: the band, and the
+  run (the drums and the bass pushing, up with her speed). It plays through and round; when the weather turns and
+  stays SONG_HOLD (8 s), the new weather's song comes in as the old goes, over SONG_FADE (8 s). Tied up it plays at
+  HARBOUR (0.55). A song gone quiet is paused where it was and taken up from there when it's back.
+- **The fight** (tools/music.py `fight()`, `fight_intro()`): the strike is one recording, everything at once on the
+  reel's scream (the big drum twice, the timpani, the low B, the band's B minor, the cellos digging in, a splash, the
+  sub dropping), then two bars of drums alone rising out of its ring, a cymbal rolling up into the fight's first
+  downbeat. It's the front of the fight's track (an AudioStreamInteractive: the intro runs on into the loop by
+  itself, sample for sample), started from its top the moment a fish takes, the song gone under the hit in
+  STRIKE_OUT (0.25 s). Measured on the real sound card: the hit heard 12 ms after the strike.
+  The fight's loop has three layers, up and down with how hard he's fighting (audio/music_state.gd's intensity:
+  his moves, a run at once, the backing showing, the line near going, the fight building the longer it goes, the
+  leader): **pulse** (the dark pad, the bass riff, the heartbeat: always), **drums** (the war drums, boots and
+  claps), **full** (the drum section, the fiddle's tune, the line singing, the giant's drum). A layer comes in in
+  0.3 s and holds 4 s before it can go, going over 2.5 s: the band joins at once and leaves one by one.
+  Boatside, the harpoon: the pulse and a little drums.
+- **Landed**: a flourish (the hit, then the theme's opening phrase on the whistle and the fiddle, home on D); the
+  fight let go over FIGHT_OUT (2.5 s); the song back over BACK_IN (4 s) once the flourish has rung (AFTER, 3.5 s).
+- **Lost**: the fight let go over LOST_OUT (1.2 s), quiet for HUSH (3 s), the song back over BACK_IN.
+- **Rivals**: quiet under the countdown and the results card, and their stings.
+
+Nothing else cues anything: the thunder, birds, the leader, boatside, Rivals' lead are the world's own sounds.
+Nothing keeps time: the pieces loop and run on by themselves, the fight's intro runs into its loop inside Godot's
+mixer, and every change is a fade, so there's no clock to break and nothing to run out. The deck whistle follows the
+chords by the playing piece's position (with no sound card, by the game's frames).
+
+The mix is as it was: ducked under the radio and voices (with the pocket), muffled underwater, dulled under the pause
+card, a limiter last.
+
+Files: tools/music.py (the composition), tools/sampler.py (the recorded instruments), audio/music_state.gd (the
+mind), audio/music.gd (the players), audio/music_hud.gd (`-- --music-hud`). Tests: tests/music_state_test,
+tests/music_test, tests/music_fight_test, tests/whistle_test (headless); tests/music_live_test (a window, the real
+sound card: tools/music_check.sh).
+
+## History: the reactive system it replaced
 
 ## As built (2026-11-04, evening): the song's clock runs in the real game
 

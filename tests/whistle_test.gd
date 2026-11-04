@@ -41,11 +41,16 @@ func _ready() -> void:
 	ev.pressed = true
 	me.hands._unhandled_input(ev)
 	_check(me.hands.item == "whistle", "6: the tin whistle in your hands (%s)" % me.hands.item)
-	_check(str(m.sounding).begins_with("sea_") and m.chord_now() != "", "at sea, the band on a chord (%s, %s)"
+	_check(str(m.sounding).begins_with("song_") and m.chord_now() != "", "at sea, the band on a chord (%s, %s)"
 			% [m.sounding, m.chord_now()])
 	# low, then high
 	me.set("_pitch", -0.45)
 	await _frames(3)
+	var c: Dictionary = m.Cues.CUES[m.sounding]
+	var eighth := 30.0 / float(c["bpm"])
+	var tick := float(m.next_tick(2))
+	_check(tick >= float(m.now()) - 0.001 and tick - float(m.now()) <= eighth + 0.001,
+			"the music's next eighth: within one (%.3f s on)" % (tick - float(m.now())))
 	me.hands.press(true)
 	var started := -1.0
 	for i in 40:
@@ -57,10 +62,8 @@ func _ready() -> void:
 	var tones: Array = m.CHORD_TONES.get(m.chord_now(), m.PENTATONIC)
 	_check(low > 0 and posmod(low, 12) in tones, "blowing it: a note, one of the band's chord (%d on %s)"
 			% [low, m.chord_now()])
-	var c: Dictionary = m.Cues.CUES[m.sounding]
-	var eighth := 30.0 / float(c["bpm"])
-	var off := fposmod(started - float(m.get("_start")), eighth)
-	_check(off < DT + 0.01 or eighth - off < 0.01, "it came in on the music's eighth (%.3f s past it)" % off)
+	_check(started >= 0.0 and started <= tick + eighth + DT, "it came in on that eighth (%.3f s after it)"
+			% (started - tick))
 	_check(me.hands.get("_pipe") != null and (me.hands.get("_pipe") as AudioStreamPlayer3D).playing,
 			"and it sounds")
 	me.set("_pitch", 0.75)
