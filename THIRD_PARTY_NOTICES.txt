@@ -2268,5 +2268,7 @@ All public domain (CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/);
 they're credited with thanks:
 - Kenney (https://kenney.nl): interface and impact sounds.
 - BigSoundBank, Joseph Sardin (https://bigsoundbank.com): sea, weather, machinery and deck sounds.
+- Versilian Studios, Sam Gossner (https://versilianstudios.net): the music's instruments, from the
+  Versilian Community Sample Library (VCSL) and VSCO 2 Community Edition.
 - Poly Haven (https://polyhaven.com): photo textures, crunched down to a few pixels.
 The music, the models, the pixel font and everything else are made for the game.

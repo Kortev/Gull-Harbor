@@ -185,7 +185,7 @@ def main(d):
         check(part < before - 3.0, "the line about to part: thinner (%.1f dB, before %.1f)" % (part, before))
         check(air < before - 8.0, "him in the air: the band all but gone (%.1f dB)" % air)
         # 4. lost (96 s): silence, but for the strike's tail that went before it
-        lost = rms_db(win(96.3, 101.5))
+        lost = rms_db(win(96.5, 101.5))      # (past the band stopping: audio/music.gd's HUSH_FADE, 0.35 s)
         check(lost < -60.0, "a fish lost: silence (%.1f dBFS)" % lost)
         # 5. never quiet but where it should be: him in the air (27-28.6 s), the harpoon flying (56-57), the hush
         # after the loss (96-102.5)

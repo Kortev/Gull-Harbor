@@ -62,6 +62,8 @@ func _init() -> void:
 	t.append("they're credited with thanks:")
 	t.append("- Kenney (https://kenney.nl): interface and impact sounds.")
 	t.append("- BigSoundBank, Joseph Sardin (https://bigsoundbank.com): sea, weather, machinery and deck sounds.")
+	t.append("- Versilian Studios, Sam Gossner (https://versilianstudios.net): the music's instruments, from the")
+	t.append("  Versilian Community Sample Library (VCSL) and VSCO 2 Community Edition.")
 	t.append("- Poly Haven (https://polyhaven.com): photo textures, crunched down to a few pixels.")
 	t.append("The music, the models, the pixel font and everything else are made for the game.")
 	t.append("")

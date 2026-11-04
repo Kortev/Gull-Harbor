@@ -4,6 +4,48 @@ Status: **approved 2026-11-02, being built** with the recommended answers: folk-
 about-to-part moment, pure synth, pure silence on a loss, and the hunt layer on birds you can see (they are on
 screen anyway, so it tells you nothing the sea doesn't). Written 2026-11-02 against `claude/zealous-mendel-h2udij` at a416062.
 
+## As built (2026-11-04): a real band, tunes from the theme, less at once
+
+**Kortev, after playing it: it still cuts, the cues too; the instruments sound fake; the tunes are forgettable; the
+feel's wrong or too busy. Free samples chosen over the synth or composing in FL Studio.**
+- **The cues ring on under each other.** Every big cue shared one player (the small ones another), and a player
+  given the next cue's stream stops the last at once: the strike's hit was cut off by the fight's drum break a bar
+  later, each thunder by the next. Six players now, each cue on a free one (`_voice()`).
+- **The fight's masks are played, not switched:** him in the air, the line about to part and the harpoon flying take
+  the band down over `MASK_DOWN` (0.25 s) and back over `MASK_UP` (0.5 s), not 0.08 s and 0.2 s. In the air it's down
+  to `AIR` (a quarter). A fish lost stops the band over 0.35 s (0.08 s sounded like the music breaking).
+- **Recorded instruments** (tools/sampler.py; `python tools/fetch_samples.py` fetches 181 files, 204 MB, into
+  tools/samples/, which git ignores; only the rendered music ships). From Versilian Studios' VCSL and VSCO 2 Community
+  Edition, both CC0:
+
+  | Synth's name | Now |
+  |---|---|
+  | `pluck` | the double bass (pizzicato) under D3, the strumstick to B5, the folk harp above |
+  | `strumstick` (the picking) | the strumstick, anything lower an octave up |
+  | `harp` (night) | the folk harp |
+  | `whistle` | a soprano recorder (the synth's whistle under A4) |
+  | `reed` | a harmonica |
+  | `fiddle` (the darker songs' tune, the climax under the whistle) | a solo violin |
+  | `bowed` | the cello section, the violin from E4 |
+  | `pad` | the strings holding the chord |
+  | `bell` | hand chimes, the glockenspiel up high |
+  | the drums | frame drum, a giant hand drum on a mallet (the war drums), the frame drum muted (boots), claps, shaker, a cymbal |
+
+  The heartbeat, the sub swells, the line singing and the wind stay synthesized. Every take was checked: within a
+  few cents of its note. VCSL and VSCO's cello and bass call middle C "C3", so their notes sound an octave above
+  their names; the violin's names are as they sound. With no samples there, the synth's own instruments play
+  (`_*_synth`).
+- **Tunes from the theme** (`motif_tune()`): the passages with no tune of their own (fog, night, the storm's way in
+  and out) are built from the theme's five little phrases (`MOTIFS`: its opening call, its sigh, coming home, a
+  lift, a turn), a motif a bar in two-bar phrases said and answered (`PLANS`), each starting on a chord tone near the
+  last, the long notes on the chord, the last bar home. Over a chord with a note D major hasn't got (F# major's A#,
+  C, F) the tune walks that chord's own scale (`scale_of()`).
+- **The counter-melody is a second part, not a second tune** (`counter()`): long notes on each chord's third or
+  fifth, stepping the shortest way, never on the tune's note, now and then passing on to the next chord.
+- **Less at once:** in a fight only the one tune (no counter-melody), and the picking steps back to a fifth as the
+  drum section comes in; a storm at sea without the fight's deep drone (it doubled the storm's own cello and sub).
+- Credited on the title's credits page and in THIRD_PARTY_NOTICES.txt.
+
 ## As built (2026-11-03, night): no more cuts between passages; quicker to answer
 
 **Kortev: "the music still cuts pretty poorly when changing songs or is delayed from when stuff happens. really bad

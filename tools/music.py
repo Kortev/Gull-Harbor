@@ -39,6 +39,8 @@ import numpy as np
 import soundfile as sf
 from scipy import signal
 
+import sampler
+
 SR = 32000
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "music")
 RNG = np.random.default_rng(1977)
@@ -73,7 +75,7 @@ def _peak(x):
 _cache = {}
 
 
-def pluck(m, dur, bright=0.5, pos=0.2, decay=1.4, mute=0.0, var=0):
+def _pluck_synth(m, dur, bright=0.5, pos=0.2, decay=1.4, mute=0.0, var=0):
     """A plucked string: harmonics from where it's plucked (pos), each its own decay, a pick's scratch."""
     key = (m, round(dur, 3), bright, pos, decay, mute, var)
     if key in _cache:
@@ -101,7 +103,7 @@ def pluck(m, dur, bright=0.5, pos=0.2, decay=1.4, mute=0.0, var=0):
     return out
 
 
-def pad(ms, dur, attack=1.5, release=2.0, bright=0.3, seed=0):
+def _pad_synth(ms, dur, attack=1.5, release=2.0, bright=0.3, seed=0):
     """A soft pad: each note three voices a few cents apart (left, middle, right), triangle-ish, a slow shimmer."""
     n = int((dur + release) * SR)
     t = np.arange(n) / SR
@@ -131,7 +133,7 @@ def pad(ms, dur, attack=1.5, release=2.0, bright=0.3, seed=0):
     return _peak(lr * env)
 
 
-def whistle(m, dur, vib=0.004, breath=0.05):
+def _whistle_synth(m, dur, vib=0.004, breath=0.05):
     """A tin whistle: nearly a sine, scooped up into the note, vibrato coming in late, breath round it."""
     rel = 0.08
     n = int((dur + rel) * SR)
@@ -148,7 +150,7 @@ def whistle(m, dur, vib=0.004, breath=0.05):
     return _peak((v + noise) * env)
 
 
-def reed(m, dur, attack=0.06, release=0.12, swell=0.15):
+def _reed_synth(m, dur, attack=0.06, release=0.12, swell=0.15):
     """A concertina: two reeds a few cents apart, bright-ish harmonics softened, the bellows' swell."""
     n = int((dur + release) * SR)
     t = np.arange(n) / SR
@@ -167,7 +169,7 @@ def reed(m, dur, attack=0.06, release=0.12, swell=0.15):
     return _peak(v * env)
 
 
-def frame_drum(strength=1.0):
+def _frame_drum_synth(strength=1.0):
     """A bodhran: a low skin dropping in pitch, the slap of the hand."""
     n = int(0.6 * SR)
     t = np.arange(n) / SR
@@ -186,7 +188,7 @@ def heartbeat(strength=1.0):
     return _peak(body) * strength
 
 
-def shaker(strength=1.0):
+def _shaker_synth(strength=1.0):
     n = int(0.1 * SR)
     t = np.arange(n) / SR
     env = np.minimum(1.0, t / 0.012) * np.exp(-t / 0.035)
@@ -200,7 +202,7 @@ def woodblock(strength=1.0, f=880.0):
     return _peak(v * np.minimum(1.0, t / 0.001)) * strength
 
 
-def bowed(m, dur, attack=0.5, release=0.6, bright=0.4, vib=0.004, seed=0):
+def _bowed_synth(m, dur, attack=0.5, release=0.6, bright=0.4, vib=0.004, seed=0):
     """A bowed string, low (a cello-ish drone): a sawtooth's harmonics through a body (two formants), the bow's
     hiss, a slow vibrato coming in, a swell into the note."""
     n = int((dur + release) * SR)
@@ -222,7 +224,7 @@ def bowed(m, dur, attack=0.5, release=0.6, bright=0.4, vib=0.004, seed=0):
     return _peak(v * env)
 
 
-def war_drum(strength=1.0, low=1.0):
+def _war_drum_synth(strength=1.0, low=1.0):
     """A big low drum (a bodhrán's bigger brother, beaten hard): a deep skin dropping in pitch, a long boom, the
     stick's knock."""
     n = int(0.9 * SR)
@@ -234,7 +236,7 @@ def war_drum(strength=1.0, low=1.0):
     return _peak((body + knock) * np.minimum(1.0, t / 0.0015)) * strength
 
 
-def stomp(strength=1.0):
+def _stomp_synth(strength=1.0):
     """A boot on the deck boards: a thud, the planks' rattle."""
     n = int(0.35 * SR)
     t = np.arange(n) / SR
@@ -244,7 +246,7 @@ def stomp(strength=1.0):
     return _peak(body + wood) * strength
 
 
-def clap(strength=1.0):
+def _clap_synth(strength=1.0):
     n = int(0.25 * SR)
     t = np.arange(n) / SR
     v = np.zeros(n)
@@ -267,7 +269,7 @@ def line_sing(m, dur, beat=3.0, attack=0.8, release=1.0):
     return _peak(v * env)
 
 
-def bell(m, dur=3.0):
+def _bell_synth(m, dur=3.0):
     """A soft high bell-ish ping (a guitar harmonic, struck): a sine and a few inharmonic partials ringing off."""
     n = int(dur * SR)
     t = np.arange(n) / SR
@@ -286,7 +288,7 @@ def sub_swell(dur, m=26, strength=1.0):
     return v * strength
 
 
-def crash(dur=2.4, strength=1.0):
+def _crash_synth(dur=2.4, strength=1.0):
     """A splash of noise like a cymbal (or white water): bright, decaying."""
     n = int(dur * SR)
     t = np.arange(n) / SR
@@ -317,6 +319,182 @@ def swell_noise(dur, strength=1.0):
     t = np.arange(n) / SR
     v = _bp(RNG.standard_normal(n), 2500, 8000) * (t / dur) ** 3
     return v / max(1e-9, np.max(np.abs(v))) * strength
+
+
+# --- the band: recorded instruments (tools/sampler.py; python tools/fetch_samples.py first) ------------------------
+# The same names as the synth's, so everything that plays them (the song, the title, the cues) plays the band; with
+# no samples there, the synth's own (_*_synth) as before.
+
+SAMPLED = sampler.available()
+# name: (folder under tools/samples, files, how far its names sit under its notes (None: unpitched), sustained, the
+# louder layer's files)
+KITS = {
+    "fiddle": ("vsco/Strings/Solo Violin/Arco Vib", r"_p\.wav$", 0, True, None),
+    "cello": ("vsco/Strings/Cello Section/susvib", r"\.wav$", 12, True, None),
+    "pizz": ("vsco/Strings/Solo Contrabass/Pizz", r"\.wav$", 12, False, None),
+    "strum": ("vcsl/Chordophones/Composite Chordophones/Strumstick/Finger", r"\.wav$", 12, False, None),
+    "harp": ("vcsl/Chordophones/Composite Chordophones/Folk Harp", r"\.wav$", 12, False, None),
+    "recorder": ("vcsl/Aerophones/Edge-blown Aerophones/Baroque Soprano Recorder/Sustain", r"\.wav$", 12, True, None),
+    "harmonica": ("vcsl/Aerophones/Free Aerophones/Harmonica-Hohner-Super64/Sustains/Normal", r"\.wav$", 12, True,
+                  None),
+    "chimes": ("vcsl/Idiophones/Struck Idiophones/Hand Chimes", r"\.wav$", 12, False, None),
+    "glock": ("vcsl/Idiophones/Struck Idiophones/Glockenspiel", r"\.wav$", 12, False, None),
+    "frame": ("vcsl/Membranophones/Struck Membranophones/Frame Drum", r"^HDrumL_Hit_", None, False, r"_v3_"),
+    "frame_muted": ("vcsl/Membranophones/Struck Membranophones/Frame Drum", r"^HDrumL_HitMuted_", None, False, r"_v3_"),
+    "giant": ("vsco/VSCO 1 Percussion/drums/other/ethnic/giant/mallet", r"\.wav$", None, False, r"_ff?_"),
+    "shaker": ("vcsl/Idiophones/Struck Idiophones/Shaker, Small", r"Shaker(Double|HighFaster|LowFaster)_", None, False,
+               None),
+    "clap": ("vcsl/Idiophones/Struck Idiophones/Claps", r"^Clap_rr", None, False, None),
+    "cymbal": ("vsco/VSCO 1 Percussion/varMetal/Cymbals/susp", r"softmall_f\.wav$", None, False, None),
+}
+# Each instrument's level against the synth's it took over (by ear's stand-in: each layer's level over every passage,
+# the recorded against the synth's): the double bass, the big drum, the boots and the bells carry less at the same
+# peak.
+TRIM = {"pizz": 1.5, "giant": 1.7, "frame_muted": 1.4, "glock": 2.0, "chimes": 1.6}
+_kits = {}
+
+
+def kit(name):
+    if name not in _kits:
+        folder, rx, octave, hold, loud = KITS[name]
+        _kits[name] = sampler.Kit(SR, folder, rx, octave, hold, loud)
+    return _kits[name]
+
+
+def _tone(x, bright):
+    """Brightness as the synth had it (0 dull .. 1 bright): a low-pass from 1.5 to 7.5 kHz."""
+    return _peak(_lp(x, 1500.0 + 6000.0 * min(max(bright, 0.0), 1.0)))
+
+
+def _swell(n, attack, dur):
+    """A bowed or blown note's shape: in over `attack` s (a raised cosine), the rest as it is."""
+    env = np.ones(n)
+    a = min(n, max(1, int(attack * SR)))
+    env[:a] = 0.5 - 0.5 * np.cos(np.linspace(0.0, np.pi, a))
+    return env
+
+
+def pluck(m, dur, bright=0.5, pos=0.2, decay=1.4, mute=0.0, var=0):
+    """A plucked string in the band: the double bass under D3, the strumstick up to B5, the harp above. A muted note
+    (mute) or a short decay dies quickly; bright, the tone."""
+    if not SAMPLED:
+        return _pluck_synth(m, dur, bright, pos, decay, mute, var)
+    name = "pizz" if m < 50 else "strum" if m <= 83 else "harp"
+    x = kit(name).note(m, dur, var=var, rel=min(0.06, dur * 0.3))
+    t = np.arange(len(x)) / SR
+    tau = max(0.05, decay * (1.0 - 0.85 * mute))
+    x = x * np.exp(-t / (tau * (1.0 if mute > 0.0 else 2.0)))
+    return _tone(x, bright * (1.0 - 0.6 * mute)) * TRIM.get(name, 1.0)
+
+
+def strumstick(m, dur, bright=0.5, decay=1.4, mute=0.0, var=0):
+    """The band's picking: the strumstick alone, any note under its lowest string an octave up (D3)."""
+    while m < 50:
+        m += 12
+    return pluck(m, dur, bright=bright, decay=decay, mute=mute, var=var)
+
+
+def harp(m, dur, var=0):
+    """The folk harp (the night's)."""
+    if not SAMPLED:
+        return _pluck_synth(m, dur, bright=0.25, pos=0.15, decay=2.0, var=var)
+    return kit("harp").note(m, dur, var=var, rel=min(0.3, dur * 0.3))
+
+
+def whistle(m, dur, vib=0.004, breath=0.05):
+    """The whistle: a soprano recorder (the synth's own under A4, where the recorder can't go)."""
+    if not SAMPLED or m < 68:
+        return _whistle_synth(m, dur, vib, breath)
+    x = kit("recorder").note(m, dur, rel=0.06)
+    return _peak(x * _swell(len(x), 0.02, dur))
+
+
+def reed(m, dur, attack=0.06, release=0.12, swell=0.15):
+    """The squeezebox's part: a harmonica."""
+    if not SAMPLED:
+        return _reed_synth(m, dur, attack, release, swell)
+    x = kit("harmonica").note(m, dur, rel=release)
+    t = np.arange(len(x)) / SR
+    env = _swell(len(x), attack, dur) * (1.0 + swell * np.sin(np.pi * np.clip(t / max(dur, 0.01), 0, 1)))
+    return _peak(x * env)
+
+
+def fiddle(m, dur, attack=0.04, release=0.12):
+    """The fiddle (a solo violin), the darker songs' tune."""
+    if not SAMPLED:
+        return _reed_synth(m, dur)
+    x = kit("fiddle").note(max(m, 55), dur, rel=release)
+    return _peak(x * _swell(len(x), attack, dur))
+
+
+def bowed(m, dur, attack=0.5, release=0.6, bright=0.4, vib=0.004, seed=0):
+    """A bowed string: the cello section low, the fiddle from E4 up; swelling in."""
+    if not SAMPLED:
+        return _bowed_synth(m, dur, attack, release, bright, vib, seed)
+    k = kit("cello") if m < 64 else kit("fiddle")
+    x = k.note(m, dur, var=seed, rel=release)
+    return _tone(x * _swell(len(x), attack, dur), 0.35 + bright)
+
+
+def pad(ms, dur, attack=1.5, release=2.0, bright=0.3, seed=0):
+    """The strings holding the chord: each note bowed (the cello section low, the fiddle high), spread left and
+    right, swelling in. Stereo."""
+    if not SAMPLED:
+        return _pad_synth(ms, dur, attack, release, bright, seed)
+    n = int((dur + release) * SR)
+    lr = np.zeros((2, n))
+    for i, m in enumerate(sorted(ms)):
+        v = bowed(m, dur, attack=attack, release=release, bright=bright, seed=seed + i)[:n]
+        a = (0.5 + 0.35 * (i / max(1, len(ms) - 1) - 0.5) * (1 if i % 2 else -1)) * np.pi / 2
+        lr[0, :len(v)] += v * np.cos(a)
+        lr[1, :len(v)] += v * np.sin(a)
+    return _peak(lr)
+
+
+def bell(m, dur=3.0):
+    """A bell: hand chimes, the glockenspiel up high."""
+    if not SAMPLED:
+        return _bell_synth(m, dur)
+    name = "chimes" if m < 86 else "glock"
+    return kit(name).note(m, dur, rel=min(0.4, dur * 0.3)) * TRIM[name]
+
+
+def frame_drum(strength=1.0):
+    if not SAMPLED:
+        return _frame_drum_synth(strength)
+    return kit("frame").note(None, None, strength) * strength
+
+
+def war_drum(strength=1.0, low=1.0):
+    """The big drum, a mallet on it; `low` its tuning (under 1 deeper)."""
+    if not SAMPLED:
+        return _war_drum_synth(strength, low)
+    return kit("giant").note(None, None, strength, speed=low) * strength * TRIM["giant"]
+
+
+def stomp(strength=1.0):
+    """A boot on the deck: the frame drum's muted hit, tuned down."""
+    if not SAMPLED:
+        return _stomp_synth(strength)
+    return kit("frame_muted").note(None, None, strength, speed=0.8) * strength * TRIM["frame_muted"]
+
+
+def clap(strength=1.0):
+    if not SAMPLED:
+        return _clap_synth(strength)
+    return kit("clap").note(None, None) * strength
+
+
+def shaker(strength=1.0):
+    if not SAMPLED:
+        return _shaker_synth(strength)
+    return kit("shaker").note(None, None) * strength
+
+
+def crash(dur=2.4, strength=1.0):
+    if not SAMPLED:
+        return _crash_synth(dur, strength)
+    return kit("cymbal").note(None, dur, rel=dur * 0.6) * strength
 
 
 # --- a track: where the notes go -----------------------------------------------------------------------------------
@@ -978,6 +1156,119 @@ def _role(name):
 SCALE = (2, 4, 6, 7, 9, 11, 1)      # D major (and B minor): the notes a tune walks on between chord tones
 
 
+# The theme's own little phrases, each a bar (eighths; steps along the scale from its first note): the tunes the
+# passages are made of, so every tune sounds like it came from the theme, and comes back to things you've heard.
+MOTIFS = {
+    "call": ([2, 2, 4], [0, 3, 5]),         # its opening: A, D, F#, rising
+    "sigh": ([3, 1, 4], [0, -1, -2]),       # G, F#, E, falling back
+    "home": ([2, 2, 4], [0, -2, -5]),       # F#, D, A, coming down home
+    "lift": ([2, 2, 4], [0, 1, 3]),         # B, C#, E, lifting
+    "turn": ([2, 2, 2, 2], [0, -1, 0, 2]),  # round a note and on up
+}
+# A tune's shape, a motif a bar: two-bar phrases said and answered, the second answer home, the last bar held.
+PLANS = [
+    ["call", "sigh", "call", "home", "lift", "sigh", "turn", "end"],
+    ["lift", "sigh", "lift", "home", "call", "turn", "home", "end"],
+    ["call", "home", "lift", "sigh", "call", "sigh", "turn", "end"],
+    ["turn", "sigh", "call", "home", "turn", "sigh", "lift", "end"],
+]
+def scale_of(c):
+    """The scale a tune walks over chord c: D major, with any of the chord's own notes it hasn't got (the F# major's
+    A#, the C's C natural, the F's F) in place of the scale's note a semitone off."""
+    pcs = set(SCALE)
+    for t in {m % 12 for m in CH[c]}:
+        if t not in pcs:
+            pcs.discard((t + 1) % 12 if (t + 1) % 12 in pcs else (t - 1) % 12)
+            pcs.add(t)
+    return [m for m in range(30, 104) if m % 12 in pcs]
+
+
+def _step(m, k, c="D"):
+    """k steps along chord c's scale from m (m taken to the scale's nearest note first)."""
+    sc = scale_of(c)
+    i = min(range(len(sc)), key=lambda j: abs(sc[j] - m))
+    return sc[max(0, min(len(sc) - 1, i + k))]
+
+
+def _nearest(pcs, target, lo, hi):
+    cands = [m for m in range(lo, hi + 1) if m % 12 in pcs]
+    return min(cands, key=lambda m: abs(m - target)) if cands else target
+
+
+def motif_tune(prog, seed, lo, hi, density=1, rest_first=True):
+    """A tune over `prog` (a chord a bar) made of the theme's motifs (MOTIFS, in one of PLANS): each bar's motif
+    starts on a chord tone near where the last left off, kept in [lo, hi]; its long note a chord tone; the last bar
+    held on the root. density 0: sparse (every other bar a held note). In eighths."""
+    plan = PLANS[seed % len(PLANS)]
+    out = []
+    prev = (lo + hi) // 2
+    for b, c in enumerate(prog):
+        tones = {m % 12 for m in CH[c]}
+        name = plan[b % len(plan)] if b < len(prog) - 1 else "end"
+        if name == "end":
+            out.append((_nearest({ROOT[c] % 12}, prev, lo, hi), 8))
+            continue
+        if density == 0 and b % 2 == 1:
+            out.append((_nearest(tones, prev, lo, hi), 6))
+            out.append((None, 2))
+            continue
+        rhythm, steps = MOTIFS[name]
+        span_lo, span_hi = min(steps), max(steps)
+        start = _nearest(tones, prev, lo, hi)
+        # (room for its whole shape in the range: up or down a chord tone if it'd fall out)
+        for _ in range(4):
+            if _step(start, span_hi, c) > hi:
+                start = _nearest(tones, start - 3, lo, hi)
+            elif _step(start, span_lo, c) < lo:
+                start = _nearest(tones, start + 3, lo, hi)
+        notes = [_step(start, k, c) for k in steps]
+        if notes[-1] % 12 not in tones:
+            notes[-1] = _nearest(tones, notes[-1], lo, hi)       # (the long note on the chord)
+        bar = list(zip(notes, rhythm))
+        if b == 0 and rest_first:
+            bar[0] = (None, bar[0][1])
+        out.extend(bar)
+        prev = notes[-1]
+    return out
+
+
+def counter(prog, lead, seed, lo, hi):
+    """The second part: long notes on each chord's third or fifth (a half note a beat-pair), stepping the shortest way
+    from the last, never the tune's own note at that moment, now and then two quarters passing on to the next; the
+    last bar a whole note. In eighths."""
+    rng = np.random.default_rng(seed)
+    at = []                                  # the tune's note on each eighth (None: a rest)
+    for m, ln in lead or []:
+        at.extend([m] * ln)
+    at.extend([None] * (len(prog) * 8 - len(at)))
+    out = []
+    prev = (lo + hi) // 2
+    for b, c in enumerate(prog):
+        r = ROOT[c] % 12
+        tones = [m % 12 for m in CH[c]]
+        guide = [pc for pc in tones if pc != r] or tones
+        last = b == len(prog) - 1
+        halves = [8] if last else ([4, 4] if rng.random() < 0.7 else [4, 2, 2])
+        t = b * 8
+        for k, ln in enumerate(halves):
+            pool = set(guide) if not last else {r, (r + 4) % 12, (r + 3) % 12} & set(tones) or set(tones)
+            if ln == 2 and k == 2 and b + 1 < len(prog):
+                # (passing on: a step toward the next chord's nearest tone)
+                nxt = _nearest({m % 12 for m in CH[prog[b + 1]]}, prev, lo, hi)
+                m = _step(prev, 1 if nxt > prev else -1, c)
+            else:
+                cands = sorted((m for m in range(lo, hi + 1) if m % 12 in pool), key=lambda m: abs(m - prev))
+                tm = at[t] if t < len(at) else None
+                ok = [x for x in cands if tm is None or x % 12 != tm % 12]
+                # (on the bar's second half, somewhere else on the chord: a line, not a held note)
+                moved = [x for x in ok if x != prev] if k > 0 else ok
+                m = (moved or ok or cands or [prev])[0]
+            out.append((m, ln))
+            prev = m
+            t += ln
+    return out
+
+
 def tune(prog, seed, lo, hi, density=1, rest_first=True):
     """A melody over `prog` (a chord a bar): chord tones on the strong beats, steps between, a two-bar rhythm said and
     answered, home on the last chord's root. density 0 sparse (long notes, rests), 1 a tune, 2 busier. In eighths."""
@@ -1030,7 +1321,8 @@ def sea():
         seed = sum(ord(ch) for ch in name)
         if lead is None:
             lo, hi = (69, 86) if lead_inst != "reed" else (62, 79)
-            lead = tune(prog, seed, lo, hi, density=0 if song == "fog" or _role(name) in ("intro", "outro") else 1)
+            lead = motif_tune(prog, seed, lo, hi,
+                              density=0 if song == "fog" or _role(name) in ("intro", "outro") else 1)
         for b, c in enumerate(prog):
             t = b * bar
             v = CH[c]
@@ -1039,7 +1331,7 @@ def sea():
             # of high plucks at night
             if style == "muted":
                 for i, j in enumerate(arp):
-                    T["pick"].add(pluck(v[min(j, len(v) - 1)], 0.5, bright=0.2, decay=0.8, mute=0.45, var=i % 3),
+                    T["pick"].add(strumstick(v[min(j, len(v) - 1)], 0.5, bright=0.2, decay=0.8, mute=0.45, var=i % 3),
                                   t + i * e, -0.25, 0.3 if i in (0, 4) else 0.22)
             elif style == "bells":
                 for k, at in ((0, 0.0), (1, 2.0)):
@@ -1048,11 +1340,11 @@ def sea():
             elif style == "harp":
                 for i, j in enumerate((0, 2, 3, 4)):
                     tone = v[min(j, len(v) - 1)] + 12
-                    T["pick"].add(pluck(tone, 2.2, bright=0.25, pos=0.15, decay=2.0, var=i % 3), t + i * q, -0.2,
+                    T["pick"].add(harp(tone, 2.2, var=i % 3), t + i * q, -0.2,
                                   0.22 if i == 0 else 0.16)
             else:
                 for i, j in enumerate(arp):
-                    T["pick"].add(pluck(v[min(j, len(v) - 1)], 1.4, bright=0.35, decay=1.3, var=i % 3), t + i * e,
+                    T["pick"].add(strumstick(v[min(j, len(v) - 1)], 1.4, bright=0.35, decay=1.3, var=i % 3), t + i * e,
                                   -0.25, 0.28 if i in (0, 4) else 0.2)
             # bass: the root long on 1, the fifth on the and of 3; in the fight's own, a riff driving the eighths
             if name in FIGHT_PARTS:
@@ -1087,17 +1379,18 @@ def sea():
             T["pad"].add(pad(PAD[c], d, attack=1.2, release=1.6, bright=0.25, seed=110 + b0), t, 0.0, 0.24)
             T["storm"].add(bowed(ROOT[c] + 12, d * 0.97, attack=1.0, release=1.0, bright=0.2, seed=b0), t, -0.1, 0.3)
             T["storm"].add(sub_swell(d, ROOT[c] if ROOT[c] < 36 else ROOT[c] - 12, 1.0), t, 0.0, 0.3)
-        lead_play = {"whistle": whistle, "reed": reed, "bell": lambda m, d: bell(m, max(d * 1.6, 1.2))}[lead_inst]
+        # (the darker songs' tune on the fiddle; the counter-melody's "reed" the harmonica)
+        lead_play = {"whistle": whistle, "reed": fiddle, "bell": lambda m, d: bell(m, max(d * 1.6, 1.2))}[lead_inst]
         melody(T["lead"], lead, 0.0, e, lead_play, 0.1, 0.32 if lead_inst != "bell" else 0.2,
                legato=0.94, octave=1 if lead_inst == "bell" and lead and max(m or 0 for m, ln in lead) < 80 else 0)
         # alt: a second melody (the arrangement trades it with the lead from one time through to the next)
         alt_play = {"whistle": whistle, "reed": reed, "bell": lambda m, d: bell(m, max(d * 1.6, 1.2))}[alt_inst]
         alo, ahi = (62, 76) if alt_inst == "reed" else (71, 88)
-        melody(T["alt"], tune(prog, seed + 97, alo, ahi, density=0 if song in ("fog", "night") else 1), 0.0, e,
+        melody(T["alt"], counter(prog, lead, seed + 97, alo, ahi), 0.0, e,
                alt_play, -0.15, 0.26 if alt_inst != "bell" else 0.18, legato=0.95)
         # high: the lead an octave up on the whistle, the concertina an octave under it (the climax)
         melody(T["high"], lead, 0.0, e, whistle, 0.15, 0.26, legato=0.92, octave=1 if lead_inst == "reed" else 0)
-        melody(T["high"], lead, 0.0, e, reed, -0.2, 0.22, legato=0.96, octave=-1 if lead_inst == "whistle" else 0)
+        melody(T["high"], lead, 0.0, e, fiddle, -0.2, 0.22, legato=0.96, octave=-1 if lead_inst == "whistle" else 0)
         # the fish's layers, on these same chords
         for b, c in enumerate(prog):
             t = b * bar

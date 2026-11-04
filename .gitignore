@@ -4,3 +4,4 @@
 __pycache__/
 docs/video/*.avi
 docs/video/*.mp4
+/tools/samples/

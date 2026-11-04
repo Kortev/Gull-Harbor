@@ -68,7 +68,7 @@ const SEA := {
 	"fog": {"pad": 1.0, "bass": 0.35, "pick": 0.7, "lead": 0.6, "night": 0.3},
 	"rain": {"pad": 0.8, "bass": 0.8, "pick": 0.6, "lead": 0.35, "rain": 1.0},
 	"storm": {"pad": 1.0, "bass": 1.0, "rain": 0.6, "storm": 1.0, "gale": 1.0, "lead": 0.45, "tension": 0.3,
-			"deep": 0.4, "pound": 0.35},
+			"pound": 0.35},
 	"night": {"pad": 0.75, "bass": 0.45, "pick": 0.8, "lead": 0.7, "night": 1.0},
 }
 const SEA_STEMS := ["pad", "bass", "pick", "lead", "alt", "high", "rain", "storm", "night", "run", "fill", "pulse",
@@ -480,8 +480,9 @@ func _wants(w: Dictionary, f: Dictionary) -> Dictionary:
 			want["pound"] = 0.6 * smoothstep(AFTER * 0.5, AFTER, _after)
 		"race":
 			_race(w, want, run)
-	# (the counter-melody wants what the lead does: audio/music.gd's arrangement trades them pass to pass)
-	want["alt"] = float(want.get("lead", 0.0))
+	# (the counter-melody wants what the lead does: audio/music.gd's arrangement trades them pass to pass; in a
+	# fight only the one tune, the drums have the rest)
+	want["alt"] = 0.0 if section in FIGHT else float(want.get("lead", 0.0))
 	return want
 
 
@@ -581,7 +582,8 @@ func _fight(w: Dictionary, f: Dictionary, want: Dictionary) -> void:
 		pound = maxf(pound, 0.6)
 	want["pound"] = pound
 	want["run"] = 0.0
-	want["pick"] = float(want["pick"]) * 0.5
+	# (not a wall of eighths: the picking steps back as the drum section comes in)
+	want["pick"] = float(want["pick"]) * (0.5 if pound < 0.5 else 0.2)
 	want["lead"] = {"fight": 0.25, "tired": 0.7, "leader": 1.0}.get(section, 0.25)
 	want["high"] = 1.0 if section == "leader" else 0.0
 
