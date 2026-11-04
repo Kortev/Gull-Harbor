@@ -4,6 +4,42 @@ Status: **approved 2026-11-02, being built** with the recommended answers: folk-
 about-to-part moment, pure synth, pure silence on a loss, and the hunt layer on birds you can see (they are on
 screen anyway, so it tells you nothing the sea doesn't). Written 2026-11-02 against `claude/zealous-mendel-h2udij` at a416062.
 
+## As built (2026-11-03, later): the weather's songs, and the fight's own
+
+This builds on "one song" below: still one band in D / B minor at 112, still one Interactive stream, every passage
+with every layer, so a strike can turn anything into the fight on the beat. What changed:
+- **Each weather has its own song, played through in its form** (`SONGS` and `STYLE` in tools/music.py; the cues'
+  `songs` entry carries each form):
+  - fair: intro, two verses, the theme (`sea_t1`, `sea_t2`), a verse, a bridge, the theme again, the outro;
+  - rain: a reed song, the guitar muted, the patter in;
+  - fog: almost still, a far whistle, bells for the guitar;
+  - night: a lullaby on the bells, a harp of high plucks;
+  - storm: its way in, the storm's three grinding passages (`sea_s1`..`s3`) twice, its way out.
+
+  Each part's melody or its counter-melody is written from its chords by `tune()` (chord tones on the strong beats,
+  steps between, a two-bar rhythm said and answered, home on the root). Each passage's role (intro, verse, chorus,
+  bridge, outro) comes from its name.
+- **The band rearranges each part each time round** (`_arrange()` in audio/music.gd): the intro sparse; a verse's tune,
+  then its counter-melody (`alt`) the next time, now and then an instrumental or the guitar out; the last chorus with
+  the lead up high; the bridge the counter-melody alone; the outro winding down.
+- **The weather turning:** the band heads for the song's outro, and the next song is the new weather's, so the
+  weather changes as one song ends and the next begins. (Not yet: changing on the bar *before* a front arrives. That
+  needs the weather to say what's coming and when, e.g. `next_kind` and `eta`; the sky work was asked for it.)
+- **The fight has its own passages** (`sea_f1`..`f3`: a chord every bar over a driving bass riff), played only in a
+  fight and nearly always in one until he tires. On the bar after the strike's hit the song turns into one, with a
+  two-bar drum break (`fight_in`) driving in. Out of the fight, the weather's song picks up from its first verse.
+- **The band plays harder** by the state's `heat` (a fish on 1, tiring 0.9, boatside 0.7, landed 0.6, the hunt 0.15,
+  the race home's end, a storm): the whole song up to 5 dB louder, up in under a second, down over six.
+- **The fight builds the longer it goes:** the drums never right down after 20–40 s, the drum section (`pound`) in
+  from one to two minutes, the tension never off from 90 s to 2:30. Sounding deep it backs off, and his next run after
+  it hits with everything.
+- **The music on screen** (`-- --music-hud`, audio/music_hud.gd): what's happening, the passage, chord, bar and beat,
+  the heat, the fight's time, the danger, each layer's level as a bar, and the cues as they're played. For videos of
+  it working, and for tuning.
+- **Rendered:** 50 cues, 29 passages (the five songs' parts, the storm's three, the fight's three, the theme's two),
+  each passage's stems summing back to the whole within -22 dB. The old shuffled passages `sea_a`..`sea_j` are
+  retired and their files deleted. `music/` is 57 MB. The render takes about 6 minutes.
+
 ## As built (2026-11-03): one song
 
 **It's one song now (Kortev: "the same song, reacting to what's happening, playing certain sounds on different

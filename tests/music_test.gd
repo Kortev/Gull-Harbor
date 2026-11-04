@@ -3,13 +3,15 @@ extends Node
 ## title's up; SOLO, and once the glide's done the song, the title's chord ringing into it; casting off, its lead-in;
 ## one passage into the next on the bar; the race home called, home made, a fish on: cues on the song's beat, never
 ## another song; the radio ducks it. Rivals: the countdown's sting (nothing else under it), and the results card's as
-## its stamp lands (your boat won: win). audio/music_state.gd's own test has the music's mind; this is it playing.
+## its stamp lands (your boat won: win). And each weather's song as the conductor walks it (_forms()).
+## audio/music_state.gd's own test has the music's mind; this is it playing.
 ## Run: godot --headless --fixed-fps 30 --path . res://tests/music_test.tscn
 
 const Sea := preload("res://sea/sea.gd")
 const Title := preload("res://ui/title.gd")
 const Card := preload("res://vs/card.gd")
 const Cues := preload("res://audio/music_cues.gd")
+const MusicScript := preload("res://audio/music.gd")
 const DT := 1.0 / 30.0
 
 var fails: Array[String] = []
@@ -110,7 +112,52 @@ func _ready() -> void:
 	await _secs(Card.T_STAMP + Card.STAMP + 0.2)
 	_check(m.sting == "win" and m.cue == "rest", "the card's stamp lands, your boat's: the win sting (%s)" % m.sting)
 	sea.vs.card.close()
+	_forms()
 	_done()
+
+
+## The weather's songs as the conductor walks them (its own pick, no time passing, nothing awaited so nothing else
+## plays meanwhile): each weather's from its intro through its form to its outro, then round again from its first
+## verse; the weather turning mid-song heads for the outro, and the new weather's song comes in from its top; back
+## from a fight, the weather's first verse; the theme's first half, its second.
+func _forms() -> void:
+	var forms: Dictionary = Cues.CUES.get("songs", {}).get("forms", {})
+	_check(forms.size() == MusicScript.MOOD_SONG.size(), "a song for each weather (%s)" % ", ".join(forms.keys()))
+	m.set("_jump", "")
+	m.state.section = "sea"
+	for mood: String in MusicScript.MOOD_SONG:
+		var form: Array = forms.get(MusicScript.MOOD_SONG[mood], [])
+		m.state.mood = mood
+		m.set("_song", "")
+		m.sounding = "title"
+		var heard: Array = []
+		for i in form.size() + 1:
+			m.sounding = m._pick_sea()
+			heard.append(m.sounding)
+		var once := heard.slice(0, form.size()) == form
+		var files := form.all(func(n: String) -> bool: return Cues.CUES.has(n))
+		_check(once and files and heard[-1] == form[1], "%s: its song through, intro to outro, then round from its first verse (%s)"
+				% [mood, ", ".join(heard)])
+	m.state.mood = "calm"
+	m.set("_song", "")
+	m.sounding = "title"
+	var fair: Array = forms.get("fair", [])
+	m.sounding = m._pick_sea()
+	m.sounding = m._pick_sea()
+	m.state.mood = "rain"
+	var turned: String = m._pick_sea()
+	m.sounding = turned
+	var rain_in: String = m._pick_sea()
+	_check(turned == fair[-1] and rain_in == forms.get("rain", [""])[0],
+			"the rain coming on mid-song: fair's outro, then the rain's song from its top (%s, %s)" % [turned, rain_in])
+	m.state.mood = "calm"
+	m.sounding = "sea_f1"
+	var back: String = m._pick_sea()
+	_check(back == fair[1], "back from a fight: fair's first verse (%s)" % back)
+	m.set("_song", "")
+	m.sounding = "sea_t1"
+	var t2: String = m._pick_sea()
+	_check(t2 == "sea_t2", "the theme's first half, then its second (%s)" % t2)
 
 
 ## Every cue's files are there, and a section's stems are all its bars long.

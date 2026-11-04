@@ -6,13 +6,14 @@ extends Node
 ## Each frame it reads the sea into a plain picture (world()) and hands it to audio/music_state.gd, which says what's
 ## happening (the section: the title, or out there the sea, the harbour, birds, the fight's three, boatside, landed,
 ## the race home), each layer's level, and what just happened. Here's the band playing it:
-## - the title is its own piece (the theme, its stems by the weather on it); everything after is ONE song: eight-bar
-##   passages (sea_a..j, and the theme's halves sea_t1, sea_t2) of one AudioStreamInteractive, each an
-##   AudioStreamSynchronized of the same 17 layers, played one after another (each next one picked as the last's
-##   final bar begins: never the same twice running, bright or dark by what's happening). What happens never changes
-##   the song: it brings its layers up and down on the same chords (a fish on: the heartbeat, the drums, the
-##   tension...), and the band plays cues over it on the beat (cue()): the strike's hit, the birds' bells, a fill and
-##   the theme for the leader, the hit and the theme when he's in, the race called, home made, casting off.
+## - the title is its own piece (the theme, its stems by the weather on it); everything after is one band in one key
+##   and tempo: eight-bar passages of one AudioStreamInteractive, each an AudioStreamSynchronized of its layers,
+##   played one after another. Out of a fight, the weather's song part by part (sea_fair_in, sea_fair_v1 ... the
+##   theme's halves sea_t1, sea_t2 ... sea_fair_out; _pick_sea()), rearranged each time round (_arrange()); in a fight
+##   and the race home, the fight's own passages (sea_f1..3). What happens brings the layers up and down on the same
+##   chords (a fish on: the heartbeat, the drums, the tension...), and the band plays cues over it on the beat
+##   (cue()): the strike's hit, the birds' bells, a fill and the theme for the leader, the hit and the theme when he's
+##   in, the race called, home made, casting off.
 ## - the switches between passages land on the bar in the mixer itself (sample-locked), a half-beat's crossfade at
 ##   most: never a slow smear; cues start on our own clock (a silent player's position: the mixer's time), each with
 ##   a silent pre-roll so its hit lands on the line, lead-ins ending exactly on the downbeat. And the clock listens:
@@ -143,7 +144,7 @@ var _phrase_n := -1
 var _stings: Array[AudioStreamPlayer] = []
 var _queue: Array = []      # [{name, at, from}]
 var _streams := {}          # sting name -> AudioStream
-var _seas: Array = []       # the sea's passages (sea_a ...)
+var _seas: Array = []       # the song's passages (sea_fair_v1 ...)
 var _rng := RandomNumberGenerator.new()
 var _sea_was := ""
 var _song := ""             # the weather's song playing ("" none: a fight, a jump, the title)
@@ -341,7 +342,7 @@ func _bus_effects() -> void:
 		_cap.buffer_length = 0.5
 		AudioServer.add_bus_effect(i, _cap)
 		var notch := AudioEffectNotchFilter.new()
-		notch.cutoff_hz = float(Cues.CUES.get("sea_a", {}).get("mark_hz", 12000.0))
+		notch.cutoff_hz = float(Cues.CUES.get("sea_t1", {}).get("mark_hz", 12000.0))
 		AudioServer.add_bus_effect(i, notch)
 		for k in 2:
 			var lp := AudioEffectLowPassFilter.new()
@@ -732,7 +733,7 @@ func _listen() -> void:
 	var steps := int(2.0 * MARK_WIN * rate / MARK_STEP)
 	if i0 < 0 or i0 + steps * MARK_STEP + MARK_N >= _cap_buf.size():
 		return
-	var hz := float(cl.get("mark_hz", Cues.CUES.get("sea_a", {}).get("mark_hz", 12000.0)))
+	var hz := float(cl.get("mark_hz", Cues.CUES.get("sea_t1", {}).get("mark_hz", 12000.0)))
 	var k := 2.0 * cos(TAU * hz / rate)
 	var powers: Array[float] = []
 	var best := 0.0
