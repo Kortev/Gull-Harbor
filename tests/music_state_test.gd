@@ -228,13 +228,13 @@ func _fight() -> void:
 	_run(s, {"docked": false, "fights": [_fish({"move": "run"})]}, 0.4)
 	_check(s.level("beat") > 0.95, "tight again: back")
 	# in the air
-	_run(s, {"docked": false, "fights": [_fish({"move": "jump", "airborne": true})]}, 0.2)
-	_check(s.level("drive") <= 0.16 and s.level("pad") <= 0.16 and s.level("beat") <= 0.16,
-			"him in the air: all but silence (drive %.2f)" % s.level("drive"))
-	_run(s, {"docked": false, "fights": [_fish({"move": "run"})]}, 0.3)
+	_run(s, {"docked": false, "fights": [_fish({"move": "jump", "airborne": true})]}, State.MASK_DOWN)
+	_check(s.level("drive") <= State.AIR + 0.01 and s.level("pad") <= State.AIR + 0.01 and s.level("beat") <= State.AIR + 0.01,
+			"him in the air: the band all but gone, over a moment (drive %.2f)" % s.level("drive"))
+	_run(s, {"docked": false, "fights": [_fish({"move": "run"})]}, State.MASK_UP)
 	_check(s.level("drive") > 0.9, "back in: everything back (%.2f)" % s.level("drive"))
 	# about to part
-	_run(s, {"docked": false, "fights": [_fish({"tension": 0.62})]}, 0.25)
+	_run(s, {"docked": false, "fights": [_fish({"tension": 0.62})]}, State.MASK_DOWN + 0.1)
 	_check(s.parting and s.level("drive") < 0.02 and s.level("deep") < 0.02 and s.level("tension") > 0.99
 			and s.level("beat") > 0.95 and s.level("pad") < 0.35 and s.level("pick") < 0.02 and s.level("lead") < 0.02,
 			"the line about to part: the heartbeat and one note (drive %.2f, tension %.2f, pad %.2f)"
@@ -325,8 +325,8 @@ func _ends() -> void:
 	_check(s.level("beat") > 0.95 and s.level("drive") < 0.4, "the heartbeat, the drums down")
 	_run(s, {"docked": false, "alongside": ["0:1.00"], "landed": 0, "draw": 1.0}, 1.0)
 	_check(s.level("tension") > 0.95, "winding up the harpoon: the tension rises with it")
-	_run(s, {"docked": false, "alongside": ["0:1.00"], "landed": 0, "flying": true}, 0.15)
-	_check(s.level("beat") < 0.05 and s.level("pad") < 0.1, "the harpoon in the air: silence")
+	_run(s, {"docked": false, "alongside": ["0:1.00"], "landed": 0, "flying": true}, State.MASK_DOWN + 0.05)
+	_check(s.level("beat") < 0.05 and s.level("pad") < 0.15, "the harpoon in the air: silence")
 	ev = _run(s, {"docked": false, "alongside": [], "landed": 1}, DT)
 	_check(ev.has("landed") and s.section == "afterglow", "he's in: the afterglow (%s)" % s.section)
 	_run(s, {"docked": false, "landed": 1}, 3.0)

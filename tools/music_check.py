@@ -183,7 +183,7 @@ def main(d):
         part = rms_db(win(24.4, 26.9))
         air = rms_db(win(27.2, 28.5))
         check(part < before - 3.0, "the line about to part: thinner (%.1f dB, before %.1f)" % (part, before))
-        check(air < before - 10.0, "him in the air: all but silence (%.1f dB)" % air)
+        check(air < before - 8.0, "him in the air: the band all but gone (%.1f dB)" % air)
         # 4. lost (96 s): silence, but for the strike's tail that went before it
         lost = rms_db(win(96.3, 101.5))
         check(lost < -60.0, "a fish lost: silence (%.1f dBFS)" % lost)

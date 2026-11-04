@@ -69,12 +69,14 @@ const LEVEL := {"sea": 1.0, "title": 1.0}
 const STING_LEVEL := {"strike": 1.0, "their_on": 0.7, "lead_up": 0.8, "lead_down": 0.8, "countdown": 1.0, "win": 1.0,
 		"lose": 1.0, "tie": 1.0, "landed": 1.0, "leader_in": 1.0, "hunt_in": 0.8, "away_in": 0.8, "race_in": 0.9,
 		"boatside_end": 0.9, "race_end": 0.9, "title_end": 0.8, "thunder": 1.0, "fight_in": 1.0}
-## The cues that play over the others (on their own player), not cutting them.
+## The cues' players: each cue on one of its own (_voice), so none cuts another's ring off.
+const STING_VOICES := 6
+## The cues that play over the others, the smaller (their level, STING_LEVEL).
 const SMALL := ["their_on", "lead_up", "lead_down", "hunt_in", "away_in", "race_in", "boatside_end", "race_end",
 		"title_end"]
-## A fish lost: everything down to nothing over this long (s): quicker than you'd hear as a fade, slow enough not to
-## click.
-const HUSH_FADE := 0.08
+## A fish lost: everything down to nothing over this long (s): the band stopping dead, its hands off (not a glitch:
+## a tenth of a second sounded like the music breaking).
+const HUSH_FADE := 0.35
 ## The scenic silences: the band let go over this long (s), and back in over this long (s) on its bar.
 const SCENIC_FADE := 6.0
 const SCENIC_IN := 0.12
@@ -206,7 +208,7 @@ func _ready() -> void:
 		var c: Dictionary = Cues.CUES[n]
 		if str(c["kind"]) in ["sting", "filler"]:
 			_streams[n] = _ogg(str(c["files"][0]), c)
-	for i in 2:
+	for i in STING_VOICES:
 		var p := AudioStreamPlayer.new()
 		p.name = "Sting%d" % i
 		p.bus = BUS
@@ -1043,15 +1045,28 @@ func _play_queue(_delta: float) -> void:
 		if lead > pre:
 			continue
 		_queue.erase(q)
-		var p := _stings[1] if n in SMALL else _stings[0]      # (the small ones over the big ones, not cutting them)
+		var p := _voice()
 		p.stream = _streams.get(n)
 		p.set_meta("cue", n)
+		p.set_meta("at", _t)
 		if p.stream != null:
 			p.play(maxf(float(q["from"]) + pre - lead, 0.0))
 		sting = n
 		_note("sting:" + n, float(q["at"]))
-	if sting != "" and not _stings[0].playing and not _stings[1].playing:
+	if sting != "" and not _stings.any(func(v: AudioStreamPlayer) -> bool: return v.playing):
 		sting = ""
+
+
+## A cue's player: one not playing (so the cue before rings on under it: giving a player a new stream stops the old
+## at once, a cut), else the one that's rung longest.
+func _voice() -> AudioStreamPlayer:
+	var best: AudioStreamPlayer = _stings[0]
+	for p in _stings:
+		if not p.playing:
+			return p
+		if float(p.get_meta("at", 0.0)) < float(best.get_meta("at", 0.0)):
+			best = p
+	return best
 
 
 func _note(what: String, at := -1.0) -> void:

@@ -43,6 +43,11 @@ const NEAR := Vector2(0.4, 0.6)
 ## The line about to part: danger past PARTING, over till it's back under PARTED.
 const PARTING := 0.85
 const PARTED := 0.72
+## The fast masks (him in the air, the line about to part, the harpoon flying): down over MASK_DOWN s, back over
+## MASK_UP s: quick, but the band's hands, never a switch; and how far down him in the air takes it (a share).
+const MASK_DOWN := 0.25
+const MASK_UP := 0.5
+const AIR := 0.25
 ## Each stem: [attack s (0 to full), release s (full to 0), hold s (once up, it stays at least this long)].
 const SMOOTH := {
 	"pad": [3.0, 4.0, 0.0], "bass": [2.0, 4.0, 0.0], "pick": [2.5, 3.0, 0.0], "lead": [2.5, 3.0, 4.3],
@@ -620,13 +625,13 @@ func _mask(w: Dictionary, f: Dictionary, dt: float) -> void:
 		if parting:
 			m = {"pad": 0.3, "beat": 1.0, "tension": 1.0, "heavy": 0.5}.get(k, 0.0)
 		if (air or parting) and k in WEATHER:
-			m = 0.0 if air else 0.3
+			m = 0.5 * AIR if air else 0.3
 		if air:
-			m = minf(m, 0.15)
+			m = minf(m, AIR)
 		if flying:
-			m = 0.08 if k == "pad" else 0.0
+			m = 0.12 if k == "pad" else 0.0
 		var cur := float(masks.get(k, 1.0))
-		masks[k] = move_toward(cur, m, dt / (0.08 if m < cur else 0.2))
+		masks[k] = move_toward(cur, m, dt / (MASK_DOWN if m < cur else MASK_UP))
 		if parting and k == "tension":
 			gains[k] = maxf(float(gains[k]), 1.0)
 	for k: String in masks.keys():
