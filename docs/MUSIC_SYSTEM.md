@@ -4,6 +4,47 @@ Status: **approved 2026-11-02, being built** with the recommended answers: folk-
 about-to-part moment, pure synth, pure silence on a loss, and the hunt layer on birds you can see (they are on
 screen anyway, so it tells you nothing the sea doesn't). Written 2026-11-02 against `claude/zealous-mendel-h2udij` at a416062.
 
+## As built (2026-11-03, night): no more cuts between passages; quicker to answer
+
+**Kortev: "the music still cuts pretty poorly when changing songs or is delayed from when stuff happens. really bad
+cuts happen throughout."** Measured in a scratch project through the real mixer (AudioStreamInteractive, as the game
+builds it), there were two cuts:
+- **Every join (every 17 s):** each passage was rendered as a loop, its tail (its last chord ringing, its room)
+  wrapped round onto its own start. Chained into a *different* passage, that meant:
+  - its own last chord sounded over its first downbeat;
+  - the passage going out was looped back to its start for the half-beat crossfade, so its first strum leaked over
+    the new downbeat (78% in the first eighth of a second);
+  - the new passage faded in, so the downbeat was soft (25%).
+- **Every repeat** (rain's verse into verse, chorus into chorus; fog's verse into verse): Godot's interactive
+  stream asked to switch a clip into itself goes **silent** from the ask until the bar line. The ask is made in the
+  last bar, so that's nearly a bar (about 2 s) of nothing.
+
+The fix:
+- **Passages aren't loops** (tools/music.py: `TAIL`). Each is its bars, then 3 s of what still rings, faded at the
+  last; the Oggs don't loop. Godot plays past a clip's `beat_count` as its tail when a transition fades it out
+  (measured: a non-looping clip's tail rings under the next; a looping one jumps back to its start instead).
+- **One passage into the next:** the next comes in full on its downbeat (`FADE_OUT`, not a crossfade), and the last
+  one's tail dies away under it over `TAIL` beats. A jump on a bar inside a passage (the strike's turn, the theme for
+  the leader or for landing him) lets the one going out go over `JUMP` beat, under its cue's hit. Each switch sets
+  its own pair in the bed's transitions just before it's asked for (`_fade_into()`).
+- **No part straight after itself:** rain is `in v ch v br ch v ch out`, fog `in v br v out`, and `_pick_sea()` steps
+  past a repeat if one ever comes up. tests/music_test checks every song.
+- **The fight's own passages by name** (`FIGHT_PARTS`: f1, f2, f3). They were found by their first letter, so once
+  the weather's songs came in, every fair and fog part played the fight's driving bass riff and was played in fights.
+  The strike's turn now always picks one of the three (`_pick_fight()`), even when it lands on a passage's end or
+  after another switch.
+- **The song never runs out under a waiting jump:** a passage's next is asked in its last bar even with a jump
+  pending, by `CHAIN_LATE` s before its end at the latest (a non-looping passage left alone would end in silence).
+
+Quicker to answer what happens:
+- **The weather turning:** the new weather's song comes in from its top as the passage playing ends (at most 17 s),
+  instead of after the old song's outro too (up to 34 s, with the fair song carrying no rain layer meanwhile).
+- **Landing him:** the hit on the next beat (was the next downbeat, up to 2 s), the theme on the bar after it.
+- **Lead-ins** (the birds' bells, casting off, the race called) end on the next downbeat *or the bar's middle*
+  (`LEAD_GRID`), so they start within half a bar of what they're for.
+- **The leader:** if it comes too late in a bar for its fill, the theme comes in on the bar line anyway, without
+  waiting a bar for the fill.
+
 ## As built (2026-11-03, later): the weather's songs, and the fight's own
 
 This builds on "one song" below: still one band in D / B minor at 112, still one Interactive stream, every passage

@@ -146,10 +146,20 @@ func _forms() -> void:
 	m.sounding = m._pick_sea()
 	m.state.mood = "rain"
 	var turned: String = m._pick_sea()
-	m.sounding = turned
-	var rain_in: String = m._pick_sea()
-	_check(turned == fair[-1] and rain_in == forms.get("rain", [""])[0],
-			"the rain coming on mid-song: fair's outro, then the rain's song from its top (%s, %s)" % [turned, rain_in])
+	_check(turned == forms.get("rain", [""])[0],
+			"the rain coming on mid-song: the rain's song from its top as this passage ends (%s)" % turned)
+	var twice := ""
+	for song: String in forms:
+		var form: Array = forms[song]
+		for k in range(1, form.size()):
+			if form[k] == form[k - 1]:
+				twice += " %s:%s" % [song, form[k]]
+	_check(twice == "", "no part straight after itself (the bed would go quiet till the bar)%s" % twice)
+	var mixed := ""
+	for n: String in Cues.CUES:
+		if bool(Cues.CUES[n].get("fight", false)) and str(Cues.CUES[n].get("song", "")) != "":
+			mixed += " " + n
+	_check(mixed == "", "the fight's own passages are none of the weather songs' parts%s" % mixed)
 	m.state.mood = "calm"
 	m.sounding = "sea_f1"
 	var back: String = m._pick_sea()
@@ -171,12 +181,14 @@ func _manifest() -> void:
 				ok = false
 				print("  missing ", f)
 				continue
-			if str(c["kind"]) == "bed" and bool(c["loop"]):
-				var want := int(c["bars"]) * int(c["bar_beats"]) * 60.0 / float(c["bpm"])
+			if str(c["kind"]) == "bed":
+				# (a loop exactly its bars; a passage its bars and then its tail)
+				var want := int(c["bars"]) * int(c["bar_beats"]) * 60.0 / float(c["bpm"]) \
+						+ (0.0 if bool(c["loop"]) else float(c.get("tail", 0.0)))
 				if absf(s.get_length() - want) > 0.002:
 					ok = false
-					print("  %s: %.4f s, its bars %.4f" % [f, s.get_length(), want])
-	_check(ok, "every cue's there, every stem exactly its bars long")
+					print("  %s: %.4f s, its bars (and tail) %.4f" % [f, s.get_length(), want])
+	_check(ok, "every cue's there, every stem exactly its bars long (a passage's and then its tail)")
 
 
 func _played(what: String) -> bool:

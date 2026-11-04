@@ -28,7 +28,8 @@ A section's stems are mastered alike and by the whole mix's peak (stems()), so t
 to the whole; every stem of it is exactly as long as its bars.
 
 Loops are made round: every note's tail and the reverb's wrap past the end back to the start, and the filters run
-over the loop twice and keep the second time through, so the end runs into the start with no seam.
+over the loop twice and keep the second time through, so the end runs into the start with no seam. The song's
+passages aren't loops (each is played into a different one): their bars, then TAIL s of what still rings.
 
 Run: python tools/music.py   (numpy, scipy, soundfile; a few minutes). Writes ../music/*.ogg and
 ../audio/music_cues.gd."""
@@ -477,6 +478,13 @@ def seam_ok(x):
     return jump <= max(moves, 1e-3), jump, moves
 
 
+# A passage's tail: how long its last notes and its room ring on past its end (s), the last TAIL_FADE s of it faded.
+# The song's passages aren't loops: each is played into the next, the next coming in full on the downbeat while this
+# one's tail dies away under it (audio/music.gd). A loop's wrapped tail would put this passage's last chord over its
+# own first downbeat, and cut this one's ring off at its end.
+TAIL = 3.0
+TAIL_FADE = 0.8
+
 # The clock's tick on each bar (a stem of its own: "mark"): how high (Hz: above the music, which is low-passed round 8
 # kHz, below what the Vorbis encoder drops), how long (s) and how loud.
 MARK_HZ = 12000.0
@@ -503,16 +511,22 @@ def stems(name, tracks, bpm, bar_beats, bars, level=0.85, kind="bed", chords=Non
     err = 20 * np.log10(np.sqrt(np.mean((s - full) ** 2)) / max(1e-9, np.sqrt(np.mean(full ** 2))))
     assert err < -18.0, "%s: the stems don't sum to the whole (%.1f dB)" % (name, err)
     g = level / max(float(np.max(np.abs(s))), float(np.max(np.abs(full))))
+    cut = n if ts[0].loop else n + int(round(TAIL * SR))
     for k, x in xs.items():
         if ts[0].loop:
             ok, jump, moves = seam_ok(x)
             assert ok, "%s_%s: the loop's seam jumps %.4f (the music moves %.4f)" % (name, k, jump, moves)
+        else:
+            # (its bars, then its tail: what still rings, faded at the last)
+            x = x[:, :cut].copy()
+            f = int(round(TAIL_FADE * SR))
+            x[:, -f:] *= np.linspace(1.0, 0.0, f) ** 2
         write("%s_%s" % (name, k), x * g, comp=0.8)       # (a stem's heard with the rest: fewer bits)
     print("  %s: %d stems, sum vs whole %.1f dB" % (name, len(xs), err))
     # mark: the clock's tick, a little MARK_HZ blip on each bar's downbeat, never mastered (no room on it, sharp):
     # audio/music.gd hears the section through it as it plays (its grid as the mixer really has it), and filters it
     # out before anyone else does
-    mark = np.zeros((2, n))
+    mark = np.zeros((2, cut))
     blip = np.sin(2 * np.pi * MARK_HZ * np.arange(int(MARK_S * SR)) / SR) * np.hanning(int(MARK_S * SR)) * MARK_LEVEL
     for b in range(bars):
         i = int(round(b * bar_beats * 60.0 / bpm * SR))
@@ -520,6 +534,8 @@ def stems(name, tracks, bpm, bar_beats, bars, level=0.85, kind="bed", chords=Non
     write("%s_mark" % name, mark, comp=0.6)
     cue(name, kind, ["%s_%s" % (name, k) for k in tracks] + ["%s_mark" % name], bpm, bar_beats, bars, ts[0].loop,
         stems=list(tracks) + ["mark"], length=n / SR, mark_hz=MARK_HZ, mark_s=MARK_S)
+    if not ts[0].loop:
+        CUES[name]["tail"] = TAIL
     if chords:
         # (what's playing when: one chord each chord_beats beats, a bar each by default; the deck whistle's notes)
         CUES[name]["chords"] = list(chords)
@@ -917,13 +933,14 @@ SEA = {
 }
 
 
-# The weather's songs, each played through in its form, then the next (audio/music.gd: the weather turning, the band
-# heads for the song's outro and the next song's the new weather's). All in D and its B minor at 112, so a strike
-# can turn any of them into the fight on the beat.
+# The weather's songs, each played through in its form, then the next (audio/music.gd: the weather turning, the new
+# weather's song comes in from its top as this passage ends). All in D and its B minor at 112, so a strike can turn
+# any of them into the fight on the beat. No part straight after itself: a clip can't be played into itself without
+# a gap (Godot's interactive stream goes quiet till the bar).
 SONGS = {
     "fair": ["fair_in", "fair_v1", "fair_v2", "t1", "t2", "fair_v1", "fair_br", "t1", "t2", "fair_out"],
-    "rain": ["rain_in", "rain_v", "rain_v", "rain_ch", "rain_v", "rain_br", "rain_ch", "rain_ch", "rain_out"],
-    "fog": ["fog_in", "fog_v", "fog_v", "fog_br", "fog_v", "fog_out"],
+    "rain": ["rain_in", "rain_v", "rain_ch", "rain_v", "rain_br", "rain_ch", "rain_v", "rain_ch", "rain_out"],
+    "fog": ["fog_in", "fog_v", "fog_br", "fog_v", "fog_out"],
     "night": ["night_in", "night_v", "night_ch", "night_v", "night_br", "night_ch", "night_out"],
     "storm": ["storm_in", "s1", "s2", "s3", "s1", "s2", "storm_out"],
 }
@@ -939,6 +956,9 @@ STYLE = {
     "storm": ("arp", "reed", ["rain", "storm", "gale", "pound", "tension", "deep"]),
 }
 SONG_STEMS = ("pad", "bass", "pick", "lead", "alt", "high", "run", "fill", "pulse", "glint")
+# The fight's own passages (their driving bass riff; audio/music.gd plays them only in a fight). By name, not by its
+# first letter: the fair and the fog songs' parts begin with an f too.
+FIGHT_PARTS = ("f1", "f2", "f3")
 
 
 def _song_of(name):
@@ -1006,7 +1026,7 @@ def sea():
         song = _song_of(name)
         style, alt_inst, colors = STYLE.get(song, ("arp", "reed", []))
         has = SEA_STEMS if not song else SONG_STEMS + tuple(colors)
-        T = Stems({k: Track(len(prog) * bar, True) for k in has})
+        T = Stems({k: Track(len(prog) * bar, False) for k in has})      # (not a loop: TAIL)
         seed = sum(ord(ch) for ch in name)
         if lead is None:
             lo, hi = (69, 86) if lead_inst != "reed" else (62, 79)
@@ -1035,7 +1055,7 @@ def sea():
                     T["pick"].add(pluck(v[min(j, len(v) - 1)], 1.4, bright=0.35, decay=1.3, var=i % 3), t + i * e,
                                   -0.25, 0.28 if i in (0, 4) else 0.2)
             # bass: the root long on 1, the fifth on the and of 3; in the fight's own, a riff driving the eighths
-            if name.startswith("f"):
+            if name in FIGHT_PARTS:
                 for i, iv in enumerate((0, 0, 12, 0, 7, 0, 12, 7)):
                     T["bass"].add(pluck(root + iv, 0.32, bright=0.3, pos=0.22, decay=0.8, mute=0.35, var=i % 3),
                                   t + i * e, 0.0, 0.42 if i in (0, 4) else 0.32)
@@ -1159,7 +1179,7 @@ def sea():
         CUES["sea_" + name]["bright"] = bright
         if name.startswith("s") and len(name) == 2 or name.startswith("storm_"):
             CUES["sea_" + name]["storm"] = True
-        if name.startswith("f"):
+        if name in FIGHT_PARTS:
             CUES["sea_" + name]["fight"] = True
         if name == "t1":
             CUES["sea_" + name]["then"] = "sea_t2"

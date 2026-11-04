@@ -14,8 +14,9 @@ extends Node
 ##   chords (a fish on: the heartbeat, the drums, the tension...), and the band plays cues over it on the beat
 ##   (cue()): the strike's hit, the birds' bells, a fill and the theme for the leader, the hit and the theme when he's
 ##   in, the race called, home made, casting off.
-## - the switches between passages land on the bar in the mixer itself (sample-locked), a half-beat's crossfade at
-##   most: never a slow smear; cues start on our own clock (a silent player's position: the mixer's time), each with
+## - the switches between passages land on the bar in the mixer itself (sample-locked): the next in full on the
+##   downbeat, the last one's tail (its last chord ringing, its room) dying away under it (TAIL); a jump on a bar
+##   inside a passage lets it go over JUMP beats; cues start on our own clock (a silent player's position: the mixer's time), each with
 ##   a silent pre-roll so its hit lands on the line, lead-ins ending exactly on the downbeat. And the clock listens:
 ##   every bar of the song carries a tiny tick (its "mark" stem, MARK_HZ), the bed plays through a bus of its own
 ##   (BED_BUS) where it's captured and then filtered out, and each bar the clock's put right on where its tick really
@@ -50,10 +51,19 @@ const FILL_WAIT := 6.0
 ## the next switch counts from where it really came in: our clock takes the same off each time, or it'd drift off the
 ## bed a little more with every passage of the sea.
 const EARLY := 0.0018
-## The shortest fade in (beats): a loop coming in at full (the title into the song); and one passage into another,
-## on the bar (beats: each one's first sample is its own tail wrapped round, so never a hard cut).
+## The shortest fade in (beats): a loop coming in at full (the title into the song).
 const ENTER := 0.1
-const JOIN := 0.5
+## One passage into the next (beats): at its end, the last one's tail (tools/music.py's TAIL: what's still ringing
+## past its bars) dies away under the next over TAIL beats, the next in full on its downbeat; a jump on a bar inside
+## a passage (the strike's, the theme's) lets the one going out go over JUMP beats, under the cue's hit.
+const TAIL := 4.0
+const JUMP := 1.0
+## A passage's next is asked for in its last bar; with a jump waiting for its moment (the leader's fill), no later
+## than this (s) before the end, so the song never runs out under it.
+const CHAIN_LATE := 0.3
+## A lead-in ends on the next downbeat, or the bar's middle (its third beat), whichever it has time for: never more
+## than half a bar after what it's for.
+const LEAD_GRID := 2
 ## The title's and the song's levels (a share).
 const LEVEL := {"sea": 1.0, "title": 1.0}
 const STING_LEVEL := {"strike": 1.0, "their_on": 0.7, "lead_up": 0.8, "lead_down": 0.8, "countdown": 1.0, "win": 1.0,
@@ -297,12 +307,13 @@ func _index(n: String) -> int:
 
 
 ## [from, to, leave (when), enter (where), fade, fade beats]: the most particular wins. One passage into the next,
-## and the jumps into the theme, on the bar with a half-beat's crossfade (JOIN); the title into the song on its bar
+## and the jumps into the theme, on the bar, the next in full, the last let go (JUMP; each switch at a passage's end
+## sets its own pair to TAIL first: _fade_into()); the title into the song on its bar
 ## (its ending rings over: title_end); out to the quiet on the beat; back from it over a bar.
 func _transitions() -> Array:
 	var I := AudioStreamInteractive
 	var t: Array = [
-		["*", "*", I.TRANSITION_FROM_TIME_NEXT_BAR, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, JOIN],
+		["*", "*", I.TRANSITION_FROM_TIME_NEXT_BAR, I.TRANSITION_TO_TIME_START, I.FADE_OUT, JUMP],
 		["*", "rest", I.TRANSITION_FROM_TIME_NEXT_BEAT, I.TRANSITION_TO_TIME_START, I.FADE_OUT, 2.0],
 		["title", "rest", I.TRANSITION_FROM_TIME_NEXT_BEAT, I.TRANSITION_TO_TIME_START, I.FADE_OUT, 4.0],
 		["*", "title", I.TRANSITION_FROM_TIME_IMMEDIATE, I.TRANSITION_TO_TIME_START, I.FADE_CROSS, 2.0],
@@ -514,6 +525,9 @@ func _on(e: String) -> void:
 		"leader", "landed":
 			_jump = e
 			_fill_wait = 0.0
+			if e == "landed":
+				# (his hit at once, on the next beat; the theme on the bar after it, _jumps)
+				_queue.append({"name": "landed", "at": _next("beat", GRID_SAFE), "from": 0.0})
 		"birds":
 			_lead_in("hunt_in")
 		"away":
@@ -522,7 +536,7 @@ func _on(e: String) -> void:
 		"scenic":
 			_return_at = -1.0
 		"return", "return_theme":
-			_lead_in("away_in")
+			_lead_in("away_in", "bar")     # (the count back in: the song comes in on the bar)
 			_return_at = float(_queue[-1]["at"]) + float(Cues.CUES.get("away_in", {}).get("length", 0.0))
 			if e == "return_theme":
 				_jump = "theme"
@@ -553,14 +567,15 @@ func _on(e: String) -> void:
 				_sting_at(e.substr(5), "now")
 
 
-## A lead-in (two beats long): ending exactly on the next downbeat it has time for.
-func _lead_in(n: String) -> void:
+## A lead-in (two beats long): ending exactly on the next downbeat or bar's middle it has time for (LEAD_GRID beats;
+## "bar": a downbeat only).
+func _lead_in(n: String, grid := "half") -> void:
 	var c: Dictionary = _clips.get(sounding, {})
 	var length := float(Cues.CUES.get(n, {}).get("length", 0.0))
 	if not c.has("bpm"):
 		_queue.append({"name": n, "at": _t, "from": 0.0})
 		return
-	_queue.append({"name": n, "at": _next("bar", length + 0.03) - length, "from": 0.0})
+	_queue.append({"name": n, "at": _next(grid, length + 0.03) - length, "from": 0.0})
 
 
 ## A sting on the next grid line of whatever's playing ("now", "beat", "bar").
@@ -574,7 +589,8 @@ func _next(grid: String, after: float) -> float:
 	var c: Dictionary = _clips.get(sounding, {})
 	if grid == "now" or not c.has("bpm"):
 		return _t
-	var beats: int = {"beat": 1, "bar": int(c["bar_beats"]), "phrase": int(c["bar_beats"]) * PHRASE_BARS}.get(grid, 1)
+	var beats: int = {"beat": 1, "half": LEAD_GRID, "bar": int(c["bar_beats"]),
+			"phrase": int(c["bar_beats"]) * PHRASE_BARS}.get(grid, 1)
 	var unit := 60.0 / float(c["bpm"]) * beats
 	return _start + ceilf((_t + after - _start) / unit - 0.0001) * unit
 
@@ -640,20 +656,24 @@ func _jumps() -> void:
 	var at := _next("bar", 0.0)
 	var in_theme := sounding in ["sea_t1", "sea_t2"]
 	if _jump == "fight":
+		if bool(Cues.CUES.get(sounding, {}).get("fight", false)):
+			_jump = ""             # (turned already: the song's end came first)
+			return
 		var bar := 60.0 / float(_clips[sounding]["bpm"]) * int(_clips[sounding]["bar_beats"])
 		var line := _start + ceilf((_jump_after + 0.01 - _start) / bar) * bar
 		if line - _t > bar or line - _t < GRID_SAFE:
 			if line < _t:
-				_jump = ""
+				_jump_after = _t   # (its bar went by while another switch landed: the next one)
 			return
-		var to := _pick_sea()
+		var to := _pick_fight()
 		_queue.append({"name": "fight_in", "at": line, "from": 0.0})
 		_jump = ""
-		if to == sounding or not bool(Cues.CUES.get(to, {}).get("fight", false)):
+		if to == sounding or to == "":
 			return
 		var pbf := _bed.get_stream_playback() as AudioStreamPlaybackInteractive
 		if pbf == null:
 			return
+		_fade_into(sounding, to, _ends_at(line))
 		pbf.switch_to_clip_by_name(StringName(to))
 		_sea_was = sounding
 		_asked = to
@@ -668,23 +688,25 @@ func _jumps() -> void:
 				_jump = ""
 			return
 	elif _jump == "leader":
+		# (the fill if it fits before this bar line; too late for it, the theme on the line anyway)
 		var fill := float(Cues.CUES.get("leader_in", {}).get("length", 0.0))
 		_fill_wait += get_process_delta_time()
-		if _fill_wait < FILL_WAIT and (at - _t < fill or at - _t > fill + FILL_SLOP):
+		if _fill_wait < FILL_WAIT and at - _t > fill + FILL_SLOP:
+			return
+		if at - _t < GRID_SAFE:
 			return
 		if at - _t >= fill:
 			_queue.append({"name": "leader_in", "at": at - fill, "from": 0.0})
 	else:
 		if at - _t < GRID_SAFE:
 			return
-		if _jump == "landed":
-			_queue.append({"name": "landed", "at": at, "from": 0.0})
 	_jump = ""
 	if in_theme:
 		return
 	var pb := _bed.get_stream_playback() as AudioStreamPlaybackInteractive
 	if pb == null:
 		return
+	_fade_into(sounding, "sea_t1", _ends_at(at))
 	pb.switch_to_clip_by_name(&"sea_t1")
 	_sea_was = sounding
 	_asked = "sea_t1"
@@ -776,8 +798,8 @@ func _listen() -> void:
 
 
 ## The song's next passage. Out of a fight, the weather's song (its form, part by part: intro, verses, choruses, a
-## bridge, the outro; then the next, the weather's by then: if it's turned, the band heads for this song's outro
-## first, so the weather changes as one song ends and the next begins). In a fight (and the race home), the fight's
+## bridge, the outro; then round again; if the weather's turned, the new weather's song from its top, as this
+## passage ends). In a fight (and the race home), the fight's
 ## own passages. The theme's first half, jumped to: its second.
 func _pick_sea() -> String:
 	var fighting: bool = state.section in ["fight", "tired", "gaff", "race"] or _jump == "fight"
@@ -797,13 +819,15 @@ func _pick_sea() -> String:
 		var back := sounding.begins_with("sea_") and (bool(Cues.CUES.get(sounding, {}).get("fight", false))
 				or sounding in ["sea_t1", "sea_t2"])
 		_start_song(want, 1 if back else 0)
-	elif want != _song and str(Cues.CUES.get(sounding, {}).get("role", "")) != "outro":
-		_form_i = form.size() - 1          # (the weather's turned: to the outro)
+	elif want != _song:
+		_start_song(want, 0)               # (the weather's turned: its song from the top, as this passage ends)
 	else:
 		_form_i += 1
 		if _form_i >= form.size():
 			_start_song(want, 0 if want != _song else 1)
 	form = forms[_song]
+	if str(form[_form_i]) == sounding and _form_i + 1 < form.size():
+		_form_i += 1                       # (never a part into itself: the bed would go quiet till the bar)
 	var next := str(form[_form_i])
 	_arrange(next, form)
 	return next
@@ -884,6 +908,15 @@ func _pick_weighted() -> String:
 	return pick[-1]
 
 
+## One of the fight's own passages, not the one sounding ("" if there's none): the song turning for the strike.
+func _pick_fight() -> String:
+	var pick: Array = []
+	for n: String in _seas:
+		if bool(Cues.CUES[n].get("fight", false)) and n != sounding:
+			pick.append(n)
+	return "" if pick.is_empty() else str(pick[_rng.randi() % pick.size()])
+
+
 ## The theme's first half at sea, against any other passage (its second always follows it).
 const THEME_K := 1.2
 ## The weather's own song (audio/music_cues.gd's "songs": each one's form, intro to outro).
@@ -895,8 +928,7 @@ const FILL := Vector2(0.2, 0.5)
 ## At sea, in a passage's last bar: the next one asked for, to come in on its end (and, now and then, its fill
 ## stem opened for the bar: a drum fill on its last two beats, locked to it).
 func _chain() -> void:
-	if not cue in SONG or _jump != "" or not _landing.is_empty() or not sounding.begins_with("sea_") \
-			or _asked != sounding:
+	if not cue in SONG or not _landing.is_empty() or not sounding.begins_with("sea_") or _asked != sounding:
 		return
 	var length := float(Cues.CUES[sounding]["length"])
 	var c: Dictionary = _clips[sounding]
@@ -904,19 +936,45 @@ func _chain() -> void:
 	var end := _start + ceilf((_t - _start) / length - 0.0001) * length
 	if end - _t > bar or end - _t < GRID_SAFE:
 		return
-	end -= EARLY
+	if _jump != "" and end - _t > CHAIN_LATE:
+		return                     # (a jump waiting for its moment: it may land on this end itself)
 	var next := _pick_sea()
+	var turn := _pick_fight() if _jump == "fight" else ""
+	if turn != "":
+		next = turn
+		# (the strike in the passage's last breath: the song turns here, its break driving in)
+		_queue.append({"name": "fight_in", "at": end, "from": 0.0})
+		_jump = ""
+	end -= EARLY
 	var odds := lerpf(FILL.x, FILL.y, float(_world.get("speed", 0.0)))
 	_fill = 1.0 if _rng.randf() < odds and not Cues.CUES[sounding].has("then") and not Cues.CUES[next].has("then") \
 			and not bool(Cues.CUES[next].get("after_only", false)) else 0.0
 	var pb := _bed.get_stream_playback() as AudioStreamPlaybackInteractive
 	if pb == null:
 		return
+	_fade_into(sounding, next, true)
 	pb.switch_to_clip_by_name(StringName(next))
 	_sea_was = sounding
 	_asked = next
 	_landing = {"to": next, "at": end}
 	_set_volumes(next, true)
+
+
+## How the passage sounding goes into the next at this switch (its pair in the bed's transitions, set just before
+## it's asked for): at its end, its tail dying away under the next over TAIL beats; on a bar inside it, over JUMP.
+func _fade_into(from: String, to: String, at_end: bool) -> void:
+	var I := AudioStreamInteractive
+	_it.add_transition(_index(from), _index(to), I.TRANSITION_FROM_TIME_NEXT_BAR, I.TRANSITION_TO_TIME_START,
+			I.FADE_OUT, TAIL if at_end else JUMP)
+
+
+## Whether a switch landing at `at` lands on the end of the passage sounding (its last bar line).
+func _ends_at(at: float) -> bool:
+	var length := float(Cues.CUES.get(sounding, {}).get("length", 0.0))
+	if length <= 0.0:
+		return false
+	var end := _start + ceilf((_t - _start) / length - 0.0001) * length
+	return absf(at - end) < 0.01
 
 
 static func _family(n: String) -> String:

@@ -194,7 +194,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "stems": [
@@ -218,7 +218,8 @@ const CUES := {
 	   "gale",
 	   "pound",
 	   "mark"
-	  ]
+	  ],
+	  "tail": 3.0
 	 },
 	 "sea_f2": {
 	  "bar_beats": 4,
@@ -261,7 +262,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "stems": [
@@ -285,7 +286,8 @@ const CUES := {
 	   "gale",
 	   "pound",
 	   "mark"
-	  ]
+	  ],
+	  "tail": 3.0
 	 },
 	 "sea_f3": {
 	  "bar_beats": 4,
@@ -328,7 +330,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "stems": [
@@ -352,7 +354,8 @@ const CUES := {
 	   "gale",
 	   "pound",
 	   "mark"
-	  ]
+	  ],
+	  "tail": 3.0
 	 },
 	 "sea_fair_br": {
 	  "bar_beats": 4,
@@ -370,7 +373,6 @@ const CUES := {
 	   "F#",
 	   "F#"
 	  ],
-	  "fight": true,
 	  "files": [
 	   "sea_fair_br_pad",
 	   "sea_fair_br_bass",
@@ -386,7 +388,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "role": "bridge",
@@ -403,7 +405,8 @@ const CUES := {
 	   "pulse",
 	   "glint",
 	   "mark"
-	  ]
+	  ],
+	  "tail": 3.0
 	 },
 	 "sea_fair_in": {
 	  "bar_beats": 4,
@@ -421,7 +424,6 @@ const CUES := {
 	   "A",
 	   "A"
 	  ],
-	  "fight": true,
 	  "files": [
 	   "sea_fair_in_pad",
 	   "sea_fair_in_bass",
@@ -437,7 +439,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "role": "intro",
@@ -454,7 +456,8 @@ const CUES := {
 	   "pulse",
 	   "glint",
 	   "mark"
-	  ]
+	  ],
+	  "tail": 3.0
 	 },
 	 "sea_fair_out": {
 	  "bar_beats": 4,
@@ -472,7 +475,6 @@ const CUES := {
 	   "D",
 	   "D"
 	  ],
-	  "fight": true,
 	  "files": [
 	   "sea_fair_out_pad",
 	   "sea_fair_out_bass",
@@ -488,7 +490,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "role": "outro",
@@ -505,7 +507,8 @@ const CUES := {
 	   "pulse",
 	   "glint",
 	   "mark"
-	  ]
+	  ],
+	  "tail": 3.0
 	 },
 	 "sea_fair_v1": {
 	  "bar_beats": 4,
@@ -523,7 +526,6 @@ const CUES := {
 	   "G",
 	   "G"
 	  ],
-	  "fight": true,
 	  "files": [
 	   "sea_fair_v1_pad",
 	   "sea_fair_v1_bass",
@@ -539,7 +541,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "role": "verse",
@@ -556,7 +558,8 @@ const CUES := {
 	   "pulse",
 	   "glint",
 	   "mark"
-	  ]
+	  ],
+	  "tail": 3.0
 	 },
 	 "sea_fair_v2": {
 	  "bar_beats": 4,
@@ -574,7 +577,6 @@ const CUES := {
 	   "A",
 	   "A"
 	  ],
-	  "fight": true,
 	  "files": [
 	   "sea_fair_v2_pad",
 	   "sea_fair_v2_bass",
@@ -590,7 +592,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "role": "verse",
@@ -607,7 +609,8 @@ const CUES := {
 	   "pulse",
 	   "glint",
 	   "mark"
-	  ]
+	  ],
+	  "tail": 3.0
 	 },
 	 "sea_fog_br": {
 	  "bar_beats": 4,
@@ -625,7 +628,6 @@ const CUES := {
 	   "A",
 	   "A"
 	  ],
-	  "fight": true,
 	  "files": [
 	   "sea_fog_br_pad",
 	   "sea_fog_br_bass",
@@ -642,7 +644,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "role": "bridge",
@@ -660,7 +662,8 @@ const CUES := {
 	   "glint",
 	   "night",
 	   "mark"
-	  ]
+	  ],
+	  "tail": 3.0
 	 },
 	 "sea_fog_in": {
 	  "bar_beats": 4,
@@ -678,7 +681,6 @@ const CUES := {
 	   "Asus",
 	   "Asus"
 	  ],
-	  "fight": true,
 	  "files": [
 	   "sea_fog_in_pad",
 	   "sea_fog_in_bass",
@@ -695,7 +697,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "role": "intro",
@@ -713,7 +715,8 @@ const CUES := {
 	   "glint",
 	   "night",
 	   "mark"
-	  ]
+	  ],
+	  "tail": 3.0
 	 },
 	 "sea_fog_out": {
 	  "bar_beats": 4,
@@ -731,7 +734,6 @@ const CUES := {
 	   "D",
 	   "D"
 	  ],
-	  "fight": true,
 	  "files": [
 	   "sea_fog_out_pad",
 	   "sea_fog_out_bass",
@@ -748,7 +750,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "role": "outro",
@@ -766,7 +768,8 @@ const CUES := {
 	   "glint",
 	   "night",
 	   "mark"
-	  ]
+	  ],
+	  "tail": 3.0
 	 },
 	 "sea_fog_v": {
 	  "bar_beats": 4,
@@ -784,7 +787,6 @@ const CUES := {
 	   "Asus",
 	   "A"
 	  ],
-	  "fight": true,
 	  "files": [
 	   "sea_fog_v_pad",
 	   "sea_fog_v_bass",
@@ -801,7 +803,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "role": "verse",
@@ -819,7 +821,8 @@ const CUES := {
 	   "glint",
 	   "night",
 	   "mark"
-	  ]
+	  ],
+	  "tail": 3.0
 	 },
 	 "sea_night_br": {
 	  "bar_beats": 4,
@@ -853,7 +856,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "role": "bridge",
@@ -871,7 +874,8 @@ const CUES := {
 	   "glint",
 	   "night",
 	   "mark"
-	  ]
+	  ],
+	  "tail": 3.0
 	 },
 	 "sea_night_ch": {
 	  "bar_beats": 4,
@@ -905,7 +909,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "role": "chorus",
@@ -923,7 +927,8 @@ const CUES := {
 	   "glint",
 	   "night",
 	   "mark"
-	  ]
+	  ],
+	  "tail": 3.0
 	 },
 	 "sea_night_in": {
 	  "bar_beats": 4,
@@ -957,7 +962,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "role": "intro",
@@ -975,7 +980,8 @@ const CUES := {
 	   "glint",
 	   "night",
 	   "mark"
-	  ]
+	  ],
+	  "tail": 3.0
 	 },
 	 "sea_night_out": {
 	  "bar_beats": 4,
@@ -1009,7 +1015,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "role": "outro",
@@ -1027,7 +1033,8 @@ const CUES := {
 	   "glint",
 	   "night",
 	   "mark"
-	  ]
+	  ],
+	  "tail": 3.0
 	 },
 	 "sea_night_v": {
 	  "bar_beats": 4,
@@ -1061,7 +1068,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "role": "verse",
@@ -1079,7 +1086,8 @@ const CUES := {
 	   "glint",
 	   "night",
 	   "mark"
-	  ]
+	  ],
+	  "tail": 3.0
 	 },
 	 "sea_rain_br": {
 	  "bar_beats": 4,
@@ -1113,7 +1121,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "role": "bridge",
@@ -1131,7 +1139,8 @@ const CUES := {
 	   "glint",
 	   "rain",
 	   "mark"
-	  ]
+	  ],
+	  "tail": 3.0
 	 },
 	 "sea_rain_ch": {
 	  "bar_beats": 4,
@@ -1165,7 +1174,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "role": "chorus",
@@ -1183,7 +1192,8 @@ const CUES := {
 	   "glint",
 	   "rain",
 	   "mark"
-	  ]
+	  ],
+	  "tail": 3.0
 	 },
 	 "sea_rain_in": {
 	  "bar_beats": 4,
@@ -1217,7 +1227,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "role": "intro",
@@ -1235,7 +1245,8 @@ const CUES := {
 	   "glint",
 	   "rain",
 	   "mark"
-	  ]
+	  ],
+	  "tail": 3.0
 	 },
 	 "sea_rain_out": {
 	  "bar_beats": 4,
@@ -1269,7 +1280,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "role": "outro",
@@ -1287,7 +1298,8 @@ const CUES := {
 	   "glint",
 	   "rain",
 	   "mark"
-	  ]
+	  ],
+	  "tail": 3.0
 	 },
 	 "sea_rain_v": {
 	  "bar_beats": 4,
@@ -1321,7 +1333,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "role": "verse",
@@ -1339,7 +1351,8 @@ const CUES := {
 	   "glint",
 	   "rain",
 	   "mark"
-	  ]
+	  ],
+	  "tail": 3.0
 	 },
 	 "sea_s1": {
 	  "bar_beats": 4,
@@ -1381,7 +1394,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "stems": [
@@ -1406,7 +1419,8 @@ const CUES := {
 	   "pound",
 	   "mark"
 	  ],
-	  "storm": true
+	  "storm": true,
+	  "tail": 3.0
 	 },
 	 "sea_s2": {
 	  "bar_beats": 4,
@@ -1448,7 +1462,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "stems": [
@@ -1473,7 +1487,8 @@ const CUES := {
 	   "pound",
 	   "mark"
 	  ],
-	  "storm": true
+	  "storm": true,
+	  "tail": 3.0
 	 },
 	 "sea_s3": {
 	  "bar_beats": 4,
@@ -1515,7 +1530,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "stems": [
@@ -1540,7 +1555,8 @@ const CUES := {
 	   "pound",
 	   "mark"
 	  ],
-	  "storm": true
+	  "storm": true,
+	  "tail": 3.0
 	 },
 	 "sea_storm_in": {
 	  "bar_beats": 4,
@@ -1579,7 +1595,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "role": "intro",
@@ -1603,7 +1619,8 @@ const CUES := {
 	   "deep",
 	   "mark"
 	  ],
-	  "storm": true
+	  "storm": true,
+	  "tail": 3.0
 	 },
 	 "sea_storm_out": {
 	  "bar_beats": 4,
@@ -1642,7 +1659,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "role": "outro",
@@ -1666,7 +1683,8 @@ const CUES := {
 	   "deep",
 	   "mark"
 	  ],
-	  "storm": true
+	  "storm": true,
+	  "tail": 3.0
 	 },
 	 "sea_t1": {
 	  "bar_beats": 4,
@@ -1708,7 +1726,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "stems": [
@@ -1733,6 +1751,7 @@ const CUES := {
 	   "pound",
 	   "mark"
 	  ],
+	  "tail": 3.0,
 	  "then": "sea_t2"
 	 },
 	 "sea_t2": {
@@ -1776,7 +1795,7 @@ const CUES := {
 	  ],
 	  "kind": "bed",
 	  "length": 17.14284375,
-	  "loop": true,
+	  "loop": false,
 	  "mark_hz": 12000.0,
 	  "mark_s": 0.006,
 	  "stems": [
@@ -1800,7 +1819,8 @@ const CUES := {
 	   "gale",
 	   "pound",
 	   "mark"
-	  ]
+	  ],
+	  "tail": 3.0
 	 },
 	 "songs": {
 	  "files": [],
@@ -1820,7 +1840,6 @@ const CUES := {
 	   "fog": [
 	    "sea_fog_in",
 	    "sea_fog_v",
-	    "sea_fog_v",
 	    "sea_fog_br",
 	    "sea_fog_v",
 	    "sea_fog_out"
@@ -1837,11 +1856,11 @@ const CUES := {
 	   "rain": [
 	    "sea_rain_in",
 	    "sea_rain_v",
-	    "sea_rain_v",
 	    "sea_rain_ch",
 	    "sea_rain_v",
 	    "sea_rain_br",
 	    "sea_rain_ch",
+	    "sea_rain_v",
 	    "sea_rain_ch",
 	    "sea_rain_out"
 	   ],
