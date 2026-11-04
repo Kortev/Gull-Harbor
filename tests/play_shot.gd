@@ -18,6 +18,7 @@ const Sea := preload("res://sea/sea.gd")
 const FightBot := preload("res://tests/fight_bot.gd")
 const Rig := preload("res://rods/rig.gd")
 const PixFont := preload("res://ui/pixfont.gd")
+const Landing := preload("res://tuna/landing.gd")
 var OUT := "res://docs/shots/play/"
 ## The port the boat's hosted on (--port=: another, so two runs side by side don't meet).
 var PORT := 7824
@@ -50,6 +51,8 @@ const DEMO_WEATHER := [["calm", false, 75.0], ["rain", false, 75.0], ["storm", f
 const DEMO_CHASE := 60.0
 const DEMO_BITE := 40.0
 const DEMO_KG := 180.0
+## The demo's throws at most, before it's left to the old way.
+const DEMO_THROWS := 4
 const CAPTION_S := 6.0
 const BLEND_S := 8.0
 
@@ -308,7 +311,8 @@ func _demo() -> void:
 	_say("OUT PAST THE MOUTH")
 	await _drive([Vector2(0.0, mouth - 500.0)], 1.0, "")
 	var names := {"calm": "FAIR WEATHER", "rain": "RAIN", "storm": "A STORM", "fog": "FOG"}
-	for w: Array in DEMO_WEATHER:
+	# (-- --catch: straight to the fish, the weathers left out: for trying the catch)
+	for w: Array in ([] if OS.get_cmdline_user_args().has("--catch") else DEMO_WEATHER):
 		var was := str(sea.condition)
 		if str(w[0]) != was:
 			sea.weather.pinned = was
@@ -345,6 +349,82 @@ func _cruise(s: float) -> void:
 const MOVE_SAID := {"run": "HE RUNS", "surge": "A SURGE", "sound": "HE SOUNDS DEEP", "dog": "DOGGING DEEP",
 		"shake": "HE SHAKES HIS HEAD", "jump": "HE JUMPS", "charge": "HE CHARGES THE BOAT",
 		"circle": "TIRING: HE CIRCLES", "spiral": "SPIRALLING UP"}
+
+
+## Your look turned onto p (world) over about s seconds, eased, as a hand on the mouse would turn it.
+func _look_to(p: Vector3, s: float) -> void:
+	var me := sea.crew.me
+	var t := 0.0
+	while t < s:
+		await get_tree().process_frame
+		var dt := get_process_delta_time()
+		t += dt
+		var e := _look_err(p)
+		var k := 1.0 - exp(-dt * 8.0)
+		me.set("_yaw", float(me.get("_yaw")) + e.x * k)
+		me.set("_pitch", clampf(float(me.get("_pitch")) + e.y * k, -1.4, 1.4))
+
+
+## How far your look is off p (world): [yaw, pitch] to turn by, in the boat's frame (yaw up turns you left).
+func _look_err(p: Vector3) -> Vector2:
+	var cam := sea.crew.me.get("cam") as Camera3D
+	var inv := sea.boat.global_basis.inverse()
+	var f := inv * -cam.global_basis.z
+	var d := inv * (p - cam.global_position)
+	var yaw := wrapf(atan2(-d.x, -d.z) - atan2(-f.x, -f.z), -PI, PI)
+	var pitch := atan2(d.y, Vector2(d.x, d.z).length()) - atan2(f.y, Vector2(f.x, f.z).length())
+	return Vector2(yaw, pitch)
+
+
+## The harpoon thrown as you'd throw it: looked onto the fish, right mouse to steady, left held to wind it all the way,
+## the crosshair worked up and down over him (he's swimming) till the throw would stick, then let go. True: stuck.
+func _throw_onto(i: int) -> bool:
+	var landing := sea.landing
+	var me := sea.crew.me
+	if landing.harpoon_holder != Net.my_id() or not landing.fish.has(i):
+		return false
+	await _look_to(landing.fish_point(i), 0.6)
+	Input.action_press("use_secondary")
+	_press_primary(true)
+	var t := 0.0
+	var thrown := false
+	while t < 5.0 and landing.fish.has(i):
+		await get_tree().process_frame
+		var dt := get_process_delta_time()
+		t += dt
+		# on him side to side; up and down over him, slowly, for where it'd come down on his back
+		var off := lerpf(-0.12, 0.35, pingpong(t / 1.4, 1.0))
+		var e := _look_err(landing.fish_point(i))
+		var k := 1.0 - exp(-dt * 10.0)
+		me.set("_yaw", float(me.get("_yaw")) + e.x * k)
+		me.set("_pitch", clampf(float(me.get("_pitch")) + (e.y + off) * k, -1.4, 1.4))
+		if landing.draw >= 0.99:
+			var aim := landing.throw_aim()
+			if landing.aimed_at(aim[0], aim[1], landing.draw) == i:
+				thrown = true
+				break
+	_press_primary(false)
+	Input.action_release("use_secondary")
+	await _shot("harpoon_thrown")
+	if not thrown:
+		return false
+	t = 0.0
+	while t < 3.0 and landing.fish.has(i) and not bool(landing.fish[i]["stuck"]):
+		await get_tree().process_frame
+		t += get_process_delta_time()
+	return landing.fish.has(i) and bool(landing.fish[i]["stuck"])
+
+
+## Left mouse down or up as the game hears it (an input event: the harpoon listens for the press and the let-go).
+func _press_primary(down: bool) -> void:
+	var e := InputEventAction.new()
+	e.action = "use_primary"
+	e.pressed = down
+	Input.parse_input_event(e)
+	if down:
+		Input.action_press("use_primary")
+	else:
+		Input.action_release("use_primary")
 
 
 func _say_demo(text: String) -> void:
@@ -512,14 +592,24 @@ func _catch() -> void:
 	landing._request_harpoon(true)
 	await _wait(0.4)
 	_check(landing.harpoon_holder == Net.my_id(), "took the harpoon")
-	await _face_point(landing.fish_point(hooked))
-	await _shot("harpoon_aim")
 	if landing.needs_wire(hooked):
 		landing._ask_wire_as(hooked)
-	landing.throw()
-	await _wait(0.4)
-	await _shot("harpoon_thrown")
-	await _wait(0.6)
+	if part == "demo":
+		landing.escape_odds = [0.0]          # (the reel's: a miss doesn't lose him)
+		for k in DEMO_THROWS:
+			if await _throw_onto(hooked):
+				break
+			print("QA the throw missed: %s" % sea.crew.hud._note.text)
+			await _wait(Landing.RETURN + 0.6)        # (home on its line, hand over hand)
+			landing._request_harpoon(true)
+			await _wait(0.4)
+	else:
+		await _face_point(landing.fish_point(hooked))
+		await _shot("harpoon_aim")
+		landing.throw()
+		await _wait(0.4)
+		await _shot("harpoon_thrown")
+		await _wait(0.6)
 	if landing.fish.has(hooked) and not bool(landing.fish[hooked]["stuck"]):
 		print("QA the throw missed: %s" % sea.crew.hud._note.text)
 		landing._request_harpoon(true)
@@ -914,6 +1004,9 @@ func _xz(s) -> Vector2:
 
 
 func _face_point(p: Vector3) -> void:
+	if part == "demo":
+		await _look_to(p, 0.8)            # (the reel's: turned onto it as a hand would, not swept round)
+		return
 	var me := sea.crew.me
 	var best := 0.0
 	var best_dot := -2.0
