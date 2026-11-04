@@ -4,6 +4,28 @@ Status: **approved 2026-11-02, being built** with the recommended answers: folk-
 about-to-part moment, pure synth, pure silence on a loss, and the hunt layer on birds you can see (they are on
 screen anyway, so it tells you nothing the sea doesn't). Written 2026-11-02 against `claude/zealous-mendel-h2udij` at a416062.
 
+## As built (2026-11-04, evening): the song's clock runs in the real game
+
+**Kortev, playing from the editor after the scenic silences were off: "it turned off for me the second i moved the
+boat."** Reproduced in a window on the real sound card (every test before ran headless or under the movie maker,
+where the clock is the frames'): the music played about 35 s and then never again, and the song's clock (`_t`) never
+moved off 0.
+
+- **The clock was empty.** It's a silent looping WAV whose position is the mixer's time, and its data was made with
+  `w.data = PackedByteArray()` then `w.data.resize(n)`. `w.data` reads back a copy, so the resize changed the copy,
+  the clock had no samples, ended at once, and its position stayed 0. The quiet's clip ("rest") was made the same
+  way. Both are built first and then handed over now.
+- **So the song never conducted in the real game:** with its time standing still it never asked for a next passage,
+  never turned for a strike, and played its cues at once. While the passages looped, one passage repeated forever;
+  once they played once with a tail, the music ran out after one.
+- **The song can't run out now, whatever the frame rate does:** a passage's end that goes by unasked (a frame
+  stalled past its whole last bar) still gets its next, on the tail's next beat (`late:` in the log); and if the bed
+  ever stops anyway (Godot's interactive stream stops for good once what's playing ends with nothing after it), it's
+  started again and the song asked back in (`_revive()`, `revived` in the log).
+- **tests/music_stall_test** (a window, the real sound card; tools/music_check.sh runs it): a 2.6 s frame over a
+  passage's end, and the bed stopped outright; the song plays on both times. A drive out of the harbour on the real
+  sound card: passages chained on time, never under -60 dB.
+
 ## As built (2026-11-04, later): no scenic silences
 
 **Kortev: "i drove out and the music just stopped."** Measured through the real mixer: casting off in fair weather,

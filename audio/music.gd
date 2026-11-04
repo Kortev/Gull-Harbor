@@ -217,8 +217,11 @@ func _ready() -> void:
 	var w := AudioStreamWAV.new()
 	w.format = AudioStreamWAV.FORMAT_8_BITS
 	w.mix_rate = 8000
-	w.data = PackedByteArray()
-	w.data.resize(int(CLOCK_LEN * 8000))
+	# (built first and then handed over: `w.data` reads back a copy, so resizing it in place leaves the clock empty,
+	# and an empty clock never runs: the song's time stood still in the real game, every passage played once)
+	var quiet := PackedByteArray()
+	quiet.resize(int(CLOCK_LEN * 8000))
+	w.data = quiet
 	w.loop_mode = AudioStreamWAV.LOOP_FORWARD
 	w.loop_end = int(CLOCK_LEN * 8000)
 	_clock = AudioStreamPlayer.new()
@@ -268,8 +271,9 @@ func _build_bed() -> void:
 			var w := AudioStreamWAV.new()
 			w.format = AudioStreamWAV.FORMAT_8_BITS
 			w.mix_rate = 8000
-			w.data = PackedByteArray()
-			w.data.resize(8000)
+			var quiet := PackedByteArray()
+			quiet.resize(8000)
+			w.data = quiet           # (built, then handed over: an empty clip ends at once, and the bed with it)
 			w.loop_mode = AudioStreamWAV.LOOP_FORWARD
 			w.loop_end = 8000
 			_it.set_clip_stream(i, w)
@@ -466,6 +470,7 @@ func _process(delta: float) -> void:
 	cue = state.section
 	for e: String in state.events:
 		_on(e)
+	_revive()
 	_listen()
 	_land()
 	_jumps()
@@ -599,12 +604,13 @@ func _next(grid: String, after: float) -> float:
 ## A switch landing: the clip's start is where its grid begins.
 func _land() -> void:
 	if not _landing.is_empty() and _t >= float(_landing["at"]) - 0.001:
+		var from := str(_landing.get("from", ""))
 		sounding = str(_landing["to"])
 		_start = float(_landing["at"])
 		_landing = {}
 		_phrase_n = -1
 		_fill = 0.0                # (the fill was the last passage's, into this one)
-		if str(_landing.get("from", "")) == "rest":
+		if from == "rest":
 			_mark_ref = NAN        # (in from the quiet: a new start to hear it against)
 		_mark_at = -1.0
 		_note("clip:" + sounding, _start)
@@ -934,48 +940,67 @@ func _chain() -> void:
 	var length := float(Cues.CUES[sounding]["length"])
 	var c: Dictionary = _clips[sounding]
 	var bar := 60.0 / float(c["bpm"]) * int(c["bar_beats"])
-	var end := _start + ceilf((_t - _start) / length - 0.0001) * length
-	if end - _t > bar or end - _t < GRID_SAFE:
+	var end := _start + length          # (a passage plays once: past its end, only its tail)
+	if end - _t > bar or absf(end - _t) < GRID_SAFE:
 		return
 	if _jump != "" and end - _t > CHAIN_LATE:
 		return                     # (a jump waiting for its moment: it may land on this end itself)
+	# its end gone by unasked (a frame stalled past the whole last bar): the next on the tail's next beat, before the
+	# tail's out (a passage left to end with nothing after it, the bed stops for good: _revive)
+	var late := end < _t
+	var at := _next("beat", GRID_SAFE) if late else end
 	var next := _pick_sea()
 	var turn := _pick_fight() if _jump == "fight" else ""
 	if turn != "":
 		next = turn
 		# (the strike in the passage's last breath: the song turns here, its break driving in)
-		_queue.append({"name": "fight_in", "at": end, "from": 0.0})
+		_queue.append({"name": "fight_in", "at": at, "from": 0.0})
 		_jump = ""
-	end -= EARLY
+	end = at - EARLY
 	var odds := lerpf(FILL.x, FILL.y, float(_world.get("speed", 0.0)))
 	_fill = 1.0 if _rng.randf() < odds and not Cues.CUES[sounding].has("then") and not Cues.CUES[next].has("then") \
 			and not bool(Cues.CUES[next].get("after_only", false)) else 0.0
 	var pb := _bed.get_stream_playback() as AudioStreamPlaybackInteractive
 	if pb == null:
 		return
-	_fade_into(sounding, next, true)
+	_fade_into(sounding, next, true, late)
 	pb.switch_to_clip_by_name(StringName(next))
 	_sea_was = sounding
 	_asked = next
 	_landing = {"to": next, "at": end}
 	_set_volumes(next, true)
+	if late:
+		_note("late:" + next)
 
 
 ## How the passage sounding goes into the next at this switch (its pair in the bed's transitions, set just before
 ## it's asked for): at its end, its tail dying away under the next over TAIL beats; on a bar inside it, over JUMP.
-func _fade_into(from: String, to: String, at_end: bool) -> void:
+func _fade_into(from: String, to: String, at_end: bool, late := false) -> void:
 	var I := AudioStreamInteractive
-	_it.add_transition(_index(from), _index(to), I.TRANSITION_FROM_TIME_NEXT_BAR, I.TRANSITION_TO_TIME_START,
-			I.FADE_OUT, TAIL if at_end else JUMP)
+	_it.add_transition(_index(from), _index(to), I.TRANSITION_FROM_TIME_NEXT_BEAT if late
+			else I.TRANSITION_FROM_TIME_NEXT_BAR, I.TRANSITION_TO_TIME_START, I.FADE_OUT, TAIL if at_end else JUMP)
 
 
 ## Whether a switch landing at `at` lands on the end of the passage sounding (its last bar line).
 func _ends_at(at: float) -> bool:
 	var length := float(Cues.CUES.get(sounding, {}).get("length", 0.0))
-	if length <= 0.0:
-		return false
-	var end := _start + ceilf((_t - _start) / length - 0.0001) * length
-	return absf(at - end) < 0.01
+	return length > 0.0 and absf(at - (_start + length)) < 0.01
+
+
+## The bed stopped (Godot's interactive stream goes quiet for good once what's playing ends with nothing after it:
+## a passage whose next was never asked for): started again from the quiet, the song asked back in at once.
+func _revive() -> void:
+	if _bed == null or _bed.playing:
+		return
+	_bed.play()
+	sounding = "rest"
+	_asked = "rest"
+	_landing = {}
+	_jump = ""
+	_start = _t
+	_mark_ref = NAN
+	_mark_at = -1.0
+	_note("revived")
 
 
 static func _family(n: String) -> String:
