@@ -21,10 +21,9 @@ extends Node
 ##   every bar of the song carries a tiny tick (its "mark" stem, MARK_HZ), the bed plays through a bus of its own
 ##   (BED_BUS) where it's captured and then filtered out, and each bar the clock's put right on where its tick really
 ##   was (_listen()), so however long it plays, nothing drifts off the beat.
-## - the silences: the scenic ones (casting off, the band lets the song go over SCENIC_FADE s and you sail out to the
-##   sea alone, till it's counted back in on the bar on the theme; a rest on a long quiet stretch), a fish lost
-##   (HUSH_FADE: everything gone at once), him in the air, the harpoon flying, and the quiet under Rivals' countdown
-##   and card. In a storm, its own dark passages, and each lightning strike ducks the band (DIP) into the thunder's
+## - the silences: a fish lost (HUSH_FADE: the band stops), him in the air, the harpoon flying, and the quiet under
+##   Rivals' countdown and card. (The scenic ones, casting off and on a long quiet stretch, are off: the music always;
+##   audio/music_state.gd's SCENIC_MOODS. Their machinery's still here: SCENIC_FADE, _quiet, _return_at.) In a storm, its own dark passages, and each lightning strike ducks the band (DIP) into the thunder's
 ##   hit on the next beat.
 ## - the mix: all of it down a little while the radio or a voice is on (DUCK_BUSES), with a dip where voices sit (the
 ##   pocket) rather than more of a drop; muffled underwater; quieter and dulled under the pause card; a limiter last.

@@ -142,34 +142,28 @@ func _storm() -> void:
 	_check(f.level("pound") > 0.95, "the leader: all of it")
 
 
-## The scenic silences: casting off in fair weather the band lets go till she's out past the harbour mouth, then
-## back on the theme; a long quiet stretch, a rest; birds or a fish break them at once; never in a storm.
+## No scenic silences (Kortev: the music always): casting off in any weather, the song plays on out of the harbour
+## (its lead-in, "away", and no "scenic"); a long quiet stretch at sea, the band keeps playing.
 func _scenic() -> void:
-	var s := State.new(44)
-	_run(s, {"docked": true, "condition": "calm"}, 1.0)
-	var ev := _run(s, {"docked": false, "condition": "calm", "past_mouth": -200.0}, DT)
-	_check(ev.has("away") and ev.has("scenic") and s.scenic == "out" and s.still,
-			"casting off: the band lets the song go (%s)" % [ev])
-	ev = _run(s, {"docked": false, "condition": "calm", "past_mouth": 0.0}, 20.0)
-	_check(s.scenic == "out" and not ev.has("return_theme"), "through the harbour: still the sea alone")
-	ev = _run(s, {"docked": false, "condition": "calm", "past_mouth": 160.0}, DT)
-	_check(ev.has("return_theme") and s.scenic == "", "out past the mouth: back in, on the theme")
-	var st := State.new(45)
-	_run(st, {"docked": true, "condition": "storm"}, 1.0)
-	ev = _run(st, {"docked": false, "condition": "storm", "past_mouth": -200.0}, DT)
-	_check(ev.has("away") and st.scenic == "", "casting off into a storm: no silence, its music")
-	var b := State.new(46)
-	_run(b, {"docked": true, "condition": "fog"}, 1.0)
-	_run(b, {"docked": false, "condition": "fog", "past_mouth": -100.0}, 5.0)
-	ev = _run(b, {"docked": false, "condition": "fog", "past_mouth": -50.0, "birds": 0.7}, DT)
-	_check(ev.has("wake") and b.scenic == "", "birds while she's still going out: it breaks at once")
+	for cond: String in ["calm", "fog", "rain", "storm"]:
+		var s := State.new(44)
+		_run(s, {"docked": true, "condition": cond}, 1.0)
+		var ev := _run(s, {"docked": false, "condition": cond, "past_mouth": -200.0}, DT)
+		_run(s, {"docked": false, "condition": cond, "past_mouth": 0.0}, 20.0)
+		_check(ev.has("away") and not ev.has("scenic") and s.scenic == "" and not s.still and s.level("pad") > 0.5,
+				"casting off in %s: the song plays on out of the harbour (%s)" % [cond, ev])
+	var n := State.new(46)
+	_run(n, {"docked": true, "condition": "calm", "night": true}, 1.0)
+	_run(n, {"docked": false, "condition": "calm", "night": true, "past_mouth": -200.0}, 20.0)
+	_check(n.scenic == "" and not n.still, "casting off at night: the same")
 	var r := State.new(47)
-	_run(r, {"docked": false, "condition": "calm"}, 1.0)
-	r.set("_rest_due", 30.0)
-	ev = _run(r, {"docked": false, "condition": "calm"}, 31.0)
-	_check(ev.has("scenic") and r.scenic == "rest", "a long quiet stretch: the band rests")
-	ev = _run(r, {"docked": false, "condition": "calm"}, 21.0)
-	_check(ev.has("return") and r.scenic == "", "and comes back in")
+	var heard := ""
+	for i in 40:
+		var ev := _run(r, {"docked": false, "condition": "calm"}, 10.0)
+		if ev.has("scenic") or r.still:
+			heard = "at %d s" % (i * 10)
+			break
+	_check(heard == "", "a long quiet stretch at sea (400 s): the band never stops %s" % heard)
 
 
 func _hunt() -> void:

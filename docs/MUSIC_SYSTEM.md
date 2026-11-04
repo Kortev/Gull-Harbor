@@ -4,6 +4,15 @@ Status: **approved 2026-11-02, being built** with the recommended answers: folk-
 about-to-part moment, pure synth, pure silence on a loss, and the hunt layer on birds you can see (they are on
 screen anyway, so it tells you nothing the sea doesn't). Written 2026-11-02 against `claude/zealous-mendel-h2udij` at a416062.
 
+## As built (2026-11-04, later): no scenic silences
+
+**Kortev: "i drove out and the music just stopped."** Measured through the real mixer: casting off in fair weather,
+the band let the song go over 6 s and there was nothing (-93 dB) for 82 s, till she was 150 m past the harbour mouth.
+That was the scenic silence, working as it was built. A long quiet stretch at sea had a 20 s one too. Both are off
+(audio/music_state.gd: `SCENIC_MOODS` empty), as the "music always" playtest asked: casting off plays its lead-in
+(`away_in`) and the song plays on out of the harbour. tests/music_state_test checks casting off in every weather and
+400 s of nothing happening at sea: the band never stops.
+
 ## As built (2026-11-04): a real band, tunes from the theme, less at once
 
 **Kortev, after playing it: it still cuts, the cues too; the instruments sound fake; the tunes are forgettable; the

@@ -102,11 +102,13 @@ const BUILD_TENSION := Vector2(90.0, 150.0)
 ## she's SCENIC_PAST m out past the harbour mouth (or SCENIC_OUT s), and the song comes back in on the theme; and on
 ## a long quiet stretch at sea in fair weather (SCENIC_EVERY s, between, of nothing happening), the band rests for
 ## SCENIC_REST s. Never in a storm (the storm's music is its own weather); birds or a fish break it at once.
+## Off (in no weather: SCENIC_MOODS): Kortev wants the music always, an endless song ("i drove out and the music
+## just stopped": a minute and a half of nothing, casting off). Casting off plays its lead-in into the song instead.
 const SCENIC_PAST := 150.0
 const SCENIC_OUT := 90.0
 const SCENIC_EVERY := Vector2(180.0, 300.0)
 const SCENIC_REST := 20.0
-const SCENIC_MOODS := ["calm", "fog", "night"]
+const SCENIC_MOODS := []
 ## A fish lost: dead silence this long (s), then the sea again.
 const HUSH := 6.0
 ## A fish gone from alongside: this long to see it in the hold (landed) before it counts as got away.
