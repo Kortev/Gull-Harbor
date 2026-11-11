@@ -34,8 +34,16 @@ const LOST_OUT := 1.2
 const BACK_IN := 4.0
 const TITLE_OUT := 2.0
 const QUIET_OUT := 1.0
-## Tied up, the song this loud (a share).
-const HARBOUR := 0.55
+## How loud each piece plays (a share): the weather's song out there, and tied up; the title's. The fight's at 1: the
+## songs sit under it (measured through the mixer, tools/music_check.sh --render: at one level the fair song's chorus
+## was 4 dB over the fight, and a strike in the middle of one had nothing to hit with).
+const SEA := 0.7
+const HARBOUR := 0.42
+const TITLE := 0.85
+## The music's tone, the EQ's six bands (dB at 32, 100, 320, 1000, 3200 and 10000 Hz): the rendered band is dark and
+## heavy below (against 500 Hz: -11 dB at 2 kHz, -19 at 4 kHz, the fight's pulse +7 at 125 Hz), which is a rumble and
+## no tune on small speakers; a little off the bottom and some air put back. The voices' pocket is cut from this.
+const TONE := [0.0, -2.5, 0.0, 0.0, 3.0, 5.0]
 ## The fight's intro into its loop: the intro's tail (its downbeat's crash ringing) let go over this many beats.
 const INTRO_TAIL := 4.0
 ## The cues' levels (a share), and how many can ring at once (each on its own player: none cuts another off).
@@ -383,9 +391,9 @@ func _targets() -> void:
 	var want := {}
 	match place:
 		"title":
-			want["title"] = 1.0
+			want["title"] = TITLE
 		"song":
-			want["song_" + state.song] = HARBOUR if state.docked else 1.0
+			want["song_" + state.song] = HARBOUR if state.docked else SEA
 		"fight":
 			want["fight"] = 1.0
 	for key: String in _pieces:
@@ -409,7 +417,7 @@ func _targets() -> void:
 		elif _was_place == "title":
 			secs = TITLE_OUT
 			_play("title_end")              # (the title's last chord ringing on as the song comes in)
-		elif _was_place in ["fight", "after", "quiet"] or absf(to - g) < 0.5:
+		elif _was_place in ["fight", "after", "quiet"] or (to > 0.0 and g > 0.0):
 			secs = BACK_IN                  # (back after a fight or the quiet; tied up or casting off: the same song)
 		if _was_place == "" and to > g:
 			secs = 0.0                      # (the first piece, as the game starts: from its first note)
@@ -526,8 +534,8 @@ func _mix(delta: float) -> void:
 	for p in _stings:
 		p.volume_db = linear_to_db(maxf(_duck * float(STING_LEVEL.get(str(p.get_meta("cue", "")), 1.0)), 0.0001))
 	if _eq != null:
-		_eq.set_band_gain_db(3, POCKET[0] * _pocket)
-		_eq.set_band_gain_db(4, POCKET[1] * _pocket)
+		for k in TONE.size():
+			_eq.set_band_gain_db(k, float(TONE[k]) + (float(POCKET[k - 3]) * _pocket if k in [3, 4] else 0.0))
 	var lp := 20000.0
 	if bool(_world.get("underwater", false)):
 		lp = UNDER_LP

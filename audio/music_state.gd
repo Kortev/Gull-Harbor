@@ -131,8 +131,8 @@ func _place(w: Dictionary, f: Dictionary) -> String:
 		return "title"
 	if bool(w.get("card", false)) or float(w.get("counting", -1.0)) >= 0.0:
 		return "quiet"
-	if not f.is_empty() or not (w.get("alongside", []) as Array).is_empty():
-		return "fight"
+	if not f.is_empty() or not (w.get("alongside", []) as Array).is_empty() or not _gone.is_empty():
+		return "fight"                    # (gone from alongside and not yet in the hold or lost: still his moment)
 	if hush > 0.0:
 		return "quiet"
 	if _after > 0.0:

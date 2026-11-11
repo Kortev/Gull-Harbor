@@ -34,7 +34,7 @@ func _ready() -> void:
 	sea.title = t
 	sea.add_child(t)
 	await _frames(3)
-	_check(m.state.place == "title" and m.level("title") > 0.9, "the title's up: its piece (%s)" % m.cue)
+	_check(m.state.place == "title" and m.level("title") > m.TITLE - 0.05, "the title's up: its piece (%s)" % m.cue)
 	t.call("_solo")
 	var waited := 0.0
 	while t.busy() and waited < 20.0:
@@ -46,7 +46,7 @@ func _ready() -> void:
 	_check(_played("sting:title_end"), "the title's last chord ringing into it")
 	sea.fish_hold.head_out()
 	await _secs(m.BACK_IN + 0.5)
-	_check(m.level("song_fair") > 0.99, "out there: the song up (%.2f)" % m.level("song_fair"))
+	_check(m.level("song_fair") > m.SEA - 0.01, "out there: the song up (%.2f)" % m.level("song_fair"))
 	# a fish on
 	sea.rods.host_cast(0)
 	sea.rods.strike(0, 150.0)
@@ -70,10 +70,10 @@ func _ready() -> void:
 func _worlds() -> void:
 	m.world_test = {"docked": false, "condition": "calm", "landed": 0}
 	await _secs(m.FIGHT_OUT + m.BACK_IN + 1.0)
-	_check(m.cue == "song_fair" and m.level("song_fair") > 0.99, "no fish: the song back (%s)" % m.cue)
+	_check(m.cue == "song_fair" and m.level("song_fair") > m.SEA - 0.01, "no fish: the song back (%s)" % m.cue)
 	m.world_test = {"docked": false, "condition": "rain", "landed": 0}
 	await _secs(State.SONG_HOLD + m.SONG_FADE * 0.5)
-	_check(m.level("song_rain") > 0.3 and m.level("song_rain") < 0.7 and m.level("song_fair") > 0.3,
+	_check(m.level("song_rain") > 0.3 * m.SEA and m.level("song_rain") < 0.7 * m.SEA and m.level("song_fair") > 0.3 * m.SEA,
 			"the rain come to stay: its song coming in as the fair one goes, slowly (%.2f, %.2f)"
 			% [m.level("song_rain"), m.level("song_fair")])
 	await _secs(m.SONG_FADE * 0.5 + 0.5)
@@ -89,7 +89,7 @@ func _worlds() -> void:
 	_check(_played("sting:landed") and m.state.place == "after" and m.level("song_rain") < 0.01,
 			"he's in: the flourish, the fight going, the song not back yet")
 	await _secs(State.AFTER + m.BACK_IN + 0.5)
-	_check(m.level("fight") < 0.01 and m.level("song_rain") > 0.99, "then the song back (%.2f)" % m.level("song_rain"))
+	_check(m.level("fight") < 0.01 and m.level("song_rain") > m.SEA - 0.01, "then the song back (%.2f)" % m.level("song_rain"))
 	# losing one
 	m.world_test = {"docked": false, "condition": "rain", "landed": 1, "fights": [fish.merged({"id": "0:7.00"})]}
 	await _secs(2.0)
@@ -98,7 +98,7 @@ func _worlds() -> void:
 	_check(m.state.place == "quiet" and m.level("fight") < 0.01 and m.level("song_rain") < 0.01,
 			"the line goes: the fight let go, quiet")
 	await _secs(State.HUSH + m.BACK_IN + 0.3)
-	_check(m.level("song_rain") > 0.99, "then the song back")
+	_check(m.level("song_rain") > m.SEA - 0.01, "then the song back")
 	# Rivals
 	m.world_test = {"docked": true, "condition": "rain", "landed": 1, "counting": 0.5}
 	await _secs(m.QUIET_OUT + 0.2)

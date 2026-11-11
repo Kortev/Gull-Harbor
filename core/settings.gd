@@ -38,9 +38,10 @@ var path := PATH
 const BUSES := ["Effects", "Voice", "Music"]
 ## The mix's own gain staging under the sliders (dB), from whole trips measured (tools/loudness.py with the game's bus
 ## meters): with the sound bank loudness-matched (beds -20 LUFS, one-shots -18), the game sits round -16.5 LUFS with
-## the music about 4.5 dB under the effects. And a limiter last on the master (MASTER_CEILING dB), so nothing that
-## stacks up ever clips.
-const TRIM := {"Effects": -3.0, "Music": -4.5}
+## the music about 4.5 dB under the effects (the songs: audio/music.gd plays them at SEA, 3 dB down, and the fight
+## whole, so the music's bus is 1.5 dB up on that to keep the songs near where they sat). And a limiter last on the
+## master (MASTER_CEILING dB), so nothing that stacks up ever clips.
+const TRIM := {"Effects": -3.0, "Music": -3.0}
 const MASTER_CEILING := -1.0
 ## The actions the keys page lists, in its order, and what it calls them.
 const REBINDABLE := [["move_forward", "FORWARD"], ["move_back", "BACK"], ["move_left", "LEFT"],

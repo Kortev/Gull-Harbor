@@ -149,6 +149,17 @@ var noise: AudioStreamPlayer3D
 var cutting := 0.0
 var _last_cut := Vector3.INF
 var _scream: AudioStreamPlayer3D
+var _scream_db := -8.0
+## The drag's scream (dB): from line just creeping off to a flat-out run, and what the strike's slam adds. Measured
+## on a real trip's bus meters (-- --music-log): at +10 it put the effects 6 dB over full scale on every strike and
+## run, the master's limiter squashed everything 7 dB to fit it, and the music's own hit on the strike went with it.
+## At this the strike tops out just under full scale: still the loudest thing aboard, and the band's hit is heard.
+const SCREAM_DB := Vector2(-8.0, 0.0)
+const SCREAM_SLAM := 3.0
+## The reel's loops at their loudest (dB): winding, grinding against the drag, the line singing.
+const WHIR_DB := -4.0
+const GRIND_DB := -2.0
+const SING_DB := -10.0
 var _kick := 0.0
 var _whir: AudioStreamPlayer3D
 var _grind: AudioStreamPlayer3D
@@ -294,15 +305,15 @@ func _ready() -> void:
 	_scream.stream = wav
 	# (loud and carrying: you hear a strike from the wheel, from the bow, from the cabin, and where it came from)
 	_scream.unit_size = 12.0
-	_scream.max_db = 10.0
-	_scream.volume_db = 4.0
+	_scream.max_db = SCREAM_DB.x
+	_scream.volume_db = SCREAM_DB.x
 	_scream.position = Vector3(0, 0.1, 0.37)
 	add_child(_scream)
 	# the reel winding (while line comes in) and the line singing (bar-tight, near breaking)
-	_whir = _looped(preload("res://audio/fish/reel_whir.wav"), -4.0)
-	_sing = _looped(preload("res://audio/fish/line_sing.wav"), -10.0)
+	_whir = _looped(preload("res://audio/fish/reel_whir.wav"), WHIR_DB)
+	_sing = _looped(preload("res://audio/fish/line_sing.wav"), SING_DB)
 	# the reel under load: the same works, slow and heavy, going nowhere
-	_grind = _looped(preload("res://audio/fish/reel_whir.wav"), -2.0)
+	_grind = _looped(preload("res://audio/fish/reel_whir.wav"), GRIND_DB)
 	_grind.pitch_scale = 0.5
 	noise = preload("res://rods/reel_noise.gd").new()
 	add_child(noise)
@@ -403,30 +414,23 @@ func _process(delta: float) -> void:
 	noise.taut = clampf(strain, 0.0, 1.2) if hooked and not alongside and slack < 0.05 else 0.0
 	var hiss_k := clampf((maxf(paying, 0.0) + cutting) / 9.0, 0.0, 1.0) * clampf(strain * 1.4, 0.3, 1.0)
 	noise.hiss = hiss_k if hooked else 0.0
-	if hooked and paying > 0.6:
-		if not _scream.playing:
-			_scream.play()
+	# (none of these cuts in or out: each swells up over a few hundredths of a second and dies away a little slower,
+	# so a run that stutters at its edge doesn't tick, and a reel let go of rings off)
+	var screaming := hooked and paying > 0.6
+	if screaming:
 		_scream.pitch_scale = clampf((0.75 + paying / 14.0) * lerpf(1.0, 1.6, noise.arbor), 0.75, 2.2)
-		_scream.volume_db = lerpf(-6.0, 6.0, clampf(paying / 10.0, 0.0, 1.0)) + 4.0 * clampf(slam, 0.0, 1.0)
-	elif _scream.playing:
-		_scream.stop()
-	if reeling > 0.05 and not _whir.playing:
-		_whir.play()
-	elif reeling <= 0.05 and _whir.playing:
-		_whir.stop()
-	var grind := hooked and grinding
-	if grind and not _grind.playing:
-		_grind.play()
-	elif not grind and _grind.playing:
-		_grind.stop()
+		_scream_db = lerpf(SCREAM_DB.x, SCREAM_DB.y, clampf(paying / 10.0, 0.0, 1.0)) 				+ SCREAM_SLAM * clampf(slam, 0.0, 1.0)
+	_swell(_scream, screaming, _scream_db, delta, 0.03, 0.18)
+	# (that loud at the rod and out to its unit_size, falling off beyond: with a fixed cap it sat on the cap anywhere
+	# aboard, however slowly he took line)
+	_scream.max_db = _scream.volume_db
+	_swell(_whir, reeling > 0.05, WHIR_DB, delta, 0.04, 0.12)
+	_swell(_grind, hooked and grinding, GRIND_DB, delta, 0.08, 0.2)
 	# the creak: only right at the edge, higher the worse it gets (your one warning before the line goes)
 	var singing := hooked and strain >= SING
-	if singing and not _sing.playing:
-		_sing.play()
-	elif not singing and _sing.playing:
-		_sing.stop()
-	if _sing.playing:
+	if singing:
 		_sing.pitch_scale = 0.55 + 1.6 * (strain - SING)
+	_swell(_sing, singing, SING_DB, delta, 0.06, 0.25)
 	var k := 0.4 + 0.6 * left_k
 	_spool.basis = Basis(Vector3.RIGHT, spool_turn) * Basis(Vector3.BACK, PI * 0.5) * Basis.from_scale(Vector3(k, 1.0, k))
 	var gone := line_out if hooked else 0.0
@@ -470,9 +474,28 @@ func _hands(_delta: float) -> void:
 ## and the line goes: a crack if it parted, nothing but the sudden ease of it if the hook came out.
 func lost_it(parted: bool) -> void:
 	for a: AudioStreamPlayer3D in [_scream, _whir, _sing, _grind]:
-		a.stop()
+		a.set_meta("cut", true)          # (gone in a couple of hundredths: under the snap, and no tick of its own)
 	noise.snap(parted)
 	_recoil = 1.0
+
+
+## A looping sound eased on or off: up to `db` over `up` s, away over `down` s (lost_it's cut: at once, nearly); it
+## only plays while there's any of it to hear.
+func _swell(a: AudioStreamPlayer3D, on: bool, db: float, delta: float, up: float, down: float) -> void:
+	var k := float(a.get_meta("k", 0.0))
+	if on:
+		a.set_meta("cut", false)
+	elif bool(a.get_meta("cut", false)):
+		down = 0.025
+	k = move_toward(k, 1.0 if on else 0.0, delta / (up if on else down))
+	a.set_meta("k", k)
+	if k <= 0.0:
+		if a.playing:
+			a.stop()
+		return
+	a.volume_db = db + linear_to_db(maxf(k * k, 0.0001))
+	if not a.playing:
+		a.play()
 
 
 func _looped(src: AudioStreamWAV, db: float) -> AudioStreamPlayer3D:

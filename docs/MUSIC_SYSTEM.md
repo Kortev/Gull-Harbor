@@ -49,6 +49,29 @@ mind), audio/music.gd (the players), audio/music_hud.gd (`-- --music-hud`). Test
 tests/music_test, tests/music_fight_test, tests/whistle_test (headless); tests/music_live_test (a window, the real
 sound card: tools/music_check.sh).
 
+### 2026-11-11: measured as it leaves the mixer
+
+The design above stands. `tools/music_check.sh --render` (new: tests/music_render.tscn recorded by the movie maker,
+read by tools/music_render.py) and a bot's whole trip with `-- --music-log` showed four things the headless tests
+couldn't, all fixed:
+
+- **The fight was quieter than the song.** At one level the fair song's chorus ran 4 dB over the fight, and a strike
+  in the middle of a chorus was no step up at all. The songs now play at `SEA` (0.7) out there and `HARBOUR` (0.42)
+  tied up, the title at `TITLE` (0.85), the fight whole; the Music bus's trim is -3 dB (was -4.5) so the songs sit
+  about where they did. A strike mid-chorus is now a 4 dB step, from a quiet verse 15 dB.
+- **The reel's scream buried the strike's hit.** It sat on its cap (+10 dB) anywhere aboard, the Effects bus peaked
+  6 dB over full scale on every strike and run, and the master's limiter took 7 dB off everything, the band's hit
+  included. It tops out just under full scale now (rods/rod.gd `SCREAM_DB`), and gets louder with the run as it was
+  meant to.
+- **The band is dark and heavy below.** Against 500 Hz the rendered music is 11 dB down at 2 kHz and 19 dB at 4 kHz,
+  and the fight's pulse layer is 70% under 120 Hz: a rumble and no tune on small speakers. The Music bus's EQ takes
+  2.5 dB off at 100 Hz and puts 3 dB back at 3.2 kHz and 5 dB at 10 kHz (`TONE`); the voices' pocket is cut from that.
+- **A fish gone from alongside** let the song creep in for a second before the hush. It stays the fight's moment
+  until he's in the hold or counted lost.
+
+Not changed, and worth hearing for in a playtest: the fight's loop is 69 s long and a big fish takes eight minutes
+and more, so it goes round seven times and only its layers change.
+
 ## History: the reactive system it replaced
 
 ## As built (2026-11-04, evening): the song's clock runs in the real game

@@ -20,6 +20,9 @@ const CREAK := 0.42
 var taut := 0.0
 var _hum_ph := 0.0
 var _hum_f := 0.0
+## The hum's and the hiss's loudness now: eased (a few hundredths of a second), so neither ticks as it comes or goes.
+var _hum_a := 0.0
+var _hiss_a := 0.0
 ## The snap: s left of it (0: none), and whether it was the line parting (a crack) or the hook coming out (a flick).
 var _snap := 0.0
 var _snap_hard := false
@@ -64,7 +67,7 @@ func snap(parted: bool) -> void:
 
 
 func _process(_delta: float) -> void:
-	var on := clicks > 0.5 or hiss > 0.02 or strain > CREAK or _snap > 0.0 or taut > 0.05
+	var on := clicks > 0.5 or hiss > 0.02 or strain > CREAK or _snap > 0.0 or taut > 0.05 or _hum_a > 0.001 			or _hiss_a > 0.001 or absf(_ring) > 0.001 or absf(_body) > 0.001
 	if not on:
 		if playing:
 			stop()
@@ -93,15 +96,20 @@ func _process(_delta: float) -> void:
 	var hum_to := 110.0 + 420.0 * clampf(taut, 0.0, 1.2) if taut > 0.05 else 0.0
 	for i in n:
 		var out := 0.0
-		if hum_to > 0.0 and _snap <= 0.0:
-			# (a string under load: a fundamental and a little of its octave, gliding to the bend's note)
+		# (a string under load: a fundamental and a little of its octave, gliding to the bend's note)
+		var hum_on := hum_to > 0.0 and _snap <= 0.0
+		_hum_a = lerpf(_hum_a, 0.035 + 0.075 * clampf(taut, 0.0, 1.0) if hum_on else 0.0, 0.002)
+		if hum_on:
 			_hum_f = hum_to if _hum_f <= 0.0 else lerpf(_hum_f, hum_to, 0.0008)
+		if _hum_a > 0.0005 and _hum_f > 0.0:
 			_hum_ph = fmod(_hum_ph + _hum_f * dt, 1.0)
-			out += (sin(_hum_ph * TAU) + 0.35 * sin(_hum_ph * TAU * 2.0)) * (0.035 + 0.075 * clampf(taut, 0.0, 1.0))
-		elif hum_to <= 0.0:
+			out += (sin(_hum_ph * TAU) + 0.35 * sin(_hum_ph * TAU * 2.0)) * _hum_a
+		elif not hum_on:
 			_hum_f = 0.0
-		if rate > 0.5:
-			_click_ph += rate * dt * (0.85 + 0.3 * randf())
+			_hum_a = 0.0
+		if rate > 0.5 or absf(_ring) > 0.001:
+			if rate > 0.5:
+				_click_ph += rate * dt * (0.85 + 0.3 * randf())
 			if _click_ph >= 1.0:
 				_click_ph -= 1.0
 				_ring_v += 0.9
@@ -111,15 +119,19 @@ func _process(_delta: float) -> void:
 			_ring += w * _ring_v
 			out += _ring * 0.55 + _ring_hit * randf_range(-0.6, 0.6)
 			_ring_hit *= 0.92
-		if hiss > 0.02:
+		_hiss_a = lerpf(_hiss_a, hiss if hiss > 0.02 else 0.0, 0.002)
+		if _hiss_a > 0.001:
 			var nz := randf_range(-1.0, 1.0)
 			var hp := nz - _noise_prev       # (bright: the high end of white noise)
 			_noise_prev = nz
 			_hiss_lp = lerpf(_hiss_lp, hp, 0.5)
 			_wob += dt * 7.0
-			out += _hiss_lp * hiss * 0.22 * (0.8 + 0.2 * sin(_wob))
-		if creak_k > 0.0:
-			if _creak_left <= 0.0:
+			out += _hiss_lp * _hiss_a * 0.22 * (0.8 + 0.2 * sin(_wob))
+		if creak_k > 0.0 or absf(_body) > 0.001:
+			if creak_k <= 0.0:
+				_creak_on = 0.0               # (the load's off: what's ringing in the blank dies away)
+				_creak_left = 0.0
+			elif _creak_left <= 0.0:
 				# (a new groan, or a gap before the next)
 				if _creak_on > 0.5:
 					_creak_on = 0.0
