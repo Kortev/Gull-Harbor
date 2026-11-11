@@ -1769,7 +1769,8 @@ func _tally() -> void:
 	var vs: Node = sea.get("vs")
 	if vs != null and bool(vs.get("on")):
 		# (Rivals: no quota, no career; the match's day and her box)
-		hud.call("tally", {"rivals": true, "day": int(vs.get("day")), "box": held, "cap": capacity(), "deck": deck})
+		hud.call("tally", {"rivals": true, "together": bool(vs.get("together")), "day": int(vs.get("day")), "box": held,
+				"cap": capacity(), "deck": deck})
 		return
 	hud.call("tally", {"day": day, "days": DAYS, "box": held, "cap": capacity(), "deck": deck, "earned": earned,
 			"quota": quota, "aboard": worth(), "earned_text": "$" + _money(earned), "quota_text": "$" + _money(quota)})

@@ -4,7 +4,8 @@ extends CanvasLayer
 ## in:
 ##   FISH     your boat: out after the boat payment alone, and open for friends to come aboard any time (it hosts quietly:
 ##            a Steam friend sees your boat, or the Esc menu has the join code to send)
-##   RIVALS   two boats, a crew each; most pounds aboard by dusk wins the day, best of three (vs/vs.gd)
+##   RIVALS   a boat each crew, two, three or four of them, any number aboard each: against each other (most pounds
+##            aboard by dusk wins the day, best of three) or together, one fleet (vs/vs.gd)
 ##   REJOIN   (only after a friend's boat dropped you mid-game) straight back aboard her, your same spot
 ##   JOIN A FRIEND   aboard a friend's boat, whichever game they're playing
 ##   ACHIEVEMENTS   the medals earned and still to earn (ui/achievements_page.gd, over the title)
@@ -12,9 +13,10 @@ extends CanvasLayer
 ##   CREDITS  who made it, and what with (CREDITS; the licenses in full are in THIRD_PARTY_NOTICES.txt by the exe)
 ##   QUIT
 ## The version (core/version.gd) sits small in the bottom right corner.
-## Rivals asks HOST or JOIN. Hosting opens the crew list (who's aboard which boat, the join code to send, a
-## Steam invite) and the host's START (Rivals: only with even teams, 1 v 1 or 2 v 2; it says why not, and tells the
-## odd one out to wait); joining is your Steam friends with a boat out, or typing in their code. START
+## Rivals asks HOST or JOIN. Hosting opens the crew list (a column a boat: who's aboard her; the join code to send, a
+## Steam invite), the host's BOATS (how many) and AGAINST / TOGETHER, everyone's own CHANGE BOAT, and the host's
+## START (Rivals: only with someone aboard every boat; it says why not, vs/vs.gd's team_problem); joining is your
+## Steam friends with a boat out, or typing in their code. START
 ## (or SOLO) closes it for everyone aboard: the letters fade and a short intro plays, the camera pulling up and out
 ## over the harbour mouth and sweeping back in low past the boats at the pier, a line or two in big pixel letters (what
 ## the day is), then gliding down into your eyes on the dock, no cut. Any key or click skips on to the glide.
@@ -41,6 +43,10 @@ const SMALL := 2
 ## How long the camera takes gliding down into your eyes (s); the intro's two legs before it (s).
 const GLIDE := 2.4
 const LEG := 3.4
+## Each boat's colour in the crew list, if vs/vs.gd hasn't its own to give (boat_colour).
+const BOAT_COLOURS := [AMBER, Color(0.45, 0.8, 1.0), Color(0.55, 0.9, 0.5), Color(1.0, 0.55, 0.7)]
+## The host's two ways to play Rivals: [the row's word, what it is].
+const WAYS := [["AGAINST", "MOST POUNDS BY DUSK WINS THE DAY."], ["TOGETHER", "ONE FLEET. EVERY BOAT'S FISH COUNT."]]
 ## The credits page: [heading, its lines]. Everything third-party is listed in full, license and all, in
 ## THIRD_PARTY_NOTICES.txt (tools/third_party.gd writes it; tools/release.sh puts it beside the exe).
 const CREDITS := [
@@ -76,6 +82,7 @@ var _keys: Array[Transform3D] = []
 var _caption: Control
 var _from: Transform3D
 var _friends_in := 0.0
+var _lobby_was := ""         # what the lobby's rows were made from (the host's choices: made again when they change)
 ## The settings page, over the title while it's open.
 var settings: SettingsPage
 ## The achievements page, the same.
@@ -118,7 +125,7 @@ func _ready() -> void:
 	_go("main")
 	Net.hosted.connect(func() -> void:
 		if _mode == "rivals":
-			(sea.get("vs") as Node).call("host_set_on", true)     # (two boats from the lobby on: who's on which is real, SWAP works)
+			(sea.get("vs") as Node).call("host_set_on", true)     # (the boats from the lobby on: who's on which is real, crossing works)
 		if _mode != "fish":
 			_go("lobby"))
 	Net.joined.connect(func() -> void:
@@ -150,7 +157,7 @@ func _go(page: String) -> void:
 					_mode = ""
 					_note = "JOINING..." if Net.rejoin() == OK else "COULDN'T START JOINING"])
 			_items += [["FISH", "YOUR BOAT. MAKE THE PAYMENTS. FRIENDS CAN JOIN ANY TIME.", _fish],
-				["RIVALS", "TWO BOATS, A CREW EACH. MOST FISH BY DUSK WINS THE DAY.", func() -> void: _choose("rivals")],
+				["RIVALS", "A BOAT EACH CREW. AGAINST EACH OTHER, OR ONE FLEET.", func() -> void: _choose("rivals")],
 				["JOIN A FRIEND", "GET ABOARD A FRIEND'S BOAT.", func() -> void:
 					_mode = ""
 					_go("join")],
@@ -181,34 +188,45 @@ func _go(page: String) -> void:
 			_pick = _items.size() - 2
 		"lobby":
 			_items = []
+			var vs := sea.get("vs") as Node
+			var rivals := _rivals()
+			var n := boats()
+			_lobby_was = _lobby_now()
+			# (your own way across: with two boats it's a swap, with more it's the next one along)
+			var cross := ["SWAP BOATS", "PUT YOURSELF ON THE OTHER BOAT.", _swap] if n <= 2 \
+					else ["CHANGE BOAT", "PUT YOURSELF ON THE NEXT BOAT ALONG.", _swap]
 			if Net.is_host():
 				_items.append(["START", "EVERYONE TO THE DOCK." if rivals_problem().is_empty()
-						else "EVEN TEAMS FIRST.", _start_pressed])
+						else "SOMEONE ABOARD EVERY BOAT FIRST.", _start_pressed])
 				if Net.mode == "steam":
 					_items.append(["INVITE A FRIEND", "", func() -> void: Net.steam.call("invite")])
 				elif not Net.code.is_empty():
 					_items.append(["COPY THE CODE", "", func() -> void:
 						DisplayServer.clipboard_set(Net.code)
 						_note = "COPIED. SEND IT TO YOUR FRIEND."])
-				if _mode == "rivals":
-					_items.append(["SWAP BOATS", "PUT YOURSELF ON THE OTHER BOAT.", _swap])
+				if rivals:
+					_items.append(cross)
+					# the host's: how many boats, and against each other or one fleet (vs/vs.gd, once it can)
+					if vs.has_method("host_set_boats"):
+						_items.append(["BOATS: %d" % n, "A CREW EACH, ANY NUMBER ABOARD. ENTER TO CHANGE.", _next_boats])
+					if vs.has_method("host_set_together"):
+						var way: Array = WAYS[int(together())]
+						_items.append([str(way[0]), str(way[1]) + " ENTER TO CHANGE.", _next_way])
 				var hold := sea.get("fish_hold") as Node
 				var kind := str(hold.get("kind"))
 				_items.append(["BOAT: " + str(Kinds.KINDS[kind]["name"]).trim_prefix("the ").to_upper(),
-						"BOTH CREWS GET THE SAME KIND. ENTER TO CHANGE." if _mode == "rivals" else "ENTER TO CHANGE.",
+						"EVERY CREW GETS THE SAME KIND. ENTER TO CHANGE." if rivals else "ENTER TO CHANGE.",
 						_next_boat])
 				# the match settings (core/settings.gd), each with its default for the mode
 				var m := "rivals" if _mode == "rivals" else "career"
 				_items.append(["DOCK PREP: " + Settings.prep_for(m).to_upper(), {"full": "FUEL, ICE AND BAIT BY HAND AT THE "
-						+ "DOCK BEFORE CASTING OFF.", "quick": "THE SAME, QUICKER.", "off": "BOTH BOATS GO OUT FUELLED, ICED AND "
-						+ "BAITED."}[Settings.prep_for(m)] + " ENTER TO CHANGE.", func() -> void:
+						+ "DOCK BEFORE CASTING OFF.", "quick": "THE SAME, QUICKER.", "off": ("EVERY BOAT GOES" if rivals
+						else "SHE GOES") + " OUT FUELLED, ICED AND BAITED."}[Settings.prep_for(m)] + " ENTER TO CHANGE.",
+						func() -> void:
 					Settings.next_prep(m)
-					var keep := _pick
-					_go("lobby")
-					_pick = keep])
-			else:
-				if _mode == "rivals" or bool((sea.get("vs") as Node).get("on")):
-					_items.append(["SWAP BOATS", "PUT YOURSELF ON THE OTHER BOAT.", _swap])
+					_again()])
+			elif rivals:
+				_items.append(cross)
 			_items.append(["LEAVE", "", func() -> void:
 				Net.leave()
 				(sea.get("crew") as Node).call("start_solo")
@@ -245,7 +263,52 @@ func _host() -> void:
 		_note = "COULDN'T HOST (PORT IN USE?)"
 
 
-## Host, in the lobby: the next kind of boat (Rivals: both crews get her; she's chartered if she isn't owned).
+## The lobby's rows made again (a row's word changed), the same one still picked.
+func _again() -> void:
+	var keep := _pick
+	_go("lobby")
+	_pick = mini(keep, _items.size() - 1)
+
+
+## The lobby is Rivals' (picked here, or the host's word that it's on).
+func _rivals() -> bool:
+	return _mode == "rivals" or bool((sea.get("vs") as Node).get("on"))
+
+
+## How many boats Rivals has (vs/vs.gd's word; two, until it says).
+func boats() -> int:
+	var vs := sea.get("vs") as Node
+	return maxi(int(vs.get("boats")), 2) if "boats" in vs else 2
+
+
+## Whether the boats fish together, one fleet (vs/vs.gd's word).
+func together() -> bool:
+	var vs := sea.get("vs") as Node
+	return bool(vs.get("together")) if "together" in vs else false
+
+
+## What the lobby's rows hang on: the host's choices, and whether it can start.
+func _lobby_now() -> String:
+	return "%d %s %s %s" % [boats(), together(), _rivals(), rivals_problem().is_empty()]
+
+
+## Host, in the Rivals lobby: one more boat, and round again from four to two.
+func _next_boats() -> void:
+	var vs := sea.get("vs") as Node
+	var most: int = (vs.get_script() as Script).get_script_constant_map().get("MAX_BOATS", 4)
+	vs.call("host_set_boats", 2 if boats() >= most else boats() + 1)
+	_note = ""
+	_again()
+
+
+## Host, in the Rivals lobby: against each other, or together.
+func _next_way() -> void:
+	(sea.get("vs") as Node).call("host_set_together", not together())
+	_note = ""
+	_again()
+
+
+## Host, in the lobby: the next kind of boat (Rivals: every crew gets her; she's chartered if she isn't owned).
 func _next_boat() -> void:
 	var hold := sea.get("fish_hold") as Node
 	var kinds := Kinds.KINDS.keys()
@@ -253,22 +316,23 @@ func _next_boat() -> void:
 	hold.call("pick", k)
 	var vs := sea.get("vs") as Node
 	if bool(vs.get("on")):
-		var other: Node = (vs.get("sides")[1] as Node).get("boat")
-		other.call("use_kind", k)
+		# (side 0's boat is the sea's own, the hold's just changed her: every other side's the same kind)
+		var sides: Array = vs.get("sides")
+		for i in range(1, sides.size()):
+			((sides[i] as Node).get("boat") as Node).call("use_kind", k)
 		vs.call("_moor")
-	var keep := _pick
-	_go("lobby")
-	_pick = keep
+	_again()
 
 
+## Across to the next boat along (with two: the other one), and round to A again.
 func _swap() -> void:
 	var vs := sea.get("vs") as Node
 	if not bool(vs.get("on")):
 		return
-	vs.call("ask_team", 1 - int(vs.get("my_team")))
+	vs.call("ask_team", (int(vs.get("my_team")) + 1) % boats())
 
 
-## Host's START: Rivals only starts with even teams, 1 v 1 or 2 v 2 (vs/vs.gd's team_problem says why not).
+## Host's START: Rivals only starts with someone aboard every boat (vs/vs.gd's team_problem says why not).
 func _start_pressed() -> void:
 	var why := rivals_problem()
 	if not why.is_empty():
@@ -286,7 +350,7 @@ func rivals_problem() -> String:
 	return str(vs.call("team_problem", Net.my_id()))
 
 
-## Host: off the title, everyone aboard with you (rivals: two boats first).
+## Host: off the title, everyone aboard with you (rivals: the boats first).
 func _start() -> void:
 	var vs := sea.get("vs") as Node
 	if _mode == "rivals" and not bool(vs.get("on")):
@@ -344,15 +408,17 @@ func busy() -> bool:
 	return up or _intro >= 0.0 or _glide >= 0.0
 
 
-## Where the camera looks: the boat, or in Rivals between the two.
+## Where the camera looks: the boat, or in Rivals the middle of them all.
 func _middle() -> Vector3:
 	var boat := sea.get("boat") as Node3D
 	var c := boat.global_position if boat else Vector3.ZERO
 	var vs := sea.get("vs") as Node
 	if vs != null and bool(vs.get("on")):
-		c = Vector3.ZERO
-		for side: Object in vs.get("sides"):
-			c += (side.get("boat") as Node3D).global_position * 0.5
+		var sides: Array = vs.get("sides")
+		if not sides.is_empty():
+			c = Vector3.ZERO
+			for side: Object in sides:
+				c += (side.get("boat") as Node3D).global_position / sides.size()
 	return c
 
 
@@ -397,6 +463,8 @@ func _process(delta: float) -> void:
 			_friends_in -= delta
 			if _friends_in <= 0.0:
 				_friends_in = 1.0
+				if _page == "lobby" and _lobby_now() != _lobby_was:
+					_again()       # (the host's changed the boats or the way: the rows say so)
 				if _page == "join" and bool(Net.steam.get("available")):
 					var keep := _code
 					_go("join")
@@ -439,9 +507,13 @@ func _draw_caption() -> void:
 		return
 	var vs := sea.get("vs") as Node
 	var rivals := vs != null and bool(vs.get("on"))
+	var fleet := rivals and together()
+	var count: String = ["TWO", "THREE", "FOUR"][clampi(boats() - 2, 0, 2)]
 	var lines := ["GULL HARBOR, FIRST LIGHT",
-			"TWO BOATS. THE SAME BIRDS." if rivals else ("ONE BOAT, A CREW." if _mode == "coop" else "ONE BOAT. JUST YOU."),
-			"MOST POUNDS BY DUSK. BEST OF THREE." if rivals else "FIND THE BIRDS, FIND THE TUNA."]
+			("ONE FLEET. THE SAME BIRDS." if fleet else count + " BOATS. THE SAME BIRDS.") if rivals
+			else ("ONE BOAT, A CREW." if _mode == "coop" else "ONE BOAT. JUST YOU."),
+			("EVERY BOAT'S FISH COUNT." if fleet else "MOST POUNDS BY DUSK. BEST OF THREE.") if rivals
+			else "FIND THE BIRDS, FIND THE TUNA."]
 	var span := LEG * 2.0 / lines.size()
 	var i := mini(int(_intro / span), lines.size() - 1)
 	var u := (_intro - i * span) / span
@@ -555,28 +627,37 @@ func _draw_view() -> void:
 		y = _draw_crew(Vector2(at.x + 4, y))
 	if _page == "credits":
 		y = _draw_credits(Vector2(at.x + 4, y))
-	# the choices
+	# the choices: as big as the page has room for under what's above them (the Rivals lobby is the long one)
 	_rects.clear()
+	var sc := ITEM
+	while sc > 3 and y + _items.size() * _row(sc) > size.y - 70:
+		sc -= 1
 	for i in _items.size():
 		var label: String = _items[i][0]
 		var on := i == _pick
-		var r := Rect2(at.x - 4, y - 6, PixFont.width(label, ITEM) + 60, ITEM * 5 + 12)
+		var pad := mini(6, (_row(sc) - sc * 5) / 2)       # (a row's box never reaches into the next one's)
+		var r := Rect2(at.x - 4, y - pad, PixFont.width(label, sc) + 60, sc * 5 + pad * 2)
 		_rects.append(r)
 		if on:
-			_view.draw_rect(Rect2(at.x - 4, y - 6, 8, ITEM * 5 + 12), AMBER)
-		_text(Vector2(at.x + 22, y), label, AMBER if on else CREAM, ITEM)
+			_view.draw_rect(Rect2(at.x - 4, y - pad, 8, sc * 5 + pad * 2), AMBER)
+		_text(Vector2(at.x + 22, y), label, AMBER if on else CREAM, sc)
 		# what the picked one does, beside it
 		var blurb: String = _items[i][1]
 		if on and not blurb.is_empty():
-			_text(Vector2(at.x + 22 + PixFont.width(label, ITEM) + 26, y + (ITEM * 5 - SMALL * 5) / 2), blurb,
+			_text(Vector2(at.x + 22 + PixFont.width(label, sc) + 26, y + (sc * 5 - SMALL * 5) / 2), blurb,
 					Color(CREAM, 0.8), SMALL)
-		y += ITEM * 5 + 16
+		y += _row(sc)
 	if not _note.is_empty():
 		_text(Vector2(at.x + 22, y + 10), _note, Color(1.0, 0.7, 0.5), SMALL)
 	_text(Vector2(at.x + 4, size.y - 30), "STICK OR D-PAD, [A] TO PICK, [B] TO GO BACK" if Settings.pad
 			else "MOUSE OR ARROW KEYS, ENTER TO PICK, ESC TO GO BACK", Color(DIM, 0.6), SMALL)
 	var v := version_text()
 	_text(Vector2(size.x - PixFont.width(v, SMALL) - 24, size.y - 30), v, Color(DIM, 0.6), SMALL)
+
+
+## A choice's row, top to top (px), its letters at `scale`.
+static func _row(scale: int) -> int:
+	return scale * 5 + (16 if scale >= ITEM else scale * 2 + 2)
 
 
 ## What the corner says: "V1.0.0".
@@ -596,39 +677,71 @@ func _draw_credits(at: Vector2) -> float:
 		y += 8
 	return y + 6
 
-## Who's aboard (and in rivals, which boat), and the code to send: under the lobby's heading. Returns where it ends.
-func _draw_crew(at: Vector2) -> float:
+## Boat i's colour (vs/vs.gd's, once it has one to give).
+func boat_colour(i: int) -> Color:
+	var vs := sea.get("vs") as Node
+	if vs.has_method("boat_colour"):
+		return vs.call("boat_colour", i)
+	return BOAT_COLOURS[i % BOAT_COLOURS.size()]
+
+
+## Boat i's name: "A".. (vs/vs.gd's, once it has one to give).
+func boat_name(i: int) -> String:
+	var vs := sea.get("vs") as Node
+	if vs.has_method("boat_name"):
+		return str(vs.call("boat_name", i))
+	return "ABCD"[i % 4]
+
+
+## The crew list's columns, one a boat in Rivals (else the one, with no heading): each {"head", "colour", "crew"},
+## crew the lines of who's aboard her, in the order they came.
+func crew_columns() -> Array:
 	var crew := sea.get("crew") as Node
 	var vs := sea.get("vs") as Node
 	var slots: Dictionary = crew.get("slots")
-	var rivals := bool(vs.get("on")) or _mode == "rivals"
+	var rivals := _rivals()
 	var teams: Dictionary = vs.get("teams")
-	var y := at.y
-	var cols := 2 if rivals else 1
-	for c in cols:
-		var x := at.x + c * 260
-		var yy := y
-		if rivals:
-			_text(Vector2(x, yy), "BOAT " + "AB"[c], [AMBER, Color(0.45, 0.8, 1.0)][c], 3)
-			yy += 24
-		var ids := slots.keys()
-		ids.sort()
-		var aboard := 0
+	var ids := slots.keys()
+	ids.sort()
+	var cols: Array = []
+	for c in (boats() if rivals else 1):
+		var aboard: Array[String] = []
 		for id: int in ids:
 			if rivals and int(teams.get(id, 0)) != c:
 				continue
-			var who := str(crew.call("call_sign", id)).to_upper() + ("  (YOU)" if id == Net.my_id() else "")
+			aboard.append(str(crew.call("call_sign", id)).to_upper() + ("  (YOU)" if id == Net.my_id() else ""))
+		cols.append({"head": "BOAT " + boat_name(c) if rivals else "", "colour": boat_colour(c), "crew": aboard})
+	return cols
+
+
+## Who's aboard (a column a boat in rivals), the host's choices for whoever isn't the host, and the code to send: under
+## the lobby's heading. Returns where it ends.
+func _draw_crew(at: Vector2) -> float:
+	var rivals := _rivals()
+	var cols := crew_columns()
+	# (two boats sit as they always have; three and four closer, to stay on the dark of the wash)
+	var step := minf(260.0, 600.0 / cols.size())
+	var y := at.y
+	for c in cols.size():
+		var col: Dictionary = cols[c]
+		var x := at.x + c * step
+		var yy := at.y
+		if rivals:
+			_text(Vector2(x, yy), str(col["head"]), col["colour"], 3)
+			yy += 24
+		for who: String in col["crew"]:
 			_text(Vector2(x + 8, yy), who, CREAM, 2)
 			yy += 18
-			aboard += 1
-		if aboard == 0:
-			# (an empty boat says what fills her)
-			_text(Vector2(x + 8, yy), "A FRIEND JOINS HERE" if Net.is_host() else "NOBODY YET", Color(DIM, 0.55), 2)
+		if (col["crew"] as Array).is_empty():
+			_text(Vector2(x + 8, yy), "NOBODY ABOARD", Color(DIM, 0.55), 2)
 			yy += 18
-		y = maxf(y, yy) if c == cols - 1 else y
-		if c < cols - 1:
-			at.y = maxf(at.y, yy)
-	y = maxf(y, at.y) + 14
+		y = maxf(y, yy)
+	y += 14
+	if rivals and not Net.is_host():
+		# (the host's choices, for everyone who can't change them)
+		var way: Array = WAYS[int(together())]
+		_text(Vector2(at.x, y), "%d BOATS, %s. %s" % [cols.size(), way[0], way[1]], CREAM, 2)
+		y += 22
 	if Net.is_host() and Net.mode == "code" and not Net.code.is_empty():
 		_text(Vector2(at.x, y), "JOIN CODE: " + Net.code, CREAM, 3)
 		y += 30
@@ -638,7 +751,7 @@ func _draw_crew(at: Vector2) -> float:
 	elif not Net.is_host():
 		_text(Vector2(at.x, y), "WAITING FOR THE HOST TO START", DIM, 2)
 		y += 22
-	# (Rivals: why it can't start yet, on everyone's screen, the odd one out told it's them)
+	# (Rivals: why it can't start yet, on everyone's screen)
 	var why := rivals_problem() if rivals else ""
 	if not why.is_empty():
 		_text(Vector2(at.x, y), why, Color(1.0, 0.7, 0.5), 2)

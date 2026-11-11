@@ -40,6 +40,8 @@ const TIPS := {
 	"cast": "Hooks are bare. Net a mackerel out of the live well, E on a rod to hook it on, then send it out.",
 	"wait": "Slow? Chum off the transom brings them to you.",
 	"rivals": "Rivals: most pounds aboard at dusk wins the day, first to two days. Both boats go on GO.",
+	"rivals_n": "Rivals: the boat with the most pounds aboard at dusk wins the day, first to two days. Every boat goes on GO.",
+	"fleet": "One fleet: every boat's pounds go on the one slip. Nobody wins, nobody loses. Every boat goes on GO.",
 	"drive": "Wheel's on the console. E to take it, W and S throttle, A and D steer.",
 	"radar": "On the radar, birds are the speck that stays put sweep after sweep. Closer, it goes orange. Get ahead of it.",
 	"rival": "That's them. Lie close and jump her rail to board her. The horn's on the dash: E.",
@@ -229,7 +231,8 @@ func _watch() -> void:
 	var vs: Node = sea.get("vs")
 	var rivals := vs != null and bool(vs.get("on"))
 	if rivals and float(vs.get("count_end")) > 0.0:
-		show_tip("rivals")
+		# (what it is today: one fleet, or against each other, two boats or more)
+		show_tip("fleet" if bool(vs.get("together")) else ("rivals" if int(vs.get("boats")) <= 2 else "rivals_n"))
 		show_tip("drive")
 	if hold == null or bool(hold.get("docked")):
 		_out_since = -1.0
@@ -265,7 +268,7 @@ func _watch() -> void:
 	for s: Node in schools.get("schools"):
 		if (s.call("center", now) as Vector2).distance_to(at) < 1900.0 and bool(s.call("feeding", now)) 				and now - _out_since > 20.0:
 			show_tip("radar")
-	# rivals: the other boat close; and the light going (every game: the race home)
+	# rivals: another boat close; and the light going (every game: the race home)
 	if rivals:
 		for side: Object in vs.get("sides"):
 			var other := side.get("boat") as Node3D

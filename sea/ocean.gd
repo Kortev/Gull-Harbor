@@ -88,6 +88,10 @@ const GUST_LENGTH := Vector2(3.5, 5.5)
 const SQUALL_SLOT := 4.2
 const SQUALL_SPREAD := 1.4
 const SQUALL_LENGTH := Vector2(2.6, 4.0)
+## How many other boats the sea parts round besides the one you're on (Rivals, up to four boats: set_other_hulls),
+## and each one's uniforms in ocean.gdshader.
+const OTHER_HULLS := 3
+const OTHER_UNIFORMS: Array[String] = ["hull2_", "hull3_", "hull4_"]
 
 ## 0 calm, 0.5 the usual rain, 1 a storm.
 @export_range(0.0, 1.0) var weather := 0.5:
@@ -517,21 +521,49 @@ func set_hull(boat: Transform3D, length := 14.0, beam := 4.8, deck := 0.55, spee
 
 
 ## The other boat (Rivals): the sea meets her the same, so her deck stays dry to look at; `on` false lets it be.
+## She is the first of the other boats (set_other_hulls' hulls[0]): setting her leaves the second and third as they
+## are; `on` false says there's no other boat at all, so it lets the sea be round every one of them.
 func set_other_hull(boat: Transform3D, length := 14.0, beam := 4.8, on := true, deck := 0.55, speed := 0.0,
+		sheer := Vector2(1.45, 0.95)) -> void:
+	if not on:
+		for i in OTHER_HULLS:
+			_set_other(i, false)
+		return
+	_set_other(0, true, boat, length, beam, deck, speed, sheer)
+
+
+## Every other boat on this sea (Rivals with three or four boats), up to OTHER_HULLS of them: each a Dictionary of
+## what set_other_hull takes (`xf` her global transform, `length`, `beam`, `deck`, `speed`, `sheer`; and `on`, true
+## unless it says not: left out, the same as set_other_hull's own). The sea's let be round the rest: with none, all
+## of them.
+func set_other_hulls(hulls: Array) -> void:
+	for i in OTHER_HULLS:
+		var h: Dictionary = hulls[i] if i < hulls.size() else {}
+		if h.is_empty() or not bool(h.get("on", true)):
+			_set_other(i, false)
+			continue
+		_set_other(i, true, h.get("xf", Transform3D()) as Transform3D, float(h.get("length", 14.0)),
+				float(h.get("beam", 4.8)), float(h.get("deck", 0.55)), float(h.get("speed", 0.0)),
+				h.get("sheer", Vector2(1.45, 0.95)) as Vector2)
+
+
+## Other hull `i` (0..OTHER_HULLS - 1: ocean.gdshader's hull2_, hull3_, hull4_).
+func _set_other(i: int, on: bool, boat := Transform3D(), length := 14.0, beam := 4.8, deck := 0.55, speed := 0.0,
 		sheer := Vector2(1.45, 0.95)) -> void:
 	if _mat == null:
 		return
-	_mat.set_shader_parameter("hull2_on", on)
+	var u: String = OTHER_UNIFORMS[i]
+	_mat.set_shader_parameter(u + "on", on)
 	if on:
-		_mat.set_shader_parameter("hull2_length", length)
-		_mat.set_shader_parameter("hull2_beam", beam / 4.3)
-		_mat.set_shader_parameter("hull2_deck", deck)
-		_mat.set_shader_parameter("hull2_speed", speed)
+		_mat.set_shader_parameter(u + "length", length)
+		_mat.set_shader_parameter(u + "beam", beam / 4.3)
+		_mat.set_shader_parameter(u + "deck", deck)
+		_mat.set_shader_parameter(u + "speed", speed)
 		var xf := global_transform.affine_inverse() * boat
-		_mat.set_shader_parameter("hull2_pad", _gap_at(Vector2(xf.origin.x, xf.origin.z).length() + length * 0.5))
-		_mat.set_shader_parameter("hull2_sheer", sheer)
-		_mat.set_shader_parameter("hull2_xf", Projection(xf))
-		_mat.set_shader_parameter("hull2_inv", Projection(xf.affine_inverse()))
+		_mat.set_shader_parameter(u + "pad", _gap_at(Vector2(xf.origin.x, xf.origin.z).length() + length * 0.5))
+		_mat.set_shader_parameter(u + "sheer", sheer)
+		_mat.set_shader_parameter(u + "xf", Projection(xf))
+		_mat.set_shader_parameter(u + "inv", Projection(xf.affine_inverse()))
 
 
 ## Where the sun is (toward it, world), its colour, how dark it is (0 day .. 1 night): the water's shading and the

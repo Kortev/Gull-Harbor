@@ -1,6 +1,7 @@
 extends Node3D
 ## Gull Harbor up close: what sea/landmarks.gd's town and breakwaters are from a mile off, the bit you're tied up in.
-## The quay along the water, the fish pier out into the harbour (her berth on its west side), the fish buyer's shed
+## The quay along the water, the fish pier out into the harbour (her berth on its west side; berth_at() has the other
+## three: the pier's east side, and both sides of the town float off the quay), the fish buyer's shed
 ## and its scale, a finger pier with a couple of other boats on it, lamps along the pier, gulls on the pilings. All
 ## in world space, real size; only built for near (when the boat's more than FAR off it's hidden: the town in
 ## landmarks.gd is what's seen). The water in here is still: sea/ocean.gd's shelter.
@@ -83,7 +84,7 @@ func _process(delta: float) -> void:
 			l.visible = lights_on
 
 
-## Where the boat can't be (world x, z): the piers, and the boats lying on the finger pier.
+## Where the boat can't be (world x, z): the piers and the floats, and the boats lying on the finger pier.
 func blocked(p: Vector2, room := 0.0) -> bool:
 	for r: Rect2 in _keep_out():
 		if r.grow(room).has_point(p):
@@ -99,12 +100,76 @@ func berth(half_beam: float, length: float) -> Vector2:
 			face - 12.0 - length * 0.5)
 
 
+## How many boats there are berths for.
+const BERTHS := 4
+
+
+## Berth `i`'s (0..3; world x, z of her middle), for a boat `half_beam` m from her middle to her side and `length` m
+## long, bow out to sea. 0: berth(), on the fish pier's west side. 1: its mirror on the pier's east side, set out along
+## the pier as far as makes her run to the harbour mouth as long as 0's (the mouth's west of the pier: 0 heads straight
+## for it, 1 has to clear the pier's end first). 2 and 3: the west and east sides of the town float, off the quay with
+## the mouth dead ahead, as far off the quay as makes theirs the same run again. Nobody starts nearer: the same run,
+## whichever berth.
+func berth_at(i: int, half_beam: float, length: float) -> Vector2:
+	var at := berth(half_beam, length)
+	if i <= 0:
+		return at
+	var mouth := _mouth()
+	var run := at.distance_to(mouth)
+	if i == 1:
+		at.x = 2.0 * PIER_X - at.x
+		var corner := _pier_corner(half_beam)
+		var z := corner.y + run - corner.distance_to(mouth)
+		at.y = clampf(z, corner.y + length * 0.5, at.y)
+		return at
+	var way := -1.0 if i == 2 else 1.0
+	var x := Quay.TOWN_X + way * (Quay.FLOAT_W * 0.5 + Lines.OFF + half_beam)
+	var off := x - mouth.x
+	var face := _shore(Quay.TOWN_X) - 2.0
+	# (her stern clear of the brow's foot, her bow not past the float's end)
+	return Vector2(x, clampf(mouth.y + sqrt(maxf(run * run - off * off, 0.0)), face - Quay.TOWN_OUT + length * 0.5,
+			face - Quay.TOWN_BROW - 1.0 - length * 0.5))
+
+
+## How far a boat has to run from berth `i` to the harbour mouth (m): straight for it, but round the pier's end from 1.
+func run_out_at(i: int, half_beam: float, length: float) -> float:
+	var b := berth_at(i, half_beam, length)
+	if i != 1:
+		return b.distance_to(_mouth())
+	var corner := _pier_corner(half_beam)
+	return maxf(b.y - corner.y, 0.0) + corner.distance_to(_mouth())
+
+
+## Which way the water is from the float at a berth (world x, z): -1 she lies west of her float, 1 east of it.
+func berth_way(at: Vector2) -> float:
+	var near: Array = quay.nearest_cleat(Vector3(at.x, 0.0, at.y))
+	if int(near[0]) < 0:
+		return -1.0 if at.x < PIER_X else 1.0
+	return -1.0 if at.x < quay.cleats[int(near[0])].x else 1.0
+
+
+## The middle of the harbour mouth, between the breakwaters' ends (world x, z).
+func _mouth() -> Vector2:
+	if marks == null:
+		return Vector2(Landmarks.HARBOUR_X, _shore(Landmarks.HARBOUR_X) - 210.0)
+	var arms: Array = marks.breakwater_arms()
+	return ((arms[0][1] as Vector2) + (arms[1][1] as Vector2)) * 0.5
+
+
+## Where a boat from the pier's east side turns for the mouth: off the pier's end, her side clear of it.
+func _pier_corner(half_beam: float) -> Vector2:
+	return Vector2(PIER_X + PIER_W * 0.5 + half_beam + 1.0, _shore(PIER_X) - PIER_OUT - 1.0)
+
+
 func _keep_out() -> Array:
 	var a := _shore(PIER_X) - 2.0
 	var b := _shore(FINGER_X) - 2.0
+	var c := _shore(Quay.TOWN_X) - 2.0
 	var hw := PIER_W * 0.5 + Quay.FLOAT_GAP + Quay.FLOAT_W + 0.05
+	var tw := Quay.FLOAT_W * 0.5 + 0.05
 	return [Rect2(PIER_X - hw, a - PIER_OUT - 0.5, hw * 2.0, PIER_OUT + 3.0),
-			Rect2(FINGER_X - FINGER_W * 0.5 - 6.0, b - FINGER_OUT - 3.0, FINGER_W + 12.0, FINGER_OUT + 5.0)]
+			Rect2(FINGER_X - FINGER_W * 0.5 - 6.0, b - FINGER_OUT - 3.0, FINGER_W + 12.0, FINGER_OUT + 5.0),
+			Rect2(Quay.TOWN_X - tw, c - Quay.TOWN_OUT - 0.5, tw * 2.0, Quay.TOWN_OUT + 3.0)]
 
 
 func _shore(x: float) -> float:
@@ -208,25 +273,29 @@ func _bollard(st: SurfaceTool, at: Vector3) -> void:
 	_cyl(st, at + Vector3(0, 0.55, 0), 0.08, 0.3, 0.3, 8, Color(0.15, 0.16, 0.17))
 
 
-## The floats either side of the fish pier (sea/quay.gd has where): a timber deck on its pontoons, a rub rail and
-## its fenders along the outer edge, guide piles it rides on, cleats; the gangway down to each (its handrails, the
-## landing across to the pier's deck), the boarding steps on the edges, and a ramp up the pier's last metres to the
-## quay.
+## The floats either side of the fish pier and the town float off the quay (sea/quay.gd has where): a timber deck on
+## its pontoons, a rub rail and its fenders along the outer edge, guide piles it rides on, cleats; the gangway down to
+## each (its handrails, the landing across to the pier's deck; the town float's a brow straight down off the quay's
+## edge, a handrail either side), the boarding steps on the edges, and a ramp up the pier's last metres to the quay.
 func _floats(st: SurfaceTool) -> void:
 	var wood := Color(0.42, 0.36, 0.28)
 	var dark := Color(0.2, 0.18, 0.16)
 	var face := _shore(PIER_X) - 2.0
+	var decked: Array[Rect2] = []
 	for fl: Array in quay.floats:
 		var r: Rect2 = fl[0]
 		var out := float(fl[1])
 		var s := float(fl[2])
 		var cx := r.position.x + r.size.x * 0.5
 		var cz := r.position.y + r.size.y * 0.5
-		_kind = PLANKS
-		_box(st, Vector3(cx, Quay.FLOAT_Y - 0.06, cz), Vector3(r.size.x, 0.12, r.size.y), wood, 0.0)
-		_kind = PLAIN
-		_box(st, Vector3(cx, Quay.FLOAT_Y - 0.4, cz), Vector3(r.size.x - 0.1, 0.56, r.size.y - 0.1),
-				Color(0.62, 0.62, 0.6), 0.0)
+		if not decked.has(r):
+			# (a float with boats down both its edges is in there twice: one deck)
+			decked.append(r)
+			_kind = PLANKS
+			_box(st, Vector3(cx, Quay.FLOAT_Y - 0.06, cz), Vector3(r.size.x, 0.12, r.size.y), wood, 0.0)
+			_kind = PLAIN
+			_box(st, Vector3(cx, Quay.FLOAT_Y - 0.4, cz), Vector3(r.size.x - 0.1, 0.56, r.size.y - 0.1),
+					Color(0.62, 0.62, 0.6), 0.0)
 		_kind = TIMBER
 		_box(st, Vector3(out + s * 0.04, Quay.FLOAT_Y - 0.16, cz), Vector3(0.1, 0.28, r.size.y), wood.darkened(0.25), 0.0)
 		# the guide piles it rides up and down on, every 12 m along the outer edge
@@ -249,8 +318,9 @@ func _floats(st: SurfaceTool) -> void:
 	for c: Vector3 in quay.cleats:
 		_cleat(st, c)
 	# the boarding steps: two treads up to STEP_Y on the outer edge
-	for p: Vector3 in quay.steps:
-		var s := 1.0 if p.x > PIER_X else -1.0
+	for i in quay.steps.size():
+		var p := quay.steps[i]
+		var s := quay.step_ways[i]
 		var outer := p.x + s * 0.4
 		_kind = PLANKS
 		_box(st, Vector3(outer - s * 0.2, (Quay.FLOAT_Y + Quay.STEP_Y) * 0.5, p.z), Vector3(0.4, Quay.STEP_Y - Quay.FLOAT_Y, 1.0),
@@ -275,6 +345,21 @@ func _floats(st: SurfaceTool) -> void:
 		for t: float in [0.0, 0.33, 0.66, 1.0]:
 			var at := Vector3(rail_x, lerpf(foot.y, top.y, t), lerpf(foot.z, top.z + 0.5, t))
 			_box(st, at + Vector3(0, 0.5, 0), Vector3(0.05, 1.0, 0.05), steel, 0.0)
+	# the brows: the same plank walk straight up onto the quay's edge, a handrail down both sides
+	for g: Array in quay.brows:
+		var foot: Vector3 = g[0]
+		var top: Vector3 = g[1]
+		_kind = PLANKS
+		_beam(st, foot + Vector3(0, 0.06, 0), top + Vector3(0, -0.03, 0.3), Vector3.UP, 0.1, Quay.FLOAT_W * 0.5 - 0.02,
+				wood.lightened(0.05))
+		_kind = PLAIN
+		var steel := Color(0.6, 0.62, 0.6)
+		for s: float in [-1.0, 1.0]:
+			var rail_x := foot.x + s * Quay.FLOAT_W * 0.25
+			_beam(st, Vector3(rail_x, foot.y + 1.0, foot.z), Vector3(rail_x, top.y + 1.0, top.z), Vector3.UP, 0.05, 0.05, steel)
+			for t: float in [0.0, 0.33, 0.66, 1.0]:
+				var at := Vector3(rail_x, lerpf(foot.y, top.y, t), lerpf(foot.z, top.z, t))
+				_box(st, at + Vector3(0, 0.5, 0), Vector3(0.05, 1.0, 0.05), steel, 0.0)
 	# the ramp up the pier's last 3 m onto the quay
 	_kind = PLANKS
 	_beam(st, Vector3(PIER_X, DECK_Y + 0.0, face - 3.0), Vector3(PIER_X, QUAY_Y - 0.03, face), Vector3.UP, 0.06, PIER_W - 0.3,

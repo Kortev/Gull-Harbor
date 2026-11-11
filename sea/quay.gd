@@ -1,6 +1,6 @@
 extends Node3D
 ## Gull Harbor underfoot: the quay, the fish pier, the floats along both its sides, the gangways down to them, the
-## boarding steps on their edges. Walked on the way a boat's deck is (crew/player.gd): a still physics world of its
+## town float off the quay and the brow down to it, the boarding steps on their edges. Walked on the way a boat's deck is (crew/player.gd): a still physics world of its
 ## own (the DECK SPACE, as boat/boat.gd has) holding its collider, and this node's pose carries it, which for the
 ## quay is just where it stands. It's in group "boats" so the crew's movement takes it as one more frame: step off her
 ## gunwale and you're in the air (AIR), come down over the float and you're on it (_drop_in); walk off the float's edge
@@ -18,6 +18,12 @@ const FLOAT_GAP := 0.4        # m between the pier's edge and a float's inner ed
 const STEP_Y := 0.95          # m: the boarding steps' tops (from them you can jump onto her gunwale)
 const STEP_EVERY := 5.0
 const CLEAT_EVERY := 3.0
+## The town float: off the quay in the middle of the harbour, the harbour mouth dead ahead of it, a boat down each of
+## its sides (sea/harbour.gd's berths 2 and 3). Its middle line's x, how far it runs out from the quay face, how long
+## the brow down to it from the quay is.
+const TOWN_X := 0.0
+const TOWN_OUT := 26.0
+const TOWN_BROW := 6.0
 const X0 := -150.0            # the quay's ends (world x)
 const X1 := 170.0
 
@@ -39,10 +45,13 @@ var _tris := PackedVector3Array()
 var floats: Array = []
 ## Every cleat along the floats' outer edges (world): where a boat's lines go.
 var cleats: Array[Vector3] = []
-## The boarding steps (world: the middle of each one's top).
+## The boarding steps (world: the middle of each one's top), and which way each one's float edge faces (-1 west).
 var steps: Array[Vector3] = []
+var step_ways: Array[float] = []
 ## The gangways: [foot (float), top (pier), world].
 var gangways: Array = []
+## The brows, straight down off the quay's edge onto a float's middle: [foot (float), top (quay), world].
+var brows: Array = []
 
 
 func _ready() -> void:
@@ -81,6 +90,11 @@ func face() -> float:
 
 func pier_end() -> float:
 	return face() - float(harbour.get("PIER_OUT"))
+
+
+## The quay face where the town float lies off it (world z).
+func town_face() -> float:
+	return shore(TOWN_X) - 2.0
 
 
 func _build() -> void:
@@ -176,11 +190,13 @@ func _build() -> void:
 			for ez: float in [z - 0.5, z + 0.5]:
 				_tri(Vector3(sx_in, FLOAT_Y, ez), Vector3(sx_out, FLOAT_Y, ez), Vector3(sx_out, STEP_Y, ez))
 			steps.append(Vector3((sx_in + sx_out) * 0.5, (FLOAT_Y + STEP_Y) * 0.5, z))
+			step_ways.append(s)
 			z -= STEP_EVERY
 		var cz := z_hi - 1.0
 		while cz > z_lo + 0.5:
 			cleats.append(Vector3(outer - s * 0.22, FLOAT_Y, cz))
 			cz -= CLEAT_EVERY
+	_town_float(qy)
 	# the sheds on the quay, the fish buyer's, the clutter big enough to walk into
 	for w: Array in [[-150.0, Vector3(20, 7, 13)], [-95.0, Vector3(22, 8, 14)], [-25.0, Vector3(38, 10, 20)],
 			[130.0, Vector3(20, 7, 13)]]:
@@ -197,6 +213,52 @@ func _build() -> void:
 	add_box(Vector3(-30.0, qy + 0.8, shore(-30.0) + 31.5), Vector3(5.2, 1.6, 1.9))   # the pickups
 	add_box(Vector3(95.0, qy + 0.8, shore(95.0) + 33.0), Vector3(5.2, 1.6, 1.9))
 	_commit()
+
+
+## The town float: one float out from the quay, both its edges for lying alongside (so it's in `floats` twice, once an
+## edge), the brow down its middle from the quay's edge with a handrail either side, boarding steps down both edges
+## (staggered, so there's a way between them), cleats.
+func _town_float(qy: float) -> void:
+	var tf := town_face()
+	var x_lo := TOWN_X - FLOAT_W * 0.5
+	var x_hi := TOWN_X + FLOAT_W * 0.5
+	var z_lo := tf - TOWN_OUT
+	var z_hi := tf - FLOAT_GAP
+	_box_top(Vector3(x_lo, FLOAT_Y, z_lo), Vector3(x_hi, FLOAT_Y, z_hi))
+	for ex: float in [x_lo, x_hi]:
+		_quad(Vector3(ex, FLOAT_Y, z_lo), Vector3(ex, -0.6, z_lo), Vector3(ex, -0.6, z_hi), Vector3(ex, FLOAT_Y, z_hi))
+	for ez: float in [z_lo, z_hi]:
+		_quad(Vector3(x_lo, FLOAT_Y, ez), Vector3(x_hi, FLOAT_Y, ez), Vector3(x_hi, -0.6, ez), Vector3(x_lo, -0.6, ez))
+	# the brow: from the float's middle up onto the quay (its top lapped over the edge), closed in under its rails
+	var foot := tf - TOWN_BROW
+	var bx0 := TOWN_X - FLOAT_W * 0.25
+	var bx1 := TOWN_X + FLOAT_W * 0.25
+	_quad(Vector3(bx0, FLOAT_Y + 0.02, foot), Vector3(bx1, FLOAT_Y + 0.02, foot), Vector3(bx1, qy, tf),
+			Vector3(bx0, qy, tf))
+	_box_top(Vector3(bx0, qy, tf), Vector3(bx1, qy, tf + 0.4))
+	for rx: float in [bx0, bx1]:
+		_quad(Vector3(rx, FLOAT_Y, foot), Vector3(rx, FLOAT_Y + 1.0, foot), Vector3(rx, qy + 1.0, tf),
+				Vector3(rx, FLOAT_Y, tf))
+	brows.append([Vector3(TOWN_X, FLOAT_Y, foot), Vector3(TOWN_X, qy, tf)])
+	for s: float in [-1.0, 1.0]:
+		var outer := TOWN_X + s * FLOAT_W * 0.5
+		floats.append([Rect2(x_lo, z_lo, FLOAT_W, z_hi - z_lo), outer, s])
+		var z := foot - 4.0 - (STEP_EVERY * 0.5 if s > 0.0 else 0.0)
+		while z > z_lo + 1.0:
+			var sx_in := outer - s * 0.8
+			_quad(Vector3(sx_in, FLOAT_Y, z - 0.5), Vector3(sx_in, FLOAT_Y, z + 0.5), Vector3(outer, STEP_Y, z + 0.5),
+					Vector3(outer, STEP_Y, z - 0.5))
+			_quad(Vector3(outer, FLOAT_Y, z - 0.5), Vector3(outer, STEP_Y, z - 0.5), Vector3(outer, STEP_Y, z + 0.5),
+					Vector3(outer, FLOAT_Y, z + 0.5))
+			for ez: float in [z - 0.5, z + 0.5]:
+				_tri(Vector3(sx_in, FLOAT_Y, ez), Vector3(outer, FLOAT_Y, ez), Vector3(outer, STEP_Y, ez))
+			steps.append(Vector3((sx_in + outer) * 0.5, (FLOAT_Y + STEP_Y) * 0.5, z))
+			step_ways.append(s)
+			z -= STEP_EVERY
+		var cz := z_hi - 1.0
+		while cz > z_lo + 0.5:
+			cleats.append(Vector3(outer - s * 0.22, FLOAT_Y, cz))
+			cz -= CLEAT_EVERY
 
 
 ## A solid box (world: its middle and size), turned `yaw`: a wall, a counter, a stack of something.

@@ -393,13 +393,15 @@ rules.
   it. Braced (a fish on the rod in your hands, the wheel, the chair) you go half as far. One shove every 6 s, never
   from the water or the ladder. The host decides every push.
 
-### VS: two boats racing for the same birds (`vs/vs.gd`)
+### VS (Rivals): two, three or four boats after the same birds, against each other or one fleet (`vs/vs.gd`)
 
-- **Start one:** host a crew (Steam or a join code) and let your friends join. At the dock the skipper presses
-  **Two boats: race for the birds**. Everyone's shared out between **Boat A** and **Boat B** (the skipper on A).
-  **Always even: 1 v 1 or 2 v 2** (3 v 3 and 4 v 4 later, with bigger boats): the lobby won't START with uneven
-  teams and says why on everyone's screen, the odd one out told to wait (or leave) for a fourth;
-  at the dock anyone can press the other boat's button to cross to her. **One boat** goes back to co-op.
+- **Start one:** RIVALS on the title, HOST (Steam or a join code), and let your friends join. The lobby's crew list
+  is a column a boat, **Boat A** to **Boat D**, each in her own colour, whoever's aboard under her. The host picks
+  **BOATS: 2, 3 or 4** and **AGAINST** (most pounds by dusk wins the day) or **TOGETHER** (one fleet: every boat's
+  fish count, nobody wins or loses); everyone has their own **CHANGE BOAT** (the next one along; with two boats it
+  says SWAP BOATS). **Crews needn't be even:** 2 v 1, 1 v 1 v 1, any number aboard each. The lobby won't START
+  with fewer than two aboard in all or a boat with nobody aboard, and says why on everyone's screen. **One boat**
+  goes back to co-op.
   (Dev: `--vs`, and `--team=b` to start on B.)
 - **Head out** and both boats leave from the harbour, side by side inside the breakwaters, bows to sea, in the same
   kind of boat (whichever the skipper took). It's about 2 km out past the fairway buoy to open water: a race.

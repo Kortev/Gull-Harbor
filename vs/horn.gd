@@ -1,7 +1,7 @@
 extends Area3D
 ## The air horn at each boat's console in VS (vs/vs.gd), beside the wheel: E on it and she blasts, heard a mile off.
-## Near the other boat (NEAR m) it rattles her crew (their view jolted: vs/contact.gd's jolt) and jerks any fish on her
-## lines: the rod tip snaps and the fight takes a little shock (tuna/fight.gd), never enough on its own to lose it.
+## Near another boat (NEAR m: every other boat there is, each by how far off she lies) it rattles her crew (their view
+## jolted: vs/contact.gd's jolt) and jerks any fish on her lines: the rod tip snaps and the fight takes a little shock (tuna/fight.gd), never enough on its own to lose it.
 ## The host says when (a blast every AGAIN s a boat at most: a rattle, not a weapon to hold down); everyone hears it.
 
 const NEAR := 120.0
@@ -74,23 +74,29 @@ func _host_blow() -> void:
 func _blow() -> void:
 	blasts += 1
 	_player.play()
-	var sides: Array = vs.get("sides")
-	if sides.size() != 2:
-		return
-	var other := (sides[1 - team] as Node).get("boat") as Node3D
-	if boat.global_position.distance_to(other.global_position) > NEAR:
-		return
-	# her crew rattled
-	var me: Node = vs.get("sea").get("crew").get("me")
-	if me != null and me.get("boat") == other:
-		vs.get("contact").call("jolt", 0.7)
-	# her lines jerked (each fish's fight is played on one machine: the angler's, or the host's in the holder)
-	for r: Node in ((sides[1 - team] as Node).get("rods") as Node).get("rods"):
-		if bool(r.get("hooked")) and not bool(r.get("alongside")):
-			r.set("whip", 1.0)
-			var fight: Object = r.get("fight")
-			if fight != null:
-				fight.set("shock", maxf(float(fight.get("shock")), SHOCK))
+	# every other boat near enough, each by how far off she lies
+	for side: Variant in vs.get("sides") as Array:
+		if not is_instance_valid(side):
+			continue
+		var other: Variant = (side as Node).get("boat")
+		if not is_instance_valid(other) or other == boat:
+			continue
+		if boat.global_position.distance_to((other as Node3D).global_position) > NEAR:
+			continue
+		# her crew rattled
+		var me: Node = vs.get("sea").get("crew").get("me")
+		if me != null and me.get("boat") == other:
+			vs.get("contact").call("jolt", 0.7)
+		# her lines jerked (each fish's fight is played on one machine: the angler's, or the host's in the holder)
+		var rods: Variant = (side as Node).get("rods")
+		if not is_instance_valid(rods):
+			continue
+		for r: Node in (rods as Node).get("rods"):
+			if bool(r.get("hooked")) and not bool(r.get("alongside")):
+				r.set("whip", 1.0)
+				var fight: Object = r.get("fight")
+				if fight != null:
+					fight.set("shock", maxf(float(fight.get("shock")), SHOCK))
 
 
 ## A twin-tone air horn: two reedy notes a third apart, a hard start, sagging a touch as the can empties.

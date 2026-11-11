@@ -87,7 +87,7 @@ var spotter: Spotter
 var plotter: Plotter
 ## Dale from the bank on the radio: the first-time tips.
 var tips: Tips
-## Two boats racing for the same birds (vs/vs.gd); off, it's the one boat.
+## Two to four boats after the same birds (vs/vs.gd); off, it's the one boat.
 var vs: Vs
 ## The harbour launches (sea/tow.gd): one goes out for a boat not home in time, or dry.
 var tows: Array[Tow] = []
@@ -168,7 +168,7 @@ func _ready() -> void:
 	vs.name = "Vs"
 	vs.sea = self
 	add_child(vs)
-	for i in 2:
+	for i in Vs.MAX_BOATS:        # (a launch a boat: in Rivals every one of them can be late home)
 		var t := Tow.new()
 		t.name = "Tow%d" % i
 		t.sea = self
@@ -241,10 +241,16 @@ func _ready() -> void:
 			add_child(title)
 			if _args.has("intro"):      # (screenshots: straight into the intro, as if SOLO was picked)
 				get_tree().create_timer(2.0).timeout.connect(func() -> void: title.call("_solo"))
-	if _args.has("vs"):        # (tests: two boats from the start; --team=b puts you on boat B)
+	if _args.has("vs"):        # (tests: two boats from the start, or --boats=3|4; --together, one fleet; --team=b|c|d
+		# puts you on that boat)
+		if _args.has("boats"):
+			vs.host_set_boats(int(_args["boats"]))
+		if _args.has("together"):
+			vs.host_set_together(true)
 		vs.host_set_on(true)
-		if str(_args.get("team", "")) == "b":
-			vs.ask_team(1)
+		var team := "abcd".find(str(_args.get("team", "a")).to_lower())
+		if team > 0:
+			vs.ask_team(team)
 	if _args.has("boat"):      # (screenshots: in this boat, --boat=skiff|sportfisher)
 		fish_hold.kind = str(_args["boat"])
 		boat.use_kind(fish_hold.kind)

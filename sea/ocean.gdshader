@@ -83,7 +83,8 @@ uniform float hull_deck = 0.55;
 uniform float hull_speed = 0.0;
 // (how much coarser the sea's mesh is round her than near its middle, m: ocean.gd's _gap_at)
 uniform float hull_pad = 0.0;
-// the other boat in Rivals (vs/vs.gd), the same (ocean.gd's set_other_hull)
+// the other boats in Rivals (vs/vs.gd), up to three of them, the same (ocean.gd's set_other_hulls: hull2 is the
+// first other, hull3 and hull4 the next; each costs nothing while it's off)
 uniform bool hull2_on = false;
 uniform mat4 hull2_xf = mat4(1.0);
 uniform mat4 hull2_inv = mat4(1.0);
@@ -92,10 +93,28 @@ uniform float hull2_beam = 1.1163;
 uniform float hull2_deck = 0.55;
 uniform float hull2_speed = 0.0;
 uniform float hull2_pad = 0.0;
+uniform bool hull3_on = false;
+uniform mat4 hull3_xf = mat4(1.0);
+uniform mat4 hull3_inv = mat4(1.0);
+uniform float hull3_length = 14.0;
+uniform float hull3_beam = 1.1163;
+uniform float hull3_deck = 0.55;
+uniform float hull3_speed = 0.0;
+uniform float hull3_pad = 0.0;
+uniform bool hull4_on = false;
+uniform mat4 hull4_xf = mat4(1.0);
+uniform mat4 hull4_inv = mat4(1.0);
+uniform float hull4_length = 14.0;
+uniform float hull4_beam = 1.1163;
+uniform float hull4_deck = 0.55;
+uniform float hull4_speed = 0.0;
+uniform float hull4_pad = 0.0;
 // each hull's sheer (her rail's cap over her origin, m): aft, and how much more it rises to her stem (ocean.gd's
 // set_hull, from boat/buoyancy.gd): the sea beside her is never drawn standing over it
 uniform vec2 hull_sheer = vec2(1.45, 0.95);
 uniform vec2 hull2_sheer = vec2(1.45, 0.95);
+uniform vec2 hull3_sheer = vec2(1.45, 0.95);
+uniform vec2 hull4_sheer = vec2(1.45, 0.95);
 // The waves of the GPU sea's swell and chop tiles that ocean.gd's height_at knows (each tile's biggest, as rolling
 // waves: the first near_swell the swell's, the rest the chop's), packed as `waves` is. Round a hull those two tiles
 // are drawn as just these: the water at her and under her is exactly the water she floats on (boat/buoyancy.gd), not
@@ -370,6 +389,12 @@ void vertex() {
 		if (hull2_on) {
 			near = max(near, near_of(p.xz, hull2_xf, hull2_length));
 		}
+		if (hull3_on) {
+			near = max(near, near_of(p.xz, hull3_xf, hull3_length));
+		}
+		if (hull4_on) {
+			near = max(near, near_of(p.xz, hull4_xf, hull4_length));
+		}
 		if (near > 0.0) {
 			vec3 kd = vec3(0.0);
 			float kxx = 0.0;
@@ -425,6 +450,14 @@ void vertex() {
 	if (hull2_on) {
 		VERTEX = hull_water(VERTEX, hull2_inv, hull2_xf, hull2_length, hull2_beam, hull2_deck, hull2_speed, hull2_pad,
 				hull2_sheer, wash);
+	}
+	if (hull3_on) {
+		VERTEX = hull_water(VERTEX, hull3_inv, hull3_xf, hull3_length, hull3_beam, hull3_deck, hull3_speed, hull3_pad,
+				hull3_sheer, wash);
+	}
+	if (hull4_on) {
+		VERTEX = hull_water(VERTEX, hull4_inv, hull4_xf, hull4_length, hull4_beam, hull4_deck, hull4_speed, hull4_pad,
+				hull4_sheer, wash);
 	}
 	hull_wash = wash;
 	moved = VERTEX;

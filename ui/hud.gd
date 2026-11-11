@@ -261,7 +261,9 @@ func _draw_tally() -> void:
 	_tally.draw_rect(Rect2(-10, -6, maxf(w, pips) + 20.0, 56), BACKING)
 	if _trip.has("rivals"):
 		# (Rivals: the match's day, no quota; her box as ever)
-		_text(_tally, Vector2(0, 12), "Day %d  -  best of three" % int(_trip["day"]), SMALL, Color(CREAM, 0.85))
+		# (as one fleet there's no match to win: just the day)
+		_text(_tally, Vector2(0, 12), "Day %d  -  %s" % [int(_trip["day"]), "one fleet" if bool(_trip.get("together", false))
+				else "best of three"], SMALL, Color(CREAM, 0.85))
 		_draw_box()
 		return
 	var quota := maxf(float(_trip["quota"]), 1.0)

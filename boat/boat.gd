@@ -498,7 +498,17 @@ func _process(delta: float) -> void:
 	if ocean.follow == self or ocean.follow == null:
 		ocean.set_hull(global_transform, length, beam, deck, way, floating.sheer)
 	else:
-		ocean.set_other_hull(global_transform, length, beam, true, deck, way, floating.sheer)
+		# (Rivals, up to four boats: each of the others has her own place in the sea's list, in the boats' order)
+		var slot := 0
+		var vs: Node = sea.get("vs") if sea != null else null
+		if vs != null:
+			for side: Node in vs.get("sides"):
+				var b: Node = side.get("boat")
+				if b == self:
+					break
+				if b != ocean.follow:
+					slot += 1
+		ocean.call("_set_other", slot, true, global_transform, length, beam, deck, way, floating.sheer)
 
 
 ## Where the hull sits on the swell right now: floating (boat/buoyancy.gd: a body with her mass on the water under

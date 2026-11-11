@@ -1,12 +1,14 @@
 extends Node
-## VS (docs/VISION.md): two boats on the same sea, a crew each, after the same birds. Whoever has the most pounds
-## aboard when the trip ends wins.
+## VS (docs/VISION.md, docs/BOATS_PLAN.md): two, three or four boats (`boats`) on the same sea, a crew each (any
+## number aboard, the crews needn't be even), after the same birds. Against each other, whoever has the most pounds
+## aboard when the trip ends wins the day; `together`, they're one fleet: the pounds add up and nobody wins or loses.
 ##
-## The skipper (the host) turns it on at the dock; everyone's put on boat A or boat B (the host's word, `teams`), and
-## each can cross to the other at the dock. Boat A is the boat the sea always had; boat B is a second one with all
-## her own things (her rods, the landing, her fish hold, her chum and jig: vs/side.gd is "the sea" to them), made on
-## every peer at the same path, so the host runs both and each peer sees both, exactly as it sees its own boat in
-## co-op. The sea's own `boat`, `rods`, ... are whichever boat you're on (your camera, your HUD, your screens).
+## The skipper (the host) turns it on at the dock; everyone's put on a boat, A to D (the host's word, `teams`), and
+## each can cross to another at the dock. Boat A is the boat the sea always had; the others are more of her with all
+## their own things (her rods, the landing, her fish hold, her chum and jig: vs/side.gd is "the sea" to them), made on
+## every peer at the same path, so the host runs them all and each peer sees them all, exactly as it sees its own boat
+## in co-op. The sea's own `boat`, `rods`, ... are whichever boat you're on (your camera, your HUD, your screens).
+## (Below, "both" and "the other" are from when there were only ever two: read "all" and "the others".)
 ##
 ## The start: both boats wait at their berths either side of the fish pier, mirrored (neither's nearer the harbour
 ## mouth), the crews free to walk about. Once the title's down (and after a trip, once everyone's pressed on from the
@@ -30,7 +32,8 @@ extends Node
 ## match as it stands: the wins, both holds, the countdown or the race home, the card if it's up. Gone at the card:
 ## it says they lost connection, and the rest can go on without them (NEXT DAY) or wait.
 ##
-## Dev and tests: --vs turns it on at the start (with --team=b, the host takes boat B).
+## Dev and tests: --vs turns it on at the start (with --team=b, the host takes boat B; --boats=3, three of them;
+## --together, one fleet).
 
 const BoatSide := preload("res://vs/side.gd")
 const Boat := preload("res://boat/boat.gd")
@@ -53,15 +56,15 @@ const PARTS := ["boat", "rods", "landing", "fish_hold", "chum", "jig"]
 const APART := 25.0
 const IN := 110.0
 const LB_PER_KG := 2.20462
-## Each boat's colour (the tally, the weigh-in).
-const COLOURS := [Color(1.0, 0.74, 0.32), Color(0.45, 0.8, 1.0)]
+## The most boats (there are at most four aboard in all: Net.MAX_CREW).
+const MAX_BOATS := 4
+## Each boat's colour (the tally, the weigh-in, the card, the lobby): boat_colour(i).
+const COLOURS := [Color(1.0, 0.74, 0.32), Color(0.45, 0.8, 1.0), Color(0.56, 0.92, 0.5), Color(0.96, 0.58, 0.9)]
 ## The weigh-in: a fish read off every this many s (quicker with a lot of them), and a pause between the boats.
 const READ := 0.8
 const BETWEEN := 1.2
 ## Days won to win the match.
 const MATCH := 2
-## The most a side (for now: 2 v 2; three and four a side need bigger boats).
-const MAX_SIDE := 2
 ## The countdown to casting off (s); after a weigh-in, how long before the results card comes up (s).
 const COUNT := 10.0
 const CARD_IN := 2.5
@@ -71,13 +74,17 @@ const TIE := 2.0
 
 var sea: Node                 # sea/sea.gd
 var on := false
-## Peer id -> 0 (boat A) or 1 (boat B): the host's word.
+## How many boats (2 .. MAX_BOATS; the host's word, host_set_boats), and whether they fish as one fleet rather than
+## against each other (host_set_together). Every array a boat below is `boats` long.
+var boats := 2
+var together := false
+## Peer id -> the boat they're on (0 A .. boats - 1): the host's word.
 var teams := {}
-## The boat you're on (0 A, 1 B).
+## The boat you're on (0 A ..).
 var my_team := 0
-## [A, B] (vs/side.gd) while it's on.
+## One a boat, A first (vs/side.gd), while it's on.
 var sides: Array = []
-## The last trip's weigh-in, pounds [A, B] ([] till both are in), and each boat's fish (lb, in the order caught).
+## The last trip's weigh-in, pounds a boat ([] till all are in), and each boat's fish (lb, in the order caught).
 var result: Array = []
 var catches: Array = []
 ## Days each boat has won this match (best of three); and the weigh-in's still being read off.
@@ -85,7 +92,7 @@ var wins := [0, 0]
 var weighing := false
 ## Where the boats meet (vs/contact.gd).
 var contact: Contact
-## What the tally shows: your boat's pounds, theirs (rounded).
+## What the tally shows: your boat's pounds, then the others' in their order (rounded).
 var shown := [0, 0]
 var _out := false
 var _last := [0.0, 0.0]
@@ -122,8 +129,9 @@ var _verdict: Label
 var _board: VBoxContainer
 var _steps: Array = []
 var _step_in := 0.0
-var _hooked := -1             # the other boat's fish on, last frame
-var _their_on := 0.0          # s since they hooked up (the dot blinks)
+var _hooked := -1             # the other boats' fish on, last frame (all of them; -1: not looked yet)
+var _on_by: Array = []        # and a boat (yours left at 0): whose dot blinks
+var _their_on := 0.0          # s since one of them hooked up (the dots blink)
 
 
 func _ready() -> void:
@@ -136,17 +144,23 @@ func _ready() -> void:
 	contact.name = "Contact"
 	contact.vs = self
 	add_child(contact)
+	var after := After.new()
+	after.name = "After"
+	after.vs = self
+	after.process_priority = 1000
+	add_child(after)
 	Net.peer_joined.connect(func(id: int) -> void:
 		if not on or not multiplayer.is_server():
 			return
 		# (back after a drop: their own boat, crew/crew.gd's word; anyone new, the boat with fewer aboard)
 		var was: Dictionary = ((sea.get("crew") as Node).get("back") as Dictionary).get(id, {})
-		if was.has("team"):
+		if was.has("team") and int(was["team"]) < boats:
 			teams[id] = int(was["team"])
 		else:
+			teams.erase(id)        # (a boat that's since been taken away: the emptiest instead)
 			seat_new(id)
-		_switch.rpc_id(id, true, teams, result, wins)
-		# (both holds again: their two-boat start set A's aside, wiping what A's hold had just told them)
+		_switch.rpc_id(id, true, teams, result, wins, boats, together)
+		# (every hold again: their start set A's aside, wiping what A's hold had just told them)
 		for s: Node in sides:
 			var hold: Node = s.get("fish_hold")
 			hold.rpc_id(id, &"_sync", hold.call("_state"))
@@ -169,77 +183,141 @@ func _ready() -> void:
 	Net.joined.connect(func() -> void:
 		card.drop()        # (a card kept up from a boat we were dropped from: gone, the host's word follows)
 		_switch(false, {}, [], [0, 0])
+		boats = 2              # (and how many boats, and whether as a fleet)
+		together = false
 		var was := int(Net.last_join.get("was", 0))
 		Net.last_join.erase("was")
 		if was > 1:
 			_was.rpc_id(1, was))
-	Net.left.connect(func(_was_host: bool) -> void: _switch(false, {}, [], [0, 0]))
+	Net.left.connect(func(_was_host: bool) -> void:
+		_switch(false, {}, [], [0, 0])
+		boats = 2
+		together = false)
 	Net.dropped.connect(func(_reason: String) -> void:
 		# (the host's gone: the card stays up, saying so, with only the title left)
 		var keep := card.up()
 		if keep:
 			card.gone = true
-			card.states[1 - card.mine] = 4
-		_switch(false, {}, [], [0, 0], keep))
+			for i in card.states.size():
+				if i != card.mine:
+					card.states[i] = 4
+		_switch(false, {}, [], [0, 0], 2, false, keep)
+		boats = 2
+		together = false)
 
 
 # ------------------------------------------------------------------ the host
 
-## Skipper, at the dock: two boats (everyone shared out between them), or back to the one.
+## Skipper, at the dock: `boats` boats (everyone shared out over them), or back to the one.
 func host_set_on(want: bool) -> void:
 	if not Net.is_host() or want == on or not _all_docked():
 		return
-	var t := {}
-	if want:
-		var ids: Array = (sea.get("crew") as Node).get("slots").keys()
-		ids.sort()
-		for i in ids.size():
-			t[ids[i]] = i % 2
 	result = []
-	wins = [0, 0]
+	_host_switch(want, _share(boats) if want else {}, boats, together)
+
+
+## Skipper, at the dock: how many boats, 2 .. MAX_BOATS. While it's on they're built or taken away there and then on
+## every screen, the crew shared out over them afresh and every boat moored at her berth; a match begun starts over.
+func host_set_boats(n: int) -> void:
+	n = clampi(n, 2, MAX_BOATS)
+	if not Net.is_host() or n == boats or not _all_docked():
+		return
+	if not on:
+		boats = n          # (told to the rest when it comes on)
+		return
+	result = []
+	_host_switch(true, _share(n), n, together)
+
+
+## Skipper, at the dock: the boats as one fleet (true: no winner, the pounds add up) or against each other.
+func host_set_together(yes: bool) -> void:
+	if not Net.is_host() or yes == together or not _all_docked():
+		return
+	if not on:
+		together = yes
+		return
+	result = []
+	_host_switch(true, teams.duplicate(), boats, yes)
+
+
+func _host_switch(want: bool, t: Dictionary, n: int, fleet: bool) -> void:
+	var none := []
+	none.resize(n)
+	none.fill(0)
 	if Net.in_session():
-		_switch.rpc(want, t, [], wins)
+		_switch.rpc(want, t, [], none, n, fleet)
 	else:
-		_switch(want, t, [], wins)
+		_switch(want, t, [], none, n, fleet)
 
 
-## Rivals is even, always: one against one or two against two (three and four a side come later, with bigger boats).
-## Why the teams as they stand can't race ("" if they can): for the lobby (ui/title.gd won't START) and the odd one
-## out told to wait. `who` (a peer id, or 0): whose screen it is, so the odd one out is told it's them.
+## Everyone aboard shared out over `n` boats, round and round in the order they came aboard (their slots).
+func _share(n: int) -> Dictionary:
+	var slots: Dictionary = (sea.get("crew") as Node).get("slots")
+	var ids: Array = slots.keys()
+	ids.sort_custom(func(a: int, b: int) -> bool: return int(slots[a]) < int(slots[b]))
+	var t := {}
+	for i in ids.size():
+		t[ids[i]] = i % n
+	return t
+
+
+## `v`, once a boat.
+func _each(v: Variant) -> Array:
+	var a := []
+	a.resize(boats)
+	a.fill(v)
+	return a
+
+
+## How many are aboard each boat (the host's word, `teams`).
+func _aboard() -> Array:
+	var n := _each(0)
+	for t: int in teams.values():
+		if t >= 0 and t < boats:
+			n[t] += 1
+	return n
+
+
+static func boat_name(i: int) -> String:
+	return "ABCD"[clampi(i, 0, MAX_BOATS - 1)]
+
+
+static func boat_colour(i: int) -> Color:
+	return COLOURS[clampi(i, 0, MAX_BOATS - 1)]
+
+
+## Why the boats as they're crewed can't set out ("" if they can): for the lobby (ui/title.gd won't START). The crews
+## needn't be even (2 v 1, 3 v 1, 1 v 1 v 1 are all fine); what won't do is nobody to fish against (or with), or a boat
+## with nobody aboard her. `who` (a peer id, or 0): whose screen it is (the skipper's told what he can do about it).
 func team_problem(who := 0) -> String:
 	var crew: Node = sea.get("crew")
 	var slots: Dictionary = crew.get("slots") if crew != null else {}
-	var n := [0, 0]
+	var n := _each(0)
 	for id: int in slots:
-		n[int(teams.get(id, 0))] += 1
-	var total: int = n[0] + n[1]
+		n[clampi(int(teams.get(id, 0)), 0, boats - 1)] += 1
+	var total := 0
+	for k: int in n:
+		total += k
 	if total < 2:
-		return "RIVALS IS 1 V 1 OR 2 V 2: SEND A FRIEND THE CODE"
-	if total > 2 * MAX_SIDE:
-		return "RIVALS IS 2 V 2 AT MOST FOR NOW: %d ABOARD, SOMEONE SITS THIS ONE OUT" % total
-	if total % 2 == 1:
-		# (the odd one out: the last aboard)
-		var last := -1
-		for id: int in slots:
-			if last < 0 or int(slots[id]) > int(slots[last]):
-				last = id
-		if who != 0 and who == last:
-			return "%d ABOARD: YOU'RE THE ODD ONE OUT. WAIT FOR A FOURTH, OR LEAVE" % total
-		return "%d ABOARD: RIVALS IS 1 V 1 OR 2 V 2. ONE WAITS, OR BRING A FOURTH" % total
-	if n[0] != n[1]:
-		return "UNEVEN: BOAT A HAS %d, BOAT B HAS %d. SOMEONE SWAP BOATS" % [n[0], n[1]]
+		return "IT TAKES TWO ABOARD AT LEAST: SEND A FRIEND THE CODE"
+	var skipper := who == 0 or who == 1
+	for i in boats:
+		if int(n[i]) == 0:
+			if total < boats:
+				return "%d ABOARD FOR %d BOATS: BOAT %s HAS NOBODY. %s" % [total, boats, boat_name(i),
+						"TAKE A BOAT AWAY" if skipper else "THE SKIPPER CAN TAKE A BOAT AWAY"]
+			return "BOAT %s HAS NOBODY ABOARD. SOMEONE CHANGE BOAT, OR %s" % [boat_name(i),
+					"TAKE A BOAT AWAY" if skipper else "THE SKIPPER CAN TAKE A BOAT AWAY"]
 	return ""
 
 
-## Host: someone new aboard, on the boat with fewer (crew/crew.gd asks before making them, so they're made on her,
-## not made on A and straight away again on B).
+## Host: someone new aboard, on the boat with fewest (crew/crew.gd asks before making them, so they're made on her,
+## not made on A and straight away again on another).
 func seat_new(id: int) -> void:
 	if teams.has(id):
 		return
-	var n := [0, 0]
-	for t: int in teams.values():
-		n[t] += 1
-	teams[id] = 0 if n[0] <= n[1] else 1
+	var n := _aboard()
+	teams[id] = n.find(n.min())
 
 
 ## Host: someone back (REJOIN) saying who they were. If their old line's still here (we hadn't noticed it go: they
@@ -275,7 +353,7 @@ func _ask_team(t: int) -> void:
 
 
 func _host_team(who: int, t: int) -> void:
-	if not on or not _all_docked() or t < 0 or t > 1:
+	if not on or not _all_docked() or t < 0 or t >= boats:
 		return
 	teams[who] = t
 	if Net.in_session():
@@ -284,7 +362,7 @@ func _host_team(who: int, t: int) -> void:
 		_teams(teams)
 
 
-## The helm of a boat that's just moved (boat/helm.gd, whoever moves her): kept out of the other boat.
+## The helm of a boat that's just moved (boat/helm.gd, whoever moves her): kept out of the other boats.
 func fend(helm: Node) -> void:
 	contact.fend(helm)
 
@@ -305,34 +383,34 @@ func _process(delta: float) -> void:
 		if left != _ticked and left <= 5 and left > 0:
 			_ticked = left
 			Sfx.play("ui.tick", 1.0, 1.0 if left > 3 else 1.3)
-	# (the sea lights the boat you're on: hers come on with them)
-	(sides[1 - my_team].get("boat") as Node).call("set_lights", bool((sea.get("boat") as Node).get("_lights_on")),
-			bool((sea.get("boat") as Node).get("_night")))
+	# (the sea lights the boat you're on: the others' come on with them)
+	var mine: Node = sea.get("boat")
+	for i in sides.size():
+		if i != my_team:
+			(sides[i].get("boat") as Node).call("set_lights", bool(mine.get("_lights_on")), bool(mine.get("_night")))
 	if not Net.is_host():
 		return
 	var holds: Array = sides.map(func(s: Node) -> Node: return s.get("fish_hold"))
 	var docked: Array = holds.map(func(h: Node) -> bool: return bool(h.get("docked")))
 	if not _out:
-		if docked[0] != docked[1]:
-			_host_set_out(holds, 0 if docked[1] else 1)
-		elif docked[0] and docked[1]:
+		# (one's let go: the rest go with her; all at the dock: the countdown)
+		if not docked.has(false):
 			_host_count(holds, delta)
+		elif docked.has(true):
+			_host_set_out(holds, docked.find(false))
 		return
-	for i in 2:
+	for i in boats:
 		if not docked[i]:
 			_last[i] = _pounds(holds[i])
 	_others_fish(delta)
 	if home_by < 0.0:
-		if float(holds[0].call("day_fraction")) < 1.0 and float(holds[1].call("day_fraction")) < 1.0:
+		if holds.all(func(h: Node) -> bool: return float(h.call("day_fraction")) < 1.0):
 			return
 		# dusk: the race home
-		if Net.in_session():
-			_homeward.rpc(_now() + HOME, [false, false])
-		else:
-			_homeward(_now() + HOME, [false, false])
+		_say(&"_homeward", [_now() + HOME, _each(false)])
 	# a boat tied up at the floats (both her lines fast: boat/lines.gd), having been away from them: in, her catch
 	# still aboard for the weigh-in; in time, she's home
-	for i in 2:
+	for i in boats:
 		if docked[i]:
 			continue
 		var lines: Node = (sides[i].get("boat") as Node).get("lines")
@@ -340,82 +418,103 @@ func _process(delta: float) -> void:
 		if bool(_away[i]) and bool(lines.call("tied")):
 			var now_home := home.duplicate()
 			now_home[i] = not bool(_late[i]) and _now() < home_by
-			if Net.in_session():
-				_homeward.rpc(home_by, now_home)
-			else:
-				_homeward(home_by, now_home)
+			_say(&"_homeward", [home_by, now_home])
 			Sfx.play_point(sides[i].get("boat"), (sides[i].get("boat") as Node3D).global_position, "kit.thud", 0.6, 0.6)
 			holds[i].call("head_in", not bool(now_home[i]))
 			docked[i] = true
-	# time's up: the harbour launch goes out for any boat still out (sea/tow.gd), and brings her in
+	# time's up: a harbour launch goes out for each boat still out (sea/tow.gd), and brings her in
 	if _now() >= home_by:
-		for i in 2:
+		for i in boats:
 			if not docked[i] and not bool(_late[i]):
 				_late[i] = true
 				sea.call("send_tow", sides[i].get("boat"))
-	if not (docked[0] and docked[1]):
+	if docked.has(false):
 		return
-	# the trip's over: both in (the late one towed in), and the weigh-in: what each had aboard, then sold
+	# the trip's over: all in (the late ones towed in), and the weigh-in: what each had aboard, then sold
 	_out = false
-	var fish := [[], []]
-	var day := [{}, {}]
-	for i in 2:
+	var fish := []
+	var day := []
+	for i in boats:
 		var kgs: Array = (holds[i].get("fish") as Array).map(func(f: Dictionary) -> float: return float(f["kg"]))
 		var late := not bool(home[i])
-		fish[i] = kgs.map(func(kg: float) -> float: return kg * LB_PER_KG * (0.5 if late else 1.0))
+		fish.append(kgs.map(func(kg: float) -> float: return kg * LB_PER_KG * (0.5 if late else 1.0)))
 		_last[i] = _pounds(holds[i]) * (0.5 if late else 1.0)
 		holds[i].call("host_sell_all")
 		var sum := 0.0
 		for k: float in kgs:
 			sum += k
-		day[i] = {"fish": kgs.size(), "kg": sum, "big": kgs.max() if not kgs.is_empty() else 0.0,
+		day.append({"fish": kgs.size(), "kg": sum, "big": kgs.max() if not kgs.is_empty() else 0.0,
 				"money": int((holds[i].get("sale") as Dictionary).get("total", 0)),
-				"late": sum * LB_PER_KG * 0.5 if late else 0.0, "lb": float(_last[i])}
-	if Net.in_session():
-		_homeward.rpc(-1.0, home)
-	else:
-		_homeward(-1.0, home)
-	var winner := -1 if roundi(_last[0]) == roundi(_last[1]) else (0 if _last[0] > _last[1] else 1)
+				"late": sum * LB_PER_KG * 0.5 if late else 0.0, "lb": float(_last[i])})
+	_say(&"_homeward", [-1.0, home])
+	var winner := winner_of(_last, together)
 	if winner >= 0:
 		wins[winner] += 1
 	_card_after(day, winner)
-	if Net.in_session():
-		_result.rpc(_last, fish, wins)
-	else:
-		_result(_last, fish, wins)
+	_say(&"_result", [_last, fish, wins])
+
+
+## The day's winner: the boat with the most pounds (to the pound); a tie for the most is nobody's (-1), and so is every
+## day fished as one fleet.
+static func winner_of(lbs: Array, fleet := false) -> int:
+	var best := -1
+	var top := -1
+	for i in lbs.size():
+		var lb := roundi(float(lbs[i]))
+		if lb > top:
+			top = lb
+			best = i
+		elif lb == top:
+			best = -1
+	return -1 if fleet else best
 
 
 ## Host, a day weighed: the card that goes up after it (the day's numbers, or the match's once it's won).
 func _card_after(day: Array, winner: int) -> void:
-	if _match.size() != 2:
-		_match = [{}, {}]
+	if _match.size() != boats:
+		_match = _fresh_match()
 	_days += 1
-	for i in 2:
+	for i in boats:
 		var m: Dictionary = _match[i]
 		var d: Dictionary = day[i]
 		for k: String in ["fish", "kg", "money", "late", "lb"]:
 			m[k] = m.get(k, 0) + d[k]
 		m["big"] = maxf(float(m.get("big", 0.0)), float(d["big"]))
-	var decided := int(wins.max()) >= MATCH
-	var crewed := [false, false]
+	var decided := not together and int(wins.max()) >= MATCH
+	var crewed := _each(false)
 	for t: int in teams.values():
-		crewed[t] = true
+		if t < boats:
+			crewed[t] = true
 	for w: Dictionary in ((sea.get("crew") as Node).get("away") as Dictionary).values():
-		if w.has("team"):
+		if w.has("team") and int(w["team"]) < boats:
 			crewed[int(w["team"])] = true
-	_pending = {"decided": decided, "winner": (0 if int(wins[0]) >= MATCH else 1) if decided else winner,
+	_pending = {"decided": decided, "winner": wins.find(wins.max()) if decided else winner,
 			"day": _days, "wins": wins.duplicate(), "crewed": crewed, "day_lb": _last.duplicate(),
-			"boats": _match.duplicate(true) if decided else day}
+			"boats": _match.duplicate(true) if decided else day, "together": together}
 
 
-## Boat i's berth (world x, z): A's on the fish pier's west side, B's on its east, set out along the pier as far as
-## makes her run to the harbour mouth as long as A's (the mouth's west of the pier: A heads straight for it, B has to
-## clear the pier's end first). Neither starts nearer: the same run, the same boat.
+func _fresh_match() -> Array:
+	var m := []
+	for i in boats:
+		m.append({})
+	return m
+
+
+## Boat i's berth (world x, z): the harbour's word (sea/harbour.gd's berth_at). A's on the fish pier's west side, B's
+## on its east, set out along the pier as far as makes her run to the harbour mouth as long as A's (the mouth's west
+## of the pier: A heads straight for it, B has to clear the pier's end first): neither starts nearer, the same run,
+## the same boat. C and D: wherever the harbour has floats for them (without its word, further out along the pier).
 func _berth(i: int) -> Vector2:
 	var harbour: Node = sea.get("harbour")
 	var boat: Node = sides[i].get("boat")
 	var half := float(boat.get("beam")) * 0.5
-	var at: Vector2 = harbour.call("berth", half, float(boat.get("length")))
+	var length := float(boat.get("length"))
+	if harbour.has_method("berth_at"):
+		return harbour.call("berth_at", i, half, length)
+	# (a harbour without berths for four: A's and B's as they always were, C and D a boat's length and a bit beyond)
+	if i >= 2:
+		return _berth(i - 2) - Vector2(0.0, length + 6.0)
+	var at: Vector2 = harbour.call("berth", half, length)
 	if i == 0:
 		return at
 	at.x = 2.0 * float(harbour.get("PIER_X")) - at.x
@@ -425,7 +524,7 @@ func _berth(i: int) -> Vector2:
 	var corner := Vector2(px + float(harbour.get("PIER_W")) * 0.5 + half + 1.0,
 			float((sea.get("landmarks") as Node).call("shore_z", px)) - float(harbour.get("PIER_OUT")) - 1.0)
 	var z := corner.y + a.distance_to(mouth) - corner.distance_to(mouth)
-	at.y = clampf(z, corner.y + float(boat.get("length")) * 0.5, at.y)
+	at.y = clampf(z, corner.y + length * 0.5, at.y)
 	return at
 
 
@@ -435,29 +534,32 @@ func _mouth() -> Vector2:
 	return ((arms[0][1] as Vector2) + (arms[1][1] as Vector2)) * 0.5
 
 
-## How far boat i has to run from her berth to the harbour mouth (m): round the pier's end for B.
+## How far boat i has to run from her berth to the harbour mouth (m): the harbour's word (run_out_at); without it,
+## straight there from the pier's west side, round the pier's end from its east.
 func run_out(i: int) -> float:
 	var harbour: Node = sea.get("harbour")
+	var half := float((sides[i].get("boat") as Node).get("beam")) * 0.5
+	if harbour.has_method("run_out_at"):
+		return harbour.call("run_out_at", i, half, float((sides[i].get("boat") as Node).get("length")))
 	var b := _berth(i)
-	if i == 0:
-		return b.distance_to(_mouth())
-	var half := float((sides[1].get("boat") as Node).get("beam")) * 0.5
 	var px := float(harbour.get("PIER_X"))
+	if b.x < px:
+		return b.distance_to(_mouth())
 	var corner := Vector2(px + float(harbour.get("PIER_W")) * 0.5 + half + 1.0,
 			float((sea.get("landmarks") as Node).call("shore_z", px)) - float(harbour.get("PIER_OUT")) - 1.0)
 	return maxf(b.y - corner.y, 0.0) + corner.distance_to(_mouth())
 
 
-## Host, as a match is set up (the lobby, the start) and in tests: both alongside the floats either side of the fish
-## pier (sea/harbour.gd), A at her berth on its west side, B on its east, bows out, their lines made fast where they
-## lie; but not a boat that's already come in herself (`keep`: true for each one that has). Never mid-match: after a
-## day they're wherever they tied up, or the launch tied them up.
-func _moor(keep := [false, false]) -> void:
+## Host, as a match is set up (the lobby, the start) and in tests: every boat alongside the floats at her own berth
+## (_berth), bows out, her lines made fast where she lies; but not a boat that's already come in herself (`keep`, one
+## a boat: true for each one that has). Never mid-match: after a day they're wherever they tied up, or the launch tied
+## them up.
+func _moor(keep := []) -> void:
 	var harbour: Node = sea.get("harbour")
 	if harbour == null:
 		return
-	for i in 2:
-		if bool(keep[i]):
+	for i in sides.size():
+		if i < keep.size() and bool(keep[i]):
 			continue
 		var boat: Node = sides[i].get("boat")
 		var helm: Node = boat.get("helm")
@@ -484,7 +586,7 @@ func _host_count(holds: Array, delta: float) -> void:
 		var title: Node = sea.get("title")
 		if (title != null and bool(title.call("busy"))) or weighing:
 			return
-		if result.size() == 2:
+		if not result.is_empty():
 			# the card, a moment after the weigh-in; once everyone's pressed on, the next day from where they lie
 			_weighed_for = maxf(_weighed_for, 0.0) + delta
 			if not card.up():
@@ -549,18 +651,18 @@ func _host_ready(who: int) -> void:
 
 
 ## Host: each boat's crew on the card (0 deciding, 1 all pressed, 2 nobody ever aboard her, 3 their line dropped and
-## we're waiting on them, 4 they've left), to all.
+## we're waiting on them, 4 they've left), one a boat, to all.
 func _send_states() -> void:
-	var states := [0, 0]
-	var crewed: Array = card.data.get("crewed", [true, true])
-	var lost := [false, false]
+	var states := _each(0)
+	var crewed: Array = card.data.get("crewed", [])
+	var lost := _each(false)
 	for w: Dictionary in ((sea.get("crew") as Node).get("away") as Dictionary).values():
-		if w.has("team"):
+		if w.has("team") and int(w["team"]) < boats:
 			lost[int(w["team"])] = true
-	for i in 2:
+	for i in boats:
 		var ids := teams.keys().filter(func(id: int) -> bool: return int(teams[id]) == i)
 		if ids.is_empty():
-			states[i] = 3 if bool(lost[i]) else (4 if bool(crewed[i]) else 2)
+			states[i] = 3 if bool(lost[i]) else (4 if i >= crewed.size() or bool(crewed[i]) else 2)
 		else:
 			states[i] = 1 if ids.all(func(id: int) -> bool: return bool(pressed.get(id, false))) else 0
 	_say(&"_readied", [states, pressed.keys()])
@@ -592,9 +694,9 @@ func _fading() -> void:
 ## everyone where they are (they walk aboard their own), new weather for the day, and the countdown follows.
 func _next() -> void:
 	if int(wins.max()) >= MATCH:
-		wins = [0, 0]
+		wins = _each(0)
 		_days = 0
-		_match = [{}, {}]
+		_match = _fresh_match()
 	pressed = {}
 	_pending = {}
 	_weighed_for = -1.0
@@ -634,61 +736,69 @@ func _now() -> float:
 	return float((sea.get("ocean") as Node).get("wave_time"))
 
 
-## Host: one boat's let go (`first`): the other goes with her, in the same kind of boat, from her own berth.
+## Host: one boat's let go (`first`): the others go with her, in the same kind of boat, each from her own berth.
 func _host_set_out(holds: Array, first: int) -> void:
 	_out = true
-	_last = [0.0, 0.0]
+	_last = _each(0.0)
 	if wins.max() >= MATCH:
-		wins = [0, 0]         # (a new match)
+		wins = _each(0)         # (a new match)
 	_say(&"_day_is", [_days + 1])
 	_anchor = 0
-	holds[1 - first].call("head_out", str(holds[first].get("kind")))
-	_alongside_for = [0.0, 0.0]
-	_away = [false, false]
-	_late = [false, false]
-	if Net.in_session():
-		_homeward.rpc(-1.0, [false, false])
-	else:
-		_homeward(-1.0, [false, false])
-	if Net.in_session():
-		_go.rpc()
-	else:
-		_go()
-	if Net.in_session():
-		_result.rpc([], [], wins)
-	else:
-		_result([], [], wins)
+	for i in boats:
+		if i != first and bool(holds[i].get("docked")):
+			holds[i].call("head_out", str(holds[first].get("kind")))
+	_alongside_for = _each(0.0)
+	_away = _each(false)
+	_late = _each(false)
+	_say(&"_homeward", [-1.0, _each(false)])
+	_say(&"_go", [])
+	_say(&"_result", [[], [], wins])
 
 
-## Host: the schools' doings round the boat that isn't the sea's own (tuna/schools.gd does the sea's own boat's):
-## bites on her baits, schools she runs over going down, schools finding her spread.
+## Host: the schools' doings round each boat that isn't the sea's own (tuna/schools.gd does the sea's own boat's), one
+## after another: bites on her baits, schools she runs over going down, schools finding her spread.
 func _others_fish(delta: float) -> void:
 	var schools: Node = sea.get("schools")
 	if schools == null:
 		return
 	var keep: Node = schools.get("sea")
-	schools.set("sea", sides[1 - my_team])
-	schools.call("_strikes", delta)
 	_draw_in -= delta
-	if _draw_in <= 0.0:
+	var draw := _draw_in <= 0.0
+	if draw:
 		_draw_in = 1.0
-		schools.call("_drawing")
+	for i in sides.size():
+		if i == my_team:
+			continue
+		schools.set("sea", sides[i])
+		schools.call("_strikes", delta)
+		if draw:
+			schools.call("_drawing")
 	schools.set("sea", keep)
 
 
-## Where the next school turns up round (tuna/schools.gd): each day between them first, then one boat and the other in
-## turn (A first on odd days, B on even: neither always gets the early one); only round a boat that's out on the
-## grounds (one still under the coast: round the other).
+## Where the next school turns up round (tuna/schools.gd): each day in the middle of the boats first, then round each
+## boat in turn (A first on day one, B on day two, and so on round: nobody always gets the early one); only round
+## boats that are out on the grounds (one still under the coast: round the others).
 func spawn_anchor() -> Vector2:
 	var at := _ats()
-	var order := [2, 0, 1] if day % 2 == 1 else [2, 1, 0]
-	var pick: int = order[_anchor % 3]
-	_anchor += 1
 	var schools: Node = sea.get("schools")
-	var out := [not bool(schools.call("_in_close", at[0])), not bool(schools.call("_in_close", at[1]))]
-	if out[0] != out[1]:
-		pick = 0 if out[0] else 1
-	return [at[0], at[1], (at[0] + at[1]) * 0.5][pick]
+	var out := []
+	for i in at.size():
+		if not bool(schools.call("_in_close", at[i])):
+			out.append(i)
+	if out.is_empty():
+		out = range(at.size())
+	var turn := _anchor % (at.size() + 1)
+	_anchor += 1
+	if turn == 0:
+		var mid := Vector2.ZERO
+		for i: int in out:
+			mid += (at[i] as Vector2) / float(out.size())
+		return mid
+	var pick := (turn - 1 + maxi(day, 1) - 1) % at.size()
+	if not out.has(pick):
+		pick = out[(turn - 1 + maxi(day, 1) - 1) % out.size()]
+	return at[pick]
 
 
 ## Both boats still in the harbour or close in under the coast: no schools yet (tuna/schools.gd).
@@ -703,8 +813,10 @@ func _ats() -> Array:
 
 # ------------------------------------------------------------------ everyone
 
+## Everyone: on (`n` boats, as one fleet or not, everyone on the boat `t` says) or off. On while it's on already: the
+## boats or the fleet changed in the lobby, and whatever match there was starts over.
 @rpc("authority", "call_local", "reliable")
-func _switch(want: bool, t: Dictionary, weighed: Array, won: Array, keep_card := false) -> void:
+func _switch(want: bool, t: Dictionary, weighed: Array, won: Array, n := 2, fleet := false, keep_card := false) -> void:
 	if not want and not on:
 		return
 	result = weighed
@@ -714,17 +826,32 @@ func _switch(want: bool, t: Dictionary, weighed: Array, won: Array, keep_card :=
 	_clear_board()
 	if not keep_card:
 		card.close()
-	if want and not on:
-		_build()
-	elif not want and on:
+	if want:
+		n = clampi(n, 2, MAX_BOATS)
+		var changed := on and (n != boats or fleet != together)
+		together = fleet
+		if not on:
+			boats = n
+			_build()
+		elif n != boats:
+			_resize(n, t)
+		if changed:
+			_start_over()
+			if Net.is_host():
+				_moor()
+		if wins.size() != boats:
+			wins = _each(0)
+	elif on:
 		_tear_down()
 	_teams(t)
+	if on:
+		(sea.get("fish_hold") as Node).call("_tally")       # (the HUD's top left says which it is)
 
 
 @rpc("authority", "call_local", "reliable")
 func _teams(t: Dictionary) -> void:
 	teams = t
-	my_team = int(teams.get(Net.my_id(), 0)) if on else 0
+	my_team = clampi(int(teams.get(Net.my_id(), 0)), 0, sides.size() - 1) if on else 0
 	_point_sea()
 	var crew := sea.get("crew") as Node
 	for id: int in crew.get("slots").keys():
@@ -741,23 +868,20 @@ func _homeward(by: float, in_: Array) -> void:
 		_radio("dusk", 2.0)
 
 
-## Host (tests, dev): the race home run for them: both alongside their berths, tied up, in time.
+## Host (tests, dev): the race home run for them: every boat alongside her berth, tied up, in time.
 func host_bring_home() -> void:
 	if not _out:
 		return
-	if Net.in_session():
-		_homeward.rpc(_now() + HOME, [true, true])
-	else:
-		_homeward(_now() + HOME, [true, true])
+	_say(&"_homeward", [_now() + HOME, _each(true)])
 	_moor()
 	for side: Node in sides:
 		(side.get("fish_hold") as Node).call("head_in")
-	_away = [true, true]
+	_away = _each(true)
 
 
 ## Whether boat `t` brought herself home this trip (so there's no cut to black for her crew).
 func came_home(t: int) -> bool:
-	return bool(home[t])
+	return t >= 0 and t < home.size() and bool(home[t])
 
 
 ## Everyone: GO, the horns blow, the countdown's done.
@@ -779,20 +903,20 @@ func _result(weighed: Array, fish: Array, won: Array) -> void:
 	_clear_board()
 	weighing = false
 	_verdict.visible = false
-	if weighed.size() == 2:
+	if not weighed.is_empty():
 		_weigh_in()
-		# (achievements: the day yours, the match)
-		var a: float = roundi(float(weighed[0]))
-		var b: float = roundi(float(weighed[1]))
-		if a != b and (0 if a > b else 1) == my_team:
+		# (achievements: the day yours alone, the match; none of it as one fleet)
+		if together:
+			return
+		if winner_of(weighed) == my_team:
 			Net.achievements.unlock("RIVALS_DAY")
-		if won.size() == 2 and int(won[my_team]) >= MATCH:
+		if my_team < won.size() and int(won[my_team]) >= MATCH:
 			Net.achievements.unlock("RIVALS_MATCH")
 
 
 ## Which boat crew member `id` is on.
 func boat_of(id: int) -> Node3D:
-	return sides[int(teams.get(id, 0))].get("boat") if on else sea.get("boat")
+	return sides[clampi(int(teams.get(id, 0)), 0, sides.size() - 1)].get("boat") if on else sea.get("boat")
 
 
 ## Pounds aboard a boat now: on deck and iced.
@@ -809,14 +933,27 @@ func _all_docked() -> bool:
 	return sides.all(func(s: Node) -> bool: return bool((s.get("fish_hold") as Node).get("docked")))
 
 
-## Boat B and all her things, and boat A's things pointed at their side.
+## Every boat but A and all their things, and boat A's things pointed at their side.
 func _build() -> void:
-	(sea.get("fish_hold") as Node).call("set_career", false)      # (an even start for both: the career set aside)
+	(sea.get("fish_hold") as Node).call("set_career", false)      # (an even start for all: the career set aside)
 	var a := _side(0)
 	for k: String in PARTS:
 		a.set(k, sea.get(k))
 		(sea.get(k) as Node).set("sea", a)
-	var b := _side(1)
+	sides = [a]
+	_horn(0)
+	for i in range(1, boats):
+		_add_side(i)
+	on = true
+	_start_over()
+	_ui.visible = true
+	if Net.is_host():
+		_moor()
+
+
+## Boat i (not A) and all her own things: a boat of A's kind, her rods, landing, fish hold, chum and jig, her horn.
+func _add_side(i: int) -> void:
+	var b := _side(i)
 	var boat := Boat.new()
 	boat.name = "Boat"
 	boat.ocean = sea.get("ocean")
@@ -830,36 +967,69 @@ func _build() -> void:
 	b.fish_hold = _part(b, hold, "FishHold")
 	b.chum = _part(b, Chum.new(), "Chum")
 	b.jig = _part(b, Jig.new(), "Jig")
-	boat.use_kind(str((sea.get("fish_hold") as Node).get("kind")))
+	# (the kind of boat A is, as she lies there: the berths are set out for boats all alike, sea/harbour.gd)
+	boat.use_kind(str((sides[0].get("boat") as Node).get("kind")))
 	boat.rebuilt.connect(func() -> void:
 		(sea.get("crew") as Node).call("_on_rebuilt")
 		_point_sea())
-	sides = [a, b]
-	for i in 2:
-		var horn := Horn.new()
-		horn.name = "Horn"
-		horn.vs = self
-		horn.team = i
-		horn.boat = sides[i].get("boat")
-		horn.boat.add_child(horn)
-	on = true
+	sides.append(b)
+	_horn(i)
+
+
+func _horn(i: int) -> void:
+	var horn := Horn.new()
+	horn.name = "Horn"
+	horn.vs = self
+	horn.team = i
+	horn.boat = sides[i].get("boat")
+	horn.boat.add_child(horn)
+
+
+## A match from the top (it's just come on, or the boats or the fleet changed): nothing weighed, nobody out, day one.
+func _start_over() -> void:
 	_out = false
 	count_end = -1.0
+	_ticked = -1
 	_weighed_for = -1.0
 	_fading_for = -1.0
 	_pending = {}
 	_days = 0
-	_match = [{}, {}]
+	_match = _fresh_match()
 	day = 1
 	pressed = {}
-	_ui.visible = true
-	if Net.is_host():
-		_moor()
+	home_by = -1.0
+	home = _each(false)
+	_last = _each(0.0)
+	_alongside_for = _each(0.0)
+	_away = _each(false)
+	_late = _each(false)
+	_hooked = -1
+	_on_by = _each(0)
+
+
+## The boats, now `n` of them (it's on; the lobby): the new ones built first, then everyone where `t` puts them (off
+## any boat that's going), then the ones over taken away.
+func _resize(n: int, t: Dictionary) -> void:
+	boats = maxi(boats, n)
+	while sides.size() < n:
+		_add_side(sides.size())
+	teams = t
+	my_team = clampi(int(teams.get(Net.my_id(), 0)), 0, n - 1)
+	_point_sea()
+	var crew := sea.get("crew") as Node
+	for id: int in crew.get("slots").keys():
+		crew.call("reseat", id, true)
+	while sides.size() > n:
+		var s: Node = sides.pop_back()
+		remove_child(s)
+		s.queue_free()
+	boats = n
+	_no_hulls()
 
 
 func _side(team: int) -> BoatSide:
 	var s := BoatSide.new()
-	s.name = ["A", "B"][team]
+	s.name = boat_name(team)
 	s.sea = sea
 	s.vs = self
 	s.team = team
@@ -874,9 +1044,9 @@ func _part(side: BoatSide, n: Node, called: String) -> Node:
 	return n
 
 
-## Back to the one boat: everyone aboard A, A's things the sea's again, B gone.
+## Back to the one boat: everyone aboard A, A's things the sea's again, the others gone.
 func _tear_down() -> void:
-	(sea.get("ocean") as Node).call("set_other_hull", Transform3D(), 0.0, 0.0, false)
+	_no_hulls()
 	on = false
 	teams = {}
 	var a: Node = sides[0]
@@ -901,6 +1071,51 @@ func _tear_down() -> void:
 		hud.call("note_at", 40.0)
 	(sea.get("fish_hold") as Node).call("set_career", true)       # (the career back, and her boat)
 	(sea.get("boat") as Node).call("use_kind", str((sea.get("fish_hold") as Node).get("kind")))
+
+
+## The sea let be round no other boat (sea/ocean.gd).
+func _no_hulls() -> void:
+	var ocean: Node = sea.get("ocean")
+	if ocean.has_method("set_other_hulls"):
+		ocean.call("set_other_hulls", [])
+	else:
+		ocean.call("set_other_hull", Transform3D(), 0.0, 0.0, false)
+
+
+## The sea parts round every boat but the one you're on (sea/ocean.gd's set_other_hulls: up to three of them, in the
+## boats' order), each frame once they've all moved (After, below), and round none that's gone. (Each boat that isn't
+## the sea's own says so herself too as she moves, boat/boat.gd. An ocean that only knows of one other: the first.)
+func _hulls() -> void:
+	if not on:
+		return
+	var ocean: Node = sea.get("ocean")
+	var many := ocean.has_method("set_other_hulls")
+	if not many and sides.size() <= 2:
+		return
+	var mine: Node = sea.get("boat")
+	var list := []
+	for s: Node in sides:
+		var b := s.get("boat") as Node3D
+		if b == null or b == mine or not b.is_inside_tree():
+			continue
+		var helm: Node = b.get("helm")
+		var floating: Object = b.get("floating")
+		list.append({"xf": b.global_transform, "length": float(b.get("length")), "beam": float(b.get("beam")),
+				"deck": float(b.get("deck")), "speed": float(helm.get("speed")) if helm != null else 0.0,
+				"sheer": floating.get("sheer") if floating != null else Vector2(1.45, 0.95)})
+	if many:
+		ocean.call("set_other_hulls", list)
+	elif not list.is_empty():
+		var h: Dictionary = list[0]
+		ocean.call("set_other_hull", h["xf"], h["length"], h["beam"], true, h["deck"], h["speed"], h["sheer"])
+
+
+## Last each frame, after every boat's moved: the sea round the others (_hulls).
+class After extends Node:
+	var vs: Node
+
+	func _process(_delta: float) -> void:
+		vs.call("_hulls")
 
 
 ## The sea's boat (and rods, ...) are the boat you're on: your camera, your HUD, the screens on your dash.
@@ -952,28 +1167,52 @@ func _build_ui() -> void:
 	_ui.add_child(_board)
 
 
+## The boats in the order the tally and the board have them: yours, then the others as they come.
+func _order() -> Array:
+	var o := [my_team]
+	for i in sides.size():
+		if i != my_team:
+			o.append(i)
+	return o
+
+
 ## Out there: each boat's pounds aboard (yours on top), a bar each against the leader's, a pip a day won, and a red dot
-## blinking by theirs while they've a fish on. In after a trip: the weigh-in, then who won and by how much.
+## blinking by any other boat that has a fish on. In after a trip: the weigh-in, then who won and by how much.
 func _show(delta: float) -> void:
-	var lbs := [_pounds(sides[0].get("fish_hold")), _pounds(sides[1].get("fish_hold"))]
-	shown = [roundi(lbs[my_team]), roundi(lbs[1 - my_team])]
+	var lbs: Array = sides.map(func(s: Node) -> float: return _pounds(s.get("fish_hold")))
+	shown = _order().map(func(i: int) -> int: return roundi(float(lbs[i])))
 	_race.set_meta("lbs", lbs)
 	var docked := bool((sea.get("fish_hold") as Node).get("docked"))
 	_race.visible = not docked
-	# the other crew hooking up: a squawk on your radio, and their dot blinks while they're on
-	var hooked := 0
-	for r: Node in (sides[1 - my_team].get("rods") as Node).get("rods"):
-		if bool(r.get("hooked")) and not bool(r.get("alongside")):
-			hooked += 1
-	if not docked and _hooked >= 0 and hooked > _hooked:
+	# another crew hooking up: a squawk on your radio, and their dot blinks while they're on
+	var all := 0
+	var by := _each(0)
+	var more := false
+	for i in sides.size():
+		if i == my_team:
+			continue
+		for r: Node in (sides[i].get("rods") as Node).get("rods"):
+			if bool(r.get("hooked")) and not bool(r.get("alongside")):
+				by[i] += 1
+		all += int(by[i])
+		more = more or (i < _on_by.size() and int(by[i]) > int(_on_by[i]))
+	if not docked and _hooked >= 0 and more:
 		_their_on = 0.0
 		_radio("fish_on", 1.4)
-	_hooked = hooked
+	_hooked = all
+	_on_by = by
 	_their_on += delta
 	_race.queue_redraw()
 	_board.visible = docked and not card.up()
-	_verdict.visible = docked and result.size() == 2 and not weighing and not card.up()
+	_verdict.visible = docked and result.size() == sides.size() and not weighing and not card.up()
 	if not _verdict.visible:
+		return
+	if together:
+		_verdict.text = "THE FLEET: %d LB\n%s" % [_fleet_lb(), _scores()]
+		_verdict.modulate = Color(0.6, 1.0, 0.6)
+		return
+	if sides.size() > 2:
+		_verdict_many()
 		return
 	var us := roundi(float(result[my_team]))
 	var them := roundi(float(result[1 - my_team]))
@@ -990,6 +1229,48 @@ func _show(delta: float) -> void:
 				int(wins.min())]
 
 
+## Three or four boats weighed: the winning boat named (yours as YOU) and by how much over the next, or the tie for
+## the most; every boat's pounds under it; the match once it's won.
+func _verdict_many() -> void:
+	var lb: Array = result.map(func(x: float) -> int: return roundi(x))
+	var winner := winner_of(result)
+	var top: int = lb.max()
+	if winner < 0:
+		var level := []
+		for i in lb.size():
+			if int(lb[i]) == top:
+				level.append(boat_name(i))
+		_verdict.text = "A TIE FOR THE MOST: %s, %d LB EACH. NOBODY'S DAY" % [" AND ".join(PackedStringArray(level)), top]
+		_verdict.modulate = Color(1.0, 0.92, 0.6)
+	else:
+		var rest := lb.duplicate()
+		rest.remove_at(winner)
+		_verdict.text = "%s BY %d LB" % ["YOU WIN THE DAY" if winner == my_team else "BOAT %s WINS THE DAY"
+				% boat_name(winner), top - int(rest.max())]
+		_verdict.modulate = Color(0.6, 1.0, 0.6) if winner == my_team else Color(1.0, 0.55, 0.45)
+	_verdict.text += "\n" + _scores()
+	if int(wins.max()) >= MATCH:
+		var won := wins.find(wins.max())
+		_verdict.text += "\nTHE MATCH: %s, %s" % ["YOURS" if won == my_team else "BOAT %s'S" % boat_name(won),
+				"-".join(PackedStringArray(wins.map(func(w: int) -> String: return str(w))))]
+
+
+## Every boat's pounds weighed, in a line: "A 220   B 243   C 310".
+func _scores() -> String:
+	var parts := []
+	for i in result.size():
+		parts.append("%s %d" % [boat_name(i), roundi(float(result[i]))])
+	return "   ".join(PackedStringArray(parts))
+
+
+## The fleet's pounds weighed, all the boats' together.
+func _fleet_lb() -> int:
+	var sum := 0.0
+	for x: float in result:
+		sum += x
+	return roundi(sum)
+
+
 func _draw_count() -> void:
 	var now := _now()
 	var text := ""
@@ -1004,13 +1285,19 @@ func _draw_count() -> void:
 	elif home_by > 0.0:
 		var left := maxi(ceili(home_by - now), 0)
 		var clock := "%d:%02d" % [left / 60, left % 60]
-		text = ("HOME. WAITING FOR THEM  " if bool(home[my_team]) else "DUSK: BRING HER HOME  ") + clock
-		col = Color(0.6, 1.0, 0.6) if bool(home[my_team]) else (Color(1.0, 0.78, 0.34) if left > 60 else Color(1.0, 0.45, 0.3))
+		var in_ := came_home(my_team)
+		text = ("HOME. WAITING FOR THEM  " if in_ else "DUSK: BRING HER HOME  ") + clock
+		col = Color(0.6, 1.0, 0.6) if in_ else (Color(1.0, 0.78, 0.34) if left > 60 else Color(1.0, 0.45, 0.3))
 		var sub := "ALONGSIDE YOUR BERTH AT THE FISH PIER, SLOW. LATE: HALF WEIGHT."
-		if bool(home[my_team]):
+		var theirs := []          # (the other boats already in)
+		for i in home.size():
+			if i != my_team and bool(home[i]):
+				theirs.append(boat_name(i))
+		if in_:
 			sub = "THEY'RE STILL OUT THERE. IN LATE, THEIR CATCH WEIGHS HALF."
-		elif bool(home[1 - my_team]):
-			sub = "THEY'RE IN! ALONGSIDE YOUR BERTH AT THE FISH PIER, SLOW."
+		elif not theirs.is_empty():
+			sub = ("THEY'RE IN!" if home.size() <= 2 else "BOAT %s'S IN!" % " AND ".join(PackedStringArray(theirs))) \
+					+ " ALONGSIDE YOUR BERTH AT THE FISH PIER, SLOW."
 		var sa := Vector2((_count.size.x - PixFont.width(sub, 2)) * 0.5, 82)
 		PixFont.draw(_count, sa + Vector2(2, 2), sub, Color(0, 0, 0, 0.8), 2)
 		PixFont.draw(_count, sa, sub, Color(0.9, 0.93, 0.96), 2)
@@ -1024,28 +1311,34 @@ func _draw_count() -> void:
 	PixFont.draw(_count, at + Vector2(sc * 0.6, sc * 0.6), text, Color(0, 0, 0, 0.8), sc)
 	PixFont.draw(_count, at, text, col, sc)
 	if count_end > 0.0:
-		var sub := "BOTH BOATS LET GO TOGETHER. TAKE THE WHEEL!"
+		var sub := "%s BOATS LET GO TOGETHER. TAKE THE WHEEL!" % ("BOTH" if sides.size() <= 2 else "ALL %d" % sides.size())
 		var sa := Vector2((_count.size.x - PixFont.width(sub, 2)) * 0.5, 82)
 		PixFont.draw(_count, sa + Vector2(2, 2), sub, Color(0, 0, 0, 0.8), 2)
 		PixFont.draw(_count, sa, sub, Color(0.9, 0.93, 0.96), 2)
 
 
 func _draw_race() -> void:
-	var lbs: Array = _race.get_meta("lbs", [0.0, 0.0])
-	var top := maxf(maxf(float(lbs[0]), float(lbs[1])), 1.0)
-	_race.draw_rect(Rect2(-18, 0, 258, 40), Hud.BACKING)      # (under the HUD's tally's, ui/hud.gd)
-	for k in 2:
-		var t := my_team if k == 0 else 1 - my_team
+	var lbs: Array = _race.get_meta("lbs", [])
+	if lbs.size() != sides.size():
+		return
+	var top := 1.0
+	for lb: float in lbs:
+		top = maxf(top, lb)
+	var order := _order()
+	_race.draw_rect(Rect2(-18, 0, 258, 4 + 18 * order.size()), Hud.BACKING)      # (under the HUD's tally's, ui/hud.gd)
+	for k in order.size():
+		var t: int = order[k]
 		var y := k * 18.0
-		var col: Color = COLOURS[t]
+		var col := boat_colour(t)
 		var lit := 1.0 if k == 0 else 0.75
-		_text(Vector2(0, y + 11), "AB"[t], Color(col, lit))
+		_text(Vector2(0, y + 11), boat_name(t), Color(col, lit))
 		_race.draw_rect(Rect2(16, y + 2, 120, 9), Color(0, 0, 0, 0.45))
 		_race.draw_rect(Rect2(16, y + 2, 120.0 * float(lbs[t]) / top, 9), Color(col, 0.85 * lit))
 		_text(Vector2(142, y + 11), "%d lb" % roundi(float(lbs[t])), Color(Hud.CREAM, lit))
-		for d in int(wins[t]):
-			_race.draw_rect(Rect2(212 + d * 10, y + 3, 6, 6), Color(col, lit))     # (square, like the pixels)
-		if t != my_team and _hooked > 0 and fmod(_their_on, 0.8) < 0.5:
+		if not together and t < wins.size():
+			for d in int(wins[t]):
+				_race.draw_rect(Rect2(212 + d * 10, y + 3, 6, 6), Color(col, lit))     # (square, like the pixels)
+		if t != my_team and t < _on_by.size() and int(_on_by[t]) > 0 and fmod(_their_on, 0.8) < 0.5:
 			_race.draw_rect(Rect2(-12, y + 2, 8, 8), Hud.RED)
 
 
@@ -1063,11 +1356,13 @@ func _radio(line: String, seconds: float) -> void:
 		radio.call("call_in", "vs", line, seconds)
 
 
-## Both in alongside the fish pier: the screen fades up on them, and the fish are read off, A's then B's.
+## All in alongside the fish pier: the screen fades up on them, and the fish are read off, each boat's in turn, A's
+## first.
 func _weigh_in() -> void:
 	_steps = []
-	for t in 2:
-		var fish: Array = catches[t] if catches.size() == 2 else []
+	_board.add_theme_constant_override("separation", 4 if result.size() <= 2 else 0)
+	for t in result.size():
+		var fish: Array = catches[t] if t < catches.size() else []
 		_steps.append(["boat", t])
 		var each := clampf(8.0 / maxf(fish.size(), 1.0), 0.35, READ)
 		for lb: float in fish:
@@ -1090,15 +1385,17 @@ func _weigh(delta: float) -> void:
 				col.name = "Boat%d" % int(s[1])
 				col.add_theme_constant_override("separation", 0)
 				_board.add_child(col)
-				var head := _line("BOAT %s%s" % ["AB"[int(s[1])], "  (YOU)" if int(s[1]) == my_team else ""], 24,
-						COLOURS[int(s[1])])
+				# (three or four boats: a size down, so they all fit down the screen)
+				var big := 24 if result.size() <= 2 else 20
+				var head := _line("BOAT %s%s" % [boat_name(int(s[1])), "  (YOU)" if int(s[1]) == my_team else ""], big,
+						boat_colour(int(s[1])))
 				col.add_child(head)
 				var rows := HFlowContainer.new()
 				rows.name = "Fish"
 				rows.add_theme_constant_override("h_separation", 14)
 				rows.custom_minimum_size = Vector2(340, 0)
 				col.add_child(rows)
-				var sum := _line("0 lb", 24, Hud.CREAM)
+				var sum := _line("0 lb", big, Hud.CREAM)
 				sum.name = "Sum"
 				sum.set_meta("lb", 0.0)
 				col.add_child(sum)
@@ -1106,7 +1403,8 @@ func _weigh(delta: float) -> void:
 				_step_in += 0.7
 			"fish":
 				var col := _board.get_node("Boat%d" % int(s[1]))
-				col.get_node("Fish").add_child(_line("%d" % roundi(float(s[2])), 18, Color(Hud.CREAM, 0.85)))
+				col.get_node("Fish").add_child(_line("%d" % roundi(float(s[2])), 18 if result.size() <= 2 else 16,
+						Color(Hud.CREAM, 0.85)))
 				var sum := col.get_node("Sum") as Label
 				sum.set_meta("lb", float(sum.get_meta("lb")) + float(s[2]))
 				sum.text = "%d lb" % roundi(float(sum.get_meta("lb")))
@@ -1116,7 +1414,7 @@ func _weigh(delta: float) -> void:
 			"total":
 				var sum := _board.get_node("Boat%d/Sum" % int(s[1])) as Label
 				sum.text = "%d lb" % roundi(float(result[int(s[1])]))
-				sum.add_theme_color_override("font_color", COLOURS[int(s[1])])
+				sum.add_theme_color_override("font_color", boat_colour(int(s[1])))
 				Sfx.play("ui.stamp", 0.8)
 				_step_in += BETWEEN
 			"verdict":

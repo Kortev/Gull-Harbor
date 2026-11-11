@@ -373,7 +373,7 @@ func _host_start() -> void:
 		ring = EDGE_SPAWN
 	var vs: Node = sea.get("vs")
 	if vs != null and bool(vs.get("on")):
-		round_at = vs.call("spawn_anchor")      # (two boats, vs/vs.gd: round each, and between them)
+		round_at = vs.call("spawn_anchor")      # (several boats, vs/vs.gd: round each, and between them)
 	if slick_fresh():
 		ring = SLICK_SPAWN       # (the slick's spreading: they turn up nearer it, and come up it)
 		round_at = slick

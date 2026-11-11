@@ -109,8 +109,8 @@ func _out_route(b: Node3D) -> Array:
 	return r
 
 
-## In with her: through the mouth if she's outside it, round the pier's end to the east float, up the float she's
-## going to, slowing.
+## In with her: through the mouth if she's outside it, round the pier's end if her berth's on its east side, up the
+## float she's going to, slowing.
 func _in_route(b: Node3D) -> Array:
 	var r := []
 	var her: Vector2 = (b.get("helm") as Node).get("at")
@@ -129,7 +129,8 @@ func _in_route(b: Node3D) -> Array:
 	return r
 
 
-## Where she's going: her own berth (the career's, or Rivals' A and B), bow in toward the quay.
+## Where she's going: her own berth (the career's, or in Rivals whichever of the harbour's is hers), bow in toward the
+## quay.
 func _berth_for(b: Node3D) -> Vector2:
 	var vs: Node = sea.get("vs")
 	if vs != null and bool(vs.get("on")):
@@ -239,6 +240,10 @@ func _host(delta: float) -> void:
 		TOW_IN, TIE, HOME:
 			pass
 	if state == HOME:
+		if not _route.is_empty():
+			if _steer(_route[0], RUN, delta, 6.0):
+				_route.pop_front()
+			return
 		if _steer(_rest + Vector2(0.0, -12.0) if at.distance_to(_rest) > 14.0 else _rest, RUN, delta, 8.0) \
 				and at.distance_to(_rest) < 1.6:
 			heading = lerp_angle(heading, _rest_heading, minf(delta, 1.0))
@@ -290,8 +295,28 @@ func _tie(helm: Node) -> void:
 		await lines.call("host_tie_up_for_her")
 	helm.set("towed_by", null)
 	_tell_towed(false)
+	_route = _home_route()
 	state = HOME
 	target = null
+
+
+## Back to where the launch lies, from alongside whichever float she's left her at: out past the float's end on the
+## side away from her, round the fish pier's end if that's between, then along outside the town float and the finger
+## pier (never through one) and in to the quay.
+func _home_route() -> Array:
+	var harbour: Node = sea.get("harbour")
+	var px := float(harbour.get("PIER_X"))
+	var far := float(harbour.call("_shore", px)) - 2.0 - float(harbour.get("PIER_OUT"))
+	var fx := float(harbour.get("FINGER_X"))
+	var clear := float(harbour.call("_shore", fx)) - 2.0 - float(harbour.get("FINGER_OUT")) - 14.0
+	var r := []
+	if at.x > px:
+		r.append(Vector2(at.x + 4.0, far - 14.0))
+		r.append(Vector2(px - 14.0, far - 14.0))
+	elif at.y > clear:
+		r.append(Vector2(at.x + (-4.0 if _side > 0.0 else 4.0), clear))
+	r.append(Vector2(_rest.x, minf(clear, _rest.y - 30.0)))
+	return r
 
 
 ## Everyone: whether she's under tow (her wheel's no use).
@@ -320,9 +345,9 @@ func _hip_spot() -> Array:
 func _away_side(b: Node3D) -> float:
 	var berth := _berth_for(b)
 	var harbour: Node = sea.get("harbour")
-	var px := float(harbour.get("PIER_X"))
-	# coming in bow first up the float, heading in (+z): her starboard's to the west; the float's east of a west berth
-	return 1.0 if berth.x < px else -1.0
+	# coming in bow first up the float, heading in (+z): her starboard's to the west; the float's east of a boat lying
+	# west of it (whichever float it is: the harbour knows)
+	return 1.0 if float(harbour.call("berth_way", berth)) < 0.0 else -1.0
 
 
 static func _offset(local: Vector3, heading: float) -> Vector2:

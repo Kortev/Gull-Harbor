@@ -1,17 +1,18 @@
 extends Node
-## Where the two boats in VS (vs/vs.gd) meet: they're solid to each other and the one's wake rocks the other. (Running
-## across the other's lines doesn't cut them: it did, and it made a stalemate where nobody got a fish.)
+## Where the boats in VS (vs/vs.gd) meet, two of them or four: every pair's solid to each other and each one's wake
+## rocks every other. (Running across another's lines doesn't cut them: it did, and it made a stalemate where nobody
+## got a fish.)
 ##
 ## Bumping: each hull's a capsule on the water (her length and beam, along her heading, where the helm has her).
-## Whoever moves a boat (her captain, or the host with nobody at her wheel: boat/helm.gd) keeps her out of the other
-## (fend): out of the overlap, and if they're closing, shoved apart by their speeds (an even split between two boats
+## Whoever moves a boat (her captain, or the host with nobody at her wheel: boat/helm.gd) keeps her out of every
+## other (fend), each in turn: out of the overlap, and if they're closing, shoved apart by their speeds (an even split between two boats
 ## of a kind), part of it on her way ahead or astern, the rest sideways (the helm's drift), and a slew round from where
 ## she was hit (its spin). Every peer hears and feels it on its own: the thud where they met, both boats knocked over
 ## and rocking back (boat/boat.gd's rock), and anyone standing on deck staggering in a hard one.
 ##
 ## Wakes: each boat leaves a trail (where she was, which way she was going, how fast); her V's arms spread from it at
-## the Kelvin angle, so the other boat crossing an arm gets a roll (crossing it side on) or a pitch (head on), fading
-## as it ages. Two arms, two knocks. Every peer works it out from the helms' word. The wake bomb: a hull throws its
+## the Kelvin angle, so any other boat crossing an arm gets a roll (crossing it side on) or a pitch (head on), fading
+## as it ages. Two arms, two knocks, and each boat's wake its own. Every peer works it out from the helms' word. The wake bomb: a hull throws its
 ## biggest wake ploughing along at 10 to 14 knots (WAKE_SPEED), not up on the plane flat out, so slowing to bury the
 ## other boat costs you time. Taken beam on, close, it's a hard roll, the sea slopping in over her transom, everyone
 ## standing staggering and their view jolted; her captain turning her bow into it takes it as a pitch, softer.
@@ -47,18 +48,23 @@ const PLANED := 0.45
 const BOMB := 0.45
 
 var vs: Node                  # vs/vs.gd
+## (one entry a boat, as many as there are sides: _size keeps them so, and a boat that's new starts from nothing)
 var _rock: Array[Vector2] = [Vector2.ZERO, Vector2.ZERO]
 var _rock_v: Array[Vector2] = [Vector2.ZERO, Vector2.ZERO]
-var _touching := false
-var _thud_t := -INF
-var _closing := 0.0           # how fast they were coming together, lately (m/s)
-var _shoved := {}             # helm instance id -> when it was last shoved (s)
+var _known: Array[int] = []   # the boats these are for (instance ids, 0 for none)
+## (one entry a pair of boats, i before j, at i * boats + j)
+var _touching: Array[bool] = [false, false, false, false]
+var _closing: Array[float] = [0.0, 0.0, 0.0, 0.0]      # how fast they were coming together, lately (m/s)
+var _thuds: Array[float] = [-INF, -INF, -INF, -INF]    # when that pair last thudded (s on _clock)
+var _thud_t := -INF           # when any two last did
+var _shoved := {}             # [helm instance id, the other boat's] -> when she was last shoved by her (s)
 var _trails: Array = [[], []] # per boat: [at, way, speed, t], the newest first
 var _trail_in := 0.0
-var _in_arm: Array[bool] = [false, false]
+var _in_arm: Array[bool] = [false, false]              # per boat: in an arm of anyone's wake
+var _arms: Array[bool] = [false, false, false, false]  # boat i in an arm of boat j's wake, at i * boats + j
 var _clock := 0.0
 var _jolt := 0.0              # your view shaken (0..1), dying away
-## Wake bombs each boat's taken (A, B).
+## Wake bombs each boat's taken (A, B, ...).
 var bombs := [0, 0]
 
 
@@ -97,26 +103,38 @@ static func velocity(h: Node) -> Vector2:
 	return Helm.ahead_of(float(h.get("heading"))) * float(h.get("speed")) + (h.get("drift") as Vector2)
 
 
+## Every side's boat, in the sides' order (null for one that's gone: the sides are rebuilt at the dock).
 func _boats() -> Array:
-	return (vs.get("sides") as Array).map(func(s: Node) -> Node3D: return s.get("boat"))
+	var boats: Array = []
+	for s: Variant in vs.get("sides") as Array:
+		var b: Variant = (s as Node).get("boat") if is_instance_valid(s) else null
+		boats.append(b as Node3D if is_instance_valid(b) else null)
+	return boats
 
 
-## Whoever moves helm `h`'s boat, after she's moved: out of the other boat, and shoved off her if they were closing.
+## Whoever moves helm `h`'s boat, after she's moved: out of every other boat, and shoved off each she was closing with.
 func fend(h: Node) -> void:
 	var boats := _boats()
 	var i := boats.find(h.get("boat"))
-	if boats.size() != 2 or i < 0:
+	if boats.size() < 2 or i < 0:
 		return
-	var c := contact(boats[i], boats[1 - i])
+	for j in boats.size():
+		if j != i and boats[j] != null:
+			_fend(h, boats, i, j)
+
+
+## Helm `h`'s boat (i) kept out of boat j.
+func _fend(h: Node, boats: Array, i: int, j: int) -> void:
+	var c := contact(boats[i], boats[j])
 	if c.is_empty() or float(c["gap"]) >= 0.0:
 		return
 	var n: Vector2 = c["normal"]
-	var oh: Node = (boats[1 - i] as Node).get("helm")
+	var oh: Node = (boats[j] as Node).get("helm")
 	# (half of it: whoever moves the other one takes the other half, here or on their machine, so neither boat's a wall
 	# the other can't shove)
 	h.set("at", (h.get("at") as Vector2) - n * float(c["gap"]) * 0.5)
 	var closing := (velocity(oh) - velocity(h)).dot(n)
-	if closing <= 0.05 or not _fresh(h):
+	if closing <= 0.05 or not _fresh(h, oh):
 		return
 	# both shoved, equal and opposite: this one here, the other here too or on whoever's machine moves her (her
 	# captain's, or the host's with nobody at her wheel), so it's the same bump whichever of them saw it first
@@ -127,29 +145,32 @@ func fend(h: Node) -> void:
 	if driver == 0:
 		driver = 1
 	if bool(oh.call("is_mine")) or (int(oh.get("captain")) == 0 and Net.is_host()) or not Net.in_session():
-		if _fresh(oh):
+		if _fresh(oh, h):
 			_shove(oh, -dv, p)
 	elif driver != Net.my_id():
-		_shoved_by.rpc_id(driver, 1 - i, -dv, p)
+		_shoved_by.rpc_id(driver, j, i, -dv, p)
 
 
-## Whether helm `h` hasn't been shoved in the last AGAIN s (and it's to be now).
-func _fresh(h: Node) -> bool:
+## Whether helm `h` hasn't been shoved by helm `by`'s boat in the last AGAIN s (and it's to be now).
+func _fresh(h: Node, by: Node) -> bool:
 	var now := Time.get_ticks_msec() * 0.001
-	if now - float(_shoved.get(h.get_instance_id(), -INF)) < AGAIN:
+	var key := [h.get_instance_id(), by.get_instance_id()]
+	if now - float(_shoved.get(key, -INF)) < AGAIN:
 		return false
-	_shoved[h.get_instance_id()] = now
+	_shoved[key] = now
 	return true
 
 
-## The other machine saw the bump first: boat `i` (0 A, 1 B), which this machine moves, shoved by `dv` at `point`.
+## The other machine saw the bump first: boat `i` (0 A, 1 B, ...), which this machine moves, shoved by boat `by` with
+## `dv` at `point`.
 @rpc("any_peer", "call_remote", "reliable")
-func _shoved_by(i: int, dv: Vector2, point: Vector2) -> void:
+func _shoved_by(i: int, by: int, dv: Vector2, point: Vector2) -> void:
 	var boats := _boats()
-	if boats.size() != 2 or i < 0 or i > 1:
+	if i < 0 or i >= boats.size() or by < 0 or by >= boats.size() or by == i or boats[i] == null or boats[by] == null:
 		return
 	var h: Node = (boats[i] as Node).get("helm")
-	if (bool(h.call("is_mine")) or (int(h.get("captain")) == 0 and Net.is_host())) and _fresh(h):
+	if (bool(h.call("is_mine")) or (int(h.get("captain")) == 0 and Net.is_host())) \
+			and _fresh(h, (boats[by] as Node).get("helm")):
 		_shove(h, dv, point)
 
 
@@ -170,13 +191,20 @@ func _process(delta: float) -> void:
 	if not bool(vs.get("on")):
 		return
 	var boats := _boats()
-	if boats.size() != 2:
+	if boats.size() < 2:
 		return
+	_size(boats)
 	_clock += delta
-	_bumps(boats)
+	var count := boats.size()
+	for i in count:
+		for j in range(i + 1, count):
+			if boats[i] != null and boats[j] != null:
+				_bumps(boats, i, j)
 	_wakes(boats, delta)
-	for i in 2:
-		var a := -ROCK_W * ROCK_W * _rock[i] - 2.0 * ROCK_DAMP * ROCK_W * _rock_v[i]
+	for i in count:
+		if boats[i] == null:
+			continue
+		var a :=-ROCK_W * ROCK_W * _rock[i] - 2.0 * ROCK_DAMP * ROCK_W * _rock_v[i]
 		_rock_v[i] += a * delta
 		_rock[i] = (_rock[i] + _rock_v[i] * delta).clampf(-ROCK_MAX, ROCK_MAX)
 		(boats[i] as Node).set("rock", _rock[i])
@@ -187,27 +215,65 @@ func _process(delta: float) -> void:
 			me.set("shake", _jolt)
 
 
-## Every peer: the two coming together, heard and felt.
-func _bumps(boats: Array) -> void:
-	var c := contact(boats[0], boats[1], 3.0)
+## One entry a boat, one a pair, for the boats there are now: the sides are rebuilt at the dock (another boat, one
+## fewer, VS off and on again), and a boat that wasn't there before starts still, with no wake behind her.
+func _size(boats: Array) -> void:
+	var ids: Array[int] = []
+	for b: Variant in boats:
+		ids.append((b as Node).get_instance_id() if b != null else 0)
+	if ids == _known:
+		return
+	var count := ids.size()
+	_rock.resize(count)
+	_rock_v.resize(count)
+	_trails.resize(count)
+	_in_arm.resize(count)
+	bombs.resize(count)
+	for i in count:
+		if i < _known.size() and _known[i] == ids[i]:
+			continue
+		_rock[i] = Vector2.ZERO
+		_rock_v[i] = Vector2.ZERO
+		_trails[i] = []
+		_in_arm[i] = false
+		bombs[i] = 0
+	_touching.resize(count * count)
+	_touching.fill(false)
+	_closing.resize(count * count)
+	_closing.fill(0.0)
+	_thuds.resize(count * count)
+	_thuds.fill(-INF)
+	_arms.resize(count * count)
+	_arms.fill(false)
+	_shoved.clear()
+	_known = ids
+
+
+## Every peer: boats i and j (i before j) coming together, heard and felt.
+func _bumps(boats: Array, i: int, j: int) -> void:
+	var k := i * boats.size() + j
+	var c := contact(boats[i], boats[j], 3.0)
 	if c.is_empty():
-		_touching = false
-		_closing = 0.0
+		_touching[k] = false
+		_closing[k] = 0.0
 		return
 	var n: Vector2 = c["normal"]
-	var ha: Node = (boats[0] as Node).get("helm")
-	var hb: Node = (boats[1] as Node).get("helm")
+	var ha: Node = (boats[i] as Node).get("helm")
+	var hb: Node = (boats[j] as Node).get("helm")
 	# (how fast they were closing just before: by the time this peer sees them touch, whoever moves them may have
 	# shoved them apart already)
-	_closing = maxf(_closing * 0.9, (velocity(hb) - velocity(ha)).dot(n))
+	_closing[k] = maxf(_closing[k] * 0.9, (velocity(hb) - velocity(ha)).dot(n))
 	var touching := float(c["gap"]) < 0.35
-	if touching and not _touching and _clock - _thud_t > AGAIN and _closing > 0.4:
+	if touching and not _touching[k] and _clock - _thuds[k] > AGAIN and _closing[k] > 0.4:
+		_thuds[k] = _clock
 		_thud_t = _clock
-		_thud(boats, c, _closing)
-	_touching = touching
+		_thud(boats, i, j, c, _closing[k])
+	_touching[k] = touching
 
 
-func _thud(boats: Array, c: Dictionary, hard: float) -> void:
+## Boats i and j met at `hard` m/s: the thud where they touched, both knocked over, whoever's standing on either
+## staggering in a hard one.
+func _thud(boats: Array, i: int, j: int, c: Dictionary, hard: float) -> void:
 	var p: Vector2 = c["point"]
 	var ocean: Node = vs.get("sea").get("ocean")
 	var y := float(ocean.call("height_at", Vector3(p.x, 0.0, p.y))) + 0.8 if ocean != null else 0.8
@@ -216,10 +282,11 @@ func _thud(boats: Array, c: Dictionary, hard: float) -> void:
 	if hard > 1.5:
 		Sfx.play_point(self, Vector3(p.x, y, p.y), "sea.slam", loud * 0.6, 1.2)
 	var n: Vector2 = c["normal"]
-	_knock(boats, 0, n, hard * BUMP_KICK)
-	_knock(boats, 1, -n, hard * BUMP_KICK)
+	_knock(boats, i, n, hard * BUMP_KICK)
+	_knock(boats, j, -n, hard * BUMP_KICK)
 	var me: Node = vs.get("sea").get("crew").get("me")
-	if hard > STAGGER and me != null and boats.has(me.get("boat")) and not bool(me.get("steering")):
+	if hard > STAGGER and me != null and (me.get("boat") == boats[i] or me.get("boat") == boats[j]) \
+			and not bool(me.get("steering")):
 		me.call("gesture", "stumble")
 
 
@@ -230,54 +297,70 @@ func _knock(boats: Array, i: int, push: Vector2, kick: float) -> void:
 	_rock_v[i] += Vector2(local.z * 0.6, -local.x) * minf(kick, 0.4)
 
 
-## Every peer: each boat's trail, and the other's arms rocking her as she crosses them (or they pass under her).
+## Every peer: each boat's trail, and every other's arms rocking her as she crosses them (or they pass under her).
 func _wakes(boats: Array, delta: float) -> void:
 	_trail_in -= delta
 	var drop := _trail_in <= 0.0
 	if drop:
 		_trail_in = TRAIL_EVERY
-	for i in 2:
-		var h: Node = (boats[i] as Node).get("helm")
+	var count := boats.size()
+	for i in count:
 		var trail: Array = _trails[i]
+		if boats[i] == null:
+			continue
+		var h: Node = (boats[i] as Node).get("helm")
 		var v := float(h.get("speed"))
 		if drop and absf(v) > TRAIL_SPEED:
 			trail.push_front([h.get("at"), Helm.ahead_of(float(h.get("heading"))) * signf(v), absf(v), _clock,
 					wake_power(absf(v))])
 		while not trail.is_empty() and _clock - float(trail.back()[3]) > WAKE_LIFE:
 			trail.pop_back()
-	for i in 2:
-		var h: Node = (boats[i] as Node).get("helm")
-		var at: Vector2 = h.get("at")
-		var power := 0.0
-		var push := Vector2.ZERO
-		for s: Array in _trails[1 - i]:
-			var age := _clock - float(s[3])
-			if age < 1.0:
-				continue
-			var way: Vector2 = s[1]
-			var rel: Vector2 = at - (s[0] as Vector2)
-			if absf(rel.dot(way)) > float(s[2]) * TRAIL_EVERY * 0.5 + 1.0:
-				continue
-			var off := way.cross(rel)
-			var reach := 1.5 + KELVIN * float(s[2]) * age
-			if absf(absf(off) - reach) > ARM:
-				continue
-			var p := float(s[4]) * (1.0 - age / WAKE_LIFE)
-			if p > power:
-				power = p
-				push = Vector2(-way.y, way.x) * signf(off)      # (out from her track, toward this boat)
-		var in_arm := power > 0.05
-		if in_arm and not _in_arm[i]:
-			# (bow into it, it's a pitch and softer; beam on, the full roll)
-			var beam_on := absf(Helm.ahead_of(float(h.get("heading"))).cross(push))
-			var hit := power * lerpf(0.35, 1.0, beam_on)
-			_knock(boats, i, push, hit * WAKE_KICK)
-			var b := boats[i] as Node3D
-			var bow := b.global_transform * Vector3(0.0, 0.3, -float(b.get("length")) * 0.35)
-			Sfx.play_point(self, bow, "dock.slap", clampf(power * 1.4, 0.3, 1.0), 0.8)
-			if hit > BOMB:
-				_bomb(boats, i, hit)
-		_in_arm[i] = in_arm
+	for i in count:
+		if boats[i] == null:
+			continue
+		var any := false
+		for j in count:
+			if j != i and boats[j] != null and _wake(boats, i, j):
+				any = true
+		_in_arm[i] = any
+
+
+## Boat i in boat j's wake: knocked as she comes into an arm of it. Whether she's in one.
+func _wake(boats: Array, i: int, j: int) -> bool:
+	var h: Node = (boats[i] as Node).get("helm")
+	var at: Vector2 = h.get("at")
+	var power := 0.0
+	var push := Vector2.ZERO
+	for s: Array in _trails[j]:
+		var age := _clock - float(s[3])
+		if age < 1.0:
+			continue
+		var way: Vector2 = s[1]
+		var rel: Vector2 = at - (s[0] as Vector2)
+		if absf(rel.dot(way)) > float(s[2]) * TRAIL_EVERY * 0.5 + 1.0:
+			continue
+		var off := way.cross(rel)
+		var reach := 1.5 + KELVIN * float(s[2]) * age
+		if absf(absf(off) - reach) > ARM:
+			continue
+		var p := float(s[4]) * (1.0 - age / WAKE_LIFE)
+		if p > power:
+			power = p
+			push = Vector2(-way.y, way.x) * signf(off)      # (out from her track, toward this boat)
+	var k := i * boats.size() + j
+	var in_arm := power > 0.05
+	if in_arm and not _arms[k]:
+		# (bow into it, it's a pitch and softer; beam on, the full roll)
+		var beam_on := absf(Helm.ahead_of(float(h.get("heading"))).cross(push))
+		var hit := power * lerpf(0.35, 1.0, beam_on)
+		_knock(boats, i, push, hit * WAKE_KICK)
+		var b := boats[i] as Node3D
+		var bow := b.global_transform * Vector3(0.0, 0.3, -float(b.get("length")) * 0.35)
+		Sfx.play_point(self, bow, "dock.slap", clampf(power * 1.4, 0.3, 1.0), 0.8)
+		if hit > BOMB:
+			_bomb(boats, i, hit)
+	_arms[k] = in_arm
+	return in_arm
 
 
 ## Your view shaken (0..1: the horn, vs/horn.gd), dying away.
