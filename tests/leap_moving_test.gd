@@ -118,20 +118,25 @@ func _leap(me: Node3D, a_boat: Node3D, b_boat: Node3D, gap: float, way: int, run
 		# up on her rail (a walk into it and a jump), then W and Space (Shift too, for a gap): the leap
 		Input.action_press("move_forward")
 		Input.action_press("jump")
-		await _watch(me, to, w)
+		var tap := float(w["t"]) + 0.1       # (a tap a hand makes: a tenth of a second, whatever the frame rate)
+		while float(w["t"]) < tap:
+			await _watch(me, to, w)
 		Input.action_release("jump")
 		while me.on_rail() == Vector3.ZERO and float(w["t"]) < 1.5:
 			await _watch(me, to, w)
 			if float(w["t"]) > 0.25:
 				Input.action_release("move_forward")
 		Input.action_release("move_forward")
-		for k in 8:
+		var steady := float(w["t"]) + 0.27        # (a moment up there, steady)
+		while float(w["t"]) < steady:
 			await _watch(me, to, w)
 		if gap > 1.0:
 			Input.action_press("sprint")        # (lying alongside, a walk's leap: a sprint takes you to her far rail)
 		Input.action_press("move_forward")
 		Input.action_press("jump")
-		await _watch(me, to, w)
+		tap = float(w["t"]) + 0.1       # (a tap a hand makes: a tenth of a second, whatever the frame rate)
+		while float(w["t"]) < tap:
+			await _watch(me, to, w)
 	Input.action_release("jump")
 	while not (me.mode == Player.DECK and me.frame == to and me.body.is_on_floor()) and me.mode != Player.SWIM \
 			and float(w["t"]) < 6.0:
@@ -139,7 +144,8 @@ func _leap(me: Node3D, a_boat: Node3D, b_boat: Node3D, gap: float, way: int, run
 	Input.action_release("move_forward")
 	Input.action_release("sprint")
 	# (and a moment on, after it)
-	for k in 12:
+	var after := float(w["t"]) + 0.4
+	while float(w["t"]) < after:
 		await _watch(me, to, w)
 	var where := "%s %s" % ["A" if me.boat == a_boat else "B", ["deck", "sea", "ladder", "air"][me.mode]]
 	var what := "%.0f m gap, %s%s" % [gap, "B to A" if way > 0 else "A to B", ", running" if run else ""]
@@ -170,7 +176,7 @@ func _leap(me: Node3D, a_boat: Node3D, b_boat: Node3D, gap: float, way: int, run
 func _watch(me: Node3D, to: Node3D, w: Dictionary) -> void:
 	var was_mode: int = me.mode
 	await get_tree().process_frame
-	w["t"] = float(w["t"]) + 1.0 / 30.0
+	w["t"] = float(w["t"]) + get_process_delta_time()
 	if me.mode == Player.AIR and not w["went"]:
 		w["went"] = true
 		w["launch"] = me.get("_air_v")

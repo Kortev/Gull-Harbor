@@ -27,6 +27,8 @@ const TOWN_BROW := 6.0
 const X0 := -150.0            # the quay's ends (world x)
 const X1 := 170.0
 
+const PierLadder := preload("res://sea/pier_ladder.gd")
+
 var harbour: Node3D           # sea/harbour.gd
 var sea: Node                 # sea/sea.gd (the crew's movement asks a frame for it)
 ## What the crew's movement reads off a frame: how long and wide (m), her deck (here the water: y 0 in its frame).
@@ -213,6 +215,14 @@ func _build() -> void:
 	add_box(Vector3(-30.0, qy + 0.8, shore(-30.0) + 31.5), Vector3(5.2, 1.6, 1.9))   # the pickups
 	add_box(Vector3(95.0, qy + 0.8, shore(95.0) + 33.0), Vector3(5.2, 1.6, 1.9))
 	_commit()
+	# the ladder down the pier's west side at its end (sea/harbour.gd draws it): out of the harbour onto the pier
+	ladder = PierLadder.new()
+	ladder.name = "PierLadder"
+	ladder.set("boat", self)
+	ladder.set("spot", Vector3(0.0, dy, 0.0))
+	ladder.set("face", -PI * 0.5)
+	ladder.transform = Transform3D(Basis(Vector3.UP, -PI * 0.5), Vector3(px - pw * 0.5 - 0.12, 0.0, far + 1.0) - position)
+	add_child(ladder)
 
 
 ## The town float: one float out from the quay, both its edges for lying alongside (so it's in `floats` twice, once an

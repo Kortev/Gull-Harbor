@@ -76,7 +76,7 @@ func _run() -> void:
 	me.force_input = true
 	_track = true
 	# ashore: a walk at her starboard rail (the float's side) and a jump, up on it, and a step off it onto the float
-	me.place(Vector3(0.2, boat.deck + 0.02, 2.0), -PI * 0.5, boat)
+	me.place(Vector3(0.2, boat.deck + 0.02, 3.6), -PI * 0.5, boat)       # (mid-cockpit, clear of her cabin)
 	await get_tree().create_timer(0.3).timeout
 	_pwas = Vector3.INF
 	_pjump = 0.0
@@ -87,16 +87,17 @@ func _run() -> void:
 		# (at her side: up against her liner, going no further)
 		if me.mode == Player.DECK and me.boat == boat:
 			var x := me.local_position().x
-			if t > 0.4 and x <= last_x + 0.01:
+			# (a fresh press each time you've stopped against something: tap, let go, tap)
+			if t > 0.4 and x <= last_x + 0.01 and not Input.is_action_pressed("jump"):
 				Input.action_press("jump")
-			elif x > last_x + 0.05:
+			else:
 				Input.action_release("jump")
 			last_x = maxf(last_x, x)
 		if OS.get_cmdline_user_args().has("--trace"):
 			print("  %.2f %s %s frame=%s at=%s local=%s" % [t, ["deck", "sea", "ladder", "air"][me.mode], me.boat.name,
 					me.frame.name if me.frame else "world", me.global_position, me.get("_local")])
 		await get_tree().process_frame
-		t += 1.0 / 30.0
+		t += get_process_delta_time()
 	Input.action_release("jump")
 	Input.action_release("sprint")
 	Input.action_release("move_forward")
@@ -141,7 +142,7 @@ func _run() -> void:
 			print("  b %.2f %s %s frame=%s at=%s outer=%.2f" % [t, ["deck", "sea", "ladder", "air"][me.mode], me.boat.name,
 					me.frame.name if me.frame else "world", me.global_position, outer])
 		await get_tree().process_frame
-		t += 1.0 / 30.0
+		t += get_process_delta_time()
 	Input.action_release("jump")
 	Input.action_release("move_forward")
 	await get_tree().create_timer(0.3).timeout
@@ -190,14 +191,14 @@ func _run() -> void:
 	t = 0.0
 	var seen_hung := false
 	while (hold.sale.get("lines", []) as Array).size() < 2 and t < 60.0:
-		sea.places.host_crank()
-		seen_hung = seen_hung or sea.places.h_grade >= 0.0
-		if sea.places.h_grade > 1.8 and not _snapped.has("scale"):
+		sea.places.stations[0].host_crank()
+		seen_hung = seen_hung or sea.places.stations[0].h_grade >= 0.0
+		if sea.places.stations[0].h_grade > 1.8 and not _snapped.has("scale"):
 			await _snap("scale")
-		if sea.places.h_t > 1.6 and sea.places.h_t < 2.0 and not _snapped.has("hoist"):
+		if sea.places.stations[0].h_t > 1.6 and sea.places.stations[0].h_t < 2.0 and not _snapped.has("hoist"):
 			await _snap("hoist")
 		await get_tree().process_frame
-		t += 1.0 / 30.0
+		t += get_process_delta_time()
 	var sold: Array = hold.sale.get("lines", [])
 	_check(sold.size() == 2, "both fish cranked up onto the scale and sold (%d, %.0f s)" % [sold.size(), t])
 	_check(seen_hung, "each hung on the scale while the buyer graded it")
@@ -210,15 +211,22 @@ func _run() -> void:
 	var f0 := hold.fuel
 	var b0 := hold.bank
 	for k in 60:
-		sea.places.call("_ask_fill", 1.0 / 30.0)
+		sea.places.stations[0].call("_ask_fill", 1.0 / 30.0)
 		await get_tree().process_frame
 	_check(hold.fuel > f0 + 0.05 and hold.bank < b0, "the pump: her tank filling (%.2f > %.2f), paid as it runs" % [
 			hold.fuel, f0])
 	var i0 := hold.ice
 	hold.call("_ask_lid", true)
 	await get_tree().create_timer(0.5).timeout
+	me.hands.pick("scoop")
 	me.hands.set("scoop_ice", true)
+	await get_tree().create_timer(0.3).timeout
+	var ice_view: Node3D = (me.hands.get("_view") as Node).find_child("Ice", true, false) if me.hands.get("_view") else null
+	_check(ice_view != null and ice_view.visible, "a scoop of ice: you can see it in the scoop")
 	hold.call("_scoop_ice", me, "scoop", true)
+	await get_tree().create_timer(0.2).timeout
+	_check(ice_view == null or not ice_view.visible, "tipped in: the scoop's empty again")
+	me.hands.pick("")
 	_check(hold.ice == i0 + 1, "a scoop of ice off the bin into her box (%d)" % hold.ice)
 	var w0 := hold.well
 	sea.places.call("_ask_tote", true)
@@ -249,13 +257,52 @@ func _run() -> void:
 			await _snap("tow")
 			me.cam.make_current()
 		await get_tree().process_frame
-		t += 1.0 / 30.0
+		t += get_process_delta_time()
 	_check(under_tow, "the launch came out and took her in tow")
 	_check(hold.docked and lines.tied(), "brought in alongside, her lines made fast for her (%.0f s)" % t)
 	_check(bool(hold.sale.get("late", false)), "late: the cannery's price")
 	_check(_jump < STEP, "towed in the whole way, nothing put anywhere (%.3f m a frame at most)" % _jump)
 	await get_tree().create_timer(1.0).timeout
 	_check(helm.towed_by == null, "and the launch let her go")
+	# in the harbour off the pier's end: up its ladder onto the pier
+	var ladder: Node3D = q.ladder
+	var lfoot := ladder.global_transform * Vector3(0.0, 0.0, 1.2)
+	me.overboard(lfoot, ladder.global_position)
+	await get_tree().create_timer(0.5).timeout
+	_check(me.mode == Player.SWIM, "in the harbour off the pier's end")
+	ladder.call("interact", me)
+	me.set("force_climb", true)
+	await _until(func() -> bool: return me.mode == Player.DECK, 10.0)
+	me.set("force_climb", false)
+	await get_tree().create_timer(0.3).timeout
+	_check(me.mode == Player.DECK and me.boat == q and absf(me.global_position.y - sea.harbour.DECK_Y) < 0.2,
+			"up the pier's ladder and onto its deck (%s, y %.2f)" % [me.boat.name, me.global_position.y])
+	# Rivals: boat B at her berth on the east float has the same kit: the hoist sells her fish, the pump fills her
+	Settings.prep["rivals"] = "full"
+	sea.vs.host_set_on(true)
+	await get_tree().create_timer(1.0).timeout
+	var b_boat: Node3D = sea.vs.sides[1].get("boat")
+	var b_hold: Node = sea.vs.sides[1].get("fish_hold")
+	_check(sea.vs.on and bool(b_hold.get("docked")) and bool((b_boat.get("lines") as Node).call("tied")),
+			"Rivals: boat B on her lines at the east float")
+	b_hold.call("host_add", 90.0, 40.0)
+	for f: Dictionary in b_hold.get("fish"):
+		f["iced_s"] = 1.0
+		f["packed"] = 1.0
+	b_hold.call("_ask_lid", true)
+	var east: Node = sea.places.stations[1]
+	t = 0.0
+	while ((b_hold.get("sale") as Dictionary).get("lines", []) as Array).is_empty() and t < 40.0:
+		east.call("host_crank")
+		await get_tree().process_frame
+		t += get_process_delta_time()
+	_check(not ((b_hold.get("sale") as Dictionary).get("lines", []) as Array).is_empty(),
+			"B's fish up out of her on the east float's hoist and sold on her slip (%.0f s)" % t)
+	var bf := float(b_hold.get("fuel"))
+	for k in 60:
+		east.call("_ask_fill", 1.0 / 30.0)
+		await get_tree().process_frame
+	_check(float(b_hold.get("fuel")) > bf + 0.05, "and the east float's pump fills B's tank (%.2f)" % float(b_hold.get("fuel")))
 
 
 var _snapped := {}
@@ -280,7 +327,7 @@ func _until(ok: Callable, secs: float) -> void:
 	var t := 0.0
 	while not bool(ok.call()) and t < secs:
 		await get_tree().process_frame
-		t += 1.0 / 30.0
+		t += get_process_delta_time()
 
 
 ## Walks you through `points` (world x, z), one after the other, facing each.
@@ -294,7 +341,7 @@ func _walk(me: Player, points: Array) -> void:
 				break
 			me.set("_yaw", atan2(-d.x, -d.y))
 			await get_tree().process_frame
-			t += 1.0 / 30.0
+			t += get_process_delta_time()
 		Input.action_release("move_forward")
 		await get_tree().create_timer(0.2).timeout
 

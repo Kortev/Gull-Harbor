@@ -113,7 +113,7 @@ func setup(on: Node3D) -> void:
 		var places := _places()
 		if places != null and p != null and bool(places.call("carrying", p)):
 			# a tote of mackerel off the bait shop's counter tipped in (sea/places.gd)
-			places.call("ask_tote", false)
+			places.call("ask_tote", false, boat)
 			p.call("gesture", "reach")
 			Sfx.play_point(self, global_position, "dock.slap", 0.6, 1.2)
 			return

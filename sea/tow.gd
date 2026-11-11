@@ -80,6 +80,13 @@ func _ready() -> void:
 	_engine.max_distance = 220.0
 	add_child(_engine)
 	_pose()
+	# (someone joining, or back after a drop, mid-tow: where the launch is, and that she's under tow)
+	Net.peer_joined.connect(func(id: int) -> void:
+		if not multiplayer.is_server():
+			return
+		_state.rpc_id(id, at, heading, speed, state)
+		if target != null and is_instance_valid(target) and (target.get("helm") as Node).get("towed_by") == self:
+			_towed.rpc_id(id, target.get_path(), true))
 
 
 ## Whether it's out (gone for a boat, or on its way back).

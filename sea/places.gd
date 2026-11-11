@@ -28,6 +28,7 @@ const Sfx := preload("res://audio/sfx.gd")
 const Handling := preload("res://tuna/handling.gd")
 const CREW := preload("res://crew/crew.glb")
 const Quay := preload("res://sea/quay.gd")
+const Station := preload("res://sea/station.gd")
 
 ## The hoist: how quickly the crank goes round (of a phase a second); its arm's height over the float, how far out it
 ## reaches; the buyer's grading (coring, the call, the fish into the tote).
@@ -47,32 +48,14 @@ var quay: Node                # sea/quay.gd
 ## The hoist (the host's): its phase (0 hook up over the scale .. 1 down at the fish .. 2 up clear of her .. 3 hung
 ## on the scale), the fish on it ({} none: its record off fish_hold.gd's books), grading (s since it was hung; -1 not),
 ## the price called ([kg, grade, $, why] or []).
-var h_t := 0.0
-var h_fish := {}
-var h_grade := -1.0
-var h_call: Array = []
-var _crank_at := -100000
-var _send := 0.0
+
 ## Who's carrying a tote of mackerel (peer id -> true).
 var carriers := {}
 ## Where it all is (world).
-var davit := Vector3.ZERO
-var scale_at := Vector3.ZERO
-var pump_at := Vector3.ZERO
-var bin_at := Vector3.ZERO
+## The kit at each float's berth (sea/station.gd): [west (the career's, Rivals' A), east (Rivals' B)].
+var stations: Array = []
 var counters := {}            # name -> {at, face, fill (Callable), keeper}
-var _arm: Node3D
-var _trolley: Node3D
-var _hook: Node3D
-var _fall: MeshInstance3D
-var _fish_mesh: Node3D
-var _call_label: Label3D
-var _dial: Label3D
-var _buyer: Node3D
-var _hose: ImmediateMesh
-var _hose_mat: StandardMaterial3D
-var _pumping_t := 0.0
-var _pump_acc := 0.0
+
 var _tote_meshes := {}
 var _folk: Array[Node3D] = []
 var _t := 0.0
@@ -88,20 +71,27 @@ func _ready() -> void:
 	quay = harbour.get("quay")
 	var px := float(harbour.get("PIER_X"))
 	var face := float(quay.call("face"))
-	var dz := face - 17.3
-	davit = Vector3(px - 2.9, Quay.FLOAT_Y, dz)
-	scale_at = Vector3(px - 1.0, float(harbour.get("DECK_Y")), dz)
-	pump_at = Vector3(px - 2.9, Quay.FLOAT_Y, face - 22.3)
-	bin_at = Vector3(px - 2.9, Quay.FLOAT_Y, face - 19.8)
-	_build_hoist()
-	_build_pump()
-	_build_bin()
+	# the west float's kit abeam her box at the career's berth (and Rivals' A's); the east float's the same, mirrored,
+	# abeam Rivals' B's box at hers (vs/vs.gd's _berth: further out along the pier, for the same run to the mouth)
+	for i in 2:
+		var st := Station.new()
+		st.name = "Station%d" % i
+		st.places = self
+		st.sea = sea
+		st.index = i
+		var s := -1.0 if i == 0 else 1.0
+		var z := face - 17.3 if i == 0 else face - 25.7
+		st.davit = Vector3(px + s * 2.9, Quay.FLOAT_Y, z)
+		st.scale_at = Vector3(px + s * 1.0, float(harbour.get("DECK_Y")), z)
+		st.pump_at = Vector3(px + s * 2.9, Quay.FLOAT_Y, z - 5.0)
+		st.bin_at = Vector3(px + s * 2.9, Quay.FLOAT_Y, z - 2.5)
+		add_child(st)
+		stations.append(st)
 	_build_counters(harbour)
 	_build_card()
 	Net.peer_joined.connect(func(id: int) -> void:
 		if multiplayer.is_server():
-			_carriers.rpc_id(id, carriers)
-			_hoist.rpc_id(id, h_t, h_fish, h_grade, h_call))
+			_carriers.rpc_id(id, carriers))
 	Net.peer_left.connect(func(id: int) -> void:
 		if Net.is_host() and carriers.has(id):
 			carriers.erase(id)
@@ -174,127 +164,12 @@ func _act(parent: Node3D, at: Vector3, size: Vector3, use: Callable, prompt: Cal
 	return a
 
 
-func _build_hoist() -> void:
-	var steel := Color(0.25, 0.35, 0.5)
-	var root := Node3D.new()
-	root.name = "Hoist"
-	root.position = davit
-	add_child(root)
-	# the post, its foot plate on the float, the crank on its side
-	_boxm(root, Vector3(0, 0.03, 0), Vector3(0.7, 0.06, 0.7), steel.darkened(0.3))
-	_boxm(root, Vector3(0, ARM_Y * 0.5, 0), Vector3(0.22, ARM_Y, 0.22), steel)
-	quay.call("add_box", davit + Vector3(0, 1.0, 0), Vector3(0.4, 2.0, 0.4))
-	var crank := Node3D.new()
-	crank.position = Vector3(0.2, 1.05, 0.0)
-	root.add_child(crank)
-	_boxm(crank, Vector3(0.06, 0, 0), Vector3(0.12, 0.3, 0.3), Color(0.3, 0.3, 0.32))
-	_boxm(crank, Vector3(0.16, 0.12, 0), Vector3(0.05, 0.05, 0.22), Color(0.75, 0.15, 0.1))
-	crank.name = "Crank"
-	_act(root, Vector3(0.2, 1.05, 0.0), Vector3(0.7, 0.9, 0.9), func(_p: Node) -> void: pass, _hoist_prompt)
-	# the arm (turns), the trolley along it, the fall and the hook
-	_arm = Node3D.new()
-	_arm.position = Vector3(0, ARM_Y, 0)
-	root.add_child(_arm)
-	_boxm(_arm, Vector3(0, 0.1, -REACH * 0.5), Vector3(0.18, 0.2, REACH + 0.3), steel)
-	_boxm(_arm, Vector3(0, -0.4, -0.6), Vector3(0.08, 0.9, 0.08), steel.darkened(0.2))
-	_trolley = Node3D.new()
-	_arm.add_child(_trolley)
-	_boxm(_trolley, Vector3(0, -0.06, 0), Vector3(0.3, 0.12, 0.3), Color(0.3, 0.3, 0.32))
-	_hook = Node3D.new()
-	_hook.top_level = true
-	root.add_child(_hook)
-	_boxm(_hook, Vector3(0, 0.1, 0), Vector3(0.22, 0.2, 0.1), Color(0.85, 0.85, 0.82))       # (the load cell)
-	_boxm(_hook, Vector3(0, -0.08, 0), Vector3(0.04, 0.16, 0.04), Color(0.6, 0.6, 0.6))
-	_dial = _label(_hook, Vector3(0, 0.1, 0.06), "", 12, Color(0.9, 0.3, 0.2), 0.004)
-	_fall = MeshInstance3D.new()
-	var cm := BoxMesh.new()
-	cm.size = Vector3(0.02, 1.0, 0.02)
-	_fall.mesh = cm
-	_fall.material_override = _mat(Color(0.5, 0.5, 0.5))
-	_fall.top_level = true
-	root.add_child(_fall)
-	# the buyer's tote on the pier under the scale, and the buyer
-	var tote := Node3D.new()
-	tote.position = scale_at
-	add_child(tote)
-	_tote_box(tote, Vector3(1.2, 0.75, 2.0), Color(0.2, 0.42, 0.62))
-	_boxm(tote, Vector3(0, 0.6, 0), Vector3(1.1, 0.05, 1.9), Color(0.78, 0.86, 0.9))         # (its ice)
-	quay.call("add_box", scale_at + Vector3(0, 0.4, 0), Vector3(1.2, 0.8, 2.0))
-	_buyer = _person(scale_at + Vector3(0.95, 0.0, 1.0), PI * 0.65, Color(0.86, 0.86, 0.84), "THE BUYER")
-	_call_label = _label(self, scale_at + Vector3(0.0, 2.9, 0.0), "", 24, Color(1.0, 0.86, 0.5), 0.006)
-	_call_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	var sign := _label(self, scale_at + Vector3(-0.62, 1.2, 0.0), "FISH CO.\nSCALE", 24, Color(0.95, 0.93, 0.85), 0.004)
-	sign.rotation.y = -PI * 0.5
-
-
 ## A tote: a box open at the top (four walls and a floor).
 func _tote_box(parent: Node3D, s: Vector3, c: Color) -> void:
 	_boxm(parent, Vector3(0, 0.03, 0), Vector3(s.x, 0.06, s.z), c.darkened(0.2))
 	for side: float in [-1.0, 1.0]:
 		_boxm(parent, Vector3(side * (s.x - 0.06) * 0.5, s.y * 0.5, 0), Vector3(0.06, s.y, s.z), c)
 		_boxm(parent, Vector3(0, s.y * 0.5, side * (s.z - 0.06) * 0.5), Vector3(s.x, s.y, 0.06), c)
-
-
-func _build_pump() -> void:
-	var root := Node3D.new()
-	root.name = "Pump"
-	root.position = pump_at
-	add_child(root)
-	_boxm(root, Vector3(0, 0.7, 0), Vector3(0.6, 1.4, 0.45), Color(0.78, 0.16, 0.12))
-	_boxm(root, Vector3(0, 1.1, -0.23), Vector3(0.4, 0.3, 0.02), Color(0.1, 0.1, 0.1))
-	_boxm(root, Vector3(-0.32, 0.9, 0), Vector3(0.06, 0.2, 0.12), Color(0.15, 0.15, 0.15))     # (the nozzle in its holster)
-	_label(root, Vector3(0, 1.48, -0.24), "DIESEL", 12, Color(0.95, 0.93, 0.85), 0.006).rotation.y = PI
-	quay.call("add_box", pump_at + Vector3(0, 0.7, 0), Vector3(0.6, 1.4, 0.45))
-	_act(root, Vector3(0, 1.0, 0), Vector3(0.9, 0.9, 0.9), func(_p: Node) -> void: pass, _pump_prompt)
-	_hose = ImmediateMesh.new()
-	var mi := MeshInstance3D.new()
-	mi.mesh = _hose
-	mi.top_level = true
-	_hose_mat = _mat(Color(0.08, 0.08, 0.09))
-	_hose_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_hose_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mi.material_override = _hose_mat
-	add_child(mi)
-
-
-func _build_bin() -> void:
-	var root := Node3D.new()
-	root.name = "IceBin"
-	root.position = bin_at
-	add_child(root)
-	_tote_box(root, Vector3(1.0, 0.9, 1.2), Color(0.88, 0.88, 0.85))
-	_boxm(root, Vector3(0, 0.82, 0), Vector3(0.9, 0.06, 1.1), Color(0.8, 0.88, 0.92))
-	# its chute down from the ice plant's pipe along the pier
-	_boxm(root, Vector3(0.6, 2.6, 0), Vector3(0.3, 0.3, 0.3), Color(0.6, 0.62, 0.64))
-	_boxm(root, Vector3(0.3, 1.8, 0), Vector3(0.22, 1.4, 0.22), Color(0.6, 0.62, 0.64)).rotation.z = 0.35
-	_label(root, Vector3(0, 1.05, -0.62), "ICE  $%d A SCOOP" % FishHold.ICE_PRICE, 12, Color(0.15, 0.2, 0.3), 0.005) \
-			.rotation.y = PI
-	quay.call("add_box", bin_at + Vector3(0, 0.45, 0), Vector3(1.0, 0.9, 1.2))
-	_act(root, Vector3(0, 0.9, 0), Vector3(1.0, 0.5, 1.2), func(_p: Node) -> void: pass,
-			func() -> String:
-				var hold := _hold()
-				if hold == null or str(hold.get("prep")) == "off":
-					return ""
-				var me := _me()
-				var hands: Node = me.get("hands") if me else null
-				if hands != null and bool(hands.get("scoop_ice")):
-					return "Tip it in her open fish box"
-				if hands != null and str(hands.get("item")) == "scoop":
-					return "LMB|A SCOOP OF ICE ($%d)" % FishHold.ICE_PRICE
-				return "4|THE SCOOP: ICE FOR HER BOX (%d OF %d IN IT)" % [int(hold.get("ice")), int(hold.call("ice_room"))],
-			func(p: Node, item: String, pressed: bool) -> bool:
-				if item != "scoop" or not pressed:
-					return false
-				var hands: Node = p.get("hands")
-				if hands == null or bool(hands.get("scoop_full")) or bool(hands.get("scoop_ice")):
-					return false
-				var hold := _hold()
-				if hold == null or int(hold.get("bank")) < FishHold.ICE_PRICE:
-					return false
-				hands.set("scoop_ice", true)
-				p.call("gesture", "scoop")
-				Sfx.play_point(self, bin_at + Vector3(0, 0.9, 0), "dock.slap", 0.4, 1.8)
-				return true)
 
 
 func _build_counters(harbour: Node) -> void:
@@ -460,338 +335,6 @@ func _idle(delta: float) -> void:
 				fore.rotate_object_local(Vector3.RIGHT, 0.6)
 
 
-# ------------------------------------------------------------------ the hoist
-
-## Where the hook's after: the next fish aboard her (one on deck first, else one in her open box) and where it is
-## (world); [] if there's none, her box shut with only iced ones in it, or she's not under the arm.
-func _next_fish() -> Array:
-	var hold := _hold()
-	var boat := _boat()
-	if hold == null or boat == null:
-		return []
-	var spec: Dictionary = boat.get("spec")
-	var deck: Dictionary = hold.get("_deck")
-	for f: Dictionary in hold.get("fish"):
-		if float(f["iced_s"]) < 0.0 and deck.has(int(f["id"])):
-			var at := (deck[int(f["id"])] as Node3D).global_position
-			if _in_reach(at):
-				return [int(f["id"]), at]
-	if bool(hold.get("box_open")):
-		var box := boat.to_global(spec.get("box", Vector3.ZERO) as Vector3)
-		for f: Dictionary in hold.get("fish"):
-			if float(f["iced_s"]) >= 0.0 and _in_reach(box):
-				return [int(f["id"]), box]
-	return []
-
-
-func _in_reach(at: Vector3) -> bool:
-	var d := Vector2(at.x - davit.x, at.z - davit.z).length()
-	return d > 1.0 and d < REACH
-
-
-func _hoist_prompt() -> String:
-	if h_grade >= 0.0:
-		return "The buyer's grading it"
-	var hold := _hold()
-	if hold == null or not bool(hold.get("docked")):
-		return "The fish buyer's hoist: tie her up alongside it first"
-	if not h_fish.is_empty():
-		return "Hold E: crank him over onto the scale"
-	if (hold.get("fish") as Array).is_empty():
-		return "The fish buyer's hoist: nothing aboard her to sell"
-	if _next_fish().is_empty():
-		var iced := (hold.get("fish") as Array).any(func(f: Dictionary) -> bool: return float(f["iced_s"]) >= 0.0)
-		return "Open her fish box for the hook" if iced and not bool(hold.get("box_open")) \
-				else "Bring her fish box in under the hoist's arm"
-	return "Hold E: crank the hook down to the next fish"
-
-
-## Your E held on the crank: the word to the host, a few times a second.
-func _crank_held(delta: float) -> void:
-	var me := _me()
-	if not _live(me):
-		return
-	var at: Node = me.call("looking_at")
-	if at == null or at.get_parent() == null or at.get_parent().name != "Hoist":
-		return
-	if not Input.is_action_pressed("interact"):
-		return
-	_send -= delta
-	if _send > 0.0:
-		return
-	_send = 0.1
-	if Net.is_host():
-		_ask_crank()
-	else:
-		_ask_crank.rpc_id(1)
-
-
-@rpc("any_peer", "call_remote", "unreliable")
-func _ask_crank() -> void:
-	_crank_at = Time.get_ticks_msec()
-
-
-## Host (tests, dev): someone's on the crank this frame.
-func host_crank() -> void:
-	_crank_at = Time.get_ticks_msec()
-
-
-func _host_hoist(delta: float) -> void:
-	var hold := _hold()
-	var was := [h_t, h_fish.is_empty(), h_grade]
-	if h_grade >= 0.0:
-		h_grade += delta
-		if h_call.is_empty() and h_grade >= CORE:
-			h_call = hold.call("host_sell", h_fish)
-			Sfx.play_point(self, scale_at, "kit.coins", 0.7, 1.0)
-		if h_grade >= STOWED:
-			h_grade = -1.0
-			h_fish = {}
-			h_t = 0.0
-		_hoist_tell(was)
-		return
-	var cranking := Time.get_ticks_msec() - _crank_at < 260
-	if not cranking:
-		return
-	var rate := CRANK * float(hold.call("prep_rate")) if hold else CRANK
-	if h_fish.is_empty():
-		if not bool(hold.get("docked")):
-			return
-		var next := _next_fish()
-		if next.is_empty():
-			# (back up over the scale if it was on its way out: nothing to go down for)
-			h_t = maxf(h_t - rate * delta, 0.0)
-		else:
-			h_t = minf(h_t + rate * delta, 1.0)
-			if h_t >= 1.0:
-				h_fish = hold.call("host_unship", int(next[0]))
-				h_fish["hooked_at"] = next[1]
-				Sfx.play_point(self, next[1], "kit.chain", 0.6, 1.0)
-	else:
-		h_t = minf(h_t + rate * delta, 3.0)
-		if h_t >= 3.0:
-			h_grade = 0.0
-			h_call = []
-			Sfx.play_point(self, scale_at, "kit.clank", 0.6, 0.8)
-	_hoist_tell(was)
-
-
-func _hoist_tell(was: Array) -> void:
-	_send_h -= get_process_delta_time()
-	var changed: bool = bool(was[1]) != h_fish.is_empty() or (float(was[2]) < 0.0) != (h_grade < 0.0) \
-			or (float(was[2]) < CORE and h_grade >= CORE)
-	if not Net.in_session():
-		return
-	if changed:
-		_hoist.rpc(h_t, h_fish, h_grade, h_call)
-	elif _send_h <= 0.0 and (float(was[0]) != h_t or h_grade >= 0.0):
-		_send_h = 0.1
-		_hoist_t.rpc(h_t, h_grade)
-
-
-var _send_h := 0.0
-
-
-@rpc("authority", "call_remote", "reliable")
-func _hoist(t: float, f: Dictionary, g: float, called: Array) -> void:
-	h_t = t
-	h_fish = f
-	h_grade = g
-	h_call = called
-
-
-@rpc("authority", "call_remote", "unreliable_ordered")
-func _hoist_t(t: float, g: float) -> void:
-	h_t = t
-	if h_grade >= 0.0 or g < 0.0:
-		h_grade = g
-
-
-## The hoist drawn from its phase: the arm's swing, the trolley out along it, the hook up or down, the fish on it.
-func _show_hoist() -> void:
-	var boat := _boat()
-	var spec: Dictionary = boat.get("spec") if boat else {}
-	var box := boat.to_global(spec.get("box", Vector3.ZERO) as Vector3) if boat else davit
-	var target: Vector3 = box
-	if h_fish.is_empty() and h_t > 0.0:
-		var next := _next_fish()
-		if not next.is_empty():
-			target = next[1]
-	elif not h_fish.is_empty() and h_fish.has("hooked_at"):
-		target = h_fish["hooked_at"]
-	var s_yaw := _yaw_to(scale_at)
-	var b_yaw := _yaw_to(target)
-	var s_r := Vector2(scale_at.x - davit.x, scale_at.z - davit.z).length()
-	var b_r := clampf(Vector2(target.x - davit.x, target.z - davit.z).length(), 0.5, REACH)
-	var high := davit.y + ARM_Y - 0.9
-	var t := h_t
-	var yaw: float
-	var r: float
-	var y: float
-	if t < 0.5:
-		var k := smoothstep(0.0, 1.0, t / 0.5)
-		yaw = lerp_angle(s_yaw, b_yaw, k)
-		r = lerpf(s_r, b_r, k)
-		y = high
-	elif t < 1.0:
-		yaw = b_yaw
-		r = b_r
-		y = lerpf(high, target.y + 0.35, smoothstep(0.0, 1.0, (t - 0.5) / 0.5))
-	elif t < 1.5:
-		yaw = b_yaw
-		r = b_r
-		y = lerpf(target.y + 0.35, high, smoothstep(0.0, 1.0, (t - 1.0) / 0.5))
-	elif t < 2.5:
-		var k := smoothstep(0.0, 1.0, (t - 1.5) / 1.0)
-		yaw = lerp_angle(b_yaw, s_yaw, k)
-		r = lerpf(b_r, s_r, k)
-		y = high
-	else:
-		yaw = s_yaw
-		r = s_r
-		y = lerpf(high, scale_at.y + 1.0 + _fish_len() * 0.5 + 0.3, smoothstep(0.0, 1.0, (t - 2.5) / 0.5))
-	if h_grade >= 0.0:
-		# hung on the scale; once he's called it, down into his tote, and the hook back up
-		yaw = s_yaw
-		r = s_r
-		var hung := scale_at.y + 1.0 + _fish_len() * 0.5 + 0.3
-		var down := scale_at.y + 0.5 + _fish_len() * 0.5
-		if h_grade < CALLED:
-			y = hung
-		elif h_grade < CALLED + 0.4:
-			y = lerpf(hung, down, smoothstep(0.0, 1.0, (h_grade - CALLED) / 0.4))
-		else:
-			y = lerpf(down, high, smoothstep(0.0, 1.0, (h_grade - CALLED - 0.4) / (STOWED - CALLED - 0.4)))
-	_arm.rotation.y = yaw
-	_trolley.position = Vector3(0, 0, -r)
-	var top := _trolley.global_position
-	var hook := Vector3(top.x, y, top.z)
-	_hook.global_position = hook
-	_fall.global_position = (top + hook) * 0.5
-	_fall.scale = Vector3(1.0, maxf(top.y - hook.y, 0.05), 1.0)
-	# the fish on the hook, tail up
-	var carrying := not h_fish.is_empty() and (h_grade < 0.0 or h_grade < CALLED + 0.4)
-	if carrying and _fish_mesh == null:
-		_fish_mesh = Tuna.new(float(h_fish.get("kg", 100.0)))
-		_fish_mesh.set("posed", true)
-		_fish_mesh.set("limp", true)
-		add_child(_fish_mesh)
-	elif not carrying and _fish_mesh != null:
-		_fish_mesh.queue_free()
-		_fish_mesh = null
-	if _fish_mesh != null:
-		var len := float(_fish_mesh.get("length"))
-		_fish_mesh.global_transform = Transform3D(Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, -PI * 0.5),
-				hook - Vector3(0, 0.12 + len * 0.5, 0))
-	_dial.text = "%d KG" % roundi(float(h_fish.get("kg", 0.0))) if not h_fish.is_empty() and h_t >= 1.2 else ""
-	# the buyer at it, and his call
-	_buyer.set_meta("busy", 1.0 if h_grade >= 0.0 and h_grade < CORE else 0.0)
-	if h_grade >= CORE and not h_call.is_empty():
-		_call_label.text = "%d KG  %s  $%s" % [roundi(float(h_call[0])), str(h_call[1]).to_upper(),
-				FishHold._money(int(h_call[2]))]
-		_call_label.modulate.a = clampf((STOWED + 1.5 - h_grade) / 1.0, 0.0, 1.0)
-	elif h_grade < 0.0 and _call_label.modulate.a > 0.0:
-		_call_label.modulate.a = maxf(_call_label.modulate.a - get_process_delta_time(), 0.0)
-
-
-func _fish_len() -> float:
-	return float(_fish_mesh.get("length")) if _fish_mesh != null else 1.6
-
-
-func _yaw_to(p: Vector3) -> float:
-	var d := p - davit
-	return atan2(-d.x, -d.z)
-
-
-# ------------------------------------------------------------------ the pump
-
-func _pump_prompt() -> String:
-	var hold := _hold()
-	if hold == null or str(hold.get("prep")) == "off":
-		return "The fuel dock: she's filled as she casts off"
-	if _hose_end() == Vector3.INF:
-		return "The fuel dock: bring her alongside the pump"
-	var f := float(hold.get("fuel"))
-	if f >= 0.999:
-		return "Her tank's full"
-	return "Hold E: fill her up  (%d%%, $%s a tank)" % [roundi(f * 100.0),
-			FishHold._money(int(Kinds.spec(str(hold.get("kind"))).get("fuel", 60)))]
-
-
-## Her filler, if the hose reaches it from the pump (world), else INF.
-func _hose_end() -> Vector3:
-	var boat := _boat()
-	if boat == null:
-		return Vector3.INF
-	var side := 1.0 if boat.to_local(pump_at).x > 0.0 else -1.0
-	var spec: Dictionary = boat.get("spec")
-	var rail: Array = spec.get("rail", [])
-	var p: Vector3 = rail[1] if rail.size() > 1 else Vector3(float(boat.get("beam")) * 0.5, 1.1, 0.0)
-	var fill := boat.to_global(Vector3(side * (absf(p.x) - 0.15), p.y, p.z))
-	return fill if fill.distance_to(pump_at) < 9.0 else Vector3.INF
-
-
-func _pump_held(delta: float) -> void:
-	var me := _me()
-	_pumping_t = maxf(_pumping_t - delta, 0.0)
-	if not _live(me):
-		return
-	var at: Node = me.call("looking_at")
-	if at == null or at.get_parent() == null or at.get_parent().name != "Pump" or not Input.is_action_pressed("interact"):
-		return
-	var hold := _hold()
-	if hold == null or str(hold.get("prep")) == "off" or _hose_end() == Vector3.INF:
-		return
-	_pumping_t = 0.3
-	if Net.is_host():
-		_ask_fill(delta)
-	else:
-		_pump_acc += delta
-		if _pump_acc >= 0.1:
-			_ask_fill.rpc_id(1, _pump_acc)
-			_pump_acc = 0.0
-
-
-@rpc("any_peer", "call_remote", "unreliable")
-func _ask_fill(secs: float) -> void:
-	var hold := _hold()
-	if hold == null or _hose_end() == Vector3.INF:
-		return
-	hold.call("host_fill", minf(secs, 0.5) / PUMP_S * float(hold.call("prep_rate")))
-	_say_pumping()
-
-
-func _say_pumping() -> void:
-	_pumping_t = 0.3
-	if Net.in_session():
-		_pumping.rpc()
-
-
-@rpc("authority", "call_remote", "unreliable")
-func _pumping() -> void:
-	_pumping_t = 0.3
-
-
-func _show_hose() -> void:
-	_hose.clear_surfaces()
-	var end := _hose_end()
-	var cam := get_viewport().get_camera_3d()
-	if _pumping_t <= 0.0 or end == Vector3.INF or cam == null:
-		return
-	_hose.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _hose_mat)
-	var a := pump_at + Vector3(-0.32, 0.9, 0)
-	var n := 10
-	var prev := a
-	for k in range(1, n + 1):
-		var t := float(k) / n
-		var p := a.lerp(end, t) + Vector3.DOWN * 0.6 * 4.0 * t * (1.0 - t)
-		var side := (p - prev).normalized().cross((cam.global_position - p).normalized()).normalized() * 0.025
-		for v: Vector3 in [prev - side, prev + side, p + side, prev - side, p + side, p - side]:
-			_hose.surface_add_vertex(v)
-		prev = p
-	_hose.surface_end()
-
-
 # ------------------------------------------------------------------ the totes
 
 ## Whether crew member `p` has a tote of mackerel in their arms.
@@ -799,24 +342,30 @@ func carrying(p: Node) -> bool:
 	return carriers.has(str(p.name).to_int())
 
 
-## A tote off the bait shop's counter for you (the host's books pay), or tipped into her well.
-func ask_tote(buy: bool) -> void:
+## A tote off the bait shop's counter for you (your own boat's books pay), or tipped into boat `into`'s well.
+func ask_tote(buy: bool, into: Node3D = null) -> void:
+	var path := into.get_path() if into != null else NodePath()
 	if Net.is_host():
-		_ask_tote(buy)
+		_ask_tote(buy, path)
 	else:
-		_ask_tote.rpc_id(1, buy)
+		_ask_tote.rpc_id(1, buy, path)
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func _ask_tote(buy: bool) -> void:
+func _ask_tote(buy: bool, into: NodePath = NodePath()) -> void:
 	var who := multiplayer.get_remote_sender_id()
 	if who == 0:
 		who = Net.my_id()
-	var hold := _hold()
+	var crew: Node = sea.get("crew")
+	var own: Node3D = crew.call("boat_of", who) if crew else null
+	var boat: Node = get_node_or_null(into) if not into.is_empty() else own
+	var b_sea: Node = (boat.get("sea") as Node) if boat != null else null
+	var hold: Node = b_sea.get("fish_hold") if b_sea != null else _hold()
 	if hold == null:
 		return
 	if buy:
-		if carriers.has(who) or not bool(hold.call("host_buy_tote")):
+		var pays: Node = ((own.get("sea") as Node).get("fish_hold") as Node) if own != null else hold
+		if carriers.has(who) or not bool(pays.call("host_buy_tote")):
 			return
 		carriers[who] = true
 	else:
@@ -1052,7 +601,9 @@ func _fill_slip() -> void:
 		_card_box.add_child(_row(str(c[0]).to_upper(), _text("-$" + FishHold._money(int(c[1])), 12, Color(0.6, 0.15, 0.1))))
 	var total := int(sold.get("total", 0))
 	_card_box.add_child(_row("THE DAY SO FAR", _text(("$" if total >= 0 else "-$") + FishHold._money(absi(total)), 18)))
-	var aboard := (hold.get("fish") as Array).size() + (0 if h_fish.is_empty() else 1)
+	var aboard := (hold.get("fish") as Array).size()
+	for st: Node in stations:
+		aboard += 0 if (st.get("h_fish") as Dictionary).is_empty() else 1
 	if aboard > 0:
 		_card_box.add_child(_text("%d MORE ABOARD HER: THE HOIST ON THE FLOAT." % aboard, 12))
 
@@ -1119,12 +670,6 @@ func _first_light(delta: float) -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
-	if Net.is_host():
-		_host_hoist(delta)
-	_crank_held(delta)
-	_pump_held(delta)
-	_show_hoist()
-	_show_hose()
 	_show_totes()
 	_idle(delta)
 	_first_light(delta)

@@ -143,7 +143,7 @@ func _gauge() -> void:
 	_fuel_label.name = "FuelGauge"
 	_fuel_label.font = PixFont.font()
 	_fuel_label.font_size = 24
-	_fuel_label.pixel_size = 0.0022
+	_fuel_label.pixel_size = 0.0014
 	_fuel_label.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	_fuel_label.modulate = Color(1.0, 0.78, 0.34)
 	_fuel_label.outline_size = 0
@@ -165,7 +165,7 @@ func _show_fuel() -> void:
 		return
 	var f := float(hold.get("fuel"))
 	var n := clampi(ceili(f * 8.0), 0, 8)
-	var text := "FUEL " + "#".repeat(n) + ".".repeat(8 - n)
+	var text := "FUEL [" + "=".repeat(n) + " ".repeat(8 - n) + "]"
 	if _fuel_label.text != text:
 		_fuel_label.text = text
 		_fuel_label.modulate = Color(1.0, 0.45, 0.3) if f < 0.15 else Color(1.0, 0.78, 0.34)

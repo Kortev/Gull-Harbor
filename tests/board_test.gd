@@ -90,19 +90,24 @@ func _leaps(me: Node3D, a_boat: Node3D, b_boat: Node3D, ha: Node, hb: Node, at: 
 			# up on her rail (a walk at it and a jump), then Shift, W and Space off it
 			Input.action_press("move_forward")
 			Input.action_press("jump")
-			await _watch_leap(me, to, w)
+			var tap := float(w["t"]) + 0.1       # (a tap a hand makes: a tenth of a second, whatever the frame rate)
+			while float(w["t"]) < tap:
+				await _watch_leap(me, to, w)
 			Input.action_release("jump")
 			while me.on_rail() == Vector3.ZERO and float(w["t"]) < 1.5:
 				await _watch_leap(me, to, w)
 				if float(w["t"]) > 0.25:
 					Input.action_release("move_forward")
 			Input.action_release("move_forward")
-			for k in 6:
+			var steady := float(w["t"]) + 0.2        # (a moment up there, steady: a fifth of a second)
+			while float(w["t"]) < steady:
 				await _watch_leap(me, to, w)
 			Input.action_press("sprint")
 			Input.action_press("move_forward")
 			Input.action_press("jump")
-			await _watch_leap(me, to, w)
+			tap = float(w["t"]) + 0.1       # (a tap a hand makes: a tenth of a second, whatever the frame rate)
+			while float(w["t"]) < tap:
+				await _watch_leap(me, to, w)
 			Input.action_release("jump")
 			while not (me.mode == Player.DECK and me.frame == to and me.body.is_on_floor()) \
 					and me.mode != Player.SWIM and float(w["t"]) < 5.0:
@@ -133,7 +138,7 @@ func _watch_leap(me: Node3D, to: Node3D, w: Dictionary) -> void:
 	if me.get("frame") != was_frame and me.get("frame") == to:
 		w["handed"] = d
 	w["prev"] = me.global_position
-	w["t"] = float(w["t"]) + 1.0 / 30.0
+	w["t"] = float(w["t"]) + get_process_delta_time()
 	if OS.get_cmdline_user_args().has("--trace"):
 		var l: Vector3 = (to.global_transform.affine_inverse() * me.global_position)
 		print("  t %.2f step %.2f mode %d rail %s frame %s  in her: %.2f %.2f %.2f" % [float(w["t"]), d, me.get("mode"),
