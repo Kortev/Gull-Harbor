@@ -96,7 +96,9 @@ func _process(delta: float) -> void:
 	if water > 0.4 and not _told:
 		_told = true
 		var crew: Node = boat.get("sea").get("crew") if boat.get("sea") != null else null
-		if crew != null and crew.get("hud") != null and crew.call("boat_of", Net.my_id()) == boat:
+		# (another boat's view of the crew, vs/side.gd, has no boat_of: she isn't yours to be told of)
+		if crew != null and crew.get("hud") != null and crew.has_method("boat_of") \
+				and crew.call("boat_of", Net.my_id()) == boat:
 			(crew.get("hud") as Node).call("notify", "She's taking water: heavy and slow. Get her in out of it")
 	elif water < 0.1:
 		_told = false

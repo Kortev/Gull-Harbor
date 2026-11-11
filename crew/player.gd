@@ -976,6 +976,8 @@ func _doing() -> int:
 ## played back a moment behind (_play_net), so however the words come in, they go on smoothly.
 @rpc("authority", "call_remote", "unreliable_ordered")
 func _state(at: Vector3, yaw: float, pitch: float, doing := 0, item := "", m := DECK, on := -2, t := -1.0) -> void:
+	if not is_inside_tree():
+		return                # (made again on another boat this frame, crew/crew.gd's reseat: a last word for the old one)
 	var f := frame
 	if on != -2:
 		var b := _boat_at(on)
