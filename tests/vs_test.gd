@@ -306,7 +306,11 @@ func _board(sea: Sea, a_boat: Node3D, b_boat: Node3D) -> void:
 	_check(me.boat == a_boat and int(me.get("mode")) == 0 and me.get("home") == b_boat,
 			"over B's rail onto A's deck, still B's crew (%.1f s)" % t)
 	_check(step < 0.3, "a leap, not a jump in where you are (at most %.2f m a frame)" % step)
-	await get_tree().create_timer(0.5).timeout
+	var down := 0.0
+	while not me.body.is_on_floor() and down < 1.5:       # (still coming down from the leap)
+		await get_tree().process_frame
+		down += get_process_delta_time()
+	await get_tree().create_timer(0.2).timeout
 	_check(me.body.is_on_floor(), "standing on A's deck")
 	var on_a: Vector3 = a_boat.global_transform.affine_inverse() * me.global_position
 	for i in 30:

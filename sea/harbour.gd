@@ -123,7 +123,7 @@ func berth_at(i: int, half_beam: float, length: float) -> Vector2:
 		at.y = clampf(z, corner.y + length * 0.5, at.y)
 		return at
 	var way := -1.0 if i == 2 else 1.0
-	var x := Quay.TOWN_X + way * (Quay.FLOAT_W * 0.5 + Lines.OFF + half_beam)
+	var x := Quay.TOWN_X + way * (Quay.TOWN_W * 0.5 + Lines.OFF + half_beam)
 	var off := x - mouth.x
 	var face := _shore(Quay.TOWN_X) - 2.0
 	# (her stern clear of the brow's foot, her bow not past the float's end)
@@ -166,7 +166,7 @@ func _keep_out() -> Array:
 	var b := _shore(FINGER_X) - 2.0
 	var c := _shore(Quay.TOWN_X) - 2.0
 	var hw := PIER_W * 0.5 + Quay.FLOAT_GAP + Quay.FLOAT_W + 0.05
-	var tw := Quay.FLOAT_W * 0.5 + 0.05
+	var tw := Quay.TOWN_W * 0.5 + 0.05
 	return [Rect2(PIER_X - hw, a - PIER_OUT - 0.5, hw * 2.0, PIER_OUT + 3.0),
 			Rect2(FINGER_X - FINGER_W * 0.5 - 6.0, b - FINGER_OUT - 3.0, FINGER_W + 12.0, FINGER_OUT + 5.0),
 			Rect2(Quay.TOWN_X - tw, c - Quay.TOWN_OUT - 0.5, tw * 2.0, Quay.TOWN_OUT + 3.0)]

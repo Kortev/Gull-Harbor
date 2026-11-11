@@ -1,8 +1,11 @@
 extends Node3D
-## A berth's hoist, pump and ice bin (sea/places.gd makes one for each float: the career's berth and Rivals' A on the
-## west float, Rivals' B on the east, the same kit at the same reach, mirrored): the buyer's davit and hanging scale
-## and his tote, the buyer; the fuel dock's pump; the ice plant's bin. Each serves the boat alongside it (her fish box
-## under the davit's arm, her filler in the hose's reach): her own books (boat/fish_hold.gd), her own sale.
+## A berth's hoist, pump and ice bin (sea/places.gd makes one for each of the harbour's four berths: the career's and
+## Rivals' A on the fish pier's west float, B on its east, C and D down the town float's west and east sides; the same
+## kit at the same reach, mirrored): the buyer's davit and hanging scale and his tote, the buyer; the fuel dock's pump;
+## the ice plant's bin. Each serves the boat alongside it (her fish box under the davit's arm, her filler in the hose's
+## reach): her own books (boat/fish_hold.gd), her own sale. With nobody alongside one (the career's one boat, a Rivals
+## of fewer than four) it stands there as a working harbour's does, and does nothing: no fish in its reach, no filler
+## in its hose's.
 ##
 ## The hoist: hold E on its crank and the arm swings out over her and the hook goes down to the next fish (one on deck,
 ## else one out of her open fish box), up out of her, over onto the scale. The buyer cores it, grades it
@@ -20,19 +23,23 @@ const Sfx := preload("res://audio/sfx.gd")
 const Quay := preload("res://sea/quay.gd")
 
 ## The hoist: how quickly the crank goes round (of a phase a second); its arm's height over the float, how far out it
-## reaches; the buyer's grading (coring, the call, the fish into the tote).
+## reaches (a sportfisher's box is 4.5 to 4.8 m from her berth's davit lying snug, and she rides up to a good half
+## metre further off on her lines); the buyer's grading (coring, the call, the fish into the tote).
 const CRANK := 0.85
 const ARM_Y := 4.6
-const REACH := 5.4
+const REACH := 6.0
 const CORE := 1.4
 const CALLED := 3.0
 const STOWED := 3.6
-## The pump: a tank a this many s holding E (quicker with the quick prep).
+## The pump: a tank a this many s holding E (quicker with the quick prep); how far its hose runs to her filler (m: a
+## skiff at the pier's east float has hers 8.8 m from the pump, and she rides about on her lines).
 const PUMP_S := 24.0
+const HOSE := 10.0
 
 var places: Node              # sea/places.gd
 var sea: Node                 # sea/sea.gd
-## Which float (0 west, 1 east), and so which way it all faces.
+## Which berth (sea/harbour.gd's berth_at: 0 and 2 lie west of their float, 1 and 3 east), and so which way it all
+## faces.
 var index := 0
 var _side := 1.0
 var _turn := 0.0
@@ -51,6 +58,12 @@ var davit := Vector3.ZERO
 var scale_at := Vector3.ZERO
 var pump_at := Vector3.ZERO
 var bin_at := Vector3.ZERO
+## Where the buyer stands and which way he faces (INF: by his tote's inboard corner, as on the pier), and the ice
+## plant's pipe to the bin's chute if it's to be seen (world points, from the chute's head back ashore; on the pier
+## the chute comes down off the pier's own).
+var buyer_at := Vector3.INF
+var buyer_yaw := 0.0
+var ice_pipe: Array[Vector3] = []
 var _hoist_root: Node3D
 var _pump_root: Node3D
 var _arm: Node3D
@@ -68,8 +81,8 @@ var _pump_acc := 0.0
 
 
 func _ready() -> void:
-	_side = 1.0 if index == 0 else -1.0
-	_turn = 0.0 if index == 0 else PI
+	_side = 1.0 if index % 2 == 0 else -1.0
+	_turn = 0.0 if index % 2 == 0 else PI
 	_build_hoist()
 	_build_pump()
 	_build_bin()
@@ -78,7 +91,7 @@ func _ready() -> void:
 			_hoist.rpc_id(id, h_t, h_fish, h_grade, h_call))
 
 
-## The boats that could be alongside it, each with her books: [[boat, fish_hold], ...] (Rivals: both).
+## The boats that could be alongside it, each with her books: [[boat, fish_hold], ...] (Rivals: every one).
 func _pairs() -> Array:
 	var vs: Node = sea.get("vs")
 	if vs != null and bool(vs.get("on")):
@@ -176,14 +189,17 @@ func _build_hoist() -> void:
 	_fall.material_override = places._mat(Color(0.5, 0.5, 0.5))
 	_fall.top_level = true
 	root.add_child(_fall)
-	# the buyer's tote on the pier under the scale, and the buyer
+	# the buyer's tote under the scale (on the pier's deck; on the town float's own), and the buyer
 	var tote := Node3D.new()
 	tote.position = scale_at
 	add_child(tote)
 	places._tote_box(tote, Vector3(1.2, 0.75, 2.0), Color(0.2, 0.42, 0.62))
 	places._boxm(tote, Vector3(0, 0.6, 0), Vector3(1.1, 0.05, 1.9), Color(0.78, 0.86, 0.9))         # (its ice)
 	places.quay.call("add_box", scale_at + Vector3(0, 0.4, 0), Vector3(1.2, 0.8, 2.0))
-	_buyer = places._person(scale_at + Vector3(0.95 * _side, 0.0, 1.0), PI * 0.65 * _side, Color(0.86, 0.86, 0.84), "THE BUYER")
+	if buyer_at == Vector3.INF:
+		buyer_at = scale_at + Vector3(0.95 * _side, 0.0, 1.0)
+		buyer_yaw = PI * 0.65 * _side
+	_buyer = places._person(buyer_at, buyer_yaw, Color(0.86, 0.86, 0.84), "THE BUYER")
 	_call_label = places._label(self, scale_at + Vector3(0.0, 2.9, 0.0), "", 24, Color(1.0, 0.86, 0.5), 0.006)
 	_call_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	var sign: Label3D = places._label(self, scale_at + Vector3(-0.62 * _side, 1.2, 0.0), "FISH CO.\nSCALE", 24, Color(0.95, 0.93, 0.85), 0.004)
@@ -199,7 +215,7 @@ func _build_pump() -> void:
 	places._boxm(root, Vector3(0, 0.7, 0), Vector3(0.6, 1.4, 0.45), Color(0.78, 0.16, 0.12))
 	places._boxm(root, Vector3(0, 1.1, -0.23), Vector3(0.4, 0.3, 0.02), Color(0.1, 0.1, 0.1))
 	places._boxm(root, Vector3(-0.32 * _side, 0.9, 0), Vector3(0.06, 0.2, 0.12), Color(0.15, 0.15, 0.15))     # (the nozzle in its holster)
-	places._label(root, Vector3(0, 1.48, -0.24), "DIESEL", 12, Color(0.95, 0.93, 0.85), 0.006).rotation.y = PI + _turn
+	places._label(root, Vector3(0, 1.48, -0.24), "DIESEL", 12, Color(0.95, 0.93, 0.85), 0.006).rotation.y = PI
 	places.quay.call("add_box", pump_at + Vector3(0, 0.7, 0), Vector3(0.6, 1.4, 0.45))
 	places._act(root, Vector3(0, 1.0, 0), Vector3(0.9, 0.9, 0.9), func(_p: Node) -> void: pass, _pump_prompt)
 	_hose = ImmediateMesh.new()
@@ -220,9 +236,13 @@ func _build_bin() -> void:
 	add_child(root)
 	places._tote_box(root, Vector3(1.0, 0.9, 1.2), Color(0.88, 0.88, 0.85))
 	places._boxm(root, Vector3(0, 0.82, 0), Vector3(0.9, 0.06, 1.1), Color(0.8, 0.88, 0.92))
-	# its chute down from the ice plant's pipe along the pier
+	# its chute down from the ice plant's pipe along the pier (the town float's: its own pipe out from the quay)
 	places._boxm(root, Vector3(0.6 * _side, 2.6, 0), Vector3(0.3, 0.3, 0.3), Color(0.6, 0.62, 0.64))
 	places._boxm(root, Vector3(0.3 * _side, 1.8, 0), Vector3(0.22, 1.4, 0.22), Color(0.6, 0.62, 0.64)).rotation.z = 0.35 * _side
+	for k in ice_pipe.size() - 1:
+		var a := ice_pipe[k]
+		var b := ice_pipe[k + 1]
+		places._boxm(self, (a + b) * 0.5, (b - a).abs() + Vector3(0.22, 0.22, 0.22), Color(0.6, 0.62, 0.64))
 	places._label(root, Vector3(0, 1.05, -0.62), "ICE  $%d A SCOOP" % FishHold.ICE_PRICE, 12, Color(0.15, 0.2, 0.3), 0.005) \
 			.rotation.y = PI
 	places.quay.call("add_box", bin_at + Vector3(0, 0.45, 0), Vector3(1.0, 0.9, 1.2))
@@ -523,7 +543,7 @@ func _hose_end() -> Vector3:
 	var rail: Array = spec.get("rail", [])
 	var p: Vector3 = rail[1] if rail.size() > 1 else Vector3(float(boat.get("beam")) * 0.5, 1.1, 0.0)
 	var fill := boat.to_global(Vector3(side * (absf(p.x) - 0.15), p.y, p.z))
-	return fill if fill.distance_to(pump_at) < 9.0 else Vector3.INF
+	return fill if fill.distance_to(pump_at) < HOSE else Vector3.INF
 
 
 func _pump_held(delta: float) -> void:

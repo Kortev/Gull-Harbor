@@ -305,6 +305,7 @@ var force_climb := false
 var _jump_y := 0.0
 var _jump_t := INF
 var _jump_press := INF
+var _jump_used := -1
 var _vault_t := 0.0
 var _vault_to := Vector3.ZERO
 var _vault_top := 0.0
@@ -1158,6 +1159,7 @@ func _walk(delta: float) -> void:
 		v.y = 0.0
 		if live and _knock <= 0.0 and _jump_press <= JUMP_KEEP:
 			_jump_press = INF
+			_jump_used = Engine.get_process_frames()
 			# a jump, pushing off the way you're going
 			v.y = JUMP
 			var push := Vector3(leg.x - v.x, 0.0, leg.z - v.z).limit_length(JUMP_PUSH)
@@ -2204,8 +2206,9 @@ func _process(delta: float) -> void:
 	# (a press of jump seen every drawn frame, not only on a physics tick: a quick tap between two ticks is still a
 	# jump, at any frame rate; _walk takes it from here)
 	var live := force_input or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
-	if is_multiplayer_authority() and live and Input.is_action_just_pressed("jump"):
-		_jump_press = 0.0
+	var fresh := _jump_used != Engine.get_process_frames()
+	if is_multiplayer_authority() and live and fresh and Input.is_action_just_pressed("jump"):
+		_jump_press = 0.0       # (not one a physics tick's already jumped on this frame)
 	var f := Engine.get_physics_interpolation_fraction()
 	if _hop_settle:
 		_hop_settled()        # (someone else, gone into another frame by their word)

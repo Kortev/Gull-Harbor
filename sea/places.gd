@@ -1,8 +1,8 @@
 extends Node3D
 ## The harbour's places, where the dock's business is done by walking up to it (sea/quay.gd is what's walked on):
 ##
-##   the hoist   a davit on the west float abeam her fish box, the buyer's hanging scale and his tote on the pier by
-##               it. Hold E on its crank: the arm swings out over her and the hook goes down to the next fish (one on
+##   the hoist   a davit on the float abeam her fish box, the buyer's hanging scale and his tote by it (one at each
+##               of the harbour's four berths, with a pump and an ice bin: sea/station.gd). Hold E on its crank: the arm swings out over her and the hook goes down to the next fish (one on
 ##               deck, else one out of her open fish box), up out of her, over onto the scale. The buyer cores it,
 ##               grades it (tuna/handling.gd's grade and why, boat/fish_hold.gd's host_sell), calls the price, the
 ##               slip gets its line, and the fish goes down into his tote. The next.
@@ -52,7 +52,8 @@ var quay: Node                # sea/quay.gd
 ## Who's carrying a tote of mackerel (peer id -> true).
 var carriers := {}
 ## Where it all is (world).
-## The kit at each float's berth (sea/station.gd): [west (the career's, Rivals' A), east (Rivals' B)].
+## The kit at each berth (sea/station.gd), by sea/harbour.gd's berth_at: [the pier's west float (the career's,
+## Rivals' A), its east (B), the town float's west side (C), its east (D)].
 var stations: Array = []
 var counters := {}            # name -> {at, face, fill (Callable), keeper}
 
@@ -73,18 +74,41 @@ func _ready() -> void:
 	var face := float(quay.call("face"))
 	# the west float's kit abeam her box at the career's berth (and Rivals' A's); the east float's the same, mirrored,
 	# abeam Rivals' B's box at hers (vs/vs.gd's _berth: further out along the pier, for the same run to the mouth)
-	for i in 2:
+	# The town float's two (Rivals' C down its west side, D down its east: they lie abreast, the float between them)
+	# stand on the float itself. Down its middle, a float's width of deck clear along each edge: each one's davit
+	# abeam her box, its scale and tote on the middle line and the buyer at the tote's far end; back to back, C's tote
+	# out toward the float's end from her davit and D's in toward the quay from hers, so each arm lies along the float
+	# over its own tote (not out over the other boat) and swings to its own side. The pump and the bin are on the bit
+	# of float either side of the brow, against its rail (nobody walks through there: the brow comes down the
+	# middle), her filler a short hose from the pump, the bin's ice down a pipe from the quay.
+	# All four are there whoever's playing (the same nodes on every peer): one with no boat alongside does nothing.
+	var tf := float(quay.call("town_face"))
+	var qy := float(harbour.get("QUAY_Y"))
+	for i in 4:
 		var st := Station.new()
 		st.name = "Station%d" % i
 		st.places = self
 		st.sea = sea
 		st.index = i
-		var s := -1.0 if i == 0 else 1.0
-		var z := face - 17.3 if i == 0 else face - 25.7
-		st.davit = Vector3(px + s * 2.9, Quay.FLOAT_Y, z)
-		st.scale_at = Vector3(px + s * 1.0, float(harbour.get("DECK_Y")), z)
-		st.pump_at = Vector3(px + s * 2.9, Quay.FLOAT_Y, z - 5.0)
-		st.bin_at = Vector3(px + s * 2.9, Quay.FLOAT_Y, z - 2.5)
+		var s := -1.0 if i % 2 == 0 else 1.0
+		if i < 2:
+			var z := face - 17.3 if i == 0 else face - 25.7
+			st.davit = Vector3(px + s * 2.9, Quay.FLOAT_Y, z)
+			st.scale_at = Vector3(px + s * 1.0, float(harbour.get("DECK_Y")), z)
+			st.pump_at = Vector3(px + s * 2.9, Quay.FLOAT_Y, z - 5.0)
+			st.bin_at = Vector3(px + s * 2.9, Quay.FLOAT_Y, z - 2.5)
+		else:
+			var tx := Quay.TOWN_X
+			var z := tf - 14.3 if i == 2 else tf - 12.0
+			var out := -1.0 if i == 2 else 1.0        # (which way along the float its tote is from its davit)
+			st.davit = Vector3(tx + s * 0.7, Quay.FLOAT_Y, z)
+			st.scale_at = Vector3(tx, Quay.FLOAT_Y, z + out * 1.9)
+			st.buyer_at = Vector3(tx, Quay.FLOAT_Y, z + out * 3.4)
+			st.buyer_yaw = (PI if i == 2 else 0.0) - 0.35       # (facing back along his tote, and her)
+			st.pump_at = Vector3(tx + s * 1.0, Quay.FLOAT_Y, tf - 5.2)
+			st.bin_at = Vector3(tx + s * 1.5, Quay.FLOAT_Y, tf - 3.4)
+			var head := st.bin_at + Vector3(-s * 0.6, 2.6, 0.0)
+			st.ice_pipe = [head, Vector3(head.x, head.y, tf + 0.3), Vector3(head.x, qy, tf + 0.3)]
 		add_child(st)
 		stations.append(st)
 	_build_counters(harbour)
@@ -603,7 +627,8 @@ func _fill_slip() -> void:
 	_card_box.add_child(_row("THE DAY SO FAR", _text(("$" if total >= 0 else "-$") + FishHold._money(absi(total)), 18)))
 	var aboard := (hold.get("fish") as Array).size()
 	for st: Node in stations:
-		aboard += 0 if (st.get("h_fish") as Dictionary).is_empty() else 1
+		# (one on a hoist's hook is still hers, off her books till it's graded; another boat's isn't)
+		aboard += 0 if (st.get("h_fish") as Dictionary).is_empty() or st.call("_hold") != hold else 1
 	if aboard > 0:
 		_card_box.add_child(_text("%d MORE ABOARD HER: THE HOIST ON THE FLOAT." % aboard, 12))
 

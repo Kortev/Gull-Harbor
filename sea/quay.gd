@@ -20,8 +20,10 @@ const STEP_EVERY := 5.0
 const CLEAT_EVERY := 3.0
 ## The town float: off the quay in the middle of the harbour, the harbour mouth dead ahead of it, a boat down each of
 ## its sides (sea/harbour.gd's berths 2 and 3). Its middle line's x, how far it runs out from the quay face, how long
-## the brow down to it from the quay is.
+## the brow down to it from the quay is. It's two floats' width across (TOWN_W): each boat's hoist, scale and buyer
+## stand down its middle (sea/places.gd), a float's width of deck left clear along each edge to walk her length on.
 const TOWN_X := 0.0
+const TOWN_W := 4.8
 const TOWN_OUT := 26.0
 const TOWN_BROW := 6.0
 const X0 := -150.0            # the quay's ends (world x)
@@ -230,8 +232,8 @@ func _build() -> void:
 ## (staggered, so there's a way between them), cleats.
 func _town_float(qy: float) -> void:
 	var tf := town_face()
-	var x_lo := TOWN_X - FLOAT_W * 0.5
-	var x_hi := TOWN_X + FLOAT_W * 0.5
+	var x_lo := TOWN_X - TOWN_W * 0.5
+	var x_hi := TOWN_X + TOWN_W * 0.5
 	var z_lo := tf - TOWN_OUT
 	var z_hi := tf - FLOAT_GAP
 	_box_top(Vector3(x_lo, FLOAT_Y, z_lo), Vector3(x_hi, FLOAT_Y, z_hi))
@@ -251,8 +253,8 @@ func _town_float(qy: float) -> void:
 				Vector3(rx, FLOAT_Y, tf))
 	brows.append([Vector3(TOWN_X, FLOAT_Y, foot), Vector3(TOWN_X, qy, tf)])
 	for s: float in [-1.0, 1.0]:
-		var outer := TOWN_X + s * FLOAT_W * 0.5
-		floats.append([Rect2(x_lo, z_lo, FLOAT_W, z_hi - z_lo), outer, s])
+		var outer := TOWN_X + s * TOWN_W * 0.5
+		floats.append([Rect2(x_lo, z_lo, TOWN_W, z_hi - z_lo), outer, s])
 		var z := foot - 4.0 - (STEP_EVERY * 0.5 if s > 0.0 else 0.0)
 		while z > z_lo + 1.0:
 			var sx_in := outer - s * 0.8
