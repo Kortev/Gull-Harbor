@@ -56,4 +56,17 @@ look, and a hook into tuna/fight_arcade.gd for the footing.
    runs between them and the window is tighter.
 5. **Tension back as one gauge** that all of the above push up or down, so a long fight builds.
 
+## The UI's look (his words, 2026-11-12: "graphically, the UI is ass")
+
+Not yet said which parts. What shows in the screenshots taken on 2026-11-11 (docs/shots/fight_arcade_*.png,
+lobby_n_*.png, card_n_*.png):
+- Every panel is a flat dark box with one-pixel shapes and the 3 x 5 font: readable, but with no art in it. No
+  frames, icons, texture or colour beyond a few flat fills.
+- The fight has four separate boxes up at once (the top bar, the plate, the button icon, Dale's radio) plus a
+  line of yellow text across the middle, none of them sharing a look.
+- The arcade plate's shapes are placeholders: bars, dots and a ring.
+- The HUD is drawn smooth over a 3D world that isn't pixelated any more, so the two don't match.
+
+Ask him which screens and what he'd want them to look like (a game whose UI he likes) before anything is drawn.
+
 Also wanted before more is built: his own playtest of the arcade fight as it is (build 20), on Quick.
