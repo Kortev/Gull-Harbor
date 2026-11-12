@@ -262,6 +262,9 @@ func _process(_delta: float) -> void:
 			and (title == null or not bool(title.call("busy"))) \
 			and (vs == null or not bool((vs.get("card") as Node).call("up"))) \
 			and (places == null or not bool(places.call("serving")))
+	# (the host's dev panel, ui/dev_panel.gd, has the mouse while it's up: no pause card under it)
+	var dev := get_parent().get_node_or_null("DevPanel") as CanvasLayer
+	open = open and (dev == null or not dev.visible)
 	_reading = _reading and open
 	_wipe = _wipe and open
 	if _tuning and not open:

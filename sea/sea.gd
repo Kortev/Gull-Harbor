@@ -164,6 +164,10 @@ func _ready() -> void:
 	tips.name = "Tips"
 	tips.sea = self
 	add_child(tips)
+	var dev: CanvasLayer = preload("res://ui/dev_panel.gd").new()
+	dev.name = "DevPanel"
+	dev.set("sea", self)
+	add_child(dev)
 	vs = Vs.new()
 	vs.name = "Vs"
 	vs.sea = self
@@ -221,7 +225,8 @@ func _ready() -> void:
 	Net.peer_joined.connect(func(id: int) -> void:
 		if multiplayer.is_server():
 			print("Weather: sending ours (seed %d)" % weather.seed)
-			_weather_seed.rpc_id(id, weather.seed, str(_args.get("weather", ""))))
+			_weather_seed.rpc_id(id, weather.seed, str(_args.get("weather", "")))
+			_weather_called.rpc_id(id, weather.call_state()))
 	# (crew whose host's gone mid-game, in the game itself: back to the title, saying so, REJOIN on it; Rivals'
 	# results card, if it's up, says so itself and has the way back)
 	Net.dropped.connect(func(_reason: String) -> void:
@@ -324,6 +329,21 @@ func _weather_seed(s: int, pinned: String) -> void:
 		set_condition(pinned)
 	else:
 		_follow_weather()
+
+
+## The host's call on the weather (ui/dev_panel.gd): `kind` coming in on every screen ("": on its own again).
+func host_call_weather(kind: String) -> void:
+	if not Net.is_host() or (not kind.is_empty() and not CONDITIONS.has(kind)):
+		return
+	weather.call_weather(kind, ocean.wave_time)
+	if Net.in_session():
+		_weather_called.rpc(weather.call_state())
+
+
+@rpc("authority", "call_remote", "reliable")
+func _weather_called(a: Array) -> void:
+	if a.size() == 5:
+		weather.set_call_state(a)
 
 
 ## Dev: F8 puts a fish on a free rod and the rod in your hands (out on the grounds first if she's at the dock), to
