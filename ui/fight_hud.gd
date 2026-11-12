@@ -69,6 +69,13 @@ const LESSONS := {
 	"Cut on the props.": "THE LINE WENT IN THE PROPS. HE'S UNDER HER: OUT OF GEAR, STEER ONLY.",
 	"Lines tangled and parted.": "HE CROSSED A LINE LEFT OUT. FISH ON: E ON EVERY OTHER ROD, REEL THEM IN.",
 }
+## The same in the arcade fight (tuna/fight_arcade.gd), where the hands are two buttons.
+const ARCADE_LESSONS := {
+	"Thrown on the jump.": "YOU HELD ON WHILE HE WAS IN THE AIR. WHEN HE JUMPS, LET GO OF BOTH.",
+	"Hook pulled.": "TOO TIGHT, TOO LONG. WHEN THE PLATE GOES RED, EASE OFF.",
+	"Hook fell out.": "MISSED BEATS AND SLACK WORKED IT LOOSE. TAP ON THE BEAT; HAMMER IT WHEN HE COMES AT YOU.",
+	"Line parted.": "THE LINE FRAYED THROUGH: TOO TIGHT, TOO OFTEN. KEEP THE NEEDLE IN HIS GREEN.",
+}
 
 
 func _init() -> void:
@@ -139,6 +146,8 @@ func strike(rod: int, where: String, free: bool, mine: bool) -> void:
 func lost(why: String, mine := true, rod := 0) -> void:
 	var said := why.trim_suffix(".").to_upper()
 	_lesson = str(LESSONS.get(why, "")) if mine else ""
+	if mine and Fight.arcade and ARCADE_LESSONS.has(why):
+		_lesson = str(ARCADE_LESSONS[why])
 	_set_banner("HE'S GONE" if mine or rod <= 0 else "HE'S GONE: ROD %d" % rod, said, RED,
 			6.5 if not _lesson.is_empty() else 3.0)
 	if mine:

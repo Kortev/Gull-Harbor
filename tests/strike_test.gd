@@ -8,11 +8,13 @@ extends Node
 const Sea := preload("res://sea/sea.gd")
 
 const FightBot := preload("res://tests/fight_bot.gd")
+const sea_fight := preload("res://tuna/fight.gd")
 const TIME_SCALE := 4.0
 var fails: Array[String] = []
 
 
 func _ready() -> void:
+	sea_fight.arcade = false       # (the classic fight, as tests/fight_bot.gd plays it: the arcade one's tests/fight_arcade_test.tscn)
 	var sea := (load("res://sea/sea.tscn") as PackedScene).instantiate() as Sea
 	add_child(sea)
 	sea.fish_hold.head_out("sportfisher")           # (off the dock: nothing bites there)

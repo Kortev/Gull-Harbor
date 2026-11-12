@@ -80,6 +80,8 @@ func call_out(text: String, voiced := true) -> void:
 
 ## Dale's line `id` (ui/tips.gd), the first time it comes up (only aboard: not for the other boat's fish in VS).
 func dale(id: String) -> void:
+	if Fight.arcade and id in ["jump", "heavy", "pump", "drag", "fight", "tired", "leader"]:
+		return        # (the classic fight's hands: the arcade one shows its own, ui/fight_arcade_hud.gd)
 	var sea := spread.get("sea") as Node
 	var crew: Node = sea.get("crew")
 	var tips: Node = sea.get("tips")
@@ -143,7 +145,7 @@ func tick(delta: float, mine: Node, crew_n: int, throttle: float) -> void:
 		if crew and int(r.get("holder")) != 0 and float(r.get("arms")) < 0.15:
 			shout(i, "arms", "SWAP HIM! HIS ARMS ARE GONE!", crew)
 		# Dale's lines for whoever's got the rod, the first time each thing matters
-		if mine == r:
+		if mine == r and not Fight.arcade:      # (the arcade fight shows its own hands: ui/fight_arcade_hud.gd)
 			var f: Object = r.get("fight")
 			dale("fight")
 			if f != null:

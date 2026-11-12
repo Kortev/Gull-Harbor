@@ -281,6 +281,10 @@ var _goal_s := 90.0
 ## How long fights are, against the usual (1): the host's, for a playtest (ui/dev_panel.gd; sea/sea.gd tells everyone,
 ## since each rod's holder runs his own fight). 0.5: he tires in half the time and line comes back twice as fast.
 static var pace := 1.0
+## Which fight a rod gets (rods.gd's _new_fight): the arcade one (tuna/fight_arcade.gd: set-pieces on two buttons) or
+## this one. The host's call (rods.gd's host_set_arcade tells everyone, and whoever joins later). On unless the game's
+## run with -- --fight=classic.
+static var arcade := not ("--fight=classic" in OS.get_cmdline_user_args())
 var _jit := 0.0
 var _thrown_t := 0.0
 var _sweep := 0.0

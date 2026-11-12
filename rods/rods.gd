@@ -17,6 +17,8 @@ extends Node3D
 
 const Rod := preload("res://rods/rod.gd")
 const Fight := preload("res://tuna/fight.gd")
+const FightArcade := preload("res://tuna/fight_arcade.gd")
+const FightArcadeHud := preload("res://ui/fight_arcade_hud.gd")
 const Sfx := preload("res://audio/sfx.gd")
 const FightHud := preload("res://ui/fight_hud.gd")
 const FightTutor := preload("res://ui/fight_tutor.gd")
@@ -132,6 +134,7 @@ var _letting_mine := false
 var rig: Node3D
 var _shook := false
 var _fight_hud: FightHud
+var _arcade_hud: FightArcadeHud
 var _crank_now := false
 var _rumble_in := 0.0
 ## The first fish you ever hook, taught a step at a time (ui/fight_tutor.gd): made with the fight HUD.
@@ -171,7 +174,8 @@ func _ready() -> void:
 	(sea.get("boat") as Node).connect("rebuilt", _lay_out)
 	Net.peer_joined.connect(func(id: int) -> void:
 		if multiplayer.is_server():
-			_sync.rpc_id(id, _states()))
+			_sync.rpc_id(id, _states())
+			_arcade.rpc_id(id, Fight.arcade))
 	Net.peer_left.connect(func(id: int) -> void:
 		if Net.is_host():
 			for r in rods:
@@ -1026,6 +1030,7 @@ func _strike(i: int, kg: float, t: float, bearing: float, seed_value: int) -> vo
 	r.wear = 0.0
 	r.set_meta("seed", seed_value)
 	r.set_meta("struck_at", _now())
+	r.set_meta("arc", PackedFloat32Array())
 	fx.struck(r)
 	# everyone aboard: FISH ON! ROD n! across the screen, the crew yelling it, the pad kicking in your hands
 	var crew := sea.get("crew") as Node
@@ -1086,11 +1091,12 @@ func _off(i: int, why: String) -> void:
 @rpc("any_peer", "call_remote", "unreliable_ordered")
 func _fight_state(i: int, out: float, strain: float, bearing: float, depth: float, energy: float, aim: Vector2,
 		move: String, wear: float, stretch: float, turn: float, drag: float, hold: float, reeling: float,
-		holder_arms: float, twist := 0.0) -> void:
+		holder_arms: float, twist := 0.0, arc := PackedFloat32Array()) -> void:
 	if i < 0 or i >= rods.size():
 		return        # (a rod she hasn't got: a word from before she was rebuilt)
 	var r := rods[i]
 	if r.holder == multiplayer.get_remote_sender_id() and r.hooked and not r.alongside:
+		r.set_meta("arc", arc)       # (the arcade fight's streak: whoever takes the rod next carries it on)
 		r.line_out = out
 		r.strain = strain
 		r.bearing = bearing
@@ -1113,11 +1119,13 @@ func _fight_state(i: int, out: float, strain: float, bearing: float, depth: floa
 ## The host's word on a fish on a rod in its holder (nobody holding it: the host plays it against the drag).
 @rpc("authority", "call_remote", "unreliable_ordered")
 func _holder_state(i: int, out: float, strain: float, bearing: float, depth: float, energy: float, move: String,
-		wear: float, stretch: float, turn: float, drag: float, hold: float, twist := 0.0) -> void:
+		wear: float, stretch: float, turn: float, drag: float, hold: float, twist := 0.0,
+		arc := PackedFloat32Array()) -> void:
 	if i < 0 or i >= rods.size():
 		return        # (a rod she hasn't got: a word from before she was rebuilt)
 	var r := rods[i]
 	if r.holder == 0 and r.hooked and not r.alongside:
+		r.set_meta("arc", arc)
 		r.line_out = out
 		r.strain = strain
 		r.bearing = bearing
@@ -1170,8 +1178,24 @@ func _show_fight_hud(hud: Node, mine: Rod) -> void:
 	var dt := get_process_delta_time()
 	tutor.tick(dt, mine)
 	_mark_rods(mine)
+	if _arcade_hud == null and hud != null:
+		_arcade_hud = FightArcadeHud.new()
+		_arcade_hud.name = "FightArcadeHud"
+		hud.add_child(_arcade_hud)
+	var arc := (mine.fight as FightArcade) if mine != null and mine.hooked and not mine.alongside else null
+	if _arcade_hud != null:
+		_arcade_hud.show_fight(arc)
 	if mine == null or not mine.hooked or mine.alongside or mine.fight == null:
 		_fight_hud.show_fight({})
+		return
+	if arc != null:
+		# (the arcade fight has its own read out, ui/fight_arcade_hud.gd: the reel's plate and the coach stay away)
+		_fight_hud.show_fight({})
+		_rumble_in -= dt
+		if _rumble_in <= 0.0:
+			_rumble_in = 0.1
+			var over := clampf((arc.strain - FightArcade.OVER) / 0.2, 0.0, 1.0)
+			Settings.buzz(0.06 + 0.4 * clampf(arc.strain, 0.0, 1.0), maxf(0.3 if arc.slipping else 0.0, over), 0.14)
 		return
 	var f := mine.fight as Fight
 	# (what you'd see glancing down at your reel: the spool and the drag lever, the line left, the bend; and the
@@ -1264,6 +1288,22 @@ func _unbaited(i: int) -> void:
 		rods[i].letting = false
 
 
+## Host: which fight every rod gets from now on, everyone's (ui/dev_panel.gd): the arcade one (tuna/fight_arcade.gd)
+## or the classic (tuna/fight.gd). A fish that's on carries on as tired and as far off as it was, in the other.
+func host_set_arcade(on: bool) -> void:
+	if not Net.is_host():
+		return
+	if Net.in_session():
+		_arcade.rpc(on)
+	else:
+		_arcade(on)
+
+
+@rpc("authority", "call_local", "reliable")
+func _arcade(on: bool) -> void:
+	Fight.arcade = on
+
+
 ## Host: rod i's fish is gone (lost alongside, or stuck and on the harpoon now), with why.
 func host_off(i: int, why: String) -> void:
 	_host_off(i, why)
@@ -1341,7 +1381,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	var tighter := event.is_action_pressed("slot_prev")
 	if tighter or event.is_action_pressed("slot_next"):
 		var r := held_by(Net.my_id())
-		if r != null and r.hooked and not r.alongside:
+		if r != null and r.hooked and not r.alongside and not Fight.arcade:
 			set_drag(r, r.drag + (Fight.STEP if tighter else -Fight.STEP))
 			get_viewport().set_input_as_handled()
 
@@ -1768,9 +1808,12 @@ func _fight_mine(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	var heave := live and Input.is_action_pressed("use_secondary")
 	_crank_now = crank > 0.1
 	var fight := r.fight as Fight
-	if fight == null or fight.in_holder:
+	if fight == null or fight.in_holder or (fight is FightArcade) != Fight.arcade:
 		fight = _new_fight(r)
 		Settings.buzz(0.5, 0.8, 0.35)        # (hooked up: him, on the end of it, in your hands)
+	if fight is FightArcade:
+		# (the arcade fight: two buttons, wind and lean back; the pad's triggers as hard as they're pulled)
+		(fight as FightArcade).pull_btn = Input.get_action_strength("use_secondary") if heave else 0.0
 	var side := _aim(r, me, fight, delta, heave)
 	r.lift = clampf((r.aim_pitch - 0.6) / 0.75, 0.0, 1.0)
 	fight.throttle = throttle
@@ -1789,7 +1832,8 @@ func _fight_mine(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	_take(r, fight)
 	if send:
 		_fight_state.rpc(r.index, r.line_out, r.strain, r.bearing, r.depth, r.energy, Vector2(r.aim_pitch, r.aim_side),
-				r.move, r.wear, r.stretch, r.turn_sign, r.drag, r.hold, r.reeling, r.arms, r.twist)
+				r.move, r.wear, r.stretch, r.turn_sign, r.drag, r.hold, r.reeling, r.arms, r.twist,
+				r.get_meta("arc", PackedFloat32Array()))
 
 
 ## Your look following the line (_aim): its fastest turn (rad/s), and the range it fades out over (m).
@@ -1824,6 +1868,13 @@ func _aim(r: Rod, me: Node, fight: Fight, delta: float, heave: bool) -> float:
 	elif me != null:
 		var m: Vector2 = me.get("fight_mouse")
 		me.set("fight_mouse", Vector2.ZERO)
+		if fight is FightArcade:
+			# (the arcade fight: the rod goes where the set-piece has it, lifted, dropped and bowed by the buttons; it
+			# swings there, never jumps. The mouse still lays it over and looks about)
+			m.y = 0.0
+			heave = false
+			t = 0.0
+			r.aim_pitch = move_toward(r.aim_pitch, (fight as FightArcade).pose, 3.2 * delta)
 		var dp := -m.y * 0.0035
 		if dp > 0.0:
 			dp *= (1.0 - 0.55 * t * ROD_WEIGHT) * lerpf(0.45, 1.0, fight.power())     # (spent arms lift slow)
@@ -1887,7 +1938,7 @@ func _aim(r: Rod, me: Node, fight: Fight, delta: float, heave: bool) -> float:
 ## doing it, but nobody cranks or pumps, so between runs nobody wins line back and it doesn't tire.
 func _fight_holder(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	var fight := r.fight as Fight
-	if fight == null or not fight.in_holder:
+	if fight == null or not fight.in_holder or (fight is FightArcade) != Fight.arcade:
 		fight = _new_fight(r)
 		fight.in_holder = true
 	fight.throttle = throttle
@@ -1903,13 +1954,15 @@ func _fight_holder(r: Rod, delta: float, throttle: float, send: bool) -> void:
 	_take(r, fight)
 	if send:
 		_holder_state.rpc(r.index, r.line_out, r.strain, r.bearing, r.depth, r.energy, r.move, r.wear, r.stretch,
-				r.turn_sign, r.drag, r.hold, r.twist)
+				r.turn_sign, r.drag, r.hold, r.twist, r.get_meta("arc", PackedFloat32Array()))
 
 
 ## The fight for rod r, picked up from where it is (whoever had it, or its holder): the same fish, as tired as it
 ## was, doing what it was doing.
 func _new_fight(r: Rod) -> Fight:
-	var f := Fight.new(r.fish_kg, r.line_out, r.energy, int(r.get_meta("seed", 0)) + int(r.free_t))
+	var fight_seed := int(r.get_meta("seed", 0)) + int(r.free_t)
+	var f: Fight = FightArcade.new(r.fish_kg, r.line_out, r.energy, fight_seed) if Fight.arcade \
+			else Fight.new(r.fish_kg, r.line_out, r.energy, fight_seed)
 	f.bearing = r.bearing
 	f.depth = r.depth
 	f.wear = r.wear
@@ -1920,6 +1973,8 @@ func _new_fight(r: Rod) -> Fight:
 	# (the strike's first burst, if it's only just been hooked: he's bolting)
 	var burst := Fight.BURST - (_now() - r.hook_t) if r.energy > 0.9 else 0.0
 	f.carry_on(r.move, r.stretch, r.turn_sign, r.hold, maxf(burst, 0.0))
+	if f is FightArcade:
+		(f as FightArcade).arc_load(r.get_meta("arc", PackedFloat32Array()))      # (the streak comes with the rod)
 	f.half_beam = _half_beam
 	f.aft = _aft
 	f.house = _house
@@ -1954,6 +2009,8 @@ func _take(r: Rod, fight: Fight) -> void:
 	r.reeling = fight.wind
 	r.grinding = fight.grinding
 	r.turn_sign = fight.turn_sign()
+	if fight is FightArcade:
+		r.set_meta("arc", (fight as FightArcade).arc_save())
 
 
 ## Her stern's heave this frame, and what of it reaches a line with a fish on: a small open boat thrown up a big sea

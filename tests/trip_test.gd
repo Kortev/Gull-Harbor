@@ -11,6 +11,7 @@ const Sea := preload("res://sea/sea.gd")
 const SHOTS := "res://docs/shots/"
 
 const FightBot := preload("res://tests/fight_bot.gd")
+const sea_fight := preload("res://tuna/fight.gd")
 var sea: Sea
 var fails: Array[String] = []
 var fast := false
@@ -18,6 +19,7 @@ var shot_n := 0
 
 
 func _ready() -> void:
+	sea_fight.arcade = false       # (the classic fight, as tests/fight_bot.gd plays it: the arcade one's tests/fight_arcade_test.tscn)
 	fast = OS.get_cmdline_user_args().has("--fast")
 	sea = (load("res://sea/sea.tscn") as PackedScene).instantiate() as Sea
 	add_child(sea)

@@ -6,6 +6,7 @@ extends CanvasLayer
 ## Nobody else has it: a friend pressing F1 is told it's the host's.
 
 const FishHold := preload("res://boat/fish_hold.gd")
+const Fight := preload("res://tuna/fight.gd")
 const KEYS := "1234567890QWERTY"
 
 var sea: Node                 # sea/sea.gd
@@ -17,6 +18,9 @@ var _said: Label
 const PACES := [["USUAL LENGTH", 1.0], ["QUICK (HALF)", 0.5], ["VERY QUICK (A QUARTER)", 0.25], ["LONG (HALF AGAIN)", 1.5]]
 var _pace_at := 0
 var _pace_row: Button
+## Which fight every rod gets (tuna/fight.gd's arcade: the set-pieces of tuna/fight_arcade.gd, or the classic): its row.
+var _arcade_row: Button
+var _arcade_at := 0
 
 
 func _ready() -> void:
@@ -45,6 +49,9 @@ func _ready() -> void:
 	_head("FISH")
 	_row("A FISH ON, EVERY BOAT OUT", _fish_on)
 	_row("BIRDS IN NEAR", _birds)
+	_arcade_at = _rows.size()
+	_row("FIGHT: %s" % ("ARCADE" if Fight.arcade else "CLASSIC"), _arcade)
+	_arcade_row = _box.get_child(_box.get_child_count() - 1) as Button
 	_row("FIGHTS: USUAL LENGTH", _pace)
 	_pace_row = _box.get_child(_box.get_child_count() - 1) as Button
 	_said = Label.new()
@@ -170,6 +177,16 @@ func _fish_on() -> void:
 			on += 1
 			break
 	_note("%d fish on" % on if on > 0 else "Nobody's out with a free rod: cast off first")
+
+
+## The other fight, for everyone (rods/rods.gd's host_set_arcade): a fish that's on carries on in it.
+func _arcade() -> void:
+	var rods: Node = sea.get("rods")
+	if rods == null:
+		return
+	rods.call("host_set_arcade", not Fight.arcade)
+	_arcade_row.text = "%s  FIGHT: %s" % [KEYS[_arcade_at], "ARCADE" if Fight.arcade else "CLASSIC"]
+	_note("The fight: %s" % ("arcade (set-pieces on two buttons)" if Fight.arcade else "classic (pump and drag)"))
 
 
 func _pace() -> void:
