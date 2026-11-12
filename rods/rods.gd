@@ -1181,6 +1181,7 @@ func _show_fight_hud(hud: Node, mine: Rod) -> void:
 	if _arcade_hud == null and hud != null:
 		_arcade_hud = FightArcadeHud.new()
 		_arcade_hud.name = "FightArcadeHud"
+		_arcade_hud.rods = self
 		hud.add_child(_arcade_hud)
 	var arc := (mine.fight as FightArcade) if mine != null and mine.hooked and not mine.alongside else null
 	if _arcade_hud != null:

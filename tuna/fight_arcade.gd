@@ -1,145 +1,140 @@
 extends "res://tuna/fight.gd"
 ## The arcade fight: a game in a game (docs/FIGHT_ARCADE.md). The same fish on the same rod as tuna/fight.gd (its
 ## line, its energy, its hook's hold, its bearing and depth, its signals, its cues: the rod, the fish, the sounds and
-## the music read it just the same), but your hands play a run of set-pieces, one for each thing he does, each with its
-## own verb on two buttons: A (use_primary: left mouse, RT) winds, B (use_secondary: right mouse, LT) leans back on him.
+## the music read it just the same), but your hands play a run of MINIGAMES on two buttons: A (use_primary: left
+## mouse, RT) and B (use_secondary: right mouse, LT). Each is its own small file in tuna/minigames/ (the list is
+## tuna/minigames/all.gd); this is the sequencer that deals them out and turns what they do into the fight.
 ##
-## - **run, surge**: ride him. A tension needle you lift by holding B and let fall by letting go; keep it in his moving
-##   green band. In it he tires fast and takes little; under it he pours line off; over it the line frays.
-## - **shake**: his head shakes come down a lane on a beat; tap B on each (a counter-pull). A miss works the hook.
-## - **jump**: he comes up (the line lifts), goes over: hands off both while he's in the air (bow to him), and tap A as
-##   he lands to take up the slack.
-## - **sound**: pump him. Hold B to lift the rod to the gold at the top, then hold A to wind down; each stroke is line.
-## - **dog**: the same pump, but he kicks (the meter flares): let go of B while he does or he rips the rod down.
-## - **charge**: he comes at the boat: hammer A to keep the line tight.
-## - **circle, spiral**: his laps round a ring. On the green half (coming up toward you) hold A and wind him in; on the
-##   red half (going away) hold B and brace; winding into the red frays the line.
-##
-## Each piece is graded when it ends (perfect, good, ok, miss); good ones build a streak that multiplies every metre
-## you win and how fast he tires (mult()); a miss breaks it and works the hook. Mistakes cost line, the hook's hold or
-## the line's wear; none ends it at once. His energy is cut into stages(): each one cleared is a step up.
-## The boat still matters: off the stern everything you do counts for less (angle_k), backing down wins line, the hull
-## rubs the line and the props cut it.
+## - **Sets.** The fish does one thing at a time (he runs, sounds, dogs, shakes his head, circles, spirals, jumps,
+##   charges: `move`, which the world shows), and each thing he does is a SET of two to four minigames back to back, a
+##   breath (BREATH s) between. They come out of a shuffled bag: never the same twice running, none again till the bag's
+##   gone round; ones that suit what he's doing first. A game that runs past CAP s is swapped out, scored on what was
+##   done. The second time a game's seen it may come mirrored, faster, or with its twist.
+## - **What a game does.** Each frame the game says how it's going (gain -1..1, tire, hook, fray, tension, pose:
+##   minigame.gd) and this turns it into line (LINE: what his move gives and takes at the worst, at nothing, at the
+##   best), his energy, the hook's hold and the line's wear. Mistakes cost; none ends it at once.
+## - **Grades and the combo.** A game ends PERFECT, GREAT, OK or MISS. Great and perfect each add one to the combo
+##   (a perfect gives a little of the hook back and some line as well); a miss halves it. The combo multiplies how
+##   fast he tires (mult()) and the line you win (line_mult()).
+## - **The BIG PULL.** Every PULL_EVERY steps of the combo (x5, x10, x15...) you're handed one (minigames/pull.gd): one
+##   press, can't fail, and he's hauled PULL_M and more metres toward the boat, fast (but never a jump of the line).
+## - **Stages and bosses.** His energy is cut into stages(); near the end of each comes a boss (a harder, longer
+##   game: minigames/twohands.gd, or a big one of the others): win it and it takes a bite out of him (BOSS_BITE).
+## - The boat still matters: off the stern everything you do counts for less (angle_k), backing down wins line, the
+##   hull rubs the line and the props cut it. In its holder nobody's playing: he takes line on the drag.
 ##
 ## rods.gd makes one of these in place of a Fight while Fight.arcade is set, sets `pull_btn` (B) before each step,
-## and step()'s crank is A. ui/fight_arcade_hud.gd draws view(); tests/fight_arcade_bot.gd plays it from view().
+## and step()'s crank is A. ui/fight_arcade_hud.gd draws view() and the game itself; tests/fight_arcade_bot.gd plays
+## it by asking the game on (its hint()).
 
+const Minigame := preload("res://tuna/minigames/minigame.gd")
+const Games := preload("res://tuna/minigames/all.gd")
+const Pull := preload("res://tuna/minigames/pull.gd")
+
+## What he does (the classic fight's moves, less its rest).
 const PIECES := ["run", "surge", "shake", "jump", "sound", "dog", "charge", "circle", "spiral"]
 
-## How long a fish takes: ARC_BASE + ARC_PER_KG x kg seconds of perfect work at no streak (x Fight.pace).
-const ARC_BASE := 20.0
-const ARC_PER_KG := 5.2
-## The streak: each step of it MULT_STEP more of everything, up to MULT_CAP steps.
-const MULT_STEP := 0.1
-const MULT_CAP := 10
-## Grades: the share of a piece done right.
+## How long a fish takes: ARC_BASE + ARC_PER_KG x kg seconds of perfect work at no combo (x Fight.pace).
+const ARC_BASE := 0.0
+const ARC_PER_KG := 6.0
+## The combo: each step of it COMBO_STEP more tiring (half that on line), up to COMBO_CAP steps.
+const COMBO_STEP := 0.04
+const COMBO_CAP := 20
+## The BIG PULL: every so many steps of the combo; m of line for the first, more for each after, at most; how fast
+## it comes in (m/s); s of tiring it's worth.
+const PULL_EVERY := 5
+const PULL_M := 14.0
+const PULL_M_STEP := 4.0
+const PULL_M_MAX := 30.0
+const PULL_RATE := 18.0
+const PULL_TIRE := 4.0
+## Grades: a game's score.
 const Q_PERFECT := 0.88
-const Q_GOOD := 0.62
+const Q_GREAT := 0.62
 const Q_OK := 0.34
-## Over this the line's suffering: it frays (wear a second per unit over) and the hook tears.
+## Between games (s), after the rod's changed hands, and the longest a game (and a boss) may run.
+const BREATH := 0.4
+const BREATH_LONG := 1.5
+const CAP := 9.0
+const CAP_BOSS := 13.0
+## A boss comes when this much of a stage is done; won, it takes this much of a stage out of him.
+const BOSS_AT := 0.72
+const BOSS_BITE := 0.35
+## Over this the line's suffering (rods.gd rumbles on it).
 const OVER := 0.58
 const FRAY := 0.16
 const TEAR := 0.13
-## The run: the needle's push (per s per s) and its fastest; how much line he takes of his pace in the band, and
-## clamped down over it; how tiring each is.
-const NEEDLE_ACC := 3.2
-const NEEDLE_MAX := 1.1
-const RUN_IN := 0.62
-const RUN_OVER := 0.12
-## The shake: s between beats (the fish's own head shakes: fight.gd's 1.6 a second), and how near a tap must be.
-const BEAT := 0.625
-const HIT_PERFECT := 0.075
-const HIT_GOOD := 0.16
-const MISS_HOLD := 0.028
-## The jump, from when he leaves the water: in the air AIR s; hands off for the first HANDS_OFF of it; the tap as he
-## lands, this near.
-const AIR := 0.7
-const HANDS_OFF := 0.45
-const LAND_EARLY := 0.15
-const LAND_LATE := 0.28
-## The pump: m of line a full perfect stroke wins; where the gold starts; the kick's warning and its length (s).
-const PUMP_M := 3.4
-const GOLD := 0.86
-const KICK_WARN := 0.5
-const KICK_LEN := 0.6
-## The charge: s for the slack to fill with nobody winding.
-const SLACK_FILL := 1.3
-## The laps: the share of each that's green; m/s wound on it, and what he takes back on the red unbraced.
-const GREEN := 0.42
-const LAP_WIN := 3.2
-const LAP_TAKE := 1.5
+## What a game's one-offs and rates are worth: a perfect hit (m of line, s of tiring), a miss (of the hook's hold;
+## no more than HURT_CAP of them a game), a second of hook 1 and of fray 1.
+const BURST_M := 0.5
+const BURST_S := 0.4
+const MISS_HOLD := 0.02
+const HURT_CAP := 3.0
+const HOOK_RATE := 0.06
+const FRAY_RATE := 0.035
 ## What he's owed to you comes in at this (m/s): never a jump of the line.
 const HAUL_RATE := 5.0
+## The line, by what he's doing: m/s (+ yours) with the game at its worst (gain -1), at nothing (0), at its best (1);
+## and what those are in: 0 m/s, 1 his free speed (the runs: he only ever takes), 2 his closing speed (the charge).
+const LINE := {
+	"run": [-1.0, -0.8, -0.36, 1], "surge": [-0.85, -0.65, -0.28, 1],
+	"sound": [-1.1, -0.5, 2.5, 0], "dog": [-0.7, -0.3, 2.7, 0], "shake": [-0.6, -0.25, 2.2, 0],
+	"circle": [-1.5, -0.5, 3.0, 0], "spiral": [-1.2, -0.4, 2.8, 0],
+	"jump": [-0.4, 0.0, 1.0, 0], "charge": [0.1, 0.5, 1.0, 2],
+}
+## How tiring a second of a game at its best is, by what he's doing.
+const WORK := {"run": 1.5, "surge": 1.5, "sound": 1.25, "dog": 1.25, "shake": 1.25, "circle": 1.25, "spiral": 1.25,
+		"jump": 1.6, "charge": 0.6}
 
-## A set-piece forced for every one (dev: -- --piece=shake, for screenshots).
+## A game forced for every one (dev: -- --piece=<id>, for screenshots; "pull" is the BIG PULL).
 static var force_piece := _forced()
+## The music's beat, for the games that play to it: a Callable -> [s a beat, s to the next] (the HUD sets it; unset,
+## the fight's own tempo).
+static var beat_fn := Callable()
 
 ## B, 0..1 (rods.gd, before each step).
 var pull_btn := 0.0
-## The set-piece on now, how far into it (s), how long it is, and s left of its telegraph (nothing judged yet).
-var piece := ""
-var piece_t := 0.0
-var piece_len := 1.0
-var intro := 0.0
-var streak := 0
+## The minigame on now (null: the breath between two), s of breath left, and how many more in this set.
+var game: Minigame
+var breath := 0.6
+var set_left := 0
+var combo := 0
 var best := 0
-## The last piece's grade, and s since.
+## The last game's grade, and s since.
 var grade := ""
 var grade_t := 99.0
-## Line he owes you (m): paid in at HAUL_RATE.
+## Line he owes you (m): paid in at HAUL_RATE; and the BIG PULL's, at PULL_RATE.
 var haul := 0.0
 var stage := 0
-var pieces_done := 0
-## What just happened, for the HUD and the sounds: [what, ...]; whoever reads them takes them (take_events).
+var games_done := 0
+## What just happened, for the HUD and the sounds; whoever reads them takes them (take_events):
+## ["game", id, boss], ["hit", 1 or 2], ["miss"], ["near"], ["stroke", q], ["grade", grade, combo, id],
+## ["pull_ready", level], ["pull", metres, level], ["stage", n], ["boss", won], ["move", move].
 var events: Array = []
+## How many times each game's been seen this fight.
 var seen := {}
+var last_id := ""
 ## Where the rod wants to be (its elevation, rad): rods.gd eases it there.
 var pose := 0.7
+## A hit-stop (s): the fight holds its breath (the HUD sets it on a perfect; nothing else does).
+var freeze := 0.0
 
-# the run
-var needle := 0.4
-var needle_v := 0.0
-var band_c := 0.5
-var band_w := 0.16
-var _w1 := 1.0
-var _w2 := 2.3
-var _ph1 := 0.0
-var _ph2 := 0.0
-# the shake: each beat's time into the piece, and how it went (0 to come, 1 perfect, 2 good, 3 missed)
-var beats := PackedFloat32Array()
-var beat_hit := PackedByteArray()
-var _lock := 0.0
-# the jump: s before he leaves the water, s with a button down in the air, the landing tap (0 none, 1 good, 2 perfect)
-var j_up := 1.2
-var j_bad := 0.0
-var j_land := 0
-var _rise := 0.0
-# the pump
-var rod_p := 0.0
-var pump_dir := 0
-var top_t := 0.0
-var kick_in := 0.0
-var kick_t := 0.0
-var stroke_q := 0.0
-var pumps := 0
-var _kick_pen := false
-var _kicked := false
-# the charge
-var slack_n := 0.0
-# the laps
-var lap_len := 5.0
-var red_t := 0.0
-var arc_perfect := false
-var _was_green := false
-
-var _score := 0.0
-var _score_max := 0.0
 var _a_was := false
 var _b_was := false
 var _bag: Array = []
-var _bag_phase := -1
-var _d := 0.0
+var _mbag: Array = []
+var _mbag_phase := -1
+var _pull_at := PULL_EVERY
+var _pull_due := false
+var _pull_haul := 0.0
+var _boss_stage := -1
+var _is_boss := false
+var _last_boss := ""
+var _hurt_left := HURT_CAP
+var _hold_t := 6.0
+var _rise := 8.0
 var _why := "pulled"
+var _jumping := false
 var _slack_m := 0.0
 var _ready_done := false
 
@@ -163,27 +158,27 @@ func _init(weight_kg: float, out: float, fresh := 1.0, seed_value := -1) -> void
 	stage = _stage_now()
 	if fresh > 0.8:
 		_burst = BURST
-		_start("run")
+		_start_move("run")
 	else:
-		_start(_next())
+		_start_move(_pick_move())
 
 
-## How hard this fish's pieces are, 0..1: bigger, and later in the fight.
+## How hard this fish's games are, 0..1: bigger, and later in the fight.
 func difficulty() -> float:
 	return clampf(0.1 + 0.5 * minf(kg, 300.0) / 300.0 + 0.4 * (1.0 - energy), 0.0, 1.0)
 
 
-## What the streak's worth: x this on every metre won and on how fast he tires.
+## What the combo's worth: x this on how fast he tires.
 func mult() -> float:
-	return 1.0 + MULT_STEP * mini(streak, MULT_CAP)
+	return 1.0 + COMBO_STEP * mini(combo, COMBO_CAP)
 
 
-## And on line: half as much (the streak's mostly for wearing him down; the line's still to be won).
+## And on line: half as much (the combo's mostly for wearing him down; the line's still to be won).
 func line_mult() -> float:
-	return 1.0 + 0.5 * MULT_STEP * mini(streak, MULT_CAP)
+	return 1.0 + 0.5 * COMBO_STEP * mini(combo, COMBO_CAP)
 
 
-## How many steps his energy's cut into (a schoolie 2, a giant 7), and the one he's on.
+## How many steps his energy's cut into (a schoolie 2, a giant 7), the one he's on, and how far through it (0..1).
 func stages() -> int:
 	return clampi(roundi(kg / 45.0), 2, 7)
 
@@ -192,23 +187,41 @@ func _stage_now() -> int:
 	return clampi(int((1.0 - energy) / 0.8 * stages()), 0, stages())
 
 
+func stage_frac() -> float:
+	return fposmod((1.0 - energy) / 0.8 * stages(), 1.0)
+
+
+## The combo the next BIG PULL comes at.
+func next_pull() -> int:
+	return _pull_at
+
+
 func take_events() -> Array:
 	var e := events
 	events = []
 	return e
 
 
-## The streak and where the hands were, to carry across the rod changing hands (rods.gd sends it with the fight).
+## The combo and where the fight is, to carry across the rod changing hands (rods.gd sends it with the fight).
 func arc_save() -> PackedFloat32Array:
-	return PackedFloat32Array([streak, best, pieces_done, stage])
+	return PackedFloat32Array([combo, best, games_done, stage, _pull_at, _boss_stage, 1.0 if _pull_due else 0.0,
+			Games.ids().find(last_id)])
 
 
 func arc_load(a: PackedFloat32Array) -> void:
 	if a.size() >= 4:
-		streak = int(a[0])
+		combo = int(a[0])
 		best = int(a[1])
-		pieces_done = int(a[2])
+		games_done = int(a[2])
 		stage = maxi(int(a[3]), _stage_now())
+	if a.size() >= 8:
+		_pull_at = maxi(int(a[4]), PULL_EVERY)
+		_boss_stage = int(a[5])
+		_pull_due = a[6] > 0.5
+		var ids := Games.ids()
+		last_id = str(ids[int(a[7])]) if int(a[7]) >= 0 and int(a[7]) < ids.size() else ""
+	else:
+		_pull_at = (combo / PULL_EVERY + 1) * PULL_EVERY
 
 
 # (the classic fight's own picking of moves: not here)
@@ -217,7 +230,7 @@ func _set_move(m: String) -> void:
 		move = m
 		move_t = 0.0
 		return
-	_start(m)
+	_start_move(m)
 
 
 func _next_move() -> void:
@@ -232,8 +245,8 @@ func _show(m: String) -> void:
 
 
 func carry_on(m: String, stretch_was := 0.0, turn := 0.0, hold_was := 1.0, burst := 0.0) -> void:
-	if m == "rest" or not PIECES.has(m):
-		m = "sound"
+	if m == "rest" or not PIECES.has(m) or m == "jump":
+		m = "sound"          # (a jump's picked up as he lands)
 	hold = hold_was
 	if turn != 0.0:
 		_turn_sign = signf(turn)
@@ -245,90 +258,30 @@ func carry_on(m: String, stretch_was := 0.0, turn := 0.0, hold_was := 1.0, burst
 	t_fish = strain
 	stage = maxi(stage, _stage_now())
 	grace = 1.0
-	if m == "jump":
-		m = "shake"          # (picked up as he lands)
-	_start(m, true)
+	game = null
+	_start_move(m, true)
 
 
-## A set-piece begins: `long`, with time to get your hands on it.
-func _start(p: String, long := false) -> void:
-	if not PIECES.has(p):
-		p = "sound"
-	piece = p
-	piece_t = 0.0
-	_score = 0.0
-	_score_max = 0.0
-	var first := not seen.has(p)
-	seen[p] = int(seen.get(p, 0)) + 1
-	intro = 1.5 if first or long else 0.7
-	_d = difficulty()
-	var e := 0.6 + 0.4 * energy
-	match p:
-		"run", "surge":
-			var run := p == "run"
-			piece_len = intro + (rng.randf_range(5.0, 8.0) * e if run else rng.randf_range(3.0, 4.2))
-			if run and nature == "runner":
-				piece_len += 1.5
-			if run and _burst > 0.0 and kg >= 100.0:
-				piece_len += 3.0       # (a giant's first run: a good part of the spool)
-			band_w = lerpf(0.2, 0.125, _d) * (1.0 if run else 0.9) * (0.88 if _last_run else 1.0)
-			_w1 = lerpf(0.9, 1.6, _d) * (1.0 if run else 1.35)
-			_w2 = _w1 * 2.3
-			_ph1 = rng.randf() * TAU
-			_ph2 = rng.randf() * TAU
-			needle = clampf(needle, 0.25, 0.55)
-			needle_v = 0.0
-			if run and rng.randf() < 0.5:
-				_turn_sign = -_turn_sign
-		"shake":
-			var pats: Array = [[0, 2, 4, 6]]
-			if _d > 0.7:
-				pats = [[0, 2, 3, 4, 6, 8, 9, 10], [0, 2, 4, 5, 6, 8, 10, 11, 12]]
-			elif _d > 0.4:
-				pats = [[0, 2, 3, 4, 6, 8], [0, 2, 4, 6, 7, 8], [0, 2, 4, 5, 6, 8]]
-			var pat: Array = pats[rng.randi_range(0, pats.size() - 1)]
-			beats = PackedFloat32Array()
-			beat_hit = PackedByteArray()
-			for s: int in pat:
-				beats.append(intro + 0.7 + 0.5 * BEAT * s)
-				beat_hit.append(0)
-			piece_len = beats[beats.size() - 1] + 0.55
-			_lock = 0.0
-		"jump":
-			intro = 0.0
-			j_up = 1.2 + depth / 22.0
-			_rise = depth / maxf(j_up - 0.3, 0.2)
-			piece_len = j_up + AIR + 0.8
-			j_bad = 0.0
-			j_land = 0
-		"sound", "dog":
-			piece_len = intro + rng.randf_range(7.0, 10.0) * e
-			if p == "sound" and nature == "sounder":
-				piece_len += 2.0
-			rod_p = 0.0
-			pump_dir = 0
-			top_t = 0.0
-			pumps = 0
-			kick_t = 0.0
-			kick_in = intro + rng.randf_range(1.6, 2.6)
-		"charge":
-			piece_len = intro + rng.randf_range(2.8, 4.0)
-			slack_n = 0.0
-		"circle", "spiral":
-			lap_len = lerpf(6.4, 5.0, _d) if p == "circle" else lerpf(5.0, 3.9, _d)
-			piece_len = intro + lap_len * 2.0
-			red_t = 0.0
-			arc_perfect = false
-			_was_green = false
-			if p == "circle" and rng.randf() < 0.5:
-				_turn_sign = -_turn_sign
-	_show("dog" if p == "jump" else p)
-	events.append(["piece", p])
-
-
-## Where a lap is (0..1): under GREEN he's coming up toward you.
-func lap() -> float:
-	return fposmod((piece_t - intro) / lap_len, 1.0)
+## He starts something: a set of games. `long`: with time to get your hands on it.
+func _start_move(m: String, long := false) -> void:
+	if not PIECES.has(m):
+		m = "sound"
+	if m in ["jump", "charge"]:
+		set_left = 1
+	elif m == "surge":
+		set_left = 2
+	else:
+		set_left = rng.randi_range(2, 4)
+	if m == "run" and _burst > 0.0 and kg >= 100.0:
+		set_left = maxi(set_left, 3)         # (a giant's first run: a good part of the spool)
+	if m in ["run", "circle"] and rng.randf() < 0.5:
+		_turn_sign = -_turn_sign
+	_hold_t = rng.randf_range(6.0, 10.0) * (0.6 + 0.4 * energy)
+	if long:
+		breath = BREATH_LONG
+	_show("dog" if m == "jump" else m)
+	_jumping = m == "jump"
+	events.append(["move", m])
 
 
 func _hurt(x: float, why: String) -> void:
@@ -342,289 +295,122 @@ func _tire(secs: float) -> void:
 	energy -= secs / (_goal_s * pace) * mult() * lerpf(0.45, 1.0, angle_k())
 
 
+func _why_now() -> String:
+	if airborne or _jumping:
+		return "thrown"
+	return "shaken" if move in ["shake", "charge"] else "pulled"
+
+
 ## One tick: `crank` is A (0..1), pull_btn is B.
 func step(dt: float, crank: float, _rod_pitch: float, _side: float, drag_set: float) -> void:
 	if done or dt <= 0.0:
 		return
+	if freeze > 0.0 and not in_holder:
+		freeze -= dt
+		return
 	drag = clampf(drag_set, 0.0, 1.0)
-	var a := 0.0 if in_holder else clampf(crank, 0.0, 1.0)
-	var b := 0.0 if in_holder else clampf(pull_btn, 0.0, 1.0)
-	var a_on := a > 0.4
-	var b_on := b > 0.4
+	var a_on := not in_holder and crank > 0.4
+	var b_on := not in_holder and pull_btn > 0.4
 	var a_tap := a_on and not _a_was
 	var b_tap := b_on and not _b_was
 	_a_was = a_on
 	_b_was = b_on
 	reeling = a_on
 	grinding = false
-	if events.size() > 24:
-		events = events.slice(-8)       # (nobody's reading them: a rod in its holder)
+	if events.size() > 32:
+		events = events.slice(-12)       # (nobody's reading them: a rod in its holder)
 	grace = maxf(grace - dt, 0.0)
 	grade_t += dt
-	piece_t += dt
 	move_t += dt
-	intro = maxf(intro - dt, 0.0)
-	var judged := intro <= 0.0 and not in_holder
 	_jit += (rng.randf_range(-1.0, 1.0) - _jit) * minf(1.0, 1.5 * dt)
 	airborne = false
-	var k := line_mult() * lerpf(0.45, 1.0, angle_k()) / pace       # (what a metre of your winding's worth)
-	var tgt := 0.15       # the tension it's heading for
-	var work := 0.0       # how hard he's being worked (s of tiring a second)
-	var pay := 0.0        # line he takes (m/s)
-	var win := 0.0        # line you take (m/s)
 	_slack_m = move_toward(_slack_m, 0.0, 4.0 * dt)
 	var fresh := 0.45 + 0.55 * energy
+	var beaten := energy < BEATEN
+	var g := 0.0          # how the game's going, -1..1
+	var work := 0.0       # how hard he's being worked (s of tiring a second)
+	var tens := 0.3
+	var surf := false
 
-	match piece:
-		"run", "surge":
-			band_c = 0.55 + 0.19 * sin(piece_t * _w1 + _ph1) + 0.08 * sin(piece_t * _w2 + _ph2)
-			if in_holder:
-				needle = move_toward(needle, 0.12, dt)       # (on its drag: light)
+	if in_holder:
+		# (on its drag: he takes line, the hook's left alone, nobody's playing)
+		g = -0.5
+		work = 0.12
+		tens = 0.2
+		pose = 0.7
+		_hold_t -= dt
+		if _hold_t <= 0.0:
+			_start_move(_pick_move())
+	elif game != null:
+		game.step(dt, a_on, b_on, a_tap, b_tap)
+		g = clampf(game.gain, -1.0, 1.0)
+		work = clampf(game.tire, 0.0, 1.0) * float(WORK.get(move, 1.2))
+		tens = game.tension
+		pose = lerpf(0.35, 1.3, clampf(game.pose, 0.0, 1.0))
+		airborne = game.air
+		surf = game.surface
+		if airborne:
+			_thrown_t = 1.0
+		if game.leap:
+			_show("jump")
+		if game.slack > 0.0:
+			_slack_m = maxf(_slack_m, game.slack * 5.0)
+		for e: Array in game.events:
+			if e[0] == "pull":
+				_fire_pull()
 			else:
-				needle_v = clampf(needle_v + lerpf(-NEEDLE_ACC, NEEDLE_ACC, b) * dt, -NEEDLE_MAX, NEEDLE_MAX)
-				needle += needle_v * dt
-				if needle <= 0.0 or needle >= 1.0:
-					needle = clampf(needle, 0.0, 1.0)
-					needle_v = 0.0
-			var off := needle - band_c
-			var vf := v_free() * fresh * (1.0 if piece == "run" else 0.85) * (1.0 + 0.4 * clampf(_burst / BURST, 0.0, 1.0))
-			_burst = maxf(_burst - dt, 0.0)
-			var rate := 1.0
-			tgt = 0.16 + 0.3 * needle
-			if absf(off) <= band_w:
-				rate = RUN_IN
-				work = 1.6
-				if judged:
-					_score += dt
-			elif off > 0.0:
-				rate = RUN_OVER
-				work = 0.7
-				tgt += (off - band_w) * 1.8 + 0.12
-				_why = "pulled"
+				events.append(e)
+		if game.burst > 0.0:
+			haul += BURST_M * game.burst * line_mult() / pace
+			_tire(BURST_S * game.burst)
+			game.burst = 0.0
+		if game.hurt > 0.0:
+			var h := minf(game.hurt, _hurt_left)
+			_hurt_left -= h
+			_hurt(MISS_HOLD * h, _why_now())
+			game.hurt = 0.0
+		if game.hook > 0.0:
+			_hurt(HOOK_RATE * game.hook * dt, _why_now())
+		if game.fray > 0.0 and grace <= 0.0:
+			wear += FRAY_RATE * game.fray * dt
+			_why = "pulled"
+	else:
+		work = 0.15
+		pose = move_toward(pose, 0.7, 1.5 * dt)
+		breath -= dt
+		if breath <= 0.0:
+			_begin_next()
+
+	# the line: what his move gives and takes, by how the game's going
+	var l: Array = LINE.get(move, LINE["sound"])
+	var rate := lerpf(float(l[1]), float(l[2]), g) if g >= 0.0 else lerpf(float(l[1]), float(l[0]), -g)
+	var k := line_mult() * lerpf(0.45, 1.0, angle_k()) / pace       # (what a metre of your winding's worth)
+	var pay := 0.0        # line he takes (m/s)
+	var win := 0.0        # line you take (m/s)
+	match int(l[3]):
+		1:
+			pay = -rate * v_free() * fresh * (1.0 + 0.4 * clampf(_burst / BURST, 0.0, 1.0))
+		2:
+			win = rate * v_free() * 0.55 * (0.5 + 0.5 * energy) / pace
+		_:
+			if rate >= 0.0:
+				win = rate * k * (1.5 if beaten else 1.0)
 			else:
-				rate = RUN_IN + (1.0 - RUN_IN) * clampf((-off - band_w) / 0.2, 0.0, 1.0)
-				work = 0.25
-			if in_holder:
-				rate = 0.6
-				work = 0.4
-			elif not judged:
-				rate = minf(rate, 0.5)       # (the telegraph: he's off, but not at his worst yet)
-			else:
-				_score_max += dt
-			pay = vf * rate
-			pose = 0.75 + 0.45 * needle
-		"shake":
-			_lock = maxf(_lock - dt, 0.0)
-			var beat_k := 0.0
-			for i in beats.size():
-				var bt := beats[i]
-				beat_k = maxf(beat_k, 1.0 - absf(piece_t - bt) / 0.2)
-				if beat_hit[i] == 0 and piece_t > bt + HIT_GOOD:
-					beat_hit[i] = 3
-					_score_max += 1.0
-					if not in_holder:
-						_hurt(MISS_HOLD, "shaken")
-						events.append(["miss"])
-			if b_tap and _lock <= 0.0 and not in_holder:
-				var at := -1
-				for i in beats.size():
-					if beat_hit[i] == 0 and absf(piece_t - beats[i]) <= HIT_GOOD:
-						at = i
-						break
-				if at >= 0:
-					var perfect := absf(piece_t - beats[at]) <= HIT_PERFECT
-					beat_hit[at] = 1 if perfect else 2
-					_score += 1.0 if perfect else 0.75
-					_score_max += 1.0
-					_tire(1.3 if perfect else 0.9)
-					events.append(["hit", perfect])
-					pose = 1.15
-				else:
-					_lock = 0.25
-					_score = maxf(_score - 0.34, 0.0)
-					events.append(["whiff"])
-			pose = move_toward(pose, 0.7, 1.6 * dt)
-			tgt = 0.2 + 0.16 * maxf(beat_k, 0.0)
-			pay = 0.3 * fresh
-		"jump":
-			var t_air := piece_t - j_up
-			if t_air < 0.0:
-				depth = move_toward(depth, 0.2, _rise * dt)
-				tgt = 0.26
-				pose = 0.95
-				if t_air >= -0.5:
-					_show("jump")
-			else:
-				depth = move_toward(depth, 0.0, 4.0 * dt)
-				airborne = t_air < AIR
-				if airborne:
-					_thrown_t = 1.0
-				if t_air < HANDS_OFF:
-					if (a_on or b_on) and not in_holder:
-						j_bad += dt
-						_hurt(0.4 * dt, "thrown")
-						tgt = 0.55
-					else:
-						tgt = 0.04
-					pose = 0.3
-				elif t_air < AIR + LAND_LATE:
-					tgt = 0.06
-					pose = 0.3
-					if a_tap and j_land == 0 and t_air >= AIR - LAND_EARLY and not in_holder:
-						j_land = 2 if absf(t_air - AIR) <= 0.09 else 1
-						haul += (7.0 if j_land == 2 else 4.5) * line_mult() / pace
-						events.append(["hit", j_land == 2])
-				else:
-					if j_land == 0 and not in_holder:
-						_slack_m = maxf(_slack_m, 2.5)      # (nobody took it up: a belly of slack)
-					pose = 0.7
-					tgt = 0.2
-		"sound", "dog":
-			var heft := clampf(size_of(kg) / 1.9, 0.2, 1.0)
-			var lift := lerpf(1.6, 0.95, heft)
-			var kicking := false
-			if piece == "dog":
-				if kick_t > 0.0:
-					kick_t -= dt
-					kicking = kick_t <= KICK_LEN
-					if kick_t <= 0.0:
-						if judged or _kicked:
-							_score_max += 1.0
-							if not _kicked:
-								_score += 1.0
-								events.append(["hit", false])
-						kick_in = rng.randf_range(2.0, 3.4) * lerpf(1.2, 0.8, _d)
-				else:
-					kick_in -= dt
-					if kick_in <= 0.0 and piece_len - piece_t > KICK_WARN + KICK_LEN + 0.3:
-						kick_t = KICK_WARN + KICK_LEN
-						_kicked = false
-			if b_on and not a_on:
-				if kicking:
-					rod_p = move_toward(rod_p, 0.0, 3.0 * dt)       # (he rips it down)
-					tgt = 0.74
-					pump_dir = 0
-					if not _kicked:
-						_kicked = true
-						_hurt(0.02, "pulled")
-						events.append(["miss"])
-				else:
-					rod_p = minf(rod_p + lift * dt, 1.0)
-					pump_dir = 1
-					top_t = top_t + dt if rod_p >= 1.0 else 0.0
-					tgt = 0.14 + 0.3 * rod_p + clampf(top_t - 0.4, 0.0, 1.0) * 0.9
-					_why = "pulled"
-			elif a_on and not b_on:
-				if pump_dir != -1:
-					stroke_q = 1.0 if rod_p >= GOLD else (0.7 if rod_p >= 0.62 else rod_p * 0.7)
-					if rod_p > 0.15 and not in_holder:
-						events.append(["stroke", stroke_q])
-					top_t = 0.0
-				pump_dir = -1
-				var d := minf(2.4 * dt, rod_p)
-				rod_p -= d
-				win += PUMP_M * d / dt * stroke_q * k * (1.4 if energy < BEATEN else 1.0)
-				_tire(d * stroke_q * 1.6)
-				tgt = 0.1
-				if rod_p <= 0.0 and d > 0.0:
-					_score += stroke_q
-					pumps += 1
-					pump_dir = 0
-				elif d <= 0.0:
-					grinding = true       # (winding with nothing lifted: the handle won't turn)
-					tgt = 0.3
-			elif a_on and b_on:
-				grinding = true
-				tgt = 0.36
-			else:
-				rod_p = move_toward(rod_p, 0.0, 0.5 * dt)
-				if rod_p <= 0.0:
-					pump_dir = 0
-			if kicking:
-				tgt = maxf(tgt, 0.42)
-			if win <= 0.0:
-				pay = (0.9 if piece == "sound" else 0.5) * fresh * (0.35 if b_on else 1.0)
-			pose = lerpf(0.35, 1.3, rod_p)
-		"charge":
-			var closing := v_free() * 0.55 * (0.5 + 0.5 * energy)
-			var need := lerpf(2.4, 4.0, _d)
-			var fill := 1.0 / SLACK_FILL
-			slack_n += fill * dt * (1.0 if judged or in_holder else 0.5)
-			if a_tap:
-				slack_n -= fill / need
-			if a_on:
-				slack_n -= fill * 0.3 * dt
-			slack_n = clampf(slack_n, 0.0, 1.0)
-			var keep := 1.0 - slack_n
-			win += closing * keep / pace
-			work = 0.5 * keep
-			if slack_n > 0.7:
-				_hurt(0.07 * dt, "shaken")
-			if judged:
-				_score += keep * dt
-				_score_max += dt
-			_slack_m = maxf(_slack_m, slack_n * 5.0)
-			tgt = 0.03 + 0.1 * keep
-			pose = 0.5
-			if line_out < 22.0:
-				piece_t = maxf(piece_t, piece_len)       # (he's here: he turns away)
-		"circle", "spiral":
-			var green := lap() < GREEN and intro <= 0.0
-			_going_under = not green
-			if _was_green and not green:
-				arc_perfect = false
-			if a_tap and not in_holder:
-				# (on to the handle just as he turns toward you)
-				var to_green := minf(lap(), 1.0 - lap()) * lap_len
-				if to_green <= 0.14 and (green or lap() > 0.5):
-					arc_perfect = true
-					events.append(["hit", true])
-			_was_green = green
-			var reel := LAP_WIN * (1.0 if piece == "circle" else 0.82)
-			if green:
-				red_t = 0.0
-				if a_on and not b_on:
-					win += reel * k * (1.45 if arc_perfect else 1.0)
-					work = 1.3
-					tgt = 0.24
-					pose = 0.55
-					if judged:
-						_score += dt
-				else:
-					work = 0.2
-					tgt = 0.14
-					pose = 0.8
-				if judged:
-					_score_max += dt
-			else:
-				if a_on:
-					red_t += dt
-					grinding = true
-					if red_t > 0.22:
-						tgt = 0.8
-						_why = "pulled"
-						if judged:
-							_score = maxf(_score - 0.5 * dt, 0.0)
-					pose = 0.9
-				elif b_on:
-					red_t = 0.0
-					tgt = 0.32
-					work = 0.6
-					pose = 1.05
-					if judged:
-						_score += 0.5 * dt
-				else:
-					red_t = 0.0
-					pay = LAP_TAKE * fresh
-					tgt = 0.16
-					pose = 0.8
-				if judged:
-					_score_max += 0.5 * dt
+				pay = -rate * fresh * (0.3 if beaten else 1.0)
+	_burst = maxf(_burst - dt, 0.0)
+	if game is Pull:
+		pay = 0.0                 # (the BIG PULL's yours: he takes nothing while it's on)
+	if move == "charge" and line_out < 22.0 and game != null and game.only:
+		game.done = true          # (he's here: he turns away)
 
 	# what he owes you, coming in
 	if haul > 0.0:
 		var h := minf(haul, HAUL_RATE * dt)
 		haul -= h
+		win += h / dt
+	if _pull_haul > 0.0:
+		var h := minf(_pull_haul, PULL_RATE * dt)
+		_pull_haul -= h
 		win += h / dt
 
 	# the boat: closing on him backing down (line for the winding), pulling away from him under way
@@ -641,11 +427,13 @@ func step(dt: float, crank: float, _rod_pitch: float, _side: float, drag_set: fl
 	line_out += (pay - win - boat_close) * dt
 	if line_out < BOATSIDE - 0.2:
 		line_out = BOATSIDE - 0.2
+		_pull_haul = 0.0
 	paying = maxf(pay - minf(boat_close, 0.0), 0.0)
 	slipping = paying > 0.6
 	wind = win
 	speed = pay - win
-	# the tension: eased to where the piece puts it; slack when there's a belly in it
+	# the tension: eased to where the game puts it; slack when there's a belly in it
+	var tgt := 0.1 + 0.58 * clampf(tens, 0.0, 1.0)
 	if shock > _shock_was:
 		strain += shock - _shock_was
 	shock = move_toward(shock, 0.0, dt * 0.5)
@@ -661,7 +449,7 @@ func step(dt: float, crank: float, _rod_pitch: float, _side: float, drag_set: fl
 	if strain > OVER and not in_holder and grace <= 0.0:
 		var o := strain - OVER
 		wear += o * FRAY * dt
-		_hurt(o * TEAR * dt, _why)
+		_hurt(o * TEAR * dt, "pulled")
 
 	# where he is: swinging round the boat, heading for his depth (as tuna/fight.gd's)
 	var m: Dictionary = MOVES[move]
@@ -674,19 +462,22 @@ func step(dt: float, crank: float, _rod_pitch: float, _side: float, drag_set: fl
 	_turn_v = move_toward(_turn_v, turn * _turn_sign, TURN_EASE * dt)
 	bearing += _turn_v * dt * clampf(25.0 / hd, 0.3, 0.7 if move == "spiral" else 1.2)
 	bearing -= sin(wrapf(bearing, -PI, PI)) * TOW * clampf(strain, 0.0, 1.0) * dt
-	if move in ["spiral", "charge"] or (energy < BEATEN and line_out < SPIRAL_IN):
+	if move in ["spiral", "charge"] or (beaten and line_out < SPIRAL_IN):
 		bearing -= sin(wrapf(bearing, -PI, PI)) * LEAD * clampf(strain / 0.2, 0.3, 1.0) * dt
 	_sweep = lerpf(_sweep, (bearing - was_b) / dt, minf(1.0, 4.0 * dt))
-	if piece != "jump":
+	_going_under = move == "spiral" and g < 0.0
+	if surf:
+		# (the jump: up he comes)
+		depth = move_toward(depth, 0.0, maxf(_rise, 4.0) * dt)
+		_dive_v = 0.0
+	else:
 		var goal_d := minf(float(m["depth"]) * (1.4 if nature == "sounder" and move == "sound" else 1.0), line_out * 0.85)
 		if move == "spiral":
 			goal_d = line_out * (0.85 if _going_under else 0.6) if line_out > 12.0 else 3.0
-		elif energy < BEATEN and line_out < SPIRAL_IN:
+		elif beaten and line_out < SPIRAL_IN:
 			goal_d = minf(goal_d, 3.0)
 		_dive_v = move_toward(_dive_v, clampf((goal_d - depth) * 0.9, -6.0, 6.0), DIVE_EASE * dt)
 		depth = maxf(depth + _dive_v * dt, 0.0)
-	else:
-		_dive_v = 0.0
 	_thrown_t = maxf(_thrown_t - dt, 0.0) if not airborne else _thrown_t
 
 	# the leader at the rod tip: the moment, and his last run at it
@@ -694,8 +485,8 @@ func step(dt: float, crank: float, _rod_pitch: float, _side: float, drag_set: fl
 		leader = true
 		leader_up.emit()
 		if energy >= 0.2 and force_piece.is_empty():
+			_start_move("surge")
 			_last_run = true
-			_start("surge")
 
 	# the boat: the line on her rubs; under her with the props turning it's cut (half as hard on it as the classic)
 	if rub_now >= 0.0:
@@ -707,7 +498,7 @@ func step(dt: float, crank: float, _rod_pitch: float, _side: float, drag_set: fl
 	chafe = maxf(chafe, side_rub())
 	if grace <= 0.0:
 		wear += 0.5 * chafe * (0.4 + 0.6 * clampf(strain, 0.0, 1.0)) * dt / (CHAFE_LIFE * chafe_mul) \
-				* (0.4 if energy < BEATEN else 1.0)
+				* (0.4 if beaten else 1.0)
 		if tangled:
 			wear += dt / (TANGLE_LIFE * chafe_mul)
 	if wear >= 1.0:
@@ -730,8 +521,8 @@ func step(dt: float, crank: float, _rod_pitch: float, _side: float, drag_set: fl
 
 	# tiring; left alone, he gets his breath back. Each stage cleared is a step up.
 	if work > 0.0:
-		_tire(work * dt * (0.3 if in_holder else 1.0))
-	elif energy >= BEATEN and win <= 0.0:
+		_tire(work * dt)
+	elif energy >= BEATEN and win <= 0.0 and game != null:
 		energy += RECOVER * dt / (_goal_s * pace)
 	energy = clampf(energy, 0.0, 1.0)
 	var st := _stage_now()
@@ -746,143 +537,221 @@ func step(dt: float, crank: float, _rod_pitch: float, _side: float, drag_set: fl
 		done = true
 		boatside.emit()
 		return
-	if piece_t >= piece_len:
+	if game != null and (game.done or game.t >= (CAP_BOSS if _is_boss else CAP)):
 		_finish()
 
 
-## The piece is over: its grade, the streak, and the next one.
+## The game's over (or it ran too long and is swapped out): its grade, the combo, and a breath before the next.
 func _finish() -> void:
-	if not in_holder and grace <= 0.0:
-		match piece:
-			"jump":
-				_score_max = 1.0
-				_score = 0.0
-				if j_bad < 0.08:
-					_score = 0.64 + (0.36 if j_land == 2 else (0.26 if j_land == 1 else 0.0))
-					_tire(2.5)
-				if j_land == 0:
-					_hurt(0.025, "shaken")
-			"sound", "dog":
-				# (against what a steady hand would have made of it)
-				var lift := lerpf(1.6, 0.95, clampf(size_of(kg) / 1.9, 0.2, 1.0))
-				var strokes := (piece_len - 1.5) / (1.0 / lift + 0.42 + 0.3) * (0.8 if piece == "sound" else 0.6)
-				_score_max = maxf(_score_max + strokes, _score)
-		var q := clampf(_score / _score_max, 0.0, 1.0) if _score_max > 0.0 else 0.0
-		grade = "perfect" if q >= Q_PERFECT else ("good" if q >= Q_GOOD else ("ok" if q >= Q_OK else "miss"))
-		grade_t = 0.0
-		match grade:
-			"perfect":
-				streak += 1
-				hold = minf(hold + 0.02, 1.0)
-				haul += 3.0 * line_mult() / pace
-			"good":
-				streak += 1
-			"miss":
-				streak = 0
-				_hurt(0.03, "shaken" if piece in ["shake", "charge", "jump"] else "pulled")
-		best = maxi(best, streak)
-		events.append(["grade", grade, streak])
-	pieces_done += 1
+	var g := game
+	game = null
+	breath = BREATH
+	if g is Pull:
+		return
+	var q := g.score
+	grade = "perfect" if q >= Q_PERFECT else ("great" if q >= Q_GREAT else ("ok" if q >= Q_OK else "miss"))
+	grade_t = 0.0
+	match grade:
+		"perfect":
+			combo += 1
+			hold = minf(hold + 0.02, 1.0)
+			haul += 3.0 * line_mult() / pace
+		"great":
+			combo += 1
+		"miss":
+			combo = combo / 2
+			_pull_at = (combo / PULL_EVERY + 1) * PULL_EVERY
+			_hurt(0.03, _why_now())
+	best = maxi(best, combo)
+	events.append(["grade", grade, combo, g.id])
+	if _is_boss:
+		var won := q >= Q_GREAT
+		if won:
+			energy = maxf(energy - BOSS_BITE * 0.8 / stages(), 0.0)
+		events.append(["boss", won])
+		_is_boss = false
+	if combo >= _pull_at:
+		_pull_due = true
+		_pull_at = (combo / PULL_EVERY + 1) * PULL_EVERY
+		events.append(["pull_ready", combo / PULL_EVERY])
+	games_done += 1
+	set_left -= 1
 	_last_run = false
-	_start(_next())
+	_jumping = false
 
 
-## What he does next: by how tired he is and how far off, out of a shuffled bag (so a long fight has all of them and
+## The BIG PULL goes off: a great chunk of line, coming in fast.
+func _fire_pull() -> void:
+	var level := maxi((game as Pull).level, 1)
+	var m := minf(PULL_M + PULL_M_STEP * (level - 1), PULL_M_MAX)
+	m = clampf(m, 0.0, maxf(line_out - BOATSIDE, 0.0))
+	_pull_haul += m
+	_tire(PULL_TIRE)
+	events.append(["pull", m, level])
+
+
+## The next game: the BIG PULL if one's owed; the game his move is (the jump, the charge); a boss at a stage's end;
+## or the next out of the bag.
+func _begin_next() -> void:
+	if set_left <= 0 and not _pull_due:
+		_start_move(_pick_move())
+	var v := {}
+	var tier := difficulty()
+	_is_boss = false
+	_hurt_left = HURT_CAP
+	if _pull_due or force_piece == "pull":
+		_pull_due = false
+		var p := Pull.new()
+		p.level = maxi(combo / PULL_EVERY, 1)
+		game = p
+	else:
+		var id := ""
+		var about := Games.about()
+		if about.has(force_piece):
+			id = force_piece
+		else:
+			for gid: String in about:
+				var g := about[gid] as Minigame
+				if g.only and g.moves.has("jump" if _jumping else move):
+					id = gid
+			if id == "" and _boss_due():
+				id = _draw_boss()
+				_is_boss = true
+				_boss_stage = stage
+				_last_boss = id
+				v["boss"] = true
+				tier += 0.15
+			elif id == "":
+				id = _draw()
+		game = Games.make(id)
+		var n := int(seen.get(id, 0))
+		seen[id] = n + 1
+		if n > 0 and not _is_boss:
+			match rng.randi_range(0, 3):
+				0:
+					v["mirror"] = true
+				1:
+					v["fast"] = 1.2
+				2:
+					v["twist"] = true
+		if not game.only:
+			last_id = id
+	if beat_fn.is_valid():
+		var b: Array = beat_fn.call()
+		if b.size() >= 2 and float(b[0]) > 0.1:
+			v["beat"] = float(b[0])
+			v["to_beat"] = float(b[1])
+	var r := RandomNumberGenerator.new()
+	r.seed = rng.randi()
+	game.begin(tier, r, v)
+	_rise = depth / 0.8
+	events.append(["game", game.id, _is_boss])
+
+
+func _boss_due() -> bool:
+	return stage < stages() and _boss_stage < stage and stage_frac() >= BOSS_AT and energy > 0.2
+
+
+## The next out of the bag: one that suits what he's doing if there is one, never the one just played; the bag's
+## refilled (and shuffled) when it's gone round.
+func _draw() -> String:
+	var about := Games.about()
+	for again in 2:
+		if _bag.is_empty():
+			for gid: String in about:
+				var g := about[gid] as Minigame
+				if not g.boss and not g.only and g.from <= 1.0 - energy:
+					_bag.append(gid)
+			_shuffle(_bag)
+		var pick := -1
+		for i in _bag.size():
+			var g := about[_bag[i]] as Minigame
+			if _bag[i] != last_id and (g.moves.is_empty() or g.moves.has(move)):
+				pick = i
+				break
+		if pick < 0:
+			for i in _bag.size():
+				if _bag[i] != last_id:
+					pick = i
+					break
+		if pick >= 0:
+			var id: String = _bag[pick]
+			_bag.remove_at(pick)
+			return id
+		_bag.clear()
+	return "pump" if last_id != "pump" else "ride"
+
+
+## A boss: one of the boss games, or a big one of those that can be; never the last boss again.
+func _draw_boss() -> String:
+	var about := Games.about()
+	var can: Array = []
+	for gid: String in about:
+		var g := about[gid] as Minigame
+		if (g.boss or g.can_boss) and g.from <= 1.0 - energy and gid != _last_boss and gid != last_id:
+			can.append(gid)
+			if g.boss:
+				can.append(gid)
+				can.append(gid)       # (the real ones come up more)
+	return str(can[rng.randi_range(0, can.size() - 1)]) if not can.is_empty() else "twohands"
+
+
+func _shuffle(a: Array) -> void:
+	for i in range(a.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var t: Variant = a[i]
+		a[i] = a[j]
+		a[j] = t
+
+
+## What he does next: by how tired he is and how far off, out of a shuffled bag (so a long fight has all of it and
 ## never the same twice running); fresh and held in close, he's off.
-func _next() -> String:
-	if not force_piece.is_empty() and PIECES.has(force_piece):
-		return force_piece
+func _pick_move() -> String:
+	var forced := Games.about().get(force_piece) as Minigame
+	if forced != null and forced.only:
+		return str(forced.moves[0])
 	var beaten := energy < BEATEN
-	var was_run := piece in ["run", "surge"]
+	var was_run := move in ["run", "surge"]
 	if energy > 0.35 and line_out < CLOSE and not was_run:
 		return "run" if rng.randf() < 0.6 else "surge"
 	var ph := 3 if beaten and line_out <= SPIRAL_IN else (2 if beaten else (1 if energy <= 0.6 else 0))
-	if ph != _bag_phase or _bag.is_empty():
-		_bag_phase = ph
+	if ph != _mbag_phase or _mbag.is_empty():
+		_mbag_phase = ph
 		match ph:
 			0:
-				_bag = ["sound", "shake", "run", "dog", "charge", "sound", "surge"]
+				_mbag = ["sound", "shake", "run", "dog", "charge", "sound", "surge"]
 				if kg < 120.0 or nature == "jumper":
-					_bag.append("jump")
+					_mbag.append("jump")
 			1:
-				_bag = ["sound", "dog", "shake", "circle", "surge", "charge", "dog", "jump", "run", "shake"]
+				_mbag = ["sound", "dog", "shake", "circle", "surge", "charge", "dog", "jump", "run", "shake"]
 			2:
-				_bag = ["circle", "sound", "dog", "circle", "shake"]
+				_mbag = ["circle", "sound", "dog", "circle", "shake"]
 			_:
-				_bag = ["spiral", "spiral", "shake", "spiral", "surge"]
-		for i in range(_bag.size() - 1, 0, -1):
-			var j := rng.randi_range(0, i)
-			var t: String = _bag[i]
-			_bag[i] = _bag[j]
-			_bag[j] = t
-	for i in _bag.size():
-		var p: String = _bag[i]
-		if (p == piece and p != "spiral") or (was_run and p in ["run", "surge"]):
+				_mbag = ["spiral", "spiral", "shake", "spiral", "surge"]
+		_shuffle(_mbag)
+	for i in _mbag.size():
+		var p: String = _mbag[i]
+		if (p == move and p != "spiral") or (was_run and p in ["run", "surge"]):
 			continue
 		if (p == "jump" and depth > 30.0) or (p == "charge" and line_out < 50.0):
 			continue
-		_bag.remove_at(i)
+		_mbag.remove_at(i)
 		return p
-	_bag.clear()
-	return "dog" if piece == "sound" else "sound"
+	_mbag.clear()
+	return "dog" if move == "sound" else "sound"
 
 
-## What the HUD draws and the test anglers read: the piece and where it's at. a, b: what each button wants now
-## (0 leave it, 1 hold, 2 tap on the mark, 3 hammer it, -1 hands off).
+## What the HUD draws round the game: where the fight is. a, b: what each button's asked to do now (the game's cue():
+## ui/kit.gd's NONE, HOLD, TAP, MASH, RELEASE, OFF).
 func view() -> Dictionary:
-	var v := {"piece": piece, "t": piece_t, "len": piece_len, "intro": intro, "streak": streak, "mult": mult(),
-			"grade": grade, "grade_t": grade_t, "hold": hold, "energy": energy, "stage": stage, "stages": stages(),
-			"line_out": line_out, "wear": wear, "kg": kg, "angle": angle_k(), "a": 0, "b": 0, "tension": strain,
-			"holder": in_holder, "leader": leader}
-	match piece:
-		"run", "surge":
-			v["needle"] = needle
-			v["band_c"] = band_c
-			v["band_w"] = band_w
-			v["b"] = 1 if needle < band_c else 0
-		"shake":
-			v["beats"] = beats
-			v["beat_hit"] = beat_hit
-			v["b"] = 2
-		"jump":
-			var t_air := piece_t - j_up
-			v["air"] = t_air
-			v["up"] = j_up
-			v["landed"] = j_land
-			v["bad"] = j_bad
-			if t_air < HANDS_OFF:
-				v["a"] = -1
-				v["b"] = -1
-			elif t_air < AIR + LAND_LATE and j_land == 0:
-				v["a"] = 2
-				v["b"] = -1
-		"sound", "dog":
-			v["rod"] = rod_p
-			v["dir"] = pump_dir
-			v["top"] = top_t
-			v["kick"] = 0 if kick_t <= 0.0 else (1 if kick_t > KICK_LEN else 2)
-			if kick_t > 0.0 and kick_t <= KICK_LEN + 0.2:
-				v["b"] = -1
-				v["a"] = 1 if rod_p > 0.0 else 0
-			elif pump_dir == -1 or rod_p >= GOLD:
-				v["a"] = 1
-			else:
-				v["b"] = 1
-		"charge":
-			v["slack"] = slack_n
-			v["a"] = 3
-		"circle", "spiral":
-			v["lap"] = lap()
-			v["lap_len"] = lap_len
-			v["green"] = GREEN
-			v["red_t"] = red_t
-			v["arc_perfect"] = arc_perfect
-			if lap() < GREEN and intro <= 0.0:
-				v["a"] = 1
-			else:
-				v["b"] = 1
-				v["a"] = -1
-	return v
+	var c: Array = game.cue() if game != null else [0, 0]
+	return {"game": game.id if game != null else "", "title": game.title if game != null else "",
+			"phase": "breath" if game == null else ("pull" if game is Pull else "game"),
+			"t": game.t if game != null else 0.0, "len": game.length if game != null else 1.0,
+			"combo": combo, "mult": mult(), "next_pull": _pull_at, "grade": grade, "grade_t": grade_t,
+			"hold": hold, "energy": energy, "stage": stage, "stages": stages(), "line_out": line_out, "wear": wear,
+			"kg": kg, "angle": angle_k(), "a": int(c[0]), "b": int(c[1]), "tension": strain, "holder": in_holder,
+			"leader": leader, "boss": _is_boss, "set_left": set_left, "move": move}
 
 
 func cues() -> Dictionary:

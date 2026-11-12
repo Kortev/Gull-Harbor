@@ -21,7 +21,7 @@ const TIPS := {
 	"fast": "Ease her down to troll: nothing bites at speed. Get out ahead of them, drag your baits across their nose.",
 	"bite": "That's a reel screaming. Grab the rod!",
 	"fight": "Feel that bend? That's him. Wind and wait. Bend eases, he's tired: lift him, wind as you drop. Reel screaming? Hands off.",
-	"arcade": "He's yours. Left mouse winds, right mouse leans back on him. Do what the plate by your crosshair shows: green's right, red's wrong.",
+	"arcade": "He's yours. It's all on the two mouse buttons: each little game shows which to hold or tap. Do them well to build the combo, and cash it in for a BIG PULL.",
 	"drag": "That's your drag slipping. Scroll's the lever, strike's the click. He's taking it all? More. Bent double? Ease it.",
 	"pump": "You can't crank a fish that's pulling. Wait till the bend eases, then lift him, and wind on the way down.",
 	"spool": "Half your line's gone! Back her down on him, S. Alone? Rod in the holder, get on the wheel.",

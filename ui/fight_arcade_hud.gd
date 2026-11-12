@@ -1,54 +1,102 @@
 extends Control
-## The arcade fight's HUD (tuna/fight_arcade.gd; rods.gd feeds it the fight in your hands every frame). All of it in
-## chunky pixels, no sentences: it's read by shape, colour and motion.
+## The arcade fight's HUD (tuna/fight_arcade.gd; rods.gd feeds it the fight in your hands every frame), in the new
+## look (ui/kit.gd): one fight HUD, read by shape, colour and motion.
 ##
-## - **Under the crosshair**, the set-piece on now, each its own shape: the run a bar with his green band and your
-##   needle; the head shakes a lane of beats coming to a gold box; the jump his arc over the water, red while your hands
-##   must be off, a green ring where he lands; the pump a tall meter with gold at the top; the charge a line sagging
-##   between the boat and him; the laps a ring, green toward you, red away.
-## - **Under that**, the two buttons (the mouse's, or the pad's triggers): the one to hold lit green, to tap gold, to
-##   hammer blinking, to leave alone crossed red; white round the one you've got down.
-## - **Over the top**, how it's going: the line from the boat to him (how far, how frayed), his energy cut into its
-##   stages, the hook's hold as pips, the streak, and where he is round the boat (for whoever's at the wheel).
-## - A word when a piece ends (PERFECT, GOOD, OK, MISS) and the streak it leaves.
+## - **The stage**, centre-low, a fifth of the screen wide: the minigame on now draws itself there
+##   (tuna/minigames/*.gd's draw()), its name over it, the games left in this set as dots. A boss's is edged in gold.
+## - **The two buttons**, either side of it, A's on the left and B's on the right (as they are under your fingers):
+##   the mouse with that button lit, or the pad's trigger, moving the way it's asked: HOLD, TAP, MASH, LET GO, HANDS OFF.
+## - **The band**, top middle: the hook's hold (a ring round the hook, left), his energy in its stages and the line
+##   out from the boat to him (middle), and the combo (right): the loudest thing on it, growing as it grows, with the
+##   ring round it filling toward the next BIG PULL.
+## - **The pops**: each game's grade (PERFECT, GREAT, OK, MISS) springs up over the stage and drifts off; sparks fly
+##   off the stage on every hit; and the BIG PULL takes the whole screen for a second: a flash, a burst, the metres won
+##   counting up.
+## The sounds, the hit-stop, the rod's kick and the rumble are ui/juice.gd's.
 
 const Arcade := preload("res://tuna/fight_arcade.gd")
-const PixFont := preload("res://ui/pixfont.gd")
-const Sfx := preload("res://audio/sfx.gd")
-const GREEN := Color(0.4, 0.95, 0.5)
-const GOLD := Color(1.0, 0.82, 0.25)
-const AMBER := Color(1.0, 0.62, 0.2)
-const RED := Color(1.0, 0.28, 0.22)
-const BLUE := Color(0.35, 0.7, 1.0)
-const PALE := Color(0.95, 0.93, 0.86)
-const DIM := Color(0.45, 0.5, 0.54)
-const INK := Color(0.02, 0.03, 0.06, 0.85)
-const DARK := Color(0.1, 0.13, 0.17, 0.9)
+const Kit := preload("res://ui/kit.gd")
+const Juice := preload("res://ui/juice.gd")
+const Pull := preload("res://tuna/minigames/pull.gd")
+const GRADE_COL := {"PERFECT": Kit.GOLD, "GREAT": Kit.GO, "OK": Kit.FOAM, "MISS": Kit.CORAL}
+
+## rods/rods.gd, for the juice's rod kick (rods.gd sets it).
+var rods: Node:
+	set(v):
+		rods = v
+		juice.rods = v
+var kit := Kit.new()
+var juice := Juice.new()
 
 var _f: Arcade
 var _v := {}
 var _a := 0.0
 var _t := 0.0
-var _u := 3.0
-var _o := Vector2.ZERO
-var _al := 1.0
-var _pop := ""
-var _pop_n := 0
-var _pop_t := 9.0
-var _hit := 0.0          # (a beat, a stroke, a tap landed: the piece flashes)
-var _hit_col := GOLD
-var _bad := 0.0
-var _step := 0.0         # (a stage cleared)
-var _streak_t := 9.0
+var _s := 1.0
+var _blur_band: ColorRect
+var _blur_stage: ColorRect
+var _base: Control
+var _game: Control
+var _over: Control
+# what's eased: the line, his energy, the hook, the combo's size
 var _line := 0.0
 var _energy := 1.0
-var _fish_x := 1.0       # (the charge: him coming)
+var _hold := 1.0
+var _combo_t := 9.0
+var _combo_was := 0
+# the stage
+var _game_a := 0.0          # (the game's drawing, faded in)
+var _game_t := 0.0          # (s since this game came on)
+var _hit := 0.0
+var _hit_col := Kit.GOLD
+var _bad := 0.0
+var _step := 0.0            # (a stage cleared)
+var _boss := 0.0
+var _last_title := ""
+# the pops
+var _pop := ""
+var _pop_t := 9.0
+var _pull_t := 9.0
+var _pull_m := 0.0
+var _pull_ready := 9.0
+var _sparks: Array = []     # [pos, vel, life, max, col, r]
 
 
 func _init() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_blur_band = Kit.blur_rect()
+	_blur_stage = Kit.blur_rect()
+	add_child(_blur_band)
+	add_child(_blur_stage)
+	_base = _layer(_draw_base)
+	_game = _layer(_draw_game)
+	_over = _layer(_draw_over)
+
+
+func _layer(fn: Callable) -> Control:
+	var c := Control.new()
+	c.set_anchors_preset(Control.PRESET_FULL_RECT)
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	c.draw.connect(fn)
+	add_child(c)
+	return c
+
+
+func _ready() -> void:
+	# (the new look's lines and shapes are smooth: the 2D's anti-aliased from here on)
+	get_viewport().msaa_2d = Viewport.MSAA_4X
+	Arcade.beat_fn = _beat
+
+
+## The music's beat for the games that play to it: [s a beat, s to the next].
+func _beat() -> Array:
+	var cue: Dictionary = Music.call("_cue_of", Music.cue)
+	var bpm := float(cue.get("bpm", 0.0))
+	if bpm <= 0.0:
+		return [0.0, 0.0]
+	return [60.0 / bpm, maxf(Music.next_tick(1) - Music.now(), 0.0)]
 
 
 ## The arcade fight in your hands this frame, or null.
@@ -56,449 +104,330 @@ func show_fight(f: Arcade) -> void:
 	if f != null and f != _f:
 		_line = f.line_out
 		_energy = f.energy
+		_hold = f.hold
+		_combo_was = f.combo
 	_f = f
 	if f == null:
 		return
 	_v = f.view()
 	for e: Array in f.take_events():
-		match str(e[0]):
-			"hit":
-				_hit = 1.0
-				_hit_col = GOLD if bool(e[1]) else GREEN
-				Sfx.play("ui.tick", 0.55, (1.5 if bool(e[1]) else 1.2) + 0.03 * mini(f.streak, 10))
-				Settings.buzz(0.0, 0.4, 0.05)
-			"stroke":
-				_hit = 0.7
-				_hit_col = GOLD if float(e[1]) >= 1.0 else (GREEN if float(e[1]) >= 0.7 else DIM)
-				Sfx.play("ui.tick", 0.4, 0.8 + 0.6 * float(e[1]))
-			"miss", "whiff":
-				_bad = 1.0
-				Sfx.play("ui.cross", 0.4 if e[0] == "miss" else 0.2, 0.8)
-				Settings.buzz(0.5, 0.0, 0.1)
-			"grade":
-				_pop = str(e[1]).to_upper()
-				_pop_n = int(e[2])
+		juice.on_event(e, f)
+		_on_event(e)
+
+
+func _on_event(e: Array) -> void:
+	match str(e[0]):
+		"hit":
+			_hit = 1.0
+			_hit_col = Kit.GOLD if int(e[1]) >= 2 else Kit.GO
+			_sparks_off(_stage_rect(), _hit_col, 14 if int(e[1]) >= 2 else 6)
+		"stroke":
+			_hit = 0.6
+			_hit_col = Kit.GOLD if float(e[1]) >= 1.0 else Kit.GO
+		"miss":
+			_bad = 1.0
+		"game":
+			_game_t = 0.0
+			_game_a = 0.0
+			_boss = 1.0 if bool(e[2]) else 0.0
+		"grade":
+			_pop = str(e[1]).to_upper()
+			_pop_t = 0.0
+			if e[1] == "perfect":
+				_burst(_stage_rect().get_center() - Vector2(0.0, _stage_rect().size.y * 0.5 + 10.0 * _s), Kit.GOLD, 18, 240.0)
+		"pull_ready":
+			_pull_ready = 0.0
+		"pull":
+			_pull_t = 0.0
+			_pull_m = float(e[1])
+			_burst(Vector2(size.x * 0.5, size.y * 0.42), Kit.GOLD, 70, 620.0)
+			_burst(Vector2(size.x * 0.5, size.y * 0.42), Kit.FOAM, 30, 420.0)
+		"stage":
+			_step = 1.0
+		"boss":
+			_boss = 0.0
+			if bool(e[1]):
+				_pop = "BOSS DOWN"
 				_pop_t = 0.0
-				_streak_t = 0.0
-				if e[1] == "perfect":
-					Sfx.play("ui.check", 0.5, 1.0 + 0.04 * mini(_pop_n, 10))
-			"stage":
-				_step = 1.0
-				Sfx.play("ui.stamp", 0.6, 1.0)
-				Settings.buzz(0.3, 0.6, 0.2)
+
+
+## Sparks off the stage's edge, flying outward (never over the game).
+func _sparks_off(r: Rect2, col: Color, n: int) -> void:
+	for i in n:
+		var k := randf()
+		var side := randi() % 4
+		var at := Vector2(lerpf(r.position.x, r.end.x, k), r.position.y if side == 0 else r.end.y)
+		var out := Vector2(0.0, -1.0 if side == 0 else 1.0)
+		if side >= 2:
+			at = Vector2(r.position.x if side == 2 else r.end.x, lerpf(r.position.y, r.end.y, k))
+			out = Vector2(-1.0 if side == 2 else 1.0, 0.0)
+		var v := (out + Vector2(randf_range(-0.6, 0.6), randf_range(-0.6, 0.6))) * randf_range(60.0, 190.0) * _s
+		var life := randf_range(0.3, 0.65)
+		_sparks.append([at, v, life, life, col, randf_range(1.4, 2.8) * _s])
+
+
+func _burst(at: Vector2, col: Color, n: int, speed: float) -> void:
+	for i in n:
+		var ang := randf() * TAU
+		var v := Vector2.from_angle(ang) * speed * _s * randf_range(0.35, 1.0)
+		var life := randf_range(0.35, 0.8)
+		_sparks.append([at + v * 0.03, v, life, life, col, randf_range(1.5, 3.2) * _s])
+	if _sparks.size() > 260:
+		_sparks = _sparks.slice(-260)
 
 
 func _process(delta: float) -> void:
 	_t += delta
 	_a = move_toward(_a, 1.0 if _f != null else 0.0, delta * 4.0)
 	_pop_t += delta
-	_streak_t += delta
+	_pull_t += delta
+	_pull_ready += delta
+	_combo_t += delta
+	_game_t += delta
 	_hit = maxf(_hit - delta * 4.0, 0.0)
 	_bad = maxf(_bad - delta * 3.0, 0.0)
 	_step = maxf(_step - delta * 0.8, 0.0)
 	if _f != null:
-		_line = lerpf(_line, _f.line_out, minf(1.0, delta * 8.0))
-		_energy = lerpf(_energy, _f.energy, minf(1.0, delta * 5.0))
+		_line = Kit.follow(_line, _f.line_out, delta, 9.0)
+		_energy = Kit.follow(_energy, _f.energy, delta, 5.0)
+		_hold = Kit.follow(_hold, _f.hold, delta, 6.0)
+		if _f.combo != _combo_was:
+			_combo_was = _f.combo
+			_combo_t = 0.0
+		_game_a = move_toward(_game_a, 1.0 if _f.game != null else 0.0, delta * (7.0 if _f.game != null else 5.0))
+	for i in range(_sparks.size() - 1, -1, -1):
+		var p: Array = _sparks[i]
+		p[2] = float(p[2]) - delta
+		if float(p[2]) <= 0.0:
+			_sparks.remove_at(i)
+			continue
+		p[1] = (p[1] as Vector2) * exp(-2.5 * delta) + Vector2(0.0, 300.0 * _s * delta)
+		p[0] = (p[0] as Vector2) + (p[1] as Vector2) * delta
 	visible = _a > 0.01
-	queue_redraw()
-
-
-func _draw() -> void:
-	if _a <= 0.01 or _v.is_empty():
+	if not visible:
 		return
-	_u = maxf(roundf(size.y / 216.0), 2.0)
-	_al = _a
-	_draw_top()
-	var c := Vector2(size.x * 0.5, size.y * 0.5 + 52.0 * _u).floor()
-	_o = c
-	var intro := float(_v["intro"])
-	var blink := 0.6 + 0.4 * signf(sin(_t * 16.0)) if intro > 0.0 else 1.0
-	_al = _a * blink
-	var piece := str(_v["piece"])
-	# its plate
-	_r(-46, -20, 92, 40, INK)
-	var edge := DARK
-	if _bad > 0.0:
-		edge = Color(RED, 0.5 + 0.5 * _bad)
-	elif _hit > 0.0:
-		edge = Color(_hit_col, 0.4 + 0.6 * _hit)
-	elif float(_v["tension"]) > Arcade.OVER:
-		edge = Color(RED, 0.5 + 0.5 * sin(_t * 20.0))
-	_frame(-46, -20, 92, 40, edge)
-	match piece:
-		"run", "surge":
-			_draw_run()
-		"shake":
-			_draw_shake()
-		"jump":
-			_draw_jump()
-		"sound", "dog":
-			_draw_pump()
-		"charge":
-			_draw_charge()
-		"circle", "spiral":
-			_draw_laps()
-	if intro > 0.0:
-		# (getting ready: a bar running out under it)
-		_al = _a
-		_r(-46, 21, 92.0 * clampf(intro / 1.5, 0.0, 1.0), 1, GOLD)
-	_al = _a
-	# the buttons, beside it, twice the size: they're what teaches it
-	_o = c + Vector2(62.0, -16.0) * _u
-	_u *= 2.0
-	_draw_buttons()
-	_u *= 0.5
-	if _pop_t < 1.3:
-		var col: Color = {"PERFECT": GOLD, "GOOD": GREEN, "OK": PALE, "MISS": RED}.get(_pop, PALE)
-		var s := int(_u) * 2
-		var text := _pop
-		_al = _a * clampf((1.3 - _pop_t) / 0.4, 0.0, 1.0)
-		var at := c + Vector2(-PixFont.width(text, s) * 0.5, (-34.0 - 8.0 * minf(_pop_t, 0.5)) * _u)
-		_text(at, text, col, s)
-		_al = _a
+	_s = maxf(size.y / 648.0, 0.25)
+	var band := _band_rect()
+	var stage := _stage_rect()
+	Kit.place(_blur_band, band, 20.0 * _s, _a)
+	Kit.place(_blur_stage, stage, 18.0 * _s, _a)
+	_base.modulate.a = _a
+	_game.modulate.a = _a * Kit.out_cubic(_game_a)
+	# (a game comes on with a little spring)
+	_game.pivot_offset = stage.get_center()
+	_game.scale = Vector2.ONE * lerpf(0.9, 1.0, Kit.out_back(_game_t / 0.22))
+	_over.modulate.a = _a
+	_base.queue_redraw()
+	_game.queue_redraw()
+	_over.queue_redraw()
 
 
-# ------------------------------------------------------------------ over the top: how it's going
+func _band_rect() -> Rect2:
+	var w := 500.0 * _s
+	return Rect2(size.x * 0.5 - w * 0.5, 18.0 * _s, w, 58.0 * _s)
 
-func _draw_top() -> void:
-	_o = Vector2(size.x * 0.5, 14.0 * _u).floor()
-	var w := 120.0
-	_r(-w * 0.5 - 16, -10, w + 32, 27, INK)
-	# the line, from the boat (left) to him: how far (the far end's a full spool), how frayed
-	var wear := float(_v["wear"])
-	var line_col := PALE.lerp(RED, clampf(wear * 1.3, 0.0, 1.0))
-	var x := -w * 0.5 + w * sqrt(clampf(_line / Arcade.CAPACITY, 0.0, 1.0))
-	_r(-w * 0.5, 0, w, 1, Color(DIM, 0.5))
-	_r(-w * 0.5, 0, x + w * 0.5, 1, line_col)
-	if wear > 0.05:
-		# (frayed: bits standing off it)
-		for i in int(wear * 8.0) + 1:
-			_r(-w * 0.5 + 6.0 + i * 9.0, -1 if i % 2 == 0 else 1, 1, 1, line_col)
-	# the boat
-	_r(-w * 0.5 - 9, -1, 8, 3, PALE)
-	_r(-w * 0.5 - 7, -3, 3, 2, PALE)
-	_r(-w * 0.5 - 8, 2, 6, 1, DIM)
-	# him
-	_fish(x + 1.0, 0.0, RED.lerp(BLUE, 0.5) if _step <= 0.0 else GOLD, 1.0)
-	var dist := "%dM" % int(_line)
-	_text(_at(clampf(x - PixFont.width(dist, 1) * 0.5, -w * 0.5, w * 0.5 - 16.0), -9.0), dist, PALE, int(_u))
-	# his energy, in its stages: what's left of each
+
+func _stage_rect() -> Rect2:
+	var w := maxf(size.x * 0.215, 240.0 * _s)
+	var h := 132.0 * _s
+	var r := Rect2(size.x * 0.5 - w * 0.5, size.y * 0.735 - h * 0.5, w, h)
+	# (a perfect: it jumps a hair)
+	return r.grow(4.0 * _s * _hit * (1.0 if _hit_col == Kit.GOLD else 0.4))
+
+
+# ------------------------------------------------------------------ the band and the stage's panel
+
+func _draw_base() -> void:
+	if _v.is_empty():
+		return
+	var ci := _base
+	var s := _s
+	var band := _band_rect()
+	kit.glass(ci, band, 20.0 * s)
+	var cy := band.get_center().y
+	# --- the hook's hold: a ring round the hook
+	var hc := Vector2(band.position.x + 6.0 * s, cy)
+	var hr := 30.0 * s
+	var low := _hold < 0.42
+	kit.dot(ci, hc, hr + 5.0 * s, Color(Kit.DEEP, 0.92))
+	kit.ring(ci, hc, hr + 5.0 * s, Kit.EDGE, 1.0)
+	kit.ring(ci, hc, hr, Kit.TRACK, 3.0 * s)
+	var hold_col := Kit.CORAL if low else Kit.FOAM
+	if low:
+		hold_col.a = 0.65 + 0.35 * sin(_t * 10.0)
+	kit.arc(ci, hc, hr, -PI * 0.5, -PI * 0.5 + TAU * clampf(_hold, 0.0, 1.0), hold_col, 3.0 * s)
+	kit.hook(ci, hc + Vector2(0.0, -1.0 * s), 24.0 * s, hold_col, 2.5 * s)
+	# --- the combo: a ring filling toward the next BIG PULL, the number in it growing as it grows
+	var combo := int(_v["combo"])
+	var grown := clampf(combo / 20.0, 0.0, 1.0)
+	var cr := (32.0 + 10.0 * grown) * s
+	var cc := Vector2(band.end.x - 6.0 * s, cy + 3.0 * s * grown)
+	var pulse := Kit.pop(_combo_t, 0.35, 0.45)
+	var due: bool = _f != null and (str(_v["phase"]) == "pull" or (_pull_ready < 2.0 and _f.game == null))
+	kit.dot(ci, cc, (cr + 6.0 * s) * pulse, Color(Kit.DEEP, 0.94))
+	if combo > 0:
+		kit.glow(ci, cc, (cr + 26.0 * s * (0.4 + grown)) * pulse, Kit.GOLD, 0.5 + 1.2 * grown + (1.0 if due else 0.0))
+	kit.ring(ci, cc, (cr + 6.0 * s) * pulse, Color(Kit.GOLD, 0.5) if combo > 0 else Kit.EDGE, 1.0)
+	kit.ring(ci, cc, cr * pulse, Kit.TRACK, 5.0 * s)
+	var every := Arcade.PULL_EVERY
+	var to_pull := 1.0 if due else clampf(1.0 - float(int(_v["next_pull"]) - combo) / every, 0.0, 1.0)
+	if to_pull > 0.0:
+		kit.arc(ci, cc, cr * pulse, -PI * 0.5, -PI * 0.5 + TAU * to_pull, Kit.GOLD, 5.0 * s)
+	for i in every:
+		var a := -PI * 0.5 + TAU * i / every
+		kit.line(ci, cc + Vector2.from_angle(a) * (cr - 4.0 * s) * pulse, cc + Vector2.from_angle(a) * (cr + 4.0 * s) * pulse, Color(Kit.DEEP, 0.9), 2.0 * s, false)
+	if combo > 0:
+		kit.text_pop(ci, cc + Vector2(0.0, -3.0 * s), "x%d" % combo, (25.0 + 9.0 * grown) * s, Kit.GOLD, pulse)
+		kit.text(ci, cc + Vector2(0.0, (15.0 + 4.0 * grown) * s), "COMBO", 8.5 * s, Color(Kit.GOLD, 0.8), 0, 700, 1.2 * s, false)
+	else:
+		kit.text(ci, cc, "COMBO", 9.5 * s, Kit.DIM, 0, 700, 1.2 * s, false)
+	# --- the middle: his energy in its stages, the line out under it
+	var x0 := band.position.x + 62.0 * s
+	var x1 := band.end.x - 70.0 * s - 10.0 * s * grown
+	var w := x1 - x0
+	var ey := cy - 9.0 * s
 	var n := int(_v["stages"])
 	var left := clampf((_energy - 0.2) / 0.8, 0.0, 1.0) * n
-	var sw := (w - (n - 1) * 2.0) / n
+	var gap := 4.0 * s
+	var sw := (w - 26.0 * s - (n - 1) * gap) / n
+	kit.fish(ci, Vector2(x0 + 9.0 * s, ey), 24.0 * s, Kit.CORAL.lerp(Kit.GOLD, _step), 1.0)
 	for i in n:
-		var sx := -w * 0.5 + i * (sw + 2.0)
-		var fill := clampf(left - (n - 1 - i), 0.0, 1.0)       # (they empty from the left: the boat's end)
-		_r(sx, 5, sw, 4, DARK)
+		var r := Rect2(x0 + 26.0 * s + i * (sw + gap), ey - 4.5 * s, sw, 9.0 * s)
+		var fill := clampf(left - (n - 1 - i), 0.0, 1.0)       # (they empty from the left)
+		kit.pill(ci, r, Kit.TRACK)
 		if fill > 0.0:
-			_r(sx + sw * (1.0 - fill), 5, sw * fill, 4, RED.lerp(AMBER, float(i) / maxf(n - 1.0, 1.0)))
+			var fw := maxf(sw * fill, r.size.y)
+			kit.pill(ci, Rect2(r.end.x - fw, r.position.y, fw, r.size.y), Kit.CORAL.lerp(Kit.GOLD, 0.55 * i / maxf(n - 1.0, 1.0)))
+			if _boss > 0.0 and fill < 1.0:
+				kit.rrect(ci, r.grow(2.0 * s), r.size.y, Color(0, 0, 0, 0), Color(Kit.GOLD, 0.6 + 0.4 * sin(_t * 8.0)), 1.5 * s)
 		elif _step > 0.0 and i == n - int(_v["stage"]):
-			_r(sx, 5, sw, 4, Color(GOLD, _step))
-	# the hook's hold: five pips
-	var hold := float(_v["hold"])
-	_hook(-w * 0.5 - 12.0, 5.0, PALE)
-	for i in 5:
-		var on := hold > i * 0.2 + 0.02
-		_r(-w * 0.5 + i * 5.0, 12, 4, 3, (GOLD if hold > 0.45 else RED) if on else DARK)
-	# the streak
-	var st := int(_v["streak"])
-	if st > 0:
-		var s := int(_u) * (2 if _streak_t < 0.25 else 1)
-		var text := "X%d" % st
-		_text(_at(w * 0.5 - PixFont.width(text, 1) - 14.0, 11.0), text, GOLD if st >= 3 else PALE, s)
-	# where he is round her (from above: her bow up, him a dot): green astern, red forward of the beam
-	if _f != null:
-		var bx := w * 0.5 + 8.0
-		_r(bx - 1.5, 6, 3, 6, PALE)
-		_r(bx - 0.5, 4, 1, 2, PALE)
-		var b := wrapf(_f.bearing, -PI, PI)
-		var ang := float(_v["angle"])
-		var d := Vector2(sin(b), cos(b)) * 6.5
-		_r(bx + d.x - 1.0, 9.0 + d.y - 1.0, 2, 2, GREEN if ang > 0.8 else (AMBER if ang > 0.4 else RED))
+			kit.pill(ci, r, Color(Kit.GOLD, _step))
+			kit.glow(ci, r.get_center(), sw * 0.7, Kit.GOLD, 2.0 * _step)
+	# the line: the boat, the line out (the far end's a full spool), him; red as it wears
+	var ly := cy + 12.0 * s
+	var wear := float(_v["wear"])
+	var line_col := Kit.FOAM.lerp(Kit.CORAL, clampf(wear * 1.3, 0.0, 1.0))
+	var dist := "%d m" % int(_line)
+	var lx1 := x1 - 50.0 * s
+	var lx0 := x0 + 22.0 * s
+	var fx := lerpf(lx0, lx1, sqrt(clampf(_line / Arcade.CAPACITY, 0.0, 1.0)))
+	kit.boat(ci, Vector2(x0 + 9.0 * s, ly - 1.0 * s), 18.0 * s, Kit.MIST, 1.0)
+	kit.line(ci, Vector2(lx0, ly), Vector2(lx1, ly), Kit.TRACK, 2.0 * s)
+	kit.line(ci, Vector2(lx0, ly), Vector2(fx, ly), line_col, 2.0 * s)
+	kit.dot(ci, Vector2(fx, ly), 4.0 * s, line_col)
+	kit.text(ci, Vector2(x1, ly), dist, 15.0 * s, Kit.FOAM, 1, 600)
+	if bool(_v["leader"]):
+		kit.text(ci, Vector2(x1, ey), "LEADER", 9.0 * s, Kit.GOLD, 1, 700, 1.0 * s, false)
+	elif float(_v["angle"]) < 0.75:
+		# (he's off her stern: everything you do counts for less till she's turned to him)
+		kit.text(ci, Vector2(band.get_center().x, band.end.y + 12.0 * s), "HE'S OFF THE STERN", 10.0 * s, Color(Kit.GOLD, 0.6 + 0.4 * sin(_t * 5.0)), 0, 700, 1.5 * s)
 
-
-# ------------------------------------------------------------------ the set-pieces
-
-## The run: a bar, slack (blue) at its left, parting (red) at its right; his green band moving; your needle.
-func _draw_run() -> void:
-	var w := 80.0
-	_r(-40, -4, w, 8, DARK)
-	_r(-40, -4, 5, 8, Color(BLUE, 0.55))
-	_r(35, -4, 5, 8, Color(RED, 0.6))
-	var bc := float(_v["band_c"])
-	var bw := float(_v["band_w"])
-	var n := float(_v["needle"])
-	var inside := absf(n - bc) <= bw
-	_r(-40.0 + (bc - bw) * w, -4, 2.0 * bw * w, 8, Color(GREEN, 0.95 if inside else 0.55))
-	_fish(-40.0 + bc * w, -10.0, GREEN if inside else PALE, -1.0)
-	var col := PALE if inside else (RED if n > bc else BLUE)
-	var nx := -40.0 + n * w
-	_r(nx - 1.0, -7, 2, 14, col)
-	_r(nx - 2.0, 7, 4, 2, col)
-	# (which way to take it)
-	if not inside:
-		var way := 1.0 if n < bc else -1.0
-		for i in 3:
-			_r(nx + way * (4.0 + i * 3.0 + fmod(_t * 6.0, 3.0)) - 0.5, 12, 1, 2, col)
-	# the line pouring off, at the slack end: a spool, turning faster the looser
-	var spin := _t * (4.0 + 20.0 * clampf(bc - bw - n, 0.0, 0.3) / 0.3)
-	_r(-44.5 + cos(spin) * 2.0, 12.0 + sin(spin) * 2.0, 1, 1, BLUE)
-	_r(-45, 11.5, 2, 2, Color(BLUE, 0.5))
-
-
-## The head shakes: beats coming down a lane from the right to the gold box.
-func _draw_shake() -> void:
-	_r(-40, -3, 80, 6, DARK)
-	var box := -28.0
-	var t := float(_v["t"])
-	var beats: PackedFloat32Array = _v["beats"]
-	var hits: PackedByteArray = _v["beat_hit"]
-	var near := 9.0
-	for i in beats.size():
-		var dt := beats[i] - t
-		var x := box + dt * 30.0
-		if hits[i] == 0:
-			near = minf(near, absf(dt))
-			if x < 42.0:
-				_r(x - 2.0, -5, 4, 10, PALE)
-				_r(x - 3.0, -2, 1, 4, PALE)
-		elif hits[i] == 3 and dt > -0.5:
-			_r(x - 2.0, -5, 4, 10, Color(RED, 1.0 + dt * 2.0))
-	var lit := near < Arcade.HIT_GOOD
-	var col := Color(_hit_col, 1.0) if _hit > 0.0 else (GOLD if lit else Color(GOLD, 0.6))
-	var g := 1.0 + 2.0 * _hit
-	_frame(box - 4.0 - g, -8.0 - g, 8.0 + 2.0 * g, 16.0 + 2.0 * g, col)
-	_fish(34.0, -12.0 + sin(t * TAU / Arcade.BEAT) * 2.0, PALE, -1.0)
-
-
-## The jump: his arc over the water from the left; red while your hands must be off; the green ring where he lands.
-func _draw_jump() -> void:
-	var air := float(_v["air"])
-	var up := float(_v["up"])
-	for i in 20:
-		_r(-40.0 + i * 4.0, 9.0 + (1.0 if (i + int(_t * 3.0)) % 2 == 0 else 0.0), 3, 1, BLUE)
-	var x0 := -22.0
-	var x1 := 24.0
-	var off := Arcade.HANDS_OFF / Arcade.AIR
-	for i in 24:
-		var s := (i + 0.5) / 24.0
-		var p := Vector2(lerpf(x0, x1, s), 9.0 - 22.0 * sin(PI * s))
-		_r(p.x - 0.5, p.y - 0.5, 1, 1, Color(RED, 0.9) if s < off else Color(DIM, 0.8))
-	# where he lands: a ring closing on it
-	var landed := int(_v["landed"])
-	var ring_col := GOLD if landed == 2 else GREEN
-	_frame(x1 - 4.0, 5, 8, 8, ring_col)
-	if landed == 0 and air < Arcade.AIR:
-		var g := clampf((Arcade.AIR - air) / (Arcade.AIR + up), 0.0, 1.0) * 14.0
-		_frame(x1 - 4.0 - g, 5.0 - g, 8.0 + 2.0 * g, 8.0 + 2.0 * g, Color(GREEN, 0.5))
-	# him
-	var fp := Vector2(x0, 9.0)
-	if air < 0.0:
-		var k := clampf(1.0 + air / up, 0.0, 1.0)
-		fp = Vector2(lerpf(x0 - 16.0, x0, k), lerpf(18.0, 9.0, k))
-		for i in 3:
-			_r(x0 - 0.5, 3.0 - i * 3.0 - fmod(_t * 8.0, 3.0), 1, 2, Color(AMBER, 0.9))
+	# --- the stage: its panel, its name, the games left in the set, the two buttons
+	var stage := _stage_rect()
+	var edge := Kit.EDGE
+	if _bad > 0.0:
+		edge = Kit.EDGE.lerp(Kit.CORAL, _bad)
+	elif _hit > 0.0:
+		edge = Kit.EDGE.lerp(_hit_col, _hit)
+	elif _boss > 0.0:
+		edge = Color(Kit.GOLD, 0.75)
+	elif float(_v["tension"]) > Arcade.OVER:
+		edge = Kit.EDGE.lerp(Kit.CORAL, 0.5 + 0.5 * sin(_t * 20.0))
+	if _hit > 0.0 or _bad > 0.0:
+		var gc := Kit.CORAL if _bad > 0.0 else _hit_col
+		kit.rrect(ci, stage.grow(3.0 * s), 21.0 * s, Color(0, 0, 0, 0), Color(gc, 0.0), 0.0, 22.0 * s * maxf(_hit, _bad), Color(gc, 0.5 * maxf(_hit, _bad)))
+	kit.glass(ci, stage, 18.0 * s)
+	kit.rrect(ci, stage, 18.0 * s, Color(0, 0, 0, 0), edge, 1.5 * s)
+	var title := str(_v["title"])
+	if title != "":
+		_last_title = title
+	var ta := Kit.out_cubic(_game_a)
+	if _boss > 0.0:
+		var bw := kit.text(ci, stage.position + Vector2(14.0 * s, 13.0 * s), "BOSS", 9.5 * s, Color(Kit.GOLD, ta), -1, 700, 1.5 * s, false)
+		kit.text(ci, stage.position + Vector2(22.0 * s + bw, 13.0 * s), _last_title, 9.5 * s, Color(Kit.MIST, 0.9 * ta), -1, 700, 1.5 * s, false)
 	else:
-		var s := clampf(air / Arcade.AIR, 0.0, 1.0)
-		fp = Vector2(lerpf(x0, x1, s), 9.0 - 22.0 * sin(PI * s))
-		if s >= 1.0:
-			for i in 5:
-				var r := (air - Arcade.AIR) * 14.0
-				_r(x1 + (i - 2) * (2.0 + r * 0.5), 8.0 - r * (1.0 - absf(i - 2) * 0.3), 1, 2, PALE)
-	_fish(fp.x, fp.y, RED if air >= 0.0 and air < Arcade.HANDS_OFF and float(_v["bad"]) > 0.0 else PALE, 1.0)
+		kit.text(ci, stage.position + Vector2(14.0 * s, 13.0 * s), _last_title, 9.5 * s, Color(Kit.MIST, 0.9 * ta), -1, 700, 1.5 * s, false)
+	var more := int(_v["set_left"]) - (1 if _f != null and _f.game != null else 0)
+	for i in clampi(more, 0, 4):
+		kit.dot(ci, Vector2(stage.end.x - 14.0 * s - i * 8.0 * s, stage.position.y + 13.0 * s), 2.2 * s, Color(Kit.MIST, 0.7))
+	if _game_a < 1.0:
+		# (the breath between two: the water keeps moving)
+		var c := stage.get_center() + Vector2(0.0, 8.0 * s)
+		var pts := PackedVector2Array()
+		for i in 31:
+			var x := (i / 30.0 - 0.5) * stage.size.x * 0.6
+			pts.append(c + Vector2(x, sin(x * 0.07 / s + _t * 6.0) * 5.0 * s * (1.0 - absf(i / 15.0 - 1.0))))
+		kit.polyline(ci, pts, Color(Kit.TEAL, 0.8 * (1.0 - ta)), 2.5 * s)
+	# the buttons: A's on the left, B's on the right
+	var pad: bool = Settings.pad
+	var live := _f != null and _f.game != null
+	for side in 2:
+		var cue := int(_v["a" if side == 0 else "b"]) if live else Kit.NONE
+		var bc := Vector2(stage.position.x - 46.0 * s if side == 0 else stage.end.x + 46.0 * s, stage.get_center().y - 4.0 * s)
+		var chip := Rect2(bc.x - 34.0 * s, bc.y - 42.0 * s, 68.0 * s, 98.0 * s)
+		kit.glass(ci, chip, 16.0 * s, 0.9 if cue != Kit.NONE else 0.6)
+		if cue != Kit.NONE and cue != Kit.OFF:
+			kit.rrect(ci, chip, 16.0 * s, Color(0, 0, 0, 0), Color(Kit.cue_col(cue), 0.55), 1.5 * s)
+		kit.button(ci, bc, 46.0 * s, side, cue, _t, Input.is_action_pressed("use_primary" if side == 0 else "use_secondary"), pad,
+				1.0 if cue != Kit.NONE else 0.55)
 
 
-## The pump: a tall meter, gold at its top; lift into the gold, wind down. The kick: it flares amber, then red.
-func _draw_pump() -> void:
-	var h := 32.0
-	var rod := float(_v["rod"])
-	var kick := int(_v["kick"])
-	_r(-5, -16, 10, h, DARK)
-	var gold_h := h * (1.0 - Arcade.GOLD)
-	_r(-5, -16, 10, gold_h, Color(GOLD, 0.35 + 0.25 * sin(_t * 6.0)))
-	var col := GOLD if rod >= Arcade.GOLD else PALE
-	if int(_v["dir"]) == -1:
-		col = GREEN
-	_r(-4, 16.0 - h * rod, 8, h * rod, col)
-	_r(-7, 16.0 - h * rod - 1.0, 14, 2, col)
-	if kick > 0:
-		var kc := AMBER if kick == 1 else RED
-		if kick == 2 or sin(_t * 30.0) > 0.0:
-			_frame(-8, -19, 16, h + 6.0, kc)
-			_text(_at(11.0, -4.0), "!", kc, int(_u) * 2)
-			_text(_at(-15.0, -4.0), "!", kc, int(_u) * 2)
-	else:
-		# which way now: up the left (lift), down the right (wind)
-		var lifting := int(_v["b"]) == 1
-		_arrow(-16.0, 0.0, -1.0, PALE if lifting else Color(DIM, 0.5), lifting)
-		_arrow(16.0, 0.0, 1.0, GREEN if not lifting else Color(DIM, 0.5), not lifting)
-	# him, down there: deeper the further into it
-	_fish(30.0, 8.0 + 3.0 * sin(_t * 2.0), PALE, -1.0)
-	_r(5, 16.0 - h * rod, 22, 1, Color(PALE, 0.4))
-
-
-## The charge: the line between the boat and him, sagging as it slackens; down in the water and it's red.
-func _draw_charge() -> void:
-	var slack := float(_v["slack"])
-	var k := clampf(float(_v["t"]) / maxf(float(_v["len"]), 0.1), 0.0, 1.0)
-	_fish_x = lerpf(38.0, 2.0, k)
-	for i in 20:
-		_r(-40.0 + i * 4.0, 13.0 + (1.0 if (i + int(_t * 3.0)) % 2 == 0 else 0.0), 3, 1, BLUE)
-	_r(-40, -4, 6, 10, PALE)
-	_r(-36, -12, 1, 8, PALE)
-	var x0 := -35.0
-	var col := PALE.lerp(RED, smoothstep(0.5, 0.85, slack))
-	var n := 22
-	for i in n + 1:
-		var s := float(i) / n
-		var sag := 4.0 * s * (1.0 - s) * (2.0 + 20.0 * slack)
-		_r(lerpf(x0, _fish_x, s) - 0.5, -11.0 + 9.0 * s + sag, 1.5, 1.5, col)
-	_fish(_fish_x + 3.0, 0.0, PALE, 1.0)
-	for i in 3:
-		_r(_fish_x + 9.0 + i * 3.0 + fmod(_t * 12.0, 3.0), -1.0 + i, 2, 1, Color(PALE, 0.5))
-
-
-## The laps: a ring; the green of it (at the bottom: toward you) is him coming up, wind; the red, going away, brace.
-func _draw_laps() -> void:
-	var lap := float(_v["lap"])
-	var g := float(_v["green"])
-	var n := 32
-	var rad := 15.0
-	var is_green := lap < g and float(_v["intro"]) <= 0.0
-	for i in n:
-		var ph := float(i) / n
-		var ang := PI * 0.5 + TAU * (ph - g * 0.5)
-		var p := Vector2(cos(ang), sin(ang)) * rad
-		var in_g := ph < g
-		var col := Color(GREEN, 1.0 if is_green else 0.6) if in_g else Color(RED, 0.75 if not is_green else 0.4)
-		_r(p.x - 1.0, p.y - 1.0, 2, 2, col)
-	# (the mark where he turns toward you: on to the handle right there)
-	var a0 := PI * 0.5 + TAU * (-g * 0.5)
-	var p0 := Vector2(cos(a0), sin(a0))
-	_r(p0.x * (rad + 3.0) - 1.0, p0.y * (rad + 3.0) - 1.0, 2, 2, GOLD)
-	_r(p0.x * (rad - 3.0) - 1.0, p0.y * (rad - 3.0) - 1.0, 2, 2, GOLD)
-	var am := PI * 0.5 + TAU * (lap - g * 0.5)
-	var pm := Vector2(cos(am), sin(am)) * rad
-	var mc := GOLD if bool(_v["arc_perfect"]) and is_green else (GREEN if is_green else PALE)
-	if float(_v["red_t"]) > 0.2:
-		mc = RED
-	_r(pm.x - 2.5, pm.y - 2.5, 5, 5, mc)
-	_r(pm.x - 1.0, pm.y - 1.0, 2, 2, INK)
-	# you, at the bottom; the line to him
-	_r(-2, rad + 3.0, 4, 2, PALE)
-	_fish(pm.x * 0.45, pm.y * 0.45, Color(mc, 0.7), 1.0 if pm.x >= 0.0 else -1.0)
-
-
-# ------------------------------------------------------------------ the buttons
-
-## The mouse (A its left button, B its right) or the pad's triggers (LT is B, RT is A): what each wants now.
-func _draw_buttons() -> void:
-	var want_a := int(_v["a"])
-	var want_b := int(_v["b"])
-	var down_a := Input.is_action_pressed("use_primary")
-	var down_b := Input.is_action_pressed("use_secondary")
-	if Settings.pad:
-		_trigger(-14.0, "LT", want_b, down_b)
-		_trigger(4.0, "RT", want_a, down_a)
-		_reel(6.0, 11.0, _want_col(want_a))
-		_rodpic(-12.0, 10.0, _want_col(want_b))
+func _draw_game() -> void:
+	if _f == null or _f.game == null:
 		return
-	# the mouse: its body, its two buttons
-	_r(-6, -2, 12, 16, INK)
-	_frame(-6, -2, 12, 16, DIM)
-	_r(-5, 6, 10, 7, Color(DIM, 0.35))
-	_btn(-5.0, -1.0, 4.5, 6.0, want_a, down_a)
-	_btn(0.5, -1.0, 4.5, 6.0, want_b, down_b)
-	_reel(-6.0, 17.0, _want_col(want_a))
-	_rodpic(1.0, 16.0, _want_col(want_b))
+	var s := _s
+	var stage := _stage_rect()
+	var r := Rect2(stage.position + Vector2(14.0 * s, 26.0 * s), stage.size - Vector2(28.0 * s, 36.0 * s))
+	_f.game.draw(_game, r, kit, _t)
 
 
-func _want_col(want: int) -> Color:
-	match want:
-		1:
-			return GREEN
-		2:
-			return GOLD
-		3:
-			return GOLD if sin(_t * 28.0) > 0.0 else Color(GOLD, 0.35)
-		-1:
-			return RED
-	return Color(DIM, 0.6)
+# ------------------------------------------------------------------ the pops, the sparks, the BIG PULL
 
-
-func _btn(x: float, y: float, w: float, h: float, want: int, down: bool) -> void:
-	_r(x, y, w, h, _want_col(want) if want != 0 else DARK)
-	if want == -1:
-		_r(x + 1.0, y + 2.5, w - 2.0, 1, INK)
-	if down:
-		_frame(x - 1.0, y - 1.0, w + 2.0, h + 2.0, PALE)
-
-
-func _trigger(x: float, label: String, want: int, down: bool) -> void:
-	_r(x, 0, 10, 8, _want_col(want) if want != 0 else DARK)
-	_text(_at(x + 1.5, 1.5), label, INK if want != 0 else DIM, int(_u))
-	if down:
-		_frame(x - 1.0, -1, 12, 10, PALE)
-
-
-## A reel (A winds) and a rod (B leans back), beside their buttons.
-func _reel(x: float, y: float, col: Color) -> void:
-	_r(x, y + 1.0, 5, 3, col)
-	_r(x + 1.0, y, 3, 5, col)
-	_r(x + 2.0, y + 2.0, 1, 1, INK)
-	var a := _t * 6.0 if int(_v["a"]) > 0 else 0.6
-	_r(x + 2.0 + cos(a) * 3.5, y + 2.0 + sin(a) * 3.5, 1.5, 1.5, col)
-
-
-func _rodpic(x: float, y: float, col: Color) -> void:
-	for i in 6:
-		_r(x + i, y + 5.0 - i, 1.5, 1.5, col)
-	_r(x + 6.0, y, 1, 4, Color(col, 0.6))
-
-
-# ------------------------------------------------------------------ bits
-
-func _at(x: float, y: float) -> Vector2:
-	return (_o + Vector2(x, y) * _u).floor()
-
-
-func _r(x: float, y: float, w: float, h: float, col: Color) -> void:
-	draw_rect(Rect2((_o + Vector2(x, y) * _u).floor(), (Vector2(w, h) * _u).ceil()), Color(col, col.a * _al))
-
-
-func _frame(x: float, y: float, w: float, h: float, col: Color) -> void:
-	_r(x, y, w, 1, col)
-	_r(x, y + h - 1.0, w, 1, col)
-	_r(x, y, 1, h, col)
-	_r(x + w - 1.0, y, 1, h, col)
-
-
-func _text(at: Vector2, text: String, col: Color, scale: int) -> void:
-	PixFont.draw(self, at + Vector2(scale, scale), text, Color(INK, _al), scale)
-	PixFont.draw(self, at, text, Color(col, col.a * _al), scale)
-
-
-## A little tuna, its nose at x toward `way` (+1 right, -1 left), centred on y.
-func _fish(x: float, y: float, col: Color, way: float) -> void:
-	_r(x - (3.0 if way > 0.0 else -0.0) - 1.5, y - 1.5, 6, 3, col)
-	_r(x + (2.5 if way > 0.0 else -4.5), y - 0.5, 2, 1, col)
-	_r(x - (5.5 if way > 0.0 else -4.5), y - 2.5, 1, 5, col)
-	_r(x - (4.5 if way > 0.0 else -3.5), y - 1.0, 1, 2, col)
-	_r(x - 1.0, y - 2.5, 2, 1, col)
-
-
-func _hook(x: float, y: float, col: Color) -> void:
-	_r(x + 3.0, y, 1, 6, col)
-	_r(x, y + 5.0, 3, 1, col)
-	_r(x, y + 3.0, 1, 2, col)
-	_r(x + 2.0, y - 1.0, 3, 1, col)
-
-
-## An arrow, up (`way` -1) or down (+1), bobbing that way when it's `on`.
-func _arrow(x: float, y: float, way: float, col: Color, on: bool) -> void:
-	var bob := way * fmod(_t * 5.0, 2.0) if on else 0.0
-	y += bob
-	_r(x - 1.0, y - 4.0, 2, 8, col)
-	_r(x - 3.0, y + way * 2.0 - (1.0 if way < 0.0 else 0.0), 6, 1, col)
-	_r(x - 2.0, y + way * 3.0 - (1.0 if way < 0.0 else 0.0), 4, 1, col)
-	_r(x - 1.0, y + way * 4.0 - (1.0 if way < 0.0 else 0.0), 2, 1, col)
+func _draw_over() -> void:
+	var ci := _over
+	var s := _s
+	for p: Array in _sparks:
+		var life := float(p[2]) / float(p[3])
+		kit.dot(ci, p[0], float(p[5]) * (0.5 + 0.5 * life), Color(p[4] as Color, life))
+	var stage := _stage_rect()
+	# the grade: springs up over the stage, drifts off
+	if _pop_t < 1.25 and _pop != "":
+		var col: Color = GRADE_COL.get(_pop, Kit.GOLD)
+		var fade := clampf((1.25 - _pop_t) / 0.35, 0.0, 1.0)
+		var at := Vector2(size.x * 0.5, stage.position.y - (6.0 + 12.0 * Kit.out_cubic(_pop_t / 1.25)) * s)
+		var big := _pop == "PERFECT" or _pop == "BOSS DOWN"
+		if big:
+			kit.glow(ci, at, 54.0 * s, Color(col, fade), 0.7)
+		kit.text_pop(ci, at, _pop, (34.0 if big else 28.0) * s, Color(col, fade), Kit.pop(_pop_t, 0.6 if big else 0.4, 0.45))
+	# the BIG PULL: the whole screen, for a second
+	if _pull_t < 1.3:
+		var c := Vector2(size.x * 0.5, size.y * 0.42)
+		var t := _pull_t
+		var out := clampf((1.3 - t) / 0.35, 0.0, 1.0)
+		ci.draw_rect(Rect2(Vector2.ZERO, size), Color(1.0, 0.93, 0.7, 0.4 * clampf(1.0 - t / 0.28, 0.0, 1.0)))
+		var grow := Kit.out_cubic(t / 1.0)
+		# the burst: wedges of light opening out from behind the number, turning a little; streaks flying off
+		var n := 18
+		for i in n:
+			var a := TAU * i / n + t * 0.35
+			var half := 0.05 + 0.03 * (i % 2)
+			var r_in := (120.0 + 60.0 * grow) * s
+			var r_out := (260.0 + 520.0 * grow) * s * (1.0 if i % 2 == 0 else 0.75)
+			var wedge := PackedVector2Array([c + Vector2.from_angle(a - half * 0.4) * r_in, c + Vector2.from_angle(a - half) * r_out,
+					c + Vector2.from_angle(a + half) * r_out, c + Vector2.from_angle(a + half * 0.4) * r_in])
+			kit.poly(ci, wedge, Color(Kit.GOLD if i % 2 == 0 else Kit.FOAM, 0.5 * sqrt(1.0 - grow) * out))
+		for i in 26:
+			var a := TAU * i / 26.0 + 0.11 * (i % 3)
+			var d := Vector2.from_angle(a)
+			var r0 := (170.0 + 520.0 * grow + 50.0 * (i % 2)) * s
+			var ray := (120.0 - 60.0 * grow) * s
+			kit.line(ci, c + d * r0, c + d * (r0 + ray), Color(Kit.GOLD if i % 2 == 0 else Kit.FOAM, 0.9 * (1.0 - grow) * out), (5.0 if i % 2 == 0 else 3.0) * s)
+		kit.ring(ci, c, (80.0 + 640.0 * grow) * s, Color(Kit.GOLD, 0.8 * (1.0 - grow)), 6.0 * s * (1.0 - grow) + 1.0)
+		# (a soft dark behind the number, so the gold's bright on any sky)
+		kit.glow(ci, c + Vector2(0.0, -14.0 * s), 260.0 * s, Color(Kit.DEEP, out), 1.5)
+		var shown := _pull_m * Kit.out_cubic(t / 0.55)
+		var k := Kit.pop(t, 0.7, 0.5)
+		var rise := 18.0 * s * Kit.in_cubic(clampf((t - 0.9) / 0.4, 0.0, 1.0))
+		kit.glow(ci, c - Vector2(0.0, rise), 200.0 * s, Color(Kit.GOLD, out), 0.5)
+		kit.text(ci, c + Vector2(0.0, -62.0 * s - rise), "BIG PULL", 26.0 * s, Color(Kit.FOAM, out), 0, 700, 6.0 * s)
+		kit.text_pop(ci, c - Vector2(0.0, rise), "+%d m" % int(roundf(shown)), 92.0 * s, Color(Kit.GOLD, out), k)
