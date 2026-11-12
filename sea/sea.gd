@@ -226,7 +226,8 @@ func _ready() -> void:
 		if multiplayer.is_server():
 			print("Weather: sending ours (seed %d)" % weather.seed)
 			_weather_seed.rpc_id(id, weather.seed, str(_args.get("weather", "")))
-			_weather_called.rpc_id(id, weather.call_state()))
+			_weather_called.rpc_id(id, weather.call_state())
+			_fight_pace.rpc_id(id, FightPace.pace))
 	# (crew whose host's gone mid-game, in the game itself: back to the title, saying so, REJOIN on it; Rivals'
 	# results card, if it's up, says so itself and has the way back)
 	Net.dropped.connect(func(_reason: String) -> void:
@@ -329,6 +330,21 @@ func _weather_seed(s: int, pinned: String) -> void:
 		set_condition(pinned)
 	else:
 		_follow_weather()
+
+
+## The host's call on how long fights are (ui/dev_panel.gd): tuna/fight.gd's pace, on every machine.
+const FightPace := preload("res://tuna/fight.gd")
+func host_fight_pace(k: float) -> void:
+	if not Net.is_host():
+		return
+	FightPace.pace = clampf(k, 0.2, 3.0)
+	if Net.in_session():
+		_fight_pace.rpc(FightPace.pace)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _fight_pace(k: float) -> void:
+	FightPace.pace = clampf(k, 0.2, 3.0)
 
 
 ## The host's call on the weather (ui/dev_panel.gd): `kind` coming in on every screen ("": on its own again).

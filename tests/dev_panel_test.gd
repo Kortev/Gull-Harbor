@@ -22,7 +22,7 @@ func _ready() -> void:
 	_check(dev.visible, "F1 opens it (the host's)")
 	sea.weather.pinned = ""
 	sea.host_call_weather("calm")
-	await get_tree().create_timer(float(sea.weather.CALL_TURN) + 1.0).timeout
+	await _sea_secs(sea, float(sea.weather.CALL_TURN) + 1.0)
 	_check(sea.condition == "calm", "calm called: calm (%s)" % sea.condition)
 	dev.call("_weather", "storm")
 	await get_tree().create_timer(1.0).timeout
@@ -30,15 +30,14 @@ func _ready() -> void:
 	_check(sea.condition == "calm", "a storm called: not there at once (%s, the sea %.2f)" % [sea.condition, early])
 	var worst := 0.0
 	var last := early
-	var t := 0.0
-	while t < float(sea.weather.CALL_TURN) + 1.0:
+	var until := float(sea.ocean.wave_time) + float(sea.weather.CALL_TURN) + 1.0
+	while float(sea.ocean.wave_time) < until:
 		await get_tree().process_frame
-		t += get_process_delta_time()
 		worst = maxf(worst, absf(float(sea.ocean.weather) - last))
 		last = float(sea.ocean.weather)
 	_check(sea.condition == "storm" and worst < 0.05, "it comes in, no jump (the most in a frame %.3f): %s" % [worst, sea.condition])
 	dev.call("_weather", "")
-	await get_tree().create_timer(float(sea.weather.CALL_TURN) + 1.0).timeout
+	await _sea_secs(sea, float(sea.weather.CALL_TURN) + 1.0)
 	_check(str(sea.weather.called) == "", "let go: on its own again (%s)" % sea.condition)
 	dev.call("_day", 0.45)
 	_check(sea.fish_hold.docked, "at the dock: the day's not moved")
@@ -53,6 +52,11 @@ func _ready() -> void:
 		on += 1 if bool(r.get("hooked")) else 0
 	_check(on == 1, "a fish on (%d)" % on)
 	dev.call("_birds")
+	dev.call("_pace")
+	_check(is_equal_approx(float(preload("res://tuna/fight.gd").pace), 0.5), "fights: quick, half the length")
+	for i in 3:
+		dev.call("_pace")
+	_check(is_equal_approx(float(preload("res://tuna/fight.gd").pace), 1.0), "and round to the usual again")
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--dev-shot=") and DisplayServer.get_name() != "headless":
 			await get_tree().create_timer(0.5).timeout
@@ -61,6 +65,13 @@ func _ready() -> void:
 		print("FAIL ", f)
 	print("DEV PANEL TEST ", "PASSED" if fails.is_empty() else "FAILED")
 	get_tree().quit(1 if not fails.is_empty() else 0)
+
+
+## The sea's own clock going on `secs` s (the weather's on it, not on the frames').
+func _sea_secs(sea: Sea, secs: float) -> void:
+	var until := float(sea.ocean.wave_time) + secs
+	while float(sea.ocean.wave_time) < until:
+		await get_tree().process_frame
 
 
 func _check(ok: bool, what: String) -> void:

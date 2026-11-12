@@ -13,6 +13,10 @@ var _box: VBoxContainer
 var _panel: PanelContainer
 var _rows: Array = []         # [label, Callable]
 var _said: Label
+## How long fights are (tuna/fight.gd's pace), stepped through by its row: [the word, the pace].
+const PACES := [["USUAL LENGTH", 1.0], ["QUICK (HALF)", 0.5], ["VERY QUICK (A QUARTER)", 0.25], ["LONG (HALF AGAIN)", 1.5]]
+var _pace_at := 0
+var _pace_row: Button
 
 
 func _ready() -> void:
@@ -41,6 +45,8 @@ func _ready() -> void:
 	_head("FISH")
 	_row("A FISH ON, EVERY BOAT OUT", _fish_on)
 	_row("BIRDS IN NEAR", _birds)
+	_row("FIGHTS: USUAL LENGTH", _pace)
+	_pace_row = _box.get_child(_box.get_child_count() - 1) as Button
 	_said = Label.new()
 	_said.add_theme_color_override("font_color", Color(0.98, 0.86, 0.22))
 	_said.add_theme_font_size_override("font_size", 14)
@@ -164,6 +170,13 @@ func _fish_on() -> void:
 			on += 1
 			break
 	_note("%d fish on" % on if on > 0 else "Nobody's out with a free rod: cast off first")
+
+
+func _pace() -> void:
+	_pace_at = (_pace_at + 1) % PACES.size()
+	sea.call("host_fight_pace", float(PACES[_pace_at][1]))
+	_pace_row.text = "%s  FIGHTS: %s" % [KEYS[_rows.size() - 1], PACES[_pace_at][0]]
+	_note("Fights: %s" % str(PACES[_pace_at][0]).to_lower())
 
 
 func _birds() -> void:

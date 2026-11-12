@@ -278,6 +278,9 @@ const TURN_EASE := 0.2
 const DIVE_EASE := 4.0
 var _prop_t := 0.0
 var _goal_s := 90.0
+## How long fights are, against the usual (1): the host's, for a playtest (ui/dev_panel.gd; sea/sea.gd tells everyone,
+## since each rod's holder runs his own fight). 0.5: he tires in half the time and line comes back twice as fast.
+static var pace := 1.0
 var _jit := 0.0
 var _thrown_t := 0.0
 var _sweep := 0.0
@@ -474,6 +477,7 @@ func step(dt: float, crank: float, rod_pitch: float, _side: float, drag_set: flo
 	wind = WIN * crank_mul * crank * lerpf(SPENT_WIN, 1.0, pw) * clampf(1.0 - tens / CRANK_MAX, 0.0, 1.0)
 	if stretch < 0.0:
 		wind = WIN * crank_mul * crank * lerpf(SPENT_WIN, 1.0, pw)      # (slack: it spins)
+	wind /= pace         # (a quicker fight: each turn of the handle wins more of it back, as well as him tiring sooner)
 	var taken := minf(wind * dt, maxf(line_out - BOATSIDE + 1.0, 0.0))
 	line_out -= taken
 	stretch += taken
@@ -595,9 +599,9 @@ func step(dt: float, crank: float, rod_pitch: float, _side: float, drag_set: flo
 	# left be, he gets his breath back
 	var work := clampf(t_fish / (PRESSURE * fm), 0.0, 2.2) * (1.0 + (0.5 if slipping else 0.0))
 	if t_fish > EASY * fm:
-		energy -= dt / _goal_s * work * lerpf(0.45, 1.0, angle_k())
+		energy -= dt / (_goal_s * pace) * work * lerpf(0.45, 1.0, angle_k())
 	elif not beaten:
-		energy += RECOVER * dt / _goal_s
+		energy += RECOVER * dt / (_goal_s * pace)
 	energy = clampf(energy, 0.0, 1.0)
 
 	if energy < 0.2 and line_out <= BOATSIDE:

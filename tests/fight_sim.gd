@@ -31,6 +31,8 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--style="):
 			only = a.substr(8)
+		if a.begins_with("--pace="):
+			Fight.pace = float(a.substr(7))       # (the dev panel's fight length)
 		if a.begins_with("--heave="):
 			heave_a = float(a.substr(8))
 		if a.begins_with("--kg="):
