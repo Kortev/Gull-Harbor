@@ -1,51 +1,334 @@
 extends RefCounted
-## The new look's kit: the pieces every new screen shares (first: the fight's minigames, tuna/minigames/*.gd, and
-## its HUD, ui/fight_arcade_hud.gd). Clean type, the sea's own colours, soft dark glass, everything anti-aliased and
-## eased; nothing here is a pixel font or a hard box.
+## The fight's drawing kit: INSTRUMENTS AND STAMPS. Everything the arcade fight puts on screen (its HUD,
+## ui/fight_arcade_hud.gd, and every minigame, tuna/minigames/*.gd) is drawn with this and nothing else.
 ##
-## - **Type**: font(weight): the system's Bahnschrift (then Segoe UI, then Arial, then the engine's own) with tabular
-##   numbers; text() draws it centred on a point with a soft shadow, so it reads over bright water and a night storm.
-## - **Colour**: DEEP (the sea at depth), FOAM (white water), MIST (second-rank words), TEAL (the sea in the sun),
-##   GOLD (reward), CORAL (danger), GO (do it now).
-## - **Panels**: glass(): a translucent dark rounded panel with a thin light edge and a soft shadow; blur_rect(): a
-##   node that blurs what's behind it (the HUD puts one under each panel).
-## - **Shapes**: rrect, pill, meter, line, arc, ring, dot, glow, chevron, fish, boat, hook: all anti-aliased.
-## - **Motion**: out_cubic, out_back, out_elastic, pop (a springy scale), beat (a pulse); nothing snaps on or off.
-## - **Buttons**: button(): the mouse with its left (A) or right (B) button lit, or the pad's trigger, the glyph itself
-##   moving to say HOLD, TAP, MASH, RELEASE or HANDS OFF, with the one word under it.
-## Every draw call takes the CanvasItem to draw on, so anything with a _draw can use it: `var kit := Kit.new()`.
+## DRAWING A GAME (read this before you draw one; ride.gd, beats.gd, spool.gd and lanes.gd are the ones to copy)
+##  1. It's a ship's instrument: fine linework straight over the world, like a compass card, a sounder's scale or a
+##     chart. NO panels: no fills behind things, no boxes, no rounded corners, no pills, no glow, no gradient, no
+##     shadow, no translucent anything. If in doubt, take it away.
+##  2. Three inks: PAPER for nearly everything, YELLOW for reward (the good zone, a perfect, the combo), ORANGE for
+##     danger and for the fish himself. No other colour, and no mixing them. Alpha only to fade a thing out.
+##  3. Two line weights: rule(ci, a, b, col) is fine, rule(ci, a, b, col, true) is heavy; path() for a bent or
+##     closed line, circle() and sweep() only for things that really are round (a reel, a dial). Every stroke is
+##     keylined in dark by the kit (that's how it reads over white foam and over a black night): never draw your own
+##     backing, and never call ci.draw_* yourself.
+##  4. A quantity is a SCALE: scale() is a ruler (a line with minor and major ticks), dial() a ticked circle.
+##  5. A zone on a scale is a span() (two brackets) with hatch() inside it (hatch_arc() on a dial): never a fill.
+##     Yellow if it's where you want to be, orange if it hurts. Heavy when you're in it, fine when you're not.
+##  6. Markers are small solids: tri() (a pointer, its tip on what it points at), square(), diamond(), bar(); the
+##     same shapes hollow (filled false) for one that's spent or still to come. Yours are PAPER.
+##  7. The fish is fish() in ORANGE, small; the boat boat() in PAPER.
+##  8. Words: none if a shape can say it. Otherwise label() (small spaced capitals) and num() (big numerals, the
+##     unit after it in a label: "140 M"). The game's name, the frame's four corner ticks, the button glyphs (HOLD,
+##     TAP, RELEASE) and the grade's stamp are the HUD's: don't draw them.
+##  9. Motion is hard: a thing is there or it isn't, it steps or it travels at a steady rate. A hit is shown by a
+##     mark jumping or turning solid for a few frames (slam(), or `if flash > 0.5`), never by a soft pulse.
+## 10. Lay it out in `unit(rect)` (a rect 100 tall is 1) and keep inside the rect; line weights are the kit's own
+##     (they follow the screen: `px` is 1 at 1080p).
+## 11. Everything is drawn from the game's own state, the same on every screen: nothing random in draw().
+## The old look's calls (rrect, pill, meter, dot, ring, glow, line, arc, polyline, chevron, text_pop, and the colour
+## names FOAM, GOLD, CORAL, GO, TEAL, MIST, DIM, TRACK, EDGE, DEEP) are still here as plain STAND-INS in the new inks,
+## so a game not yet redrawn still draws: don't use them in new drawing (they're at the bottom of this file).
+##
+## What else is here: font() (a condensed system face, tabular numerals), text(), box(), solid(), corners() (the
+## frame), stamp() and tag() (the fish-market stamps: the one loud thing), button() (the engraved mouse or the pad's
+## trigger acting out a cue), and the easing (slam, out_cubic, in_cubic, out_back, pop, beat, follow).
+## Every call takes the CanvasItem to draw on: `var kit := Kit.new()`. The HUD sets `px`, and draws in two passes
+## (`defer` on: every keyline at once, then flush() lays all the ink on top, so no keyline ever darkens a stroke).
 
-const DEEP := Color(0.03, 0.085, 0.11)
-const GLASS := Color(0.025, 0.07, 0.095, 0.7)
-const EDGE := Color(1.0, 1.0, 1.0, 0.17)
-const FOAM := Color(0.95, 0.985, 0.975)
-const MIST := Color(0.7, 0.82, 0.85)
-const DIM := Color(0.62, 0.74, 0.78, 0.45)
-const TRACK := Color(1.0, 1.0, 1.0, 0.11)
-const TEAL := Color(0.2, 0.8, 0.82)
-const GOLD := Color(1.0, 0.79, 0.3)
-const CORAL := Color(1.0, 0.42, 0.37)
-const GO := Color(0.36, 0.93, 0.57)
+const PAPER := Color(0.957, 0.945, 0.910)
+const YELLOW := Color(1.0, 0.824, 0.122)
+const ORANGE := Color(1.0, 0.310, 0.122)
+## The keyline under every stroke, and the stamps' lettering.
+const INK := Color(0.03, 0.035, 0.04, 0.62)
+const BLACK := Color(0.055, 0.055, 0.06)
 
 ## What a button's asked to do (the minigames' cue()): nothing, hold it, tap it, hammer it, let it go, hands off.
 enum {NONE, HOLD, TAP, MASH, RELEASE, OFF = -1}
 
-const WORDS := {HOLD: "HOLD", TAP: "TAP", MASH: "MASH", RELEASE: "LET GO", OFF: "HANDS OFF"}
+const WORDS := {HOLD: "HOLD", TAP: "TAP", MASH: "MASH", RELEASE: "RELEASE", OFF: "HANDS OFF"}
+## The stamps' letters that get a stencil's bridge.
+const STENCIL := "ADOPQR04689"
 
 static var _fonts := {}
-static var _blur: Shader
 
-var _sb := StyleBoxFlat.new()
+## The screen's scale: 1 at 1080p (the HUD sets it).
+var px := 1.0
+## Two passes: keylines as they're asked for, the ink held back till flush().
+var defer := false
+var _ops: Array[Callable] = []
+
+
+# ------------------------------------------------------------------ ink
+
+func fine() -> float:
+	return 1.5 * px
+
+
+func heavy() -> float:
+	return 3.0 * px
+
+
+func _key(col: Color) -> Color:
+	return Color(INK, INK.a * col.a)
+
+
+func _ink(fn: Callable) -> void:
+	if defer:
+		_ops.append(fn)
+	else:
+		fn.call()
+
+
+## Lay down the ink that's been held back.
+func flush() -> void:
+	for fn in _ops:
+		fn.call()
+	_ops.clear()
+
+
+func _stroke(ci: CanvasItem, a: Vector2, b: Vector2, col: Color, w: float) -> void:
+	if a.distance_squared_to(b) < 0.01 or col.a <= 0.0:
+		return
+	var k := 2.0 * px
+	var d := (b - a).normalized() * k
+	ci.draw_line(a - d, b + d, _key(col), w + k * 2.0, true)
+	_ink(func() -> void: ci.draw_line(a, b, col, w, true))
+
+
+## A straight line: fine, or heavy.
+func rule(ci: CanvasItem, a: Vector2, b: Vector2, col := PAPER, hvy := false) -> void:
+	_stroke(ci, a, b, col, heavy() if hvy else fine())
+
+
+## A bent line through `pts` (closed: back to the first).
+func path(ci: CanvasItem, pts: PackedVector2Array, col := PAPER, hvy := false, closed := false) -> void:
+	if pts.size() < 2 or col.a <= 0.0:
+		return
+	var p := pts.duplicate()
+	if closed:
+		p.append(pts[0])
+	var w := heavy() if hvy else fine()
+	ci.draw_polyline(p, _key(col), w + 4.0 * px, true)
+	_ink(func() -> void: ci.draw_polyline(p, col, w, true))
+
+
+## A solid shape.
+func solid(ci: CanvasItem, pts: PackedVector2Array, col := PAPER) -> void:
+	if pts.size() < 3 or col.a <= 0.0:
+		return
+	var area := 0.0
+	for i in pts.size():
+		area += pts[i].cross(pts[(i + 1) % pts.size()])
+	if absf(area) < 1.0:
+		return
+	var p := pts.duplicate()
+	p.append(pts[0])
+	# (a solid's keyline is darker: it's all that shows a white shape on white water)
+	ci.draw_polyline(p, Color(INK, 0.82 * col.a), 4.0 * px, true)
+	_ink(func() -> void: ci.draw_colored_polygon(pts, col))
+
+
+## A solid rectangle (a bar on a scale).
+func bar(ci: CanvasItem, r: Rect2, col := PAPER) -> void:
+	solid(ci, PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]), col)
+
+
+## A rectangle's outline.
+func box(ci: CanvasItem, r: Rect2, col := PAPER, hvy := false) -> void:
+	path(ci, PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]), col, hvy, true)
+
+
+## A circle's line: only for what's really round.
+func circle(ci: CanvasItem, c: Vector2, radius: float, col := PAPER, hvy := false) -> void:
+	if radius < 0.3 or col.a <= 0.0:
+		return
+	var w := heavy() if hvy else fine()
+	ci.draw_circle(c, radius, _key(col), false, w + 4.0 * px, true)
+	_ink(func() -> void: ci.draw_circle(c, radius, col, false, w, true))
+
+
+## Part of a circle's line, from angle a0 to a1 (radians, 0 right, clockwise on screen).
+func sweep(ci: CanvasItem, c: Vector2, radius: float, a0: float, a1: float, col := PAPER, hvy := false) -> void:
+	if absf(a1 - a0) < 0.001 or radius < 0.3 or col.a <= 0.0:
+		return
+	var w := heavy() if hvy else fine()
+	var n := maxi(int(absf(a1 - a0) * radius / 3.0), 6)
+	ci.draw_arc(c, radius, a0, a1, n, _key(col), w + 4.0 * px, true)
+	_ink(func() -> void: ci.draw_arc(c, radius, a0, a1, n, col, w, true))
+
+
+# ------------------------------------------------------------------ scales, zones, the frame
+
+## A ruler from `a` to `b`: `n` divisions, every `major`th tick long. The ticks stand on the side `side` (+1: to the
+## right of a->b, which is below a ruler drawn left to right). `base`: with its line.
+func scale(ci: CanvasItem, a: Vector2, b: Vector2, n: int, major := 5, col := PAPER, side := 1.0, minor_len := -1.0,
+		major_len := -1.0, base := true) -> void:
+	var d := (b - a).normalized()
+	var nrm := Vector2(-d.y, d.x) * side
+	if minor_len < 0.0:
+		minor_len = 6.0 * px
+	if major_len < 0.0:
+		major_len = minor_len * 2.0
+	if base:
+		rule(ci, a, b, col)
+	for i in n + 1:
+		var p := a.lerp(b, float(i) / maxi(n, 1))
+		rule(ci, p, p + nrm * (major_len if i % maxi(major, 1) == 0 else minor_len), col)
+
+
+## A ticked circle: `n` divisions, every `major`th long, the ticks standing inward (or outward: `inward` false). The
+## first tick's at the top.
+func dial(ci: CanvasItem, c: Vector2, radius: float, n: int, major := 5, col := PAPER, minor_len := -1.0, major_len := -1.0,
+		inward := true) -> void:
+	if minor_len < 0.0:
+		minor_len = 6.0 * px
+	if major_len < 0.0:
+		major_len = minor_len * 2.0
+	circle(ci, c, radius, col)
+	for i in n:
+		var dir := Vector2.from_angle(-PI * 0.5 + TAU * i / n)
+		var l := major_len if i % maxi(major, 1) == 0 else minor_len
+		rule(ci, c + dir * radius, c + dir * (radius - l if inward else radius + l), col)
+
+
+## A zone on a scale: a bracket at each end of `r` ([ and ]), their feet turned in. Put hatch() inside it.
+func span(ci: CanvasItem, r: Rect2, col := YELLOW, hvy := false) -> void:
+	var foot := minf(5.0 * px, r.size.x * 0.25)
+	path(ci, PackedVector2Array([Vector2(r.position.x + foot, r.position.y), r.position, Vector2(r.position.x, r.end.y),
+			Vector2(r.position.x + foot, r.end.y)]), col, hvy)
+	path(ci, PackedVector2Array([Vector2(r.end.x - foot, r.position.y), Vector2(r.end.x, r.position.y), r.end,
+			Vector2(r.end.x - foot, r.end.y)]), col, hvy)
+
+
+## Diagonal hatching across `r` (parallel lines at 45 degrees, `gap` apart; -1: the kit's own).
+func hatch(ci: CanvasItem, r: Rect2, col := YELLOW, hvy := false, gap := -1.0) -> void:
+	if r.size.x <= 0.0 or r.size.y <= 0.0 or col.a <= 0.0:
+		return
+	if gap <= 0.0:
+		gap = 9.0 * px
+	var w := heavy() if hvy else fine()
+	var h := r.size.y
+	var lines := PackedVector2Array()
+	var o := -h + gap * 0.5
+	while o < r.size.x:
+		var a := Vector2(r.position.x + o, r.end.y)
+		var b := Vector2(r.position.x + o + h, r.position.y)
+		if a.x < r.position.x:
+			a = Vector2(r.position.x, r.end.y - (r.position.x - a.x))
+		if b.x > r.end.x:
+			b = Vector2(r.end.x, r.position.y + (b.x - r.end.x))
+		if a.distance_squared_to(b) > 4.0:
+			lines.append(a)
+			lines.append(b)
+		o += gap
+	if lines.is_empty():
+		return
+	ci.draw_multiline(lines, _key(col), w + 2.0 * px, true)
+	_ink(func() -> void: ci.draw_multiline(lines, col, w, true))
+
+
+## Hatching round part of a dial: slanted strokes between radius r0 and r1, from angle a0 to a1.
+func hatch_arc(ci: CanvasItem, c: Vector2, r0: float, r1: float, a0: float, a1: float, col := YELLOW, hvy := false, gap := -1.0) -> void:
+	if gap <= 0.0:
+		gap = 9.0 * px
+	var w := heavy() if hvy else fine()
+	var mid := (r0 + r1) * 0.5
+	var skew := (r1 - r0) / maxf(mid, 1.0)
+	var da := gap / maxf(mid, 1.0)
+	var lines := PackedVector2Array()
+	var lo := minf(a0, a1)
+	var end := maxf(a0, a1)
+	skew = minf(skew, (end - lo) * 0.6)
+	var a := lo + skew * 0.5 + da * 0.35
+	while a + skew * 0.5 < end - da * 0.2:
+		lines.append(c + Vector2.from_angle(a - skew * 0.5) * r0)
+		lines.append(c + Vector2.from_angle(a + skew * 0.5) * r1)
+		a += da
+	if lines.is_empty() or col.a <= 0.0:
+		return
+	ci.draw_multiline(lines, _key(col), w + 2.0 * px, true)
+	_ink(func() -> void: ci.draw_multiline(lines, col, w, true))
+
+
+## The frame: four corner ticks (little L marks) at the corners of `r`, their legs `leg` long.
+func corners(ci: CanvasItem, r: Rect2, leg: float, col := PAPER, hvy := true) -> void:
+	for i in 4:
+		var p := Vector2(r.position.x if i % 2 == 0 else r.end.x, r.position.y if i < 2 else r.end.y)
+		var dx := leg if i % 2 == 0 else -leg
+		var dy := leg if i < 2 else -leg
+		path(ci, PackedVector2Array([p + Vector2(dx, 0.0), p, p + Vector2(0.0, dy)]), col, hvy)
+
+
+# ------------------------------------------------------------------ markers
+
+## A pointer: a solid triangle with its tip at `tip`, pointing along `dir`, `size` across its back.
+func tri(ci: CanvasItem, tip: Vector2, size: float, dir: Vector2, col := PAPER, filled := true) -> void:
+	var n := Vector2(-dir.y, dir.x)
+	var pts := PackedVector2Array([tip, tip - dir * size * 0.95 + n * size * 0.5, tip - dir * size * 0.95 - n * size * 0.5])
+	if filled:
+		solid(ci, pts, col)
+	else:
+		path(ci, pts, col, false, true)
+
+
+func square(ci: CanvasItem, c: Vector2, size: float, col := PAPER, filled := true) -> void:
+	var r := Rect2(c - Vector2(size, size) * 0.5, Vector2(size, size))
+	if filled:
+		bar(ci, r, col)
+	else:
+		box(ci, r, col)
+
+
+## A square on its corner, `size` from point to point.
+func diamond(ci: CanvasItem, c: Vector2, size: float, col := PAPER, filled := true) -> void:
+	var h := size * 0.5
+	var pts := PackedVector2Array([c + Vector2(0.0, -h), c + Vector2(h, 0.0), c + Vector2(0.0, h), c + Vector2(-h, 0.0)])
+	if filled:
+		solid(ci, pts, col)
+	else:
+		path(ci, pts, col, false, true)
+
+
+func _placed(pts: Array, c: Vector2, rot: float, sx: float, sy: float) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for p: Vector2 in pts:
+		out.append(c + Vector2(p.x * sx, p.y * sy).rotated(rot))
+	return out
+
+
+## The bluefin, cut square: `length` long, his nose toward `way` (+1 right, -1 left), turned `rot` radians.
+func fish(ci: CanvasItem, c: Vector2, length: float, col := ORANGE, way := 1.0, rot := 0.0) -> void:
+	var sx := length * way
+	var body := [Vector2(0.5, 0.0), Vector2(0.24, -0.13), Vector2(0.06, -0.15), Vector2(-0.04, -0.27), Vector2(-0.1, -0.12),
+			Vector2(-0.3, -0.035), Vector2(-0.5, -0.22), Vector2(-0.41, 0.0), Vector2(-0.5, 0.22), Vector2(-0.3, 0.035),
+			Vector2(-0.08, 0.11), Vector2(0.22, 0.12)]
+	var pts := _placed(body, c, rot * way, sx, length)
+	if way < 0.0:
+		pts.reverse()
+	solid(ci, pts, col)
+
+
+## A little boat from the side, cut square: `length` long, her bow toward `way`.
+func boat(ci: CanvasItem, c: Vector2, length: float, col := PAPER, way := 1.0) -> void:
+	var hull := [Vector2(-0.5, -0.06), Vector2(-0.2, -0.06), Vector2(-0.2, -0.3), Vector2(0.12, -0.3), Vector2(0.2, -0.06),
+			Vector2(0.5, -0.1), Vector2(0.34, 0.14), Vector2(-0.42, 0.14)]
+	var pts := _placed(hull, c, 0.0, length * way, length)
+	if way < 0.0:
+		pts.reverse()
+	solid(ci, pts, col)
 
 
 # ------------------------------------------------------------------ type
 
-## The typeface at a weight (400 regular, 600 semibold, 700 bold).
+## The typeface at a weight (600 for labels, 700 for numerals and stamps): the system's Bahnschrift (then Arial
+## Narrow, Segoe UI, Arial, the engine's own), condensed, with tabular numbers.
 static func font(weight := 600) -> Font:
 	if not _fonts.has(weight):
 		var f := SystemFont.new()
-		f.font_names = PackedStringArray(["Bahnschrift", "Segoe UI Semibold", "Segoe UI", "Arial"])
+		f.font_names = PackedStringArray(["Bahnschrift", "Arial Narrow", "Segoe UI", "Arial"])
 		f.font_weight = weight
+		f.font_stretch = 80
 		f.antialiasing = TextServer.FONT_ANTIALIASING_GRAY
 		f.hinting = TextServer.HINTING_LIGHT
 		f.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_AUTO
@@ -63,215 +346,176 @@ static func font(weight := 600) -> Font:
 
 
 func text_w(s: String, size: float, weight := 600, spacing := 0.0) -> float:
-	return font(weight).get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1.0, maxi(int(size), 1)).x + spacing * maxi(s.length() - 1, 0)
+	return font(weight).get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1.0, maxi(int(roundf(size)), 1)).x + spacing * maxi(s.length() - 1, 0)
 
 
-## `s` with its middle (align 0), left (-1) or right (1) end at `at`, vertically centred on it. `spacing`: px between
-## letters (small capitals want some). Returns its width.
-func text(ci: CanvasItem, at: Vector2, s: String, size: float, col: Color, align := 0, weight := 600,
-		spacing := 0.0, shadow := true) -> float:
+## `s` with its middle (align 0), left (-1) or right (1) end at `at`, vertically centred on it, with a thin dark
+## outline (`outline` false: none, for lettering on a solid). `spacing`: px between letters. Returns its width.
+func text(ci: CanvasItem, at: Vector2, s: String, size: float, col := PAPER, align := 0, weight := 600,
+		spacing := 0.0, outline := true) -> float:
 	var f := font(weight)
-	var px := maxi(int(size), 1)
+	var fs := maxi(int(roundf(size)), 1)
 	var w := text_w(s, size, weight, spacing)
-	var x := at.x - w * 0.5 * (align + 1)
-	var y := at.y + px * 0.35
-	# (under it a soft dark halo, so it reads over white water and bright sky)
-	var halo := Color(0.0, 0.03, 0.05, 0.28 * col.a * col.a)
-	var halo_px := clampi(int(px * 0.16), 2, 10)
-	if spacing == 0.0:
-		if shadow:
-			ci.draw_string_outline(f, Vector2(x, y + px * 0.03), s, HORIZONTAL_ALIGNMENT_LEFT, -1.0, px, halo_px, halo)
-		ci.draw_string(f, Vector2(x, y), s, HORIZONTAL_ALIGNMENT_LEFT, -1.0, px, col)
+	if col.a <= 0.0 or s == "":
 		return w
-	var x0 := x
-	for pass_n in 2:
-		if pass_n == 0 and not shadow:
-			continue
-		x = x0
+	var x := at.x - w * 0.5 * (align + 1)
+	var y := at.y + fs * 0.36
+	var ol := maxi(int(roundf(clampf(size * 0.1, 2.0 * px, 4.0 * px))), 1)
+	var key := Color(INK, minf(INK.a * 1.3, 1.0) * col.a)
+	if spacing == 0.0:
+		if outline:
+			ci.draw_string_outline(f, Vector2(x, y), s, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, ol, key)
+		_ink(func() -> void: ci.draw_string(f, Vector2(x, y), s, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, col))
+		return w
+	var xs := PackedFloat32Array()
+	for i in s.length():
+		xs.append(x)
+		x += f.get_string_size(s[i], HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs).x + spacing
+	if outline:
 		for i in s.length():
-			var ch := s[i]
-			if pass_n == 0:
-				ci.draw_string_outline(f, Vector2(x, y + px * 0.03), ch, HORIZONTAL_ALIGNMENT_LEFT, -1.0, px, halo_px, halo)
-			else:
-				ci.draw_string(f, Vector2(x, y), ch, HORIZONTAL_ALIGNMENT_LEFT, -1.0, px, col)
-			x += f.get_string_size(ch, HORIZONTAL_ALIGNMENT_LEFT, -1.0, px).x + spacing
+			ci.draw_string_outline(f, Vector2(xs[i], y), s[i], HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, ol, key)
+	_ink(func() -> void:
+		for i in s.length():
+			ci.draw_string(f, Vector2(xs[i], y), s[i], HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, col))
 	return w
 
 
-## Text scaled about its own middle (a pop): `k` 1 is its size.
-func text_pop(ci: CanvasItem, at: Vector2, s: String, size: float, col: Color, k: float, weight := 700) -> void:
-	ci.draw_set_transform(at, 0.0, Vector2(k, k))
-	text(ci, Vector2.ZERO, s, size, col, 0, weight)
-	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+## A label: small capitals, widely spaced. Returns its width.
+func label(ci: CanvasItem, at: Vector2, s: String, size: float, col := PAPER, align := 0) -> float:
+	return text(ci, at, s.to_upper(), size, col, align, 600, size * 0.17)
 
 
-# ------------------------------------------------------------------ panels and shapes
-
-## A rounded rectangle: filled, with an optional edge and soft shadow.
-func rrect(ci: CanvasItem, r: Rect2, radius: float, col: Color, edge := Color(0, 0, 0, 0), edge_w := 0.0,
-		shadow := 0.0, shadow_col := Color(0, 0, 0, 0.35)) -> void:
-	var rad := int(clampf(radius, 0.0, minf(r.size.x, r.size.y) * 0.5))
-	_sb.bg_color = col
-	_sb.set_corner_radius_all(rad)
-	_sb.corner_detail = 10
-	_sb.anti_aliasing = true
-	_sb.anti_aliasing_size = 1.0
-	_sb.set_border_width_all(int(ceilf(edge_w)))
-	_sb.border_color = edge
-	_sb.shadow_size = int(shadow)
-	_sb.shadow_color = shadow_col
-	_sb.shadow_offset = Vector2(0.0, shadow * 0.3)
-	_sb.draw_center = col.a > 0.0
-	ci.draw_style_box(_sb, r)
+## A numeral: big and heavy. Returns its width.
+func num(ci: CanvasItem, at: Vector2, s: String, size: float, col := PAPER, align := 0) -> float:
+	return text(ci, at, s, size, col, align, 700)
 
 
-## The panel everything sits on: dark glass, a thin light edge, a soft shadow.
-func glass(ci: CanvasItem, r: Rect2, radius := 16.0, alpha := 1.0, tint := GLASS) -> void:
-	rrect(ci, r, radius, Color(tint, tint.a * alpha), Color(EDGE, EDGE.a * alpha), 1.0, 14.0, Color(0, 0, 0, 0.3 * alpha))
+# ------------------------------------------------------------------ the stamps
+
+## A block of stamped ink: `r` filled with `col`, with a few specks and nicks knocked out of it (holes: the world
+## shows through; the same every frame for the same `mark`), its top left corner cut by `chamfer`, a round hole
+## punched at `hole` (x, y, radius; radius 0: none). Drawn under whatever transform is set.
+func _block(ci: CanvasItem, r: Rect2, col: Color, mark: int, chamfer := 0.0, hole := Vector3.ZERO) -> void:
+	var out := PackedVector2Array([Vector2(r.position.x + chamfer, r.position.y), Vector2(r.end.x, r.position.y), r.end,
+			Vector2(r.position.x, r.end.y), Vector2(r.position.x, r.position.y + chamfer), Vector2(r.position.x + chamfer, r.position.y)])
+	ci.draw_polyline(out, Color(INK, col.a * 0.8), 4.0 * px, true)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = mark
+	var specks: Array = []           # [x, y, half width, half height]
+	for i in clampi(int(r.get_area() / (px * px) / 2000.0) + 4, 5, 40):
+		var sp := Vector2(rng.randf_range(r.position.x, r.end.x), rng.randf_range(r.position.y, r.end.y))
+		var edge := rng.randf()
+		if edge < 0.14:
+			sp.x = r.position.x
+		elif edge < 0.28:
+			sp.x = r.end.x
+		elif edge < 0.4:
+			sp.y = r.position.y
+		elif edge < 0.52:
+			sp.y = r.end.y
+		specks.append([sp.x, sp.y, rng.randf_range(1.5, 5.0) * px, rng.randf_range(1.2, 4.0) * px])
+	var rh := maxf(px, 1.0)
+	var rows := int(ceilf(r.size.y / rh))
+	var pts := PackedVector2Array()
+	var idx := PackedInt32Array()
+	for i in rows:
+		var y0 := minf(r.position.y + i * rh, r.end.y)
+		var y1 := minf(r.position.y + (i + 1) * rh, r.end.y)
+		var ym := (y0 + y1) * 0.5
+		var x := r.position.x + maxf(chamfer - (ym - r.position.y), 0.0)
+		var cuts: Array = []
+		for s: Array in specks:
+			var dy := absf(ym - float(s[1])) / float(s[3])
+			if dy < 1.0:
+				var hw := float(s[2]) * sqrt(1.0 - dy * dy)
+				cuts.append(Vector2(float(s[0]) - hw, float(s[0]) + hw))
+		if hole.z > 0.0 and absf(ym - hole.y) < hole.z:
+			var hw := sqrt(hole.z * hole.z - (ym - hole.y) * (ym - hole.y))
+			cuts.append(Vector2(hole.x - hw, hole.x + hw))
+		cuts.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.x < b.x)
+		cuts.append(Vector2(r.end.x, r.end.x))
+		for cut: Vector2 in cuts:
+			var to := minf(cut.x, r.end.x)
+			if to > x + 0.01:
+				var at := pts.size()
+				pts.append_array([Vector2(x, y0), Vector2(to, y0), Vector2(to, y1), Vector2(x, y1)])
+				idx.append_array([at, at + 1, at + 2, at, at + 2, at + 3])
+			x = maxf(x, cut.y)
+	if idx.size() >= 3:
+		RenderingServer.canvas_item_add_triangle_array(ci.get_canvas_item(), idx, pts, PackedColorArray([col]))
 
 
-func pill(ci: CanvasItem, r: Rect2, col: Color) -> void:
-	rrect(ci, r, r.size.y * 0.5, col)
+## Stencil lettering in BLACK for a stamp, its middle at `at` (under the transform that's set); `col` is the block's
+## (the stencil's bridges are cut in it).
+func _stencil(ci: CanvasItem, at: Vector2, s: String, size: float, col: Color, spacing: float) -> void:
+	var f := font(700)
+	var fs := maxi(int(roundf(size)), 1)
+	var x := at.x - text_w(s, size, 700, spacing) * 0.5
+	var y := at.y + fs * 0.36
+	var black := Color(BLACK, col.a)
+	for i in s.length():
+		var cw := f.get_string_size(s[i], HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs).x
+		ci.draw_string(f, Vector2(x, y), s[i], HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, black)
+		if STENCIL.contains(s[i]):
+			ci.draw_rect(Rect2(x + cw * 0.5 - fs * 0.022, at.y - fs * 0.42, fs * 0.044, fs * 0.84), col)
+		x += cw + spacing
 
 
-## A meter: a rounded track with `frac` of it filled from the left (or from the bottom, a tall one).
-func meter(ci: CanvasItem, r: Rect2, frac: float, col: Color, track := TRACK) -> void:
-	pill(ci, r, track)
-	frac = clampf(frac, 0.0, 1.0)
-	if frac <= 0.0:
+## A fish-market stamp: `word` in heavy stencil capitals in a solid block of `col`, a few degrees off square, a
+## little dry-ink roughness. `hollow`: the block's outline only, the word in `col`. `k`: its scale (slam() it in);
+## `alpha`: to fade it out. Its middle at `at`; `size`: the letters' height. Always on top of what's been drawn.
+func stamp(ci: CanvasItem, at: Vector2, word: String, size: float, col: Color, k := 1.0, alpha := 1.0, rot := -0.07, hollow := false) -> void:
+	if alpha <= 0.0:
 		return
-	if r.size.x >= r.size.y:
-		pill(ci, Rect2(r.position, Vector2(maxf(r.size.x * frac, r.size.y), r.size.y)), col)
+	flush()
+	var was := defer
+	defer = false
+	var sp := size * 0.09
+	var tw := text_w(word, size, 700, sp)
+	var r := Rect2(-tw * 0.5 - size * 0.4, -size * 0.62, tw + size * 0.8, size * 1.24)
+	var c := Color(col, col.a * alpha)
+	ci.draw_set_transform(at, rot, Vector2(k, k))
+	if hollow:
+		box(ci, r, c, true)
+		text(ci, Vector2.ZERO, word, size, c, 0, 700, sp)
 	else:
-		var h := maxf(r.size.y * frac, r.size.x)
-		rrect(ci, Rect2(r.position.x, r.end.y - h, r.size.x, h), r.size.x * 0.5, col)
+		_block(ci, r, c, hash(word))
+		_stencil(ci, Vector2.ZERO, word, size, c, sp)
+	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	defer = was
 
 
-func line(ci: CanvasItem, a: Vector2, b: Vector2, col: Color, w := 2.0, round_ends := true) -> void:
-	ci.draw_line(a, b, col, w, true)
-	if round_ends and w > 2.5:
-		ci.draw_circle(a, w * 0.5, col, true, -1.0, true)
-		ci.draw_circle(b, w * 0.5, col, true, -1.0, true)
-
-
-func polyline(ci: CanvasItem, pts: PackedVector2Array, col: Color, w := 2.0) -> void:
-	if pts.size() >= 2:
-		ci.draw_polyline(pts, col, w, true)
-
-
-## An arc from angle a0 to a1 (radians, 0 = right, clockwise on screen), with round ends.
-func arc(ci: CanvasItem, c: Vector2, radius: float, a0: float, a1: float, col: Color, w := 3.0, round_ends := true) -> void:
-	if absf(a1 - a0) < 0.001:
+## An auction tag: a block `size` big with one corner cut and a hole punched by it, `title` small across its top and
+## `big` huge under it with `unit_s` after it. `k`, `alpha`, `rot` as stamp().
+func tag(ci: CanvasItem, at: Vector2, size: Vector2, col: Color, title: String, big: String, unit_s := "", k := 1.0, alpha := 1.0, rot := -0.07) -> void:
+	if alpha <= 0.0:
 		return
-	var n := maxi(int(absf(a1 - a0) * radius / 4.0), 6)
-	ci.draw_arc(c, radius, a0, a1, n, col, w, true)
-	if round_ends and w > 2.5:
-		ci.draw_circle(c + Vector2.from_angle(a0) * radius, w * 0.5, col, true, -1.0, true)
-		ci.draw_circle(c + Vector2.from_angle(a1) * radius, w * 0.5, col, true, -1.0, true)
-
-
-func ring(ci: CanvasItem, c: Vector2, radius: float, col: Color, w := 2.0) -> void:
-	if radius > 0.2:
-		ci.draw_circle(c, radius, col, false, w, true)
-
-
-func dot(ci: CanvasItem, c: Vector2, radius: float, col: Color) -> void:
-	if radius > 0.1:
-		ci.draw_circle(c, radius, col, true, -1.0, true)
-
-
-## A soft light: for things that are hot right now.
-func glow(ci: CanvasItem, c: Vector2, radius: float, col: Color, strength := 1.0) -> void:
-	var n := clampi(int(radius / 6.0), 8, 36)        # (enough rings that none of them shows)
-	for i in n:
-		var k := 1.0 - float(i) / n
-		ci.draw_circle(c, radius * (0.15 + 0.85 * k), Color(col, 0.36 / n * strength * col.a), true, -1.0, true)
-
-
-func poly(ci: CanvasItem, pts: PackedVector2Array, col: Color) -> void:
-	if pts.size() >= 3:
-		ci.draw_colored_polygon(pts, col)
-
-
-## A chevron pointing along `dir` (a unit vector), `size` across.
-func chevron(ci: CanvasItem, c: Vector2, size: float, dir: Vector2, col: Color, w := 2.5) -> void:
-	var n := Vector2(-dir.y, dir.x)
-	var pts := PackedVector2Array([c - dir * size * 0.3 + n * size * 0.5, c + dir * size * 0.3, c - dir * size * 0.3 - n * size * 0.5])
-	ci.draw_polyline(pts, col, w, true)
-
-
-## A bluefin, `length` long, its nose toward `way` (+1 right, -1 left), turned `rot` radians.
-func fish(ci: CanvasItem, c: Vector2, length: float, col: Color, way := 1.0, rot := 0.0) -> void:
-	ci.draw_set_transform(c, rot, Vector2(length * way, length))
-	var body := PackedVector2Array([Vector2(0.5, 0.0)])
-	var n := 8
-	for i in range(1, n + 1):
-		var u := float(i) / n
-		body.append(Vector2(lerpf(0.5, -0.3, u), -maxf(0.16 * pow(sin(PI * pow(u, 0.75)), 0.8), 0.024 if u > 0.5 else 0.0)))
-	for i in range(n, 0, -1):
-		var u := float(i) / n
-		body.append(Vector2(lerpf(0.5, -0.3, u), maxf(0.13 * pow(sin(PI * pow(u, 0.75)), 0.8), 0.024 if u > 0.5 else 0.0)))
-	ci.draw_colored_polygon(body, col)
-	# the tail's two blades, the fins
-	ci.draw_colored_polygon(PackedVector2Array([Vector2(-0.27, -0.024), Vector2(-0.5, -0.24), Vector2(-0.4, 0.0), Vector2(-0.27, 0.024)]), col)
-	ci.draw_colored_polygon(PackedVector2Array([Vector2(-0.27, 0.024), Vector2(-0.4, 0.0), Vector2(-0.5, 0.24)]), col)
-	ci.draw_colored_polygon(PackedVector2Array([Vector2(0.12, -0.13), Vector2(-0.02, -0.28), Vector2(-0.07, -0.12)]), col)
-	ci.draw_colored_polygon(PackedVector2Array([Vector2(0.1, 0.1), Vector2(-0.04, 0.23), Vector2(-0.04, 0.09)]), col)
+	flush()
+	var was := defer
+	defer = false
+	var r := Rect2(-size * 0.5, size)
+	var h := size.y
+	var c := Color(col, col.a * alpha)
+	ci.draw_set_transform(at, rot, Vector2(k, k))
+	_block(ci, r, c, hash(title), h * 0.3, Vector3(r.position.x + h * 0.27, r.position.y + h * 0.27, h * 0.055))
+	var black := Color(BLACK, c.a)
+	var ts := h * 0.17
+	var f := font(700)
+	# the title, left of the middle of its top; a ruled line under it
+	_stencil(ci, Vector2(r.position.x + h * 0.44 + text_w(title, ts, 700, ts * 0.2) * 0.5, r.position.y + h * 0.2), title, ts, c, ts * 0.2)
+	ci.draw_line(Vector2(r.position.x + h * 0.44, r.position.y + h * 0.34), Vector2(r.end.x - h * 0.12, r.position.y + h * 0.34), black, heavy(), true)
+	# the number, hard against the right, its unit after it on the same line
+	var bs := maxi(int(h * 0.58), 1)
+	var us := maxi(int(h * 0.24), 1)
+	var uw := (f.get_string_size(unit_s, HORIZONTAL_ALIGNMENT_LEFT, -1.0, us).x + h * 0.04) if unit_s != "" else 0.0
+	var bw := f.get_string_size(big, HORIZONTAL_ALIGNMENT_LEFT, -1.0, bs).x
+	var base := r.end.y - h * 0.13
+	var right := r.end.x - h * 0.12
+	ci.draw_string(f, Vector2(right - uw - bw, base), big, HORIZONTAL_ALIGNMENT_LEFT, -1.0, bs, black)
+	if unit_s != "":
+		ci.draw_string(f, Vector2(right - uw + h * 0.04, base), unit_s, HORIZONTAL_ALIGNMENT_LEFT, -1.0, us, black)
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-
-
-## A little boat from the side, `length` long, her bow toward `way`.
-func boat(ci: CanvasItem, c: Vector2, length: float, col: Color, way := 1.0) -> void:
-	ci.draw_set_transform(c, 0.0, Vector2(length * way, length))
-	ci.draw_colored_polygon(PackedVector2Array([Vector2(-0.5, -0.08), Vector2(0.5, -0.1), Vector2(0.34, 0.12), Vector2(-0.42, 0.12)]), col)
-	ci.draw_colored_polygon(PackedVector2Array([Vector2(-0.18, -0.3), Vector2(0.14, -0.3), Vector2(0.2, -0.1), Vector2(-0.18, -0.1)]), col)
-	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-
-
-## A hook, `size` tall.
-func hook(ci: CanvasItem, c: Vector2, size: float, col: Color, w := 2.0) -> void:
-	var r := size * 0.26
-	line(ci, c + Vector2(r, -size * 0.5), c + Vector2(r, size * 0.24), col, w, false)
-	arc(ci, c + Vector2(0.0, size * 0.24), r, 0.0, PI * 1.05, col, w, false)
-	line(ci, c + Vector2(-r, size * 0.2), c + Vector2(-r * 0.3, size * 0.02), col, w, false)
-	ring(ci, c + Vector2(r, -size * 0.5 - w), w * 1.1, col, w * 0.8)
-
-
-## A screen-space blur in a rounded rectangle, to sit under a panel: add it as a child and give it the panel's rect
-## (place()). Falls back to nothing more than its tint if the screen can't be read.
-static func blur_rect() -> ColorRect:
-	if _blur == null:
-		_blur = Shader.new()
-		_blur.code = """shader_type canvas_item;
-uniform sampler2D screen : hint_screen_texture, filter_linear_mipmap, repeat_disable;
-uniform vec2 size = vec2(100.0, 40.0);
-uniform float radius = 16.0;
-uniform float lod = 2.6;
-uniform float amount = 1.0;
-void fragment() {
-	vec2 p = (UV - 0.5) * size;
-	vec2 q = abs(p) - size * 0.5 + radius;
-	float d = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - radius;
-	float m = 1.0 - smoothstep(-1.2, 0.2, d);
-	vec3 c = textureLod(screen, SCREEN_UV, lod).rgb;
-	COLOR = vec4(c * 0.82, m * amount);
-}"""
-	var r := ColorRect.new()
-	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var m := ShaderMaterial.new()
-	m.shader = _blur
-	r.material = m
-	return r
-
-
-static func place(blur: ColorRect, r: Rect2, radius: float, amount := 1.0) -> void:
-	blur.position = r.position
-	blur.size = r.size
-	blur.visible = amount > 0.01
-	var m := blur.material as ShaderMaterial
-	m.set_shader_parameter("size", r.size)
-	m.set_shader_parameter("radius", minf(radius, minf(r.size.x, r.size.y) * 0.5))
-	m.set_shader_parameter("amount", amount)
+	defer = was
 
 
 # ------------------------------------------------------------------ motion
@@ -299,6 +543,17 @@ static func out_elastic(x: float) -> float:
 	return pow(2.0, -10.0 * x) * sin((x * 10.0 - 0.75) * TAU / 3.0) + 1.0
 
 
+## A stamp coming down, `t` s after it lands: from `big` to a hair under 1 in a couple of frames, then 1.
+static func slam(t: float, big := 2.4) -> float:
+	if t < 0.0:
+		return big
+	if t < 0.07:
+		return lerpf(big, 0.93, t / 0.07)
+	if t < 0.13:
+		return lerpf(0.93, 1.0, (t - 0.07) / 0.06)
+	return 1.0
+
+
 ## A springy scale for something that's just happened `t` s ago: big, then settling to 1.
 static func pop(t: float, big := 0.45, secs := 0.4) -> float:
 	if t >= secs or t < 0.0:
@@ -319,106 +574,171 @@ static func follow(now: float, to: float, dt: float, rate := 10.0) -> float:
 
 # ------------------------------------------------------------------ the buttons
 
-## The colour a cue is drawn in.
+## The ink a cue is drawn in.
 static func cue_col(cue: int) -> Color:
-	match cue:
-		HOLD:
-			return GO
-		TAP, MASH:
-			return GOLD
-		RELEASE:
-			return FOAM
-		OFF:
-			return CORAL
-	return DIM
+	return ORANGE if cue == OFF else PAPER
 
 
-## One button and what it's asked to do, its middle at `c`, `h` tall: the mouse with its left (`side` 0: A) or right
-## (1: B) button lit, or the pad's trigger (RT is A, LT is B), moving the way the cue says; the one word under it.
-## `down`: you've got it pressed now.
-func button(ci: CanvasItem, c: Vector2, h: float, side: int, cue: int, t: float, down: bool, pad := false, alpha := 1.0) -> void:
-	var col := cue_col(cue)
-	col.a *= alpha
-	var line_col := Color(FOAM, (0.85 if cue != NONE else 0.4) * alpha)
-	var w := h * 0.64
-	var body := Rect2(c.x - w * 0.5, c.y - h * 0.5, w, h)
-	# how it moves: a hold sinks and stays, a tap bounces, a mash hammers, a release lifts
-	var lit := 0.0
-	var push := 0.0
+## Is a cue's button shown pressed right now? (HOLD: yes. TAP and MASH: it blinks, sharply. RELEASE: no.)
+static func cue_on(cue: int, t: float) -> bool:
 	match cue:
 		HOLD:
-			lit = 1.0
-			push = 1.0
+			return true
 		TAP:
-			var k := fposmod(t * 2.2, 1.0)
-			lit = 1.0 - smoothstep(0.2, 0.7, k) * 0.5
-			push = 1.0 - smoothstep(0.0, 0.5, k)
+			return fposmod(t * 2.2, 1.0) < 0.42
 		MASH:
-			var k := fposmod(t * 7.0, 1.0)
-			lit = 1.0 if k < 0.5 else 0.5
-			push = lit
-		RELEASE:
-			lit = 0.25 + 0.2 * sin(t * 9.0)
-			push = 0.0
-		OFF:
-			lit = 0.85
-	var btn: Rect2
+			return fposmod(t * 7.0, 1.0) < 0.5
+	return false
+
+
+## One button and what it's asked to do, its middle at `c`, `h` tall: an engraved mouse (an upright outline with its
+## corners cut, split down the top) with its left (`side` 0: A) or right (1: B) button solid, or the pad's trigger
+## (RT is A, LT is B); its outline goes heavy while the button's solid. HOLD: solid, and a short bar under it. TAP, MASH: it blinks. RELEASE: it's empty. HANDS OFF:
+## crossed out in orange. The one word under it. `down`: you've got it pressed now (an outline in the button).
+func button(ci: CanvasItem, c: Vector2, h: float, side: int, cue: int, t: float, down: bool, pad := false, alpha := 1.0) -> void:
+	var col := Color(cue_col(cue), alpha * (1.0 if cue != NONE else 0.45))
+	var on := cue_on(cue, t)
+	var w := h * (0.86 if pad else 0.62)
+	var x0 := c.x - w * 0.5
+	var x1 := c.x + w * 0.5
+	var y0 := c.y - h * 0.5
+	var y1 := c.y + h * 0.5
+	var cell: PackedVector2Array
+	var inset := 3.0 * px
 	if pad:
-		# a trigger: a tall rounded tab that pulls down
-		var tw := h * 0.72
-		var tr := Rect2(c.x - tw * 0.5, c.y - h * 0.42 + push * h * 0.07, tw, h * 0.74)
-		rrect(ci, tr, h * 0.2, Color(col, col.a * lit) if cue != NONE else Color(TRACK, TRACK.a * alpha), line_col, 1.5)
-		text(ci, tr.get_center(), "RT" if side == 0 else "LT", h * 0.3, Color(DEEP if lit > 0.6 and cue != NONE else FOAM, alpha), 0, 700, 0.0, false)
-		btn = tr
+		# a trigger: its top corners cut, the outer one more
+		y0 = c.y - h * 0.3
+		y1 = c.y + h * 0.3
+		var big := w * 0.34
+		var small := w * 0.12
+		var cl := big if side == 1 else small
+		var cr := small if side == 1 else big
+		path(ci, PackedVector2Array([Vector2(x0 + cl, y0), Vector2(x1 - cr, y0), Vector2(x1, y0 + cr), Vector2(x1, y1),
+				Vector2(x0, y1), Vector2(x0, y0 + cl)]), col, on, true)
+		cell = PackedVector2Array([Vector2(x0 + cl + inset * 0.41, y0 + inset), Vector2(x1 - cr - inset * 0.41, y0 + inset),
+				Vector2(x1 - inset, y0 + cr + inset * 0.41), Vector2(x1 - inset, y1 - inset), Vector2(x0 + inset, y1 - inset),
+				Vector2(x0 + inset, y0 + cl + inset * 0.41)])
 	else:
-		rrect(ci, body, w * 0.46, Color(DEEP, 0.55 * alpha), line_col, 1.5)
-		var bh := h * 0.42
-		var half := w * 0.5
-		btn = Rect2(body.position.x + (0.0 if side == 0 else half), body.position.y, half, bh)
-		if cue != NONE:
-			# the lit button: the top corner of the mouse, rounded with it
-			var inset := 2.5 + push * 1.0
-			var r := Rect2(btn.position + Vector2(inset if side == 0 else 1.0, inset), btn.size - Vector2(inset + 1.0, inset))
-			_sb.bg_color = Color(col, col.a * lit)
-			_sb.set_corner_radius_all(3)
-			if side == 0:
-				_sb.corner_radius_top_left = int(w * 0.4)
-			else:
-				_sb.corner_radius_top_right = int(w * 0.4)
-			_sb.set_border_width_all(0)
-			_sb.shadow_size = 0
-			_sb.draw_center = true
-			_sb.anti_aliasing = true
-			ci.draw_style_box(_sb, r)
-		line(ci, Vector2(body.position.x + 3.0, body.position.y + bh), Vector2(body.end.x - 3.0, body.position.y + bh), line_col, 1.2, false)
-		line(ci, Vector2(c.x, body.position.y + 2.0), Vector2(c.x, body.position.y + bh), line_col, 1.2, false)
-	var bc := btn.get_center()
-	if down:
-		# (you've got it pressed: it lights)
-		rrect(ci, btn.grow(-2.5), 4.0, Color(FOAM, 0.4 * alpha))
-	# the motion round it
-	var above := Vector2(bc.x, body.position.y - h * 0.18)
-	match cue:
-		HOLD:
-			var k := 0.5 + 0.5 * sin(t * 4.0)
-			chevron(ci, above + Vector2(0.0, k * 2.0), h * 0.2, Vector2.DOWN, col, 2.5)
-			chevron(ci, above - Vector2(0.0, h * 0.13 - k * 2.0), h * 0.2, Vector2.DOWN, Color(col, col.a * 0.45), 2.5)
-		TAP, MASH:
-			# (a finger coming down on it and off again: once for a tap, over and over for a mash)
-			var k := fposmod(t * (2.2 if cue == TAP else 7.0), 1.0)
-			var bounce := absf(sin(PI * k)) * h * 0.14
-			chevron(ci, above - Vector2(0.0, bounce), h * 0.2, Vector2.DOWN, col, 2.5)
-			if cue == MASH:
-				chevron(ci, above - Vector2(0.0, bounce + h * 0.13), h * 0.2, Vector2.DOWN, Color(col, col.a * 0.6), 2.5)
-		RELEASE:
-			var k := fposmod(t * 1.8, 1.0)
-			chevron(ci, above - Vector2(0.0, k * h * 0.16), h * 0.2, Vector2.UP, Color(col, col.a * (1.0 - k * 0.7)), 2.5)
-		OFF:
-			var x := h * 0.11
-			line(ci, bc - Vector2(x, x), bc + Vector2(x, x), Color(DEEP, alpha), 3.0)
-			line(ci, bc - Vector2(x, -x), bc + Vector2(x, -x), Color(DEEP, alpha), 3.0)
+		var ch := w * 0.26
+		var ys := y0 + h * 0.42
+		path(ci, PackedVector2Array([Vector2(x0 + ch, y0), Vector2(x1 - ch, y0), Vector2(x1, y0 + ch), Vector2(x1, y1 - ch),
+				Vector2(x1 - ch, y1), Vector2(x0 + ch, y1), Vector2(x0, y1 - ch), Vector2(x0, y0 + ch)]), col, on, true)
+		rule(ci, Vector2(x0, ys), Vector2(x1, ys), col)
+		rule(ci, Vector2(c.x, y0), Vector2(c.x, ys), col)
+		var i2 := inset * 0.5
+		if side == 0:
+			cell = PackedVector2Array([Vector2(x0 + ch + inset * 0.41, y0 + inset), Vector2(c.x - i2 - fine() * 0.5, y0 + inset),
+					Vector2(c.x - i2 - fine() * 0.5, ys - i2 - fine() * 0.5), Vector2(x0 + inset, ys - i2 - fine() * 0.5), Vector2(x0 + inset, y0 + ch + inset * 0.41)])
+		else:
+			cell = PackedVector2Array([Vector2(c.x + i2 + fine() * 0.5, y0 + inset), Vector2(x1 - ch - inset * 0.41, y0 + inset),
+					Vector2(x1 - inset, y0 + ch + inset * 0.41), Vector2(x1 - inset, ys - i2 - fine() * 0.5), Vector2(c.x + i2 + fine() * 0.5, ys - i2 - fine() * 0.5)])
+	if on:
+		solid(ci, cell, col)
+	elif down and cue != OFF:
+		path(ci, cell, col, false, true)
+	if pad:
+		text(ci, Vector2(c.x, (y0 + y1) * 0.5 + h * 0.03), "RT" if side == 0 else "LT", h * 0.26, Color(BLACK, alpha) if on else col, 0, 700, 0.0, not on)
+	if cue == OFF:
+		var m := Vector2(c.x, (y0 + y1) * 0.5)
+		var x := h * 0.36
+		rule(ci, m - Vector2(x, x), m + Vector2(x, x), col, true)
+		rule(ci, m - Vector2(x, -x), m + Vector2(x, -x), col, true)
+	if cue == HOLD:
+		rule(ci, Vector2(x0, y1 + h * 0.16), Vector2(x1, y1 + h * 0.16), col, true)
 	if WORDS.has(cue):
-		var word: String = WORDS[cue]
-		var size := h * 0.24
-		size *= minf(1.0, h * 1.25 / maxf(text_w(word, size, 700, 1.0), 1.0))       # (fitted to the chip it's on)
-		text(ci, Vector2(c.x, body.end.y + h * 0.26), word, size, col, 0, 700, 1.0)
+		label(ci, Vector2(c.x, y1 + h * 0.44), WORDS[cue], h * 0.27, col)
+
+
+# ------------------------------------------------------------------ STAND-INS for the old look
+# What the games not yet redrawn still call. Each draws something plain in the new inks; none of it is to be used
+# in new drawing (the header says what to use instead), and all of it goes when the last game's been redrawn.
+
+const FOAM := PAPER
+const GOLD := YELLOW
+const CORAL := ORANGE
+const GO := PAPER
+const TEAL := PAPER
+const MIST := Color(0.957, 0.945, 0.910, 0.75)
+const DIM := Color(0.957, 0.945, 0.910, 0.45)
+const TRACK := Color(0.957, 0.945, 0.910, 0.4)
+const EDGE := Color(0.957, 0.945, 0.910, 0.4)
+const DEEP := BLACK
+
+
+func _w(w: float) -> float:
+	return clampf(w, fine(), heavy())
+
+
+## (use rule())
+func line(ci: CanvasItem, a: Vector2, b: Vector2, col: Color, w := 2.0, _round_ends := true) -> void:
+	_stroke(ci, a, b, col, _w(w))
+
+
+## (use path())
+func polyline(ci: CanvasItem, pts: PackedVector2Array, col: Color, w := 2.0) -> void:
+	path(ci, pts, col, w > 2.5 * px)
+
+
+## (use sweep())
+func arc(ci: CanvasItem, c: Vector2, radius: float, a0: float, a1: float, col: Color, w := 3.0, _round_ends := true) -> void:
+	sweep(ci, c, radius, a0, a1, col, w > 2.5 * px)
+
+
+## (use circle())
+func ring(ci: CanvasItem, c: Vector2, radius: float, col: Color, w := 2.0) -> void:
+	circle(ci, c, radius, col, w > 2.5 * px)
+
+
+## (use diamond() or square()) A small solid diamond; hollow if it was faint.
+func dot(ci: CanvasItem, c: Vector2, radius: float, col: Color) -> void:
+	if radius > 0.3:
+		diamond(ci, c, radius * 2.2, Color(col, 1.0) if col.a < 0.5 else col, col.a >= 0.5)
+
+
+## (gone: nothing glows)
+func glow(_ci: CanvasItem, _c: Vector2, _radius: float, _col: Color, _strength := 1.0) -> void:
+	pass
+
+
+## (use solid())
+func poly(ci: CanvasItem, pts: PackedVector2Array, col: Color) -> void:
+	solid(ci, pts, col)
+
+
+## (use bar() or box()) A square-cornered rectangle: solid if it was, else its outline.
+func rrect(ci: CanvasItem, r: Rect2, _radius: float, col: Color, edge := Color(0, 0, 0, 0), _edge_w := 0.0,
+		_shadow := 0.0, _shadow_col := Color(0, 0, 0, 0.35)) -> void:
+	if col.a >= 0.5:
+		bar(ci, r, col)
+	elif edge.a > 0.0:
+		box(ci, r, Color(edge, 1.0))
+	elif col.a > 0.0:
+		box(ci, r, Color(col, 1.0))
+
+
+## (use bar() or box())
+func pill(ci: CanvasItem, r: Rect2, col: Color) -> void:
+	rrect(ci, r, 0.0, col)
+
+
+## (use scale() and a bar() or a tri() on it) An outlined rectangle, `frac` of it solid.
+func meter(ci: CanvasItem, r: Rect2, frac: float, col: Color, _track := TRACK) -> void:
+	box(ci, r, PAPER)
+	frac = clampf(frac, 0.0, 1.0)
+	if frac <= 0.0:
+		return
+	if r.size.x >= r.size.y:
+		bar(ci, Rect2(r.position, Vector2(r.size.x * frac, r.size.y)), col)
+	else:
+		bar(ci, Rect2(r.position.x, r.end.y - r.size.y * frac, r.size.x, r.size.y * frac), col)
+
+
+## (use tri())
+func chevron(ci: CanvasItem, c: Vector2, size: float, dir: Vector2, col: Color, _w_was := 2.5) -> void:
+	var n := Vector2(-dir.y, dir.x)
+	path(ci, PackedVector2Array([c - dir * size * 0.3 + n * size * 0.5, c + dir * size * 0.3, c - dir * size * 0.3 - n * size * 0.5]), col)
+
+
+## (use num() or label(), and slam() for its size)
+func text_pop(ci: CanvasItem, at: Vector2, s: String, size: float, col: Color, k: float, weight := 700) -> void:
+	text(ci, at, s, size * k, col, 0, weight)

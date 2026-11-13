@@ -84,36 +84,27 @@ func hint() -> Dictionary:
 	return {"a": false, "b": needle + vel * 0.16 < band_c}
 
 
-func draw(ci: CanvasItem, rect: Rect2, kit: Kit, time: float) -> void:
+func draw(ci: CanvasItem, rect: Rect2, kit: Kit, _time: float) -> void:
+	# a ruler of the line's tension: his band a bracketed, hatched span sliding along it under his mark; your needle
+	# a pointer under it. The far end's where the line parts.
 	var u := unit(rect)
 	var c := rect.get_center()
-	var w := rect.size.x * 0.9
-	var h := 16.0 * u
+	var w := rect.size.x * 0.96
 	var x0 := c.x - w * 0.5
-	var bar := Rect2(x0, c.y - h * 0.5 + 6.0 * u, w, h)
+	var y := c.y + 14.0 * u
 	var at := func(v: float) -> float: return x0 + w * (1.0 - v if mirror else v)
-	kit.pill(ci, bar, Kit.TRACK)
-	# the ends: slack one side, parting the other
-	var slack_x := at.call(0.0) as float
+	kit.scale(ci, Vector2(x0, y), Vector2(x0 + w, y), 40, 5, Kit.PAPER, 1.0, 5.0 * u, 11.0 * u)
 	var snap_x := at.call(1.0) as float
-	kit.dot(ci, Vector2(slack_x + (h * 0.5 if not mirror else -h * 0.5), bar.get_center().y), h * 0.26, Color(Kit.TEAL, 0.7))
-	kit.dot(ci, Vector2(snap_x + (-h * 0.5 if not mirror else h * 0.5), bar.get_center().y), h * 0.26, Color(Kit.CORAL, 0.8))
+	kit.rule(ci, Vector2(snap_x, y - 24.0 * u), Vector2(snap_x, y + 11.0 * u), Kit.ORANGE, true)
 	# his band
 	var bx := at.call(band_c) as float
 	var bw := band_w * w
-	var band := Rect2(bx - bw, bar.position.y, bw * 2.0, h)
-	if inside:
-		kit.glow(ci, band.get_center(), bw * 1.3, Kit.GO, 1.2)
-	kit.pill(ci, band, Color(Kit.GO, 0.95 if inside else 0.5))
-	kit.fish(ci, Vector2(bx, bar.position.y - 13.0 * u + sin(time * 9.0) * 1.5 * u), 30.0 * u, Kit.GO if inside else Kit.FOAM, -1.0 if mirror else 1.0)
+	var band := Rect2(bx - bw, y - 24.0 * u, bw * 2.0, 20.0 * u)
+	kit.span(ci, band, Kit.YELLOW, inside)
+	kit.hatch(ci, band.grow_individual(-4.0 * u, -3.0 * u, -4.0 * u, -3.0 * u), Kit.YELLOW, inside)
+	kit.fish(ci, Vector2(bx, y - 40.0 * u), 30.0 * u, Kit.ORANGE, -1.0 if mirror else 1.0)
 	# your needle
 	var nx := at.call(needle) as float
-	var col := Kit.FOAM if inside else (Kit.CORAL if needle > band_c else Kit.TEAL)
-	kit.line(ci, Vector2(nx, bar.position.y - 5.0 * u), Vector2(nx, bar.end.y + 5.0 * u), col, 4.0 * u)
-	kit.dot(ci, Vector2(nx, bar.end.y + 9.0 * u), 4.5 * u, col)
-	if not inside:
-		# which way to take it
-		var way := signf((at.call(band_c) as float) - nx)
-		for i in 3:
-			var k := fposmod(time * 2.5 + i / 3.0, 1.0)
-			kit.chevron(ci, Vector2(nx + way * (9.0 + 16.0 * k) * u, bar.end.y + 9.0 * u), 7.0 * u, Vector2(way, 0.0), Color(col, 1.0 - k), 2.0)
+	var col := Kit.ORANGE if (not inside and needle > band_c) else Kit.PAPER
+	kit.rule(ci, Vector2(nx, y - 28.0 * u), Vector2(nx, y), col, true)
+	kit.tri(ci, Vector2(nx, y + 2.0 * u), 15.0 * u, Vector2.UP, col)

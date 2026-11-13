@@ -107,35 +107,41 @@ func hint() -> Dictionary:
 
 
 func draw(ci: CanvasItem, rect: Rect2, kit: Kit, _time: float) -> void:
+	# two ruled columns, a tick down their sides on every beat; square notes falling to the line; a yellow box on
+	# the line for each to land in.
 	var u := unit(rect)
 	var c := rect.get_center()
-	var gap := 34.0 * u
-	var top := rect.position.y + 2.0 * u
-	var line_y := rect.end.y - 16.0 * u
+	var gap := 40.0 * u
+	var half := 16.0 * u
+	var top := rect.position.y
+	var line_y := rect.end.y - 13.0 * u
 	var fall := line_y - top
-	# the beat, as a pulse along the line
-	var k := Kit.beat(t - to_beat, 1.0 / beat)
-	kit.line(ci, Vector2(c.x - gap * 2.2, line_y), Vector2(c.x + gap * 2.2, line_y), Color(Kit.FOAM, 0.2 + 0.3 * k), 2.0 * u)
 	for l in 2:
 		var x := c.x + (l * 2.0 - 1.0) * gap
-		kit.line(ci, Vector2(x, top), Vector2(x, rect.end.y - 2.0 * u), Kit.TRACK, 22.0 * u)
-		var fl := float(_flash[l])
-		var rc := Kit.GOLD
-		if fl > 0.0:
-			rc = Kit.GOLD if int(_flash_q[l]) == 2 else Kit.GO
-			kit.glow(ci, Vector2(x, line_y), 30.0 * u * (1.0 + fl), rc, 1.5 * fl)
-		kit.ring(ci, Vector2(x, line_y), 11.0 * u * (1.0 + 0.25 * fl), rc, 3.0 * u)
+		for s: float in [-1.0, 1.0]:
+			kit.rule(ci, Vector2(x + s * half, top), Vector2(x + s * half, line_y))
+			# the beats, coming down
+			var k0 := int(ceilf((t - to_beat) / beat))
+			for k in range(k0, k0 + int(FALL / beat) + 1):
+				var d := to_beat + k * beat - t
+				if d >= 0.0 and d < FALL:
+					var y := line_y - fall * d / FALL
+					kit.rule(ci, Vector2(x + s * half, y), Vector2(x + s * (half - 5.0 * u), y))
+	kit.rule(ci, Vector2(c.x - gap - half - 8.0 * u, line_y), Vector2(c.x + gap + half + 8.0 * u, line_y), Kit.PAPER, true)
+	for l in 2:
+		var p := Vector2(c.x + (l * 2.0 - 1.0) * gap, line_y)
+		if float(_flash[l]) > 0.4:
+			kit.square(ci, p, 25.0 * u, Kit.YELLOW if int(_flash_q[l]) == 2 else Kit.PAPER)
+		else:
+			kit.square(ci, p, 21.0 * u, Kit.YELLOW, false)
 	for i in when.size():
 		var d := when[i] - t
 		if d > FALL:
 			continue
-		var x := c.x + (lane[i] * 2.0 - 1.0) * gap
-		var p := Vector2(x, line_y - fall * d / FALL)
+		var p := Vector2(c.x + (lane[i] * 2.0 - 1.0) * gap, line_y - fall * d / FALL)
 		match state[i]:
 			0:
-				kit.dot(ci, p, 8.0 * u, Color(Kit.FOAM, clampf((FALL - d) * 6.0, 0.0, 1.0)))
+				kit.square(ci, p, 15.0 * u, Kit.PAPER)
 			3:
-				if d > -0.35 and p.y < rect.end.y:
-					kit.dot(ci, p, 8.0 * u, Color(Kit.CORAL, 1.0 + d / 0.35))
-	# him, keeping time
-	kit.fish(ci, Vector2(c.x + rect.size.x * 0.38, c.y - 4.0 * u - 6.0 * u * k), 34.0 * u, Color(Kit.FOAM, 0.7), -1.0, 0.15 * k)
+				if d > -0.3 and p.y < rect.end.y - 4.0 * u:
+					kit.square(ci, p, 15.0 * u, Kit.ORANGE, false)

@@ -93,42 +93,38 @@ func hint() -> Dictionary:
 	return {"a": show_t <= 0.0 and o > -absf(speed) * 0.035 and o < gold_w * 0.6, "b": false}
 
 
-func draw(ci: CanvasItem, rect: Rect2, kit: Kit, time: float) -> void:
+func draw(ci: CanvasItem, rect: Rect2, kit: Kit, _time: float) -> void:
+	# the reel as a ticked dial: the tooth a solid yellow block on its rim, the good either
+	# side of it hatched between two brackets; the mark a pointer turning from the hub.
 	var u := unit(rect)
 	var c := rect.get_center()
-	var rad := 41.0 * u
+	var rad := 35.0 * u
 	var ang := func(v: float) -> float: return -PI * 0.5 + TAU * v
-	# the reel: its rim, its spokes turning with the mark
-	kit.ring(ci, c, rad, Color(Kit.FOAM, 0.2), 9.0 * u)
-	kit.ring(ci, c, rad * 0.5, Color(Kit.FOAM, 0.35), 2.0 * u)
-	for i in 6:
-		var a := (ang.call(mark) as float) + TAU * i / 6.0
-		kit.line(ci, c + Vector2.from_angle(a) * rad * 0.2, c + Vector2.from_angle(a) * rad * 0.5, Color(Kit.FOAM, 0.35), 2.0 * u)
-	kit.dot(ci, c, rad * 0.14, Color(Kit.FOAM, 0.4))
-	# the tooth: gold, green either side of it
+	kit.dial(ci, c, rad, 60, 5, Kit.PAPER, 4.0 * u, 9.0 * u)
+	kit.circle(ci, c, 4.0 * u)
+	# the tooth, and the good either side of it
 	var ta := ang.call(tooth) as float
-	kit.arc(ci, c, rad, ta - TAU * green_w, ta + TAU * green_w, Color(Kit.GO, 0.85), 9.0 * u, false)
-	kit.arc(ci, c, rad, ta - TAU * gold_w, ta + TAU * gold_w, Kit.GOLD, 11.0 * u, false)
-	var tp := Vector2.from_angle(ta)
-	kit.poly(ci, PackedVector2Array([c + tp * (rad + 14.0 * u), c + tp * (rad + 5.0 * u) + tp.orthogonal() * 5.0 * u,
-			c + tp * (rad + 5.0 * u) - tp.orthogonal() * 5.0 * u]), Kit.GOLD)
+	var r0 := rad + 3.0 * u
+	var r1 := rad + 12.0 * u
+	for s: float in [-1.0, 1.0]:
+		var edge := ta + s * TAU * green_w
+		kit.hatch_arc(ci, c, r0, r1, ta + s * TAU * gold_w, edge, Kit.YELLOW, false, 5.0 * kit.px)
+		kit.rule(ci, c + Vector2.from_angle(edge) * rad, c + Vector2.from_angle(edge) * r1, Kit.YELLOW)
+	kit.sweep(ci, c, r1, ta - TAU * green_w, ta + TAU * green_w, Kit.YELLOW)
+	var block := PackedVector2Array()
+	for i in 5:
+		block.append(c + Vector2.from_angle(ta + TAU * gold_w * (i / 2.0 - 1.0)) * r1)
+	for i in 5:
+		block.append(c + Vector2.from_angle(ta - TAU * gold_w * (i / 2.0 - 1.0)) * r0)
+	kit.solid(ci, block, Kit.YELLOW)
 	# the mark
-	var ma := ang.call(mark) as float
-	var mp := Vector2.from_angle(ma)
-	var col := Kit.FOAM
+	var mp := Vector2.from_angle(ang.call(mark) as float)
+	var col := Kit.PAPER
 	if show_t > 0.0:
-		col = [Kit.CORAL, Kit.GO, Kit.GOLD][last]
-		var k := 1.0 - show_t / 0.4
-		kit.ring(ci, c + mp * rad, (8.0 + 26.0 * k) * u, Color(col, 1.0 - k), 3.0 * u)
-		if last > 0:
-			kit.glow(ci, c + mp * rad, 30.0 * u, col, 2.0 * (1.0 - k))
-	else:
-		# its tail, the way it's come
-		kit.arc(ci, c, rad, ma - signf(speed) * 0.5, ma, Color(Kit.FOAM, 0.22), 4.0 * u, false)
-	kit.line(ci, c + mp * (rad - 9.0 * u), c + mp * (rad + 9.0 * u), col, 5.0 * u)
-	kit.dot(ci, c + mp * rad, 5.5 * u, col)
+		col = [Kit.ORANGE, Kit.PAPER, Kit.YELLOW][last]
+	kit.rule(ci, c + mp * 4.0 * u, c + mp * (rad - 8.0 * u), col, true)
+	kit.tri(ci, c + mp * (rad + (5.0 * u if show_t > 0.2 and last > 0 else 0.0)), 11.0 * u, mp, col)
 	# the spins left
 	for i in spins:
-		var p := Vector2(c.x + rect.size.x * 0.42, c.y + (i - (spins - 1) * 0.5) * 10.0 * u)
-		kit.dot(ci, p, 2.8 * u, Kit.FOAM if i == spin else Color(Kit.FOAM, 0.25 if i > spin else 0.6))
-	var _unused := time
+		var p := Vector2(rect.end.x - 5.0 * u, c.y + (i - (spins - 1) * 0.5) * 13.0 * u)
+		kit.square(ci, p, 7.0 * u, Kit.PAPER, i >= spin)

@@ -53,27 +53,24 @@ func hint() -> Dictionary:
 	return {"a": not fired and t > 0.35 and t < 0.45, "b": false}
 
 
-func draw(ci: CanvasItem, rect: Rect2, kit: Kit, time: float) -> void:
+func draw(ci: CanvasItem, rect: Rect2, kit: Kit, _time: float) -> void:
 	var u := unit(rect)
 	var c := rect.get_center()
+	var w := rect.size.x * 0.8
+	var x0 := c.x - w * 0.5
+	var y := c.y + 22.0 * u
 	if not fired:
-		var k := Kit.beat(time, 2.4)
-		var grow := Kit.out_back(t / 0.3)
-		kit.glow(ci, c, 70.0 * u, Kit.GOLD, 1.0 + k)
-		for i in 3:
-			var kk := fposmod(time * 1.2 + i / 3.0, 1.0)
-			kit.ring(ci, c, (58.0 - 34.0 * kk) * u, Color(Kit.GOLD, kk * 0.9), 2.5 * u)
-		kit.text_pop(ci, c + Vector2(0.0, -8.0 * u), "BIG PULL", 30.0 * u, Kit.GOLD, grow * (1.0 + 0.06 * k))
-		kit.text(ci, c + Vector2(0.0, 22.0 * u), "PRESS!", 16.0 * u, Kit.FOAM, 0, 700, 2.0)
-		# the fuse: it goes by itself
-		var w := rect.size.x * 0.5
-		kit.meter(ci, Rect2(c.x - w * 0.5, rect.end.y - 8.0 * u, w, 4.0 * u), 1.0 - t / AUTO, Kit.GOLD)
+		# its name, and the fuse: a ruler burning down (it goes by itself)
+		kit.num(ci, c + Vector2(0.0, -14.0 * u), "BIG PULL", 34.0 * u, Kit.YELLOW)
+		kit.scale(ci, Vector2(x0, y), Vector2(x0 + w, y), 16, 4, Kit.PAPER, 1.0, 4.0 * u, 8.0 * u)
+		var fx := x0 + w * clampf(1.0 - t / AUTO, 0.0, 1.0)
+		kit.rule(ci, Vector2(x0, y), Vector2(fx, y), Kit.YELLOW, true)
+		kit.tri(ci, Vector2(fx, y - 2.0 * u), 11.0 * u, Vector2.DOWN, Kit.YELLOW)
 	else:
-		# him, coming in fast
+		# him, coming in along the ruler to the boat
 		var k := Kit.out_cubic(_ft / AFTER)
-		var fx := lerpf(c.x + rect.size.x * 0.42, c.x - rect.size.x * 0.2, k)
-		for i in 5:
-			var y := c.y + (i - 2) * 9.0 * u
-			kit.line(ci, Vector2(fx + 26.0 * u, y), Vector2(fx + (40.0 + 60.0 * (1.0 - k)) * u, y), Color(Kit.GOLD, 0.6 * (1.0 - k)), 2.5 * u)
-		kit.fish(ci, Vector2(fx, c.y), 50.0 * u, Kit.GOLD, -1.0)
-		kit.boat(ci, Vector2(c.x - rect.size.x * 0.4, c.y + 4.0 * u), 36.0 * u, Kit.FOAM, -1.0)
+		var fx := lerpf(x0 + w, x0 + w * 0.22, k)
+		kit.scale(ci, Vector2(x0, y), Vector2(x0 + w, y), 16, 4, Kit.PAPER, 1.0, 4.0 * u, 8.0 * u)
+		kit.rule(ci, Vector2(x0, y), Vector2(fx, y), Kit.PAPER, true)
+		kit.boat(ci, Vector2(x0 - 2.0 * u, y - 9.0 * u), 30.0 * u, Kit.PAPER, 1.0)
+		kit.fish(ci, Vector2(fx, y - 16.0 * u), 40.0 * u, Kit.ORANGE, -1.0)

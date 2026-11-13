@@ -93,33 +93,41 @@ func hint() -> Dictionary:
 	return {"a": false, "b": false}
 
 
-func draw(ci: CanvasItem, rect: Rect2, kit: Kit, time: float) -> void:
+func draw(ci: CanvasItem, rect: Rect2, kit: Kit, _time: float) -> void:
+	# a tape running to a gate: a tick for every half shake, a diamond on the ones to answer; the gate two heavy
+	# yellow ticks. Him at the far end, shaking his head.
 	var u := unit(rect)
-	var c := rect.get_center() + Vector2(0.0, 4.0 * u)
-	var w := rect.size.x * 0.92
+	var c := rect.get_center() + Vector2(0.0, 10.0 * u)
+	var w := rect.size.x * 0.96
 	var way := -1.0 if mirror else 1.0
-	var box := Vector2(c.x - way * w * 0.3, c.y)
+	var gate := Vector2(c.x - way * w * 0.32, c.y)
 	var speed := w * 0.42            # px a second
-	kit.line(ci, Vector2(c.x - w * 0.5, c.y), Vector2(c.x + w * 0.5, c.y), Kit.TRACK, 12.0 * u)
-	# the ring they're hit in
-	var ring_col := Kit.GOLD
-	if _flash > 0.0:
-		ring_col = Kit.GOLD if _flash_q == 2 else Kit.GO
-		kit.glow(ci, box, 30.0 * u * (1.0 + _flash), ring_col, 1.5 * _flash)
-	kit.ring(ci, box, 13.0 * u * (1.0 + 0.25 * _flash), ring_col, 3.0 * u)
-	kit.dot(ci, box, 3.0 * u, Color(ring_col, 0.8))
+	var x_lo := c.x - w * 0.5
+	var x_hi := c.x + w * 0.5
+	kit.rule(ci, Vector2(x_lo, c.y), Vector2(x_hi, c.y))
+	var st := STEP / fast
+	var k0 := int(ceilf((t - 1.1 - w / speed) / st))
+	for k in range(k0, k0 + int(w * 2.0 / speed / st) + 2):
+		var x := gate.x + way * (1.1 + k * st - t) * speed
+		if x > x_lo and x < x_hi:
+			kit.rule(ci, Vector2(x, c.y), Vector2(x, c.y + (9.0 if posmod(k, 4) == 0 else 5.0) * u))
+	# the gate: it jumps open on a hit
+	var gcol := Kit.YELLOW
+	var jump := 0.0
+	if _flash > 0.4:
+		gcol = Kit.YELLOW if _flash_q == 2 else Kit.PAPER
+		jump = (7.0 if _flash_q == 2 else 3.0) * u
+	for s: float in [-1.0, 1.0]:
+		kit.rule(ci, gate + Vector2(0.0, s * (10.0 * u + jump)), gate + Vector2(0.0, s * (24.0 * u + jump)), gcol, true)
 	for i in beats.size():
 		var d := beats[i] - t
-		var p := Vector2(box.x + way * d * speed, c.y)
-		if absf(p.x - c.x) > w * 0.5 + 4.0:
+		var p := Vector2(gate.x + way * d * speed, c.y)
+		if p.x < x_lo or p.x > x_hi:
 			continue
 		match state[i]:
 			0:
-				kit.dot(ci, p, 8.5 * u, Kit.FOAM)
-				kit.chevron(ci, p + Vector2(way * 1.0 * u, 0.0), 7.0 * u, Vector2(-way, 0.0), Kit.DEEP, 2.0)
+				kit.diamond(ci, p, 17.0 * u, Kit.PAPER)
 			3:
-				if d > -0.6:
-					kit.dot(ci, p, 8.5 * u, Color(Kit.CORAL, 1.0 + d / 0.6))
-	# him, shaking his head at the far end
-	var far := Vector2(c.x + way * w * 0.42, c.y - 24.0 * u)
-	kit.fish(ci, far, 34.0 * u, Kit.FOAM, -way, sin(t * TAU / (STEP * 2.0)) * 0.3)
+				if d > -0.45:
+					kit.diamond(ci, p, 17.0 * u, Kit.ORANGE, false)
+	kit.fish(ci, Vector2(c.x + way * w * 0.4, c.y - 34.0 * u), 30.0 * u, Kit.ORANGE, -way, sin(t * TAU / (STEP * 2.0)) * 0.3)

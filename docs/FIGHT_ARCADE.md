@@ -22,8 +22,10 @@ everyone; `-- --fight=classic` starts with it off).
    `_hit(1)` (good), `_miss()` for single moments; keep `_pts` / `_max` (the score is their ratio); set `done`.
 5. `cue()`: what each button's asked to do now, `[A, B]` of `Kit.NONE / HOLD / TAP / MASH / RELEASE / OFF`: the
    HUD's button glyphs act it out, so nobody reads a rule. `hint()`: what a perfect player holds right now (tests).
-6. `draw(ci, rect, kit, time)`: draw it in `rect` with `ui/kit.gd` (shapes, `kit.fish`, colours: `Kit.GO` do it,
-   `Kit.GOLD` reward, `Kit.CORAL` danger). A word at most; shape and motion say the rest.
+6. `draw(ci, rect, kit, time)`: draw it in `rect` with `ui/kit.gd`, as a ship's instrument: the rules are the
+   DRAWING A GAME section at the top of that file (no panels; three inks, `Kit.PAPER`, `Kit.YELLOW` reward,
+   `Kit.ORANGE` danger and the fish; `kit.scale`, `kit.span` + `kit.hatch`, `kit.tri` / `square` / `diamond`).
+   Copy `ride.gd`, `beats.gd`, `spool.gd` or `lanes.gd`.
 7. Add its line to `tuna/minigames/all.gd`. That's all: the fight deals it out, and
    `tests/fight_arcade_test.tscn` plays it (by its hint with a high score, hands off with a low one, the same again
    from the same seed, drawn at three tiers). Look at it: `tests/fight_arcade_shot.tscn -- --only=<id>` saves
@@ -81,7 +83,8 @@ combo and where the fight was.
 - `tuna/minigames/minigame.gd` the base class, `all.gd` the registry, one file a game, `pull.gd` the BIG PULL.
 - `tuna/fight_arcade.gd` the sequencer (extends `tuna/fight.gd`: same fields, signals and `cues()`, so the rod, the
   fish, the sounds, the music and the network sync are untouched).
-- `ui/kit.gd` the new look's kit (type, colours, glass panels, shapes, easing, the button glyphs),
+- `ui/kit.gd` the drawing kit ("instruments and stamps": inks, keylined lines, scales, hatching, markers, the
+  stamps, the button glyphs, easing),
   `ui/fight_arcade_hud.gd` the fight's HUD on it, `ui/juice.gd` the sounds, hit-stop, rod kick and rumble.
 - `tests/fight_arcade_test.tscn` (the test), `tests/fight_arcade_sim.tscn` (a table of how fights go),
   `tests/fight_arcade_shot.tscn` (screenshots), `tests/fight_arcade_bot.gd` (the test angler).

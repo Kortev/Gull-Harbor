@@ -22,8 +22,9 @@ extends RefCounted
 ## - `cue()`: what each button's asked to do right now, [A, B] of Kit.NONE / HOLD / TAP / MASH / RELEASE / OFF: the
 ##   HUD's button glyphs act it out, so nobody has to read a rule.
 ## - `hint()`: what a perfect player holds down right now, {a, b} (tests only: tests/fight_arcade_bot.gd).
-## - `draw(ci, rect, kit, time)`: draw yourself in `rect` from your own state with the kit (ui/kit.gd). No text beyond
-##   a word; shape, colour (kit.GO do it, kit.GOLD reward, kit.CORAL danger) and motion.
+## - `draw(ci, rect, kit, time)`: draw yourself in `rect` from your own state with the kit, as a ship's instrument:
+##   read DRAWING A GAME at the top of ui/kit.gd first, and copy ride.gd, beats.gd, spool.gd or lanes.gd. Three inks
+##   (Kit.PAPER, Kit.YELLOW reward, Kit.ORANGE danger and the fish), scales, brackets and hatching, small solid markers.
 
 const Kit := preload("res://ui/kit.gd")
 
