@@ -96,31 +96,35 @@ func hint() -> Dictionary:
 
 
 func draw(ci: CanvasItem, rect: Rect2, kit: Kit, time: float) -> void:
+	# a rope, a heavy rule knotted with regular ticks, and THE knot a solid diamond riding it: your line a yellow
+	# bracket at one end, his an orange one at the other. Two square hands under it, the next one solid.
 	var u := unit(rect)
-	var c := rect.get_center()
+	var c := rect.get_center() + Vector2(0.0, -4.0 * u)
 	var w := rect.size.x * 0.9
 	var x0 := c.x - w * 0.5
 	var x1 := c.x + w * 0.5
 	var kx := c.x - pos * w * 0.3
 	var shake := sin(time * 40.0) * 1.2 * u * _jerk
-	# your line and his: get the knot over yours
 	var yours := c.x - w * 0.3
 	var his := c.x + w * 0.3
-	kit.line(ci, Vector2(yours, c.y - 18.0 * u), Vector2(yours, c.y + 18.0 * u), Color(Kit.GO, 0.9), 3.0 * u)
-	kit.line(ci, Vector2(his, c.y - 18.0 * u), Vector2(his, c.y + 18.0 * u), Color(Kit.CORAL, 0.8), 3.0 * u)
-	kit.line(ci, Vector2(c.x, c.y - 9.0 * u), Vector2(c.x, c.y + 9.0 * u), Color(Kit.FOAM, 0.25), 2.0 * u)
-	# the rope, bar-tight, the knot on it
-	var col := Kit.FOAM.lerp(Kit.CORAL, _slip)
-	kit.line(ci, Vector2(x0 + 22.0 * u, c.y + shake), Vector2(x1 - 30.0 * u, c.y - shake), col, 3.5 * u)
-	var kc := Kit.GO if pos >= 0.0 else Kit.GOLD.lerp(Kit.CORAL, clampf(-pos * 1.5, 0.0, 1.0))
-	kit.glow(ci, Vector2(kx, c.y), 22.0 * u, kc, 0.6 + _jerk)
-	kit.dot(ci, Vector2(kx, c.y), (9.0 + 3.0 * _jerk) * u, kc)
-	kit.dot(ci, Vector2(kx, c.y), 3.5 * u, Kit.DEEP)
-	# him on his end, hauling; your two hands on yours, the next one lit
-	kit.fish(ci, Vector2(x1 - 12.0 * u + sin(time * 14.0) * 1.5 * u, c.y), 38.0 * u, Kit.FOAM, 1.0, sin(time * 14.0) * 0.08)
+	var foot := 7.0 * u
+	kit.path(ci, PackedVector2Array([Vector2(yours + foot, c.y - 22.0 * u), Vector2(yours, c.y - 22.0 * u),
+			Vector2(yours, c.y + 22.0 * u), Vector2(yours + foot, c.y + 22.0 * u)]), Kit.YELLOW, true)
+	kit.path(ci, PackedVector2Array([Vector2(his - foot, c.y - 22.0 * u), Vector2(his, c.y - 22.0 * u),
+			Vector2(his, c.y + 22.0 * u), Vector2(his - foot, c.y + 22.0 * u)]), Kit.ORANGE, true)
+	kit.rule(ci, Vector2(c.x, c.y - 8.0 * u), Vector2(c.x, c.y + 8.0 * u))
+	# the rope
+	var col := Kit.ORANGE if _slip > 0.4 else Kit.PAPER
+	var ra := Vector2(x0, c.y + shake)
+	var rb := Vector2(x1 - 22.0 * u, c.y - shake)
+	kit.rule(ci, ra, rb, col, true)
+	for i in 27:
+		var p := ra.lerp(rb, (i + 0.5) / 27.0)
+		kit.rule(ci, p + Vector2(0.0, -5.0 * u), p + Vector2(0.0, 5.0 * u), col)
+	kit.diamond(ci, Vector2(kx, c.y), (22.0 + 4.0 * _jerk) * u, Kit.ORANGE if pos < -0.5 else Kit.PAPER)
+	# him on his end, hauling
+	kit.fish(ci, Vector2(x1 - 8.0 * u + sin(time * 14.0) * 1.5 * u, c.y), 32.0 * u, Kit.ORANGE, 1.0, sin(time * 14.0) * 0.08)
+	# your hands: the next one solid
 	for h in 2:
-		var p := Vector2(x0 + (6.0 + h * 15.0) * u - (4.0 * u * _jerk if h != next else 0.0), c.y)
-		var on := h == next
-		kit.dot(ci, p, 7.0 * u, Kit.GOLD if on else Color(Kit.FOAM, 0.35))
-		if on:
-			kit.ring(ci, p, (8.0 + 6.0 * fposmod(time * 4.0, 1.0)) * u, Color(Kit.GOLD, 1.0 - fposmod(time * 4.0, 1.0)), 2.0 * u)
+		var p := Vector2(yours + (h * 2.0 - 1.0) * 14.0 * u, c.y + 36.0 * u)
+		kit.square(ci, p, 11.0 * u, Kit.PAPER, h == next)

@@ -10,6 +10,7 @@ const Sfx := preload("res://audio/sfx.gd")
 const SAVE := "user://bluefin_tips.cfg"
 const Hud := preload("res://ui/hud.gd")
 const Radio := preload("res://ui/radio.gd")
+const Kit := preload("res://ui/kit.gd")
 const FightTutor := preload("res://ui/fight_tutor.gd")
 ## Who's on the radio: Dale, the bank's loan officer. You're his investment, so he keeps an eye on you. Each tip is
 ## a line or two of what to do, said the way Dale would say it: the world shows the rest.
@@ -53,6 +54,9 @@ var sea: Node                 # sea/sea.gd
 var radio: Radio
 var _talk := 0.0              # the transmit light's flicker
 var _light: ColorRect
+var _head: Control            # the VHF 16 line, drawn in the kit
+var _kit := Kit.new()
+var _tx := false              # (the transmit square lit this flicker)
 var _seen := {}
 var _queue: Array[String] = []
 var _card: PanelContainer
@@ -90,41 +94,56 @@ func _ready() -> void:
 	_card.anchor_top = 1.0
 	_card.anchor_bottom = 1.0
 	_card.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	_card.offset_left = 20.0
-	_card.offset_right = 320.0
-	_card.offset_bottom = -24.0
-	_card.custom_minimum_size = Vector2(300, 0)
-	var box := StyleBoxFlat.new()
-	box.bg_color = Color(0.03, 0.05, 0.06, 0.82)
-	box.border_color = Color(1.0, 0.75, 0.3, 0.9)
-	box.border_width_left = 4
-	box.set_content_margin_all(14)
-	box.corner_radius_top_right = 4
-	box.corner_radius_bottom_right = 4
-	_card.add_theme_stylebox_override("panel", box)
+	_card.offset_left = 28.0
+	_card.offset_right = 364.0
+	_card.offset_bottom = -28.0
+	_card.custom_minimum_size = Vector2(336, 0)
+	# (no panel: the words stand straight on the world, in the kit's type, a fine rule beside the station's name)
+	_card.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 6)
 	_card.add_child(col)
-	var head := HBoxContainer.new()
-	head.add_theme_constant_override("separation", 8)
-	col.add_child(head)
-	_light = ColorRect.new()
-	_light.custom_minimum_size = Vector2(7, 7)
-	_light.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	head.add_child(_light)
-	_title = Label.new()
-	_title.add_theme_font_size_override("font_size", Hud.SMALL)
-	_title.add_theme_color_override("font_color", Color(1.0, 0.78, 0.36))
-	head.add_child(_title)
+	_head = Control.new()
+	_head.custom_minimum_size = Vector2(320, 22)
+	_head.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_head.draw.connect(_draw_head)
+	col.add_child(_head)
+	_light = ColorRect.new()        # (the transmit light: drawn by _draw_head, this holds its flicker)
+	_light.visible = false
+	_head.add_child(_light)
+	_title = Label.new()            # (the station's name: drawn by _draw_head)
+	_title.visible = false
+	_head.add_child(_title)
 	_body = Label.new()
 	_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_body.custom_minimum_size = Vector2(272, 0)
-	_body.add_theme_font_size_override("font_size", Hud.BODY)
-	_body.add_theme_color_override("font_color", Color(0.92, 0.92, 0.88))
+	_body.custom_minimum_size = Vector2(320, 0)
+	Kit.style_label(_body, 21, Kit.PAPER, 0.4)
+	_body.add_theme_constant_override("outline_size", 7)         # (Dale's lines run over bright foam and white decks: a heavy outline)
+	_body.add_theme_color_override("font_outline_color", Color(0.02, 0.025, 0.03, 0.96))
 	col.add_child(_body)
 	_card.modulate.a = 0.0
 	add_child(_card)
+
+
+## The station: a square lit orange while he's transmitting, "VHF 16" in spaced capitals, and a short fine rule
+## beside it, then who he is.
+func _draw_head() -> void:
+	var p := clampf(get_viewport().get_visible_rect().size.y / 1080.0, 0.7, 2.5)
+	_kit.px = p
+	_kit.defer = true
+	var ci := _head
+	var y := 11.0 * p
+	if _tx:
+		_kit.square(ci, Vector2(6.0 * p, y), 10.0 * p, Kit.ORANGE, true)
+	else:
+		_kit.square(ci, Vector2(6.0 * p, y), 10.0 * p, Kit.PAPER, false)
+	var w := _kit.label(ci, Vector2(22.0 * p, y), "VHF 16", 15.0 * p, Kit.PAPER, -1)
+	var x := 22.0 * p + w + 10.0 * p
+	_kit.rule(ci, Vector2(x, y), Vector2(x + 44.0 * p, y), Kit.PAPER)
+	_kit.label(ci, Vector2(x + 54.0 * p, y), "DALE, THE BANK", 13.0 * p, Kit.PAPER, -1)
+	_kit.flush()
+	_kit.defer = false
 
 
 ## `text` (a how-to under the crosshair), or "" once it's been taught: TEACH times it's come up. A warning (it ends
@@ -213,7 +232,9 @@ func _process(delta: float) -> void:
 	_talk -= delta
 	if _talk <= 0.0:
 		_talk = randf_range(0.05, 0.14)
-		_light.color = Color(1.0, 0.3, 0.2, randf_range(0.55, 1.0) if _left > 0.4 else 0.15)
+		_light.color = Color(Kit.ORANGE, randf_range(0.55, 1.0) if _left > 0.4 else 0.15)
+		_tx = _left > 0.4 and randf() > 0.2       # (the square's there or it isn't: a voice keying up)
+	_head.queue_redraw()
 
 
 ## Whether tip `id`, still waiting, has been overtaken (the rod's grabbed already; you're off the wheel now).

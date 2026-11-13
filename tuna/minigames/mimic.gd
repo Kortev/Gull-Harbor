@@ -122,53 +122,56 @@ func hint() -> Dictionary:
 
 
 func draw(ci: CanvasItem, rect: Rect2, kit: Kit, time: float) -> void:
+	# the orange fish darting between two pointers; below him a row of square cells on a ruled line: his darts as
+	# solid triangles while he shows them, hollow squares while you answer, filled as you get them, orange for a miss.
 	var u := unit(rect)
 	var c := rect.get_center()
 	var n := seq.size()
 	var sh := showing()
 	var si := int(sh[0])
 	var sk := float(sh[1])
-	# him, in the middle, darting
 	var fx := 0.0
 	var way := 1.0
-	var col := Color(Kit.FOAM, 0.55)
 	if si >= 0:
 		way = -1.0 if seq[si] == 0 else 1.0
 		fx = way * 46.0 * u * sin(PI * minf(sk * 1.25, 1.0))
-		col = Kit.GOLD
 		for i in 3:
-			kit.line(ci, c + Vector2(fx - way * (26.0 + i * 9.0) * u, (i - 1) * 7.0 * u - 6.0 * u), c + Vector2(fx - way * (40.0 + i * 9.0) * u, (i - 1) * 7.0 * u - 6.0 * u),
-					Color(Kit.GOLD, 0.5 * (1.0 - sk)), 2.0 * u)
+			var ly := c.y - 6.0 * u + (i - 1) * 7.0 * u
+			kit.rule(ci, Vector2(c.x + fx - way * (28.0 + i * 8.0) * u, ly), Vector2(c.x + fx - way * (40.0 + i * 8.0) * u, ly))
 	elif phase == "go" and idx > 0:
 		way = -1.0 if seq[idx - 1] == 0 else 1.0
-		col = Kit.GO
-	kit.fish(ci, c + Vector2(fx, -6.0 * u + sin(time * 3.0) * 1.5 * u), 46.0 * u, col, way)
-	# the two sides, lit as he goes to them
+	kit.fish(ci, c + Vector2(fx, -6.0 * u), 46.0 * u, Kit.ORANGE, way)
+	# the two sides
 	for s in 2:
 		var x := c.x + (s * 2.0 - 1.0) * rect.size.x * 0.42
 		var on := si >= 0 and seq[si] == s
-		var sc := Kit.GOLD if on else Color(Kit.FOAM, 0.3 if phase != "go" else 0.6)
-		kit.chevron(ci, Vector2(x, c.y - 6.0 * u), 20.0 * u * (1.0 + 0.3 * (1.0 - sk) if on else 1.0), Vector2(s * 2.0 - 1.0, 0.0), sc, 4.0 * u)
-	# the row of them: hidden once he's shown them, filled in as you answer
-	var step := 20.0 * u
+		kit.tri(ci, Vector2(x + (s * 2.0 - 1.0) * 12.0 * u, c.y - 6.0 * u), 20.0 * u, Vector2(s * 2.0 - 1.0, 0.0), Kit.YELLOW if on else Kit.PAPER, on or phase == "go")
+	# the row of cells
+	var step := 24.0 * u
+	var cell := 17.0 * u
+	var y := rect.end.y - 18.0 * u
+	var x_first := c.x - (n - 1) * 0.5 * step
+	var ry := y + cell * 0.5 + 4.0 * u
+	kit.scale(ci, Vector2(x_first - step * 0.5, ry), Vector2(x_first + (n - 0.5) * step, ry), n, 1, Kit.PAPER, 1.0, 5.0 * u, 5.0 * u)
 	for i in n:
-		var p := Vector2(c.x + (i - (n - 1) * 0.5) * step, rect.end.y - 12.0 * u)
-		var r := 7.0 * u
+		var p := Vector2(x_first + i * step, y)
+		var dv := Vector2(seq[i] * 2.0 - 1.0, 0.0)
 		if phase == "show":
-			if i < si or (i == si):
-				kit.dot(ci, p, r, Kit.GOLD if i == si else Color(Kit.GOLD, 0.45))
-				kit.chevron(ci, p, 7.0 * u, Vector2(seq[i] * 2.0 - 1.0, 0.0), Kit.DEEP, 2.0)
-			else:
-				kit.ring(ci, p, r, Color(Kit.FOAM, 0.3), 1.5)
+			kit.square(ci, p, cell, Kit.PAPER, false)
+			if i <= si:
+				kit.tri(ci, p + dv * cell * 0.4, cell * 0.8, dv, Kit.YELLOW if i == si else Kit.PAPER)
 		else:
 			match got[i]:
 				1:
-					kit.dot(ci, p, r, Kit.GO)
-					kit.chevron(ci, p, 7.0 * u, Vector2(seq[i] * 2.0 - 1.0, 0.0), Kit.DEEP, 2.0)
+					kit.square(ci, p, cell, Kit.PAPER)
+					kit.tri(ci, p + dv * cell * 0.4, cell * 0.8, dv, Kit.BLACK)
 				2:
-					kit.dot(ci, p, r, Kit.CORAL)
+					kit.square(ci, p, cell, Kit.ORANGE)
+					kit.rule(ci, p - Vector2(cell, cell) * 0.25, p + Vector2(cell, cell) * 0.25, Kit.BLACK, true)
+					kit.rule(ci, p - Vector2(cell, -cell) * 0.25, p + Vector2(cell, -cell) * 0.25, Kit.BLACK, true)
 				_:
-					var now := phase == "go" and i == idx
-					kit.ring(ci, p, r * (1.0 + (0.2 * sin(time * 8.0) if now else 0.0)), Kit.FOAM if now else Color(Kit.FOAM, 0.3), 2.0 if now else 1.5)
-	kit.text(ci, Vector2(c.x, rect.position.y + 7.0 * u), "WATCH" if phase == "show" else ("YOUR TURN" if phase == "go" else ""), 12.0 * u,
-			Color(Kit.GOLD if phase == "show" else Kit.GO, 0.9), 0, 700, 1.5)
+					if phase == "go" and i == idx:
+						kit.box(ci, Rect2(p - Vector2(cell, cell) * 0.5, Vector2(cell, cell)), Kit.PAPER, true)
+						kit.tri(ci, p + Vector2(0.0, -cell * 0.5 - 6.0 * u), 10.0 * u, Vector2.DOWN, Kit.PAPER)
+					else:
+						kit.square(ci, p, cell, Kit.PAPER, false)

@@ -104,36 +104,59 @@ func hint() -> Dictionary:
 	return {"a": phase == "now" and _pt < 0.1, "b": false}
 
 
-func draw(ci: CanvasItem, rect: Rect2, kit: Kit, time: float) -> void:
+func draw(ci: CanvasItem, rect: Rect2, kit: Kit, _time: float) -> void:
+	# him on a ruled waterline, turned away; under it a fuse, a ruler with a marker creeping along it. At the turn he
+	# flips, a yellow bracket snaps round him, NOW stamped beside him and the marker runs out of road.
 	var u := unit(rect)
-	var c := rect.get_center() + Vector2(0.0, 12.0 * u)
-	var col := Kit.GOLD
-	var word := "WAIT"
+	var c := rect.get_center()
+	var w := rect.size.x * 0.8
+	var x0 := c.x - w * 0.5
+	var x1 := c.x + w * 0.5
+	var fy := c.y - 4.0 * u
+	var wy := c.y + 10.0 * u
+	var fy2 := c.y + 30.0 * u
 	var turn := 0.0           # 0 away .. 1 round to you
-	var size := 1.0
+	var prog := 0.0
 	match phase:
 		"wait":
 			turn = 0.35 * feint()
-			var breath := 0.5 + 0.5 * sin(time * 5.0)
-			kit.ring(ci, c, (31.0 + 2.0 * breath) * u, Color(Kit.GOLD, 0.5 + 0.3 * breath), 3.0 * u)
+			prog = clampf(_pt / _wait, 0.0, 1.0)
 		"now":
-			col = Kit.GO
-			word = "NOW!"
 			turn = Kit.out_back(_pt / 0.1)
-			size = Kit.pop(_pt, 0.5, 0.3)
-			kit.glow(ci, c, 52.0 * u, Kit.GO, 1.5)
-			kit.ring(ci, c, 31.0 * u, Kit.GO, 5.0 * u)
-			# the time running out on it
-			kit.arc(ci, c, 38.0 * u, -PI * 0.5, -PI * 0.5 + TAU * (1.0 - _pt / TOO_LATE), Color(Kit.GO, 0.7), 3.0 * u)
+			prog = 1.0
 		"show":
-			col = [Kit.CORAL, Kit.GO, Kit.GOLD][last]
-			word = "TOO SOON" if early else (["TOO SLOW", "GOT HIM", "SNAP!"][last] as String)
 			turn = 1.0 if not early else 0.0
-			var k := _pt / 0.6
-			kit.ring(ci, c, (31.0 + 26.0 * k) * u, Color(col, 1.0 - k), 4.0 * u)
-	# him: his head away from you, then round
-	kit.fish(ci, c, 46.0 * u * size, col if phase != "wait" else Kit.FOAM, lerpf(1.0, -1.0, turn) if absf(lerpf(1.0, -1.0, turn)) > 0.15 else 0.15, 0.0)
-	kit.text_pop(ci, Vector2(c.x, rect.position.y + 6.0 * u), word, 18.0 * u, col, size)
+			prog = 1.0 if not early else clampf(_pt / 0.5, 0.0, 1.0)
+	# the waterline
+	kit.scale(ci, Vector2(c.x - w * 0.3, wy), Vector2(c.x + w * 0.3, wy), 24, 4, Kit.PAPER, 1.0, 3.0 * u, 6.0 * u)
+	# him
+	var way := lerpf(1.0, -1.0, turn)
+	if absf(way) < 0.15:
+		way = 0.15
+	var fc := Vector2(c.x, fy)
+	kit.fish(ci, fc, 42.0 * u, Kit.ORANGE, way, 0.0)
+	# the bracket, snapping in
+	if phase == "now" or (phase == "show" and not early):
+		var k := lerpf(2.2, 1.0, Kit.out_cubic(_pt / 0.08)) if phase == "now" else 1.0
+		var bc := Kit.YELLOW if (phase == "now" or last > 0) else Kit.ORANGE
+		var half := Vector2(34.0, 19.0) * u * k
+		kit.span(ci, Rect2(fc - half, half * 2.0), bc, phase == "now" or last == 2)
+	if phase == "now":
+		kit.stamp(ci, Vector2(c.x - w * 0.4, fy - 4.0 * u), "NOW", 13.0 * u, Kit.YELLOW, Kit.slam(_pt), 1.0, -0.07)
+	# the fuse
+	kit.scale(ci, Vector2(x0, fy2), Vector2(x1, fy2), 40, 5, Kit.PAPER, -1.0, 4.0 * u, 9.0 * u)
+	if phase == "now":
+		var rest := clampf(1.0 - _pt / TOO_LATE, 0.0, 1.0)
+		kit.rule(ci, Vector2(x1 - w * rest, fy2 - 6.0 * u), Vector2(x1, fy2 - 6.0 * u), Kit.YELLOW, true)
+	var mx := lerpf(x0, x1, prog)
+	var mcol := Kit.PAPER
+	if phase == "show" and last == 0:
+		mcol = Kit.ORANGE
+	elif phase == "now" or (phase == "show" and last == 2):
+		mcol = Kit.YELLOW
+	kit.rule(ci, Vector2(mx, fy2 + 2.0 * u), Vector2(mx, fy2 - 12.0 * u), mcol, true)
+	kit.tri(ci, Vector2(mx, fy2 + 3.0 * u), 12.0 * u, Vector2.UP, mcol)
+	# the rounds
 	for i in rounds:
-		var p := Vector2(c.x + rect.size.x * 0.42, c.y + (i - (rounds - 1) * 0.5) * 10.0 * u)
-		kit.dot(ci, p, 2.8 * u, Kit.FOAM if i == n else Color(Kit.FOAM, 0.25 if i > n else 0.6))
+		var p := Vector2(rect.end.x - 5.0 * u, c.y + (i - (rounds - 1) * 0.5) * 13.0 * u)
+		kit.square(ci, p, 7.0 * u, Kit.PAPER, i >= n)

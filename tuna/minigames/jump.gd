@@ -81,58 +81,61 @@ func hint() -> Dictionary:
 
 
 func draw(ci: CanvasItem, rect: Rect2, kit: Kit, time: float) -> void:
+	# a ruled waterline; his arc dashed over it, the hands-off part of it hatched orange; a yellow bracket on the
+	# water where he lands, a pointer closing on it.
 	var u := unit(rect)
 	var c := rect.get_center()
-	var w := rect.size.x * 0.9
-	var sea_y := c.y + 26.0 * u
+	var w := rect.size.x * 0.92
+	var sea_y := c.y + 24.0 * u
 	var ta := t - up
-	# the water
-	var wave := PackedVector2Array()
-	for i in 41:
-		var x := c.x - w * 0.5 + w * i / 40.0
-		wave.append(Vector2(x, sea_y + sin(x * 0.06 + time * 2.5) * 2.0 * u))
-	kit.polyline(ci, wave, Color(Kit.TEAL, 0.8), 2.5 * u)
+	kit.scale(ci, Vector2(c.x - w * 0.5, sea_y), Vector2(c.x + w * 0.5, sea_y), 40, 5, Kit.PAPER, 1.0, 4.0 * u, 8.0 * u)
 	var x0 := c.x - w * 0.26
 	var x1 := c.x + w * 0.28
 	var top := 52.0 * u
 	var off := HANDS_OFF / AIR
-	# his arc: red while your hands must be off it
-	var n := 26
+	var arc_at := func(s: float) -> Vector2: return Vector2(lerpf(x0, x1, s), sea_y - top * sin(PI * s))
+	# the hands-off stretch, hatched
+	var hold := Rect2(x0, sea_y - 16.0 * u, (x1 - x0) * off, 12.0 * u)
+	var live_hold := ta >= 0.0 and ta < HANDS_OFF
+	kit.span(ci, hold, Kit.ORANGE, live_hold)
+	kit.hatch(ci, hold.grow_individual(-3.0 * u, -3.0 * u, -3.0 * u, -3.0 * u), Kit.ORANGE, live_hold)
+	# his arc, dashed
+	var n := 30
 	for i in n:
-		var s := (i + 0.5) / n
-		var p := Vector2(lerpf(x0, x1, s), sea_y - top * sin(PI * s))
-		kit.dot(ci, p, 2.2 * u, Color(Kit.CORAL, 0.95) if s < off else Color(Kit.FOAM, 0.55))
-	# where he lands: a ring closing on it
+		if i % 2 == 1:
+			continue
+		var s0 := float(i) / n
+		var s1 := float(i + 1) / n
+		var seg := PackedVector2Array()
+		for k in 3:
+			seg.append(arc_at.call(lerpf(s0, s1, k / 2.0)) as Vector2)
+		kit.path(ci, seg, Kit.ORANGE if s0 < off else Kit.PAPER, s0 < off)
+	# where he lands
 	var land := Vector2(x1, sea_y)
-	var ring_col := Kit.GOLD if landed == 2 else Kit.GO
-	if landed > 0:
-		kit.glow(ci, land, 26.0 * u, ring_col, 1.5)
-	kit.ring(ci, land, 9.0 * u, ring_col, 3.0 * u)
+	var lb := Rect2(x1 - 15.0 * u, sea_y - 12.0 * u, 30.0 * u, 12.0 * u)
+	var lcol := Kit.YELLOW if landed == 2 else Kit.PAPER
+	kit.span(ci, lb, Kit.YELLOW, landed > 0)
+	kit.hatch(ci, lb.grow_individual(-4.0 * u, -3.0 * u, -4.0 * u, -3.0 * u), Kit.YELLOW, landed > 0)
 	if landed == 0 and ta < AIR:
 		var g := clampf((AIR - ta) / (AIR + up), 0.0, 1.0)
-		kit.ring(ci, land, (9.0 + 30.0 * g) * u, Color(Kit.GO, 0.7 * (1.0 - g * 0.6)), 2.0 * u)
+		kit.tri(ci, land + Vector2(0.0, -(14.0 + 40.0 * g) * u), 14.0 * u, Vector2.DOWN, Kit.PAPER)
+	elif landed > 0:
+		kit.tri(ci, land + Vector2(0.0, -14.0 * u), 14.0 * u, Vector2.DOWN, lcol)
+		var r := maxf(ta - AIR, 0.0)
+		if r < 0.35:
+			for i in 5:
+				var ang := -PI * (0.15 + 0.7 * i / 4.0)
+				kit.diamond(ci, land + Vector2.from_angle(ang) * (14.0 + 60.0 * r) * u, 6.0 * u, lcol)
 	# him
-	var fp := Vector2(x0, sea_y)
+	var fp: Vector2
 	var rot := 0.0
-	var col := Kit.FOAM
 	if ta < 0.0:
 		var k := Kit.out_cubic(clampf(1.0 + ta / up, 0.0, 1.0))
-		fp = Vector2(lerpf(x0 - 34.0 * u, x0, k), lerpf(sea_y + 20.0 * u, sea_y + 2.0 * u, k))
+		fp = Vector2(lerpf(x0 - 34.0 * u, x0, k), lerpf(sea_y + 22.0 * u, sea_y + 6.0 * u, k))
 		rot = -0.6
-		col = Color(Kit.FOAM, 0.35 + 0.5 * k)
-		for i in 3:
-			var kk := fposmod(time * 2.0 + i / 3.0, 1.0)
-			kit.ring(ci, Vector2(x0, sea_y), (4.0 + 16.0 * kk) * u, Color(Kit.GOLD, (1.0 - kk) * k), 1.5 * u)
 	else:
 		var s := clampf(ta / AIR, 0.0, 1.0)
-		fp = Vector2(lerpf(x0, x1, s), sea_y - top * sin(PI * s))
+		fp = arc_at.call(s) as Vector2
 		rot = -atan2(top * PI * cos(PI * s), x1 - x0)
-		if s < off and bad > 0.0:
-			col = Kit.CORAL
-		if s >= 1.0:
-			var r := ta - AIR
-			col = Color(Kit.FOAM, clampf(1.0 - r * 3.0, 0.0, 1.0))
-			for i in 7:
-				var ang := -PI * (0.15 + 0.7 * i / 6.0)
-				kit.dot(ci, land + Vector2.from_angle(ang) * (8.0 + 70.0 * r) * u + Vector2(0.0, 120.0 * r * r * u), 2.0 * u, Color(Kit.FOAM, clampf(1.0 - r * 2.0, 0.0, 1.0)))
-	kit.fish(ci, fp, 36.0 * u, col, 1.0, rot)
+	if ta < AIR + 0.15:
+		kit.fish(ci, fp, 34.0 * u, Kit.ORANGE, 1.0, rot)

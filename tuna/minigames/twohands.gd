@@ -119,43 +119,62 @@ func hint() -> Dictionary:
 
 
 func draw(ci: CanvasItem, rect: Rect2, kit: Kit, time: float) -> void:
+	# two instruments at once, a fine rule between them. Left: his shakes as diamonds on a tape running to a yellow
+	# gate (as beats). Right: a ruler on its end, his band a hatched span beside it and your needle a pointer (as ride).
 	var u := unit(rect)
 	var c := rect.get_center()
 	var split := c.x + rect.size.x * 0.2
-	kit.line(ci, Vector2(split, rect.position.y + 6.0 * u), Vector2(split, rect.end.y - 6.0 * u), Color(Kit.FOAM, 0.15), 1.5, false)
-	# the left hand: his shakes coming along a lane to the ring
-	var lx0 := rect.position.x + 6.0 * u
+	kit.rule(ci, Vector2(split, rect.position.y + 6.0 * u), Vector2(split, rect.end.y - 6.0 * u))
+	# the left hand
+	var lx0 := rect.position.x + 4.0 * u
 	var lx1 := split - 10.0 * u
-	var ly := c.y + 6.0 * u
-	var box := Vector2(lx0 + 20.0 * u, ly)
+	var ly := c.y + 10.0 * u
+	var gate := Vector2(lx0 + 22.0 * u, ly)
 	var speed := (lx1 - lx0) * 0.5
-	kit.line(ci, Vector2(lx0, ly), Vector2(lx1, ly), Kit.TRACK, 12.0 * u)
-	var rc := Kit.GOLD
-	if _flash > 0.0:
-		rc = Kit.GOLD if _flash_q == 2 else Kit.GO
-		kit.glow(ci, box, 28.0 * u * (1.0 + _flash), rc, 1.5 * _flash)
-	kit.ring(ci, box, 12.0 * u * (1.0 + 0.25 * _flash), rc, 3.0 * u)
+	kit.rule(ci, Vector2(lx0, ly), Vector2(lx1, ly))
+	var st := 0.25
+	var k0 := int(ceilf((t - (lx1 - gate.x) / speed) / st))
+	for k in range(k0, k0 + int((lx1 - lx0) / speed / st) + 2):
+		var x := gate.x + (k * st - t) * speed
+		if x > lx0 and x < lx1:
+			kit.rule(ci, Vector2(x, ly), Vector2(x, ly + (9.0 if posmod(k, 4) == 0 else 5.0) * u))
+	var gcol := Kit.YELLOW
+	var jump := 0.0
+	if _flash > 0.4:
+		gcol = Kit.YELLOW if _flash_q == 2 else Kit.PAPER
+		jump = (7.0 if _flash_q == 2 else 3.0) * u
+	for s: float in [-1.0, 1.0]:
+		kit.rule(ci, gate + Vector2(0.0, s * (10.0 * u + jump)), gate + Vector2(0.0, s * (24.0 * u + jump)), gcol, true)
 	for i in beats.size():
 		var d := beats[i] - t
-		var p := Vector2(box.x + d * speed, ly)
-		if p.x > lx1 + 2.0 or p.x < lx0 - 2.0:
+		var p := Vector2(gate.x + d * speed, ly)
+		if p.x < lx0 or p.x > lx1:
 			continue
-		if state[i] == 0:
-			kit.dot(ci, p, 8.0 * u, Kit.FOAM)
-		elif state[i] == 3 and d > -0.5:
-			kit.dot(ci, p, 8.0 * u, Color(Kit.CORAL, 1.0 + d / 0.5))
-	kit.fish(ci, Vector2(lx1 - 22.0 * u, ly - 26.0 * u), 30.0 * u, Kit.FOAM, -1.0, sin(time * 10.0) * 0.25)
-	# the right hand: the needle in his band, up a tall bar
-	var bx := split + (rect.end.x - split) * 0.5
-	var bh := rect.size.y * 0.88
-	var bar := Rect2(bx - 9.0 * u, c.y - bh * 0.5, 18.0 * u, bh)
-	kit.pill(ci, bar, Kit.TRACK)
-	kit.dot(ci, Vector2(bx, bar.position.y + 9.0 * u), 3.5 * u, Color(Kit.CORAL, 0.8))
-	var by := bar.end.y - band_c * bh
-	var band := Rect2(bar.position.x, by - band_w * bh, bar.size.x, band_w * bh * 2.0).intersection(bar)
-	if inside:
-		kit.glow(ci, band.get_center(), band.size.y * 0.8, Kit.GO, 1.0)
-	kit.rrect(ci, band, 9.0 * u, Color(Kit.GO, 0.95 if inside else 0.5))
-	var ny := bar.end.y - needle * bh
-	var col := Kit.FOAM if inside else (Kit.CORAL if needle > band_c else Kit.TEAL)
-	kit.line(ci, Vector2(bx - 17.0 * u, ny), Vector2(bx + 17.0 * u, ny), col, 4.0 * u)
+		match state[i]:
+			0:
+				kit.diamond(ci, p, 17.0 * u, Kit.PAPER)
+			3:
+				if d > -0.45:
+					kit.diamond(ci, p, 17.0 * u, Kit.ORANGE, false)
+	kit.fish(ci, Vector2(lx1 - 18.0 * u, ly - 34.0 * u), 30.0 * u, Kit.ORANGE, -1.0, sin(time * 10.0) * 0.25)
+	# the right hand
+	var bx := split + (rect.end.x - split) * 0.55
+	var top := rect.position.y + 8.0 * u
+	var bot := rect.end.y - 8.0 * u
+	var bh := bot - top
+	kit.scale(ci, Vector2(bx, bot), Vector2(bx, top), 40, 5, Kit.PAPER, 1.0, 5.0 * u, 11.0 * u)
+	kit.rule(ci, Vector2(bx - 24.0 * u, top), Vector2(bx + 11.0 * u, top), Kit.ORANGE, true)
+	var by := bot - band_c * bh
+	var y0 := maxf(by - band_w * bh, top + 2.0 * u)
+	var y1 := minf(by + band_w * bh, bot)
+	if y1 > y0:
+		var band := Rect2(bx - 24.0 * u, y0, 20.0 * u, y1 - y0)
+		var ft := 5.0 * u
+		for e: Array in [[band.position.y, ft], [band.end.y, -ft]]:
+			kit.path(ci, PackedVector2Array([Vector2(band.position.x, float(e[0]) + float(e[1])), Vector2(band.position.x, float(e[0])),
+					Vector2(band.end.x, float(e[0])), Vector2(band.end.x, float(e[0]) + float(e[1]))]), Kit.YELLOW, inside)
+		kit.hatch(ci, band.grow_individual(-3.0 * u, -4.0 * u, -3.0 * u, -4.0 * u), Kit.YELLOW, inside)
+	var ny := bot - needle * bh
+	var col := Kit.ORANGE if (not inside and needle > band_c) else Kit.PAPER
+	kit.rule(ci, Vector2(bx - 28.0 * u, ny), Vector2(bx, ny), col, true)
+	kit.tri(ci, Vector2(bx + 2.0 * u, ny), 15.0 * u, Vector2.LEFT, col)

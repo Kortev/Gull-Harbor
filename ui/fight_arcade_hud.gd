@@ -173,9 +173,10 @@ func _process(delta: float) -> void:
 ## The frame the minigame's drawn in.
 func _stage_rect() -> Rect2:
 	var p := kit.px
-	var w := maxf(size.x * 0.215, 400.0 * p)
-	var h := 220.0 * p
-	return Rect2(size.x * 0.5 - w * 0.5, size.y * 0.735 - h * 0.5, w, h)
+	var w := maxf(size.x * 0.3, 560.0 * p)
+	var h := 300.0 * p
+	# (a little left of the middle: the rod and your hands are to the right of it)
+	return Rect2(size.x * 0.455 - w * 0.5, size.y * 0.71 - h * 0.5, w, h)
 
 
 # ------------------------------------------------------------------ the top instrument, the frame, the buttons

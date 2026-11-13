@@ -78,39 +78,32 @@ func hint() -> Dictionary:
 	return {"a": on and ahead > 0.1, "b": on and ahead < -0.1}
 
 
-func draw(ci: CanvasItem, rect: Rect2, kit: Kit, time: float) -> void:
+func draw(ci: CanvasItem, rect: Rect2, kit: Kit, _time: float) -> void:
+	# a ruler with its centre marked: the good a bracketed, hatched span round the middle (heavy while you are in it);
+	# the tip a pointer under the ruler; orange hatching growing in from whichever end he is pulling it to.
 	var u := unit(rect)
 	var c := rect.get_center()
-	var w := rect.size.x * 0.84
-	var y := rect.position.y + 20.0 * u
+	var w := rect.size.x * 0.9
 	var x0 := c.x - w * 0.5
-	var bar := Rect2(x0, y - 6.0 * u, w, 12.0 * u)
-	kit.pill(ci, bar, Kit.TRACK)
-	kit.dot(ci, Vector2(bar.position.x + 6.0 * u, y), 3.2 * u, Color(Kit.CORAL, 0.8))
-	kit.dot(ci, Vector2(bar.end.x - 6.0 * u, y), 3.2 * u, Color(Kit.CORAL, 0.8))
-	var zone := Rect2(c.x - w * 0.5 * ZONE, bar.position.y, w * ZONE, bar.size.y)
-	if inside:
-		kit.glow(ci, zone.get_center(), w * ZONE * 0.7, Kit.GO, 1.0)
-	kit.pill(ci, zone, Color(Kit.GO, 0.95 if inside else 0.5))
-	# the rod, from your hands up to its tip
-	var tip := Vector2(c.x + x * w * 0.5, y)
-	var butt := Vector2(c.x, rect.end.y + 2.0 * u)
-	var col := Kit.FOAM if inside else (Kit.CORAL if absf(x) > 0.8 else Kit.GOLD)
-	var pts := PackedVector2Array()
-	for i in 13:
-		var s := i / 12.0
-		pts.append(butt.lerp(Vector2(c.x, y), s) + Vector2((tip.x - c.x) * s * s, 0.0))
-	kit.polyline(ci, pts, Color(col, 0.9), 3.5 * u)
-	kit.dot(ci, tip, 7.5 * u, col)
-	kit.dot(ci, tip, 3.0 * u, Kit.DEEP)
-	# which way to knock it, and the knocks you've given it
-	for s in 2:
-		var way := s * 2.0 - 1.0
-		var need := (x > 0.05) if s == 0 else (x < -0.05)
-		var px := c.x + way * (w * 0.5 - 14.0 * u)
-		var k := clampf(1.0 - float(_tap_t[s]) / 0.2, 0.0, 1.0)
-		var cc := Color(Kit.GOLD if need else Kit.FOAM, 1.0 if need else 0.2)
-		for i in 2:
-			var kk := fposmod(time * 2.5 + i * 0.5, 1.0) if need else 0.5
-			kit.chevron(ci, Vector2(px + way * (kk - 0.5) * 12.0 * u - way * k * 6.0 * u, c.y + 22.0 * u), 15.0 * u, Vector2(way, 0.0),
-					Color(cc, cc.a * (1.0 - absf(kk - 0.5) * 1.2)), 3.5 * u)
+	var x1 := c.x + w * 0.5
+	var y := c.y + 14.0 * u
+	kit.scale(ci, Vector2(x0, y), Vector2(x1, y), 40, 5, Kit.PAPER, 1.0, 5.0 * u, 11.0 * u)
+	# the ends: where the line is hurt
+	for s: float in [-1.0, 1.0]:
+		kit.rule(ci, Vector2(c.x + s * w * 0.5, y - 24.0 * u), Vector2(c.x + s * w * 0.5, y + 11.0 * u), Kit.ORANGE, true)
+	var hurt := smoothstep(ZONE, 1.0, absf(x))
+	if hurt > 0.0:
+		var span_len := w * 0.5 * (1.0 - ZONE) * hurt
+		var ex := c.x + signf(x) * w * 0.5
+		var r := Rect2(minf(ex, ex - signf(x) * span_len), y - 24.0 * u, span_len, 20.0 * u)
+		kit.hatch(ci, r, Kit.ORANGE, absf(x) > 0.8)
+	# the good
+	var zone := Rect2(c.x - w * 0.5 * ZONE, y - 24.0 * u, w * ZONE, 20.0 * u)
+	kit.span(ci, zone, Kit.YELLOW, inside)
+	kit.hatch(ci, zone.grow_individual(-4.0 * u, -3.0 * u, -4.0 * u, -3.0 * u), Kit.YELLOW, inside)
+	kit.rule(ci, Vector2(c.x, y - 30.0 * u), Vector2(c.x, y), Kit.PAPER)
+	# the tip
+	var tx := c.x + x * w * 0.5
+	var col := Kit.ORANGE if (not inside and absf(x) > 0.8) else Kit.PAPER
+	kit.rule(ci, Vector2(tx, y - 28.0 * u), Vector2(tx, y), col, true)
+	kit.tri(ci, Vector2(tx, y + 2.0 * u), 15.0 * u, Vector2.UP, col)

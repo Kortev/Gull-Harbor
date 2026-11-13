@@ -141,43 +141,47 @@ func hint() -> Dictionary:
 
 
 func draw(ci: CanvasItem, rect: Rect2, kit: Kit, time: float) -> void:
+	# a tall ruler, the yellow span hatched at its top, a pointer riding it; arrows say which way (down on the A
+	# side, up on the B side); in a kick an orange hatched band sweeps the scale in an orange frame.
 	var u := unit(rect)
 	var c := rect.get_center()
-	var h := rect.size.y * 0.9
-	var w := 26.0 * u
-	var m := Rect2(c.x - w * 0.5, c.y - h * 0.5, w, h)
-	var gold_h := h * (1.0 - GOLD) + w * 0.3
-	# the meter, gold at its top
-	kit.pill(ci, m, Kit.TRACK)
-	kit.rrect(ci, Rect2(m.position, Vector2(w, gold_h)), w * 0.5, Color(Kit.GOLD, 0.75 + 0.2 * sin(time * 6.0)))
-	var col := Kit.GOLD if rod >= GOLD else Kit.FOAM
-	if dir == -1:
-		col = Kit.GO.lerp(Kit.GOLD, 1.0 if q >= 1.0 else 0.0)
-	var fh := maxf((h - 6.0 * u) * rod, 0.0)
-	if fh > 1.0:
-		kit.rrect(ci, Rect2(m.position.x + 3.0 * u, m.end.y - 3.0 * u - fh, w - 6.0 * u, fh), (w - 6.0 * u) * 0.5, col)
-	var head := Vector2(c.x, m.end.y - 3.0 * u - fh)
-	if _flash > 0.0:
-		kit.glow(ci, Vector2(c.x, m.end.y), 40.0 * u, Kit.GOLD, 2.0 * _flash)
-	kit.line(ci, head - Vector2(w * 0.75, 0.0), head + Vector2(w * 0.75, 0.0), col, 4.0 * u)
+	var h := rect.size.y * 0.92
+	var top := Vector2(c.x, c.y - h * 0.5)
+	var bot := Vector2(c.x, c.y + h * 0.5)
+	kit.scale(ci, bot, top, 40, 5, Kit.PAPER, -1.0, 5.0 * u, 11.0 * u)
+	var in_gold := rod >= GOLD
+	var zone := Rect2(c.x + 4.0 * u, top.y, 34.0 * u, h * (1.0 - GOLD))
+	kit.span(ci, zone, Kit.YELLOW, in_gold)
+	kit.hatch(ci, zone.grow_individual(-4.0 * u, -3.0 * u, -4.0 * u, -3.0 * u), Kit.YELLOW, in_gold)
+	var my := bot.y - h * rod
+	if rod > 0.0:
+		kit.rule(ci, bot, Vector2(c.x, my), Kit.PAPER, true)
+	kit.tri(ci, Vector2(c.x + 2.0 * u, my), 15.0 * u, Vector2.LEFT, Kit.YELLOW if (in_gold or (dir == -1 and q >= 1.0)) else Kit.PAPER)
+	if _flash > 0.5:
+		kit.square(ci, Vector2(c.x, bot.y), 14.0 * u, Kit.YELLOW)
 	if kick > 0:
-		var kc := Kit.GOLD if kick == 1 else Kit.CORAL
+		var frame := Rect2(c.x - 30.0 * u, top.y - 3.0 * u, 60.0 * u, h + 6.0 * u)
 		if kick == 2 or sin(time * 30.0) > 0.0:
-			kit.rrect(ci, m.grow(5.0 * u), w * 0.5 + 5.0 * u, Color(0, 0, 0, 0), kc, 3.0 * u)
-			kit.text(ci, Vector2(c.x - 44.0 * u, c.y), "!", 44.0 * u, kc, 0, 700)
-			kit.text(ci, Vector2(c.x + 44.0 * u, c.y), "!", 44.0 * u, kc, 0, 700)
+			kit.box(ci, frame, Kit.ORANGE, kick == 2)
+		var prog := clampf(1.0 - _kick_t / (KICK_WARN + KICK_LEN), 0.0, 1.0)
+		var bh := h * 0.28
+		var by := lerpf(bot.y, top.y - bh, prog)
+		var y0 := maxf(by, top.y)
+		var y1 := minf(by + bh, bot.y)
+		if y1 > y0 + 2.0:
+			kit.hatch(ci, Rect2(c.x - 27.0 * u, y0, 54.0 * u, y1 - y0), Kit.ORANGE, kick == 2, 11.0 * kit.px)
 	else:
-		# which way now: winding down on the A side, lifting on the B side
 		var lifting := dir != -1 and rod < GOLD
 		for i in 3:
 			var k := fposmod(time * 1.6 + i / 3.0, 1.0)
-			var on_a := not lifting
-			kit.chevron(ci, Vector2(c.x - 40.0 * u, c.y + (-14.0 + 28.0 * k) * u), 11.0 * u, Vector2.DOWN,
-					Color(Kit.GO, (1.0 - absf(k - 0.5) * 2.0) if on_a else 0.12), 3.0 * u)
-			kit.chevron(ci, Vector2(c.x + 40.0 * u, c.y + (14.0 - 28.0 * k) * u), 11.0 * u, Vector2.UP,
-					Color(Kit.FOAM, (1.0 - absf(k - 0.5) * 2.0) if not on_a else 0.12), 3.0 * u)
-	# him, down there on the end of it
-	var fx := c.x + rect.size.x * 0.36
+			var ay := (-14.0 + 28.0 * k) * u
+			if not lifting:
+				var p := Vector2(c.x - 44.0 * u, c.y + ay)
+				kit.path(ci, PackedVector2Array([p + Vector2(-9.0, -5.0) * u, p + Vector2(0.0, 5.0) * u, p + Vector2(9.0, -5.0) * u]), Kit.PAPER, true)
+			else:
+				var p := Vector2(c.x + 44.0 * u, c.y - ay)
+				kit.path(ci, PackedVector2Array([p + Vector2(-9.0, 5.0) * u, p + Vector2(0.0, -5.0) * u, p + Vector2(9.0, 5.0) * u]), Kit.PAPER, true)
+	# him, down there
+	var fx := c.x - rect.size.x * 0.36
 	var fy := c.y + 26.0 * u + 3.0 * u * sin(time * 2.0) - 10.0 * u * (1.0 if dir == -1 else 0.0)
-	kit.line(ci, head + Vector2(w * 0.75, 0.0), Vector2(fx - 16.0 * u, fy), Color(Kit.FOAM, 0.35), 1.5, false)
-	kit.fish(ci, Vector2(fx, fy), 32.0 * u, Color(Kit.FOAM, 0.85), -1.0, 0.25 if kick == 2 else 0.0)
+	kit.fish(ci, Vector2(fx, fy), 32.0 * u, Kit.ORANGE, 1.0, 0.25 if kick == 2 else 0.0)

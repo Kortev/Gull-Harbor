@@ -11,6 +11,7 @@ extends CanvasLayer
 
 ## The one type scale: small (numbers, the tally), body (prompts, notices, readouts), big (the fight's word).
 const Pad := preload("res://core/pad.gd")
+const Kit := preload("res://ui/kit.gd")
 
 const SMALL := 14
 const BODY := 17
@@ -27,6 +28,12 @@ const RED := Color(1.0, 0.4, 0.3)
 ## Behind the HUD's words and tallies: dark enough to read over a bright sky, light enough to see the sea through.
 const BACKING := Color(0.0, 0.02, 0.04, 0.42)
 
+## The HUD's type and linework, in the fight's hand (ui/kit.gd). The Labels below hold the words (tests and the
+## layout read them) but are drawn clear: `_type` draws them, and the helm, tally and plotter draw themselves.
+var kit := Kit.new()
+var _type: Control
+var _tell_col := Kit.PAPER
+var _tell_warn := false
 var _prompt: HBoxContainer
 var _key: Label
 var _what: Label
@@ -75,28 +82,16 @@ func _ready() -> void:
 	_prompt.add_theme_constant_override("separation", 8)
 	_prompt.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_prompt)
-	var cap := PanelContainer.new()
-	cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var box := StyleBoxFlat.new()
-	box.bg_color = Color(0, 0, 0, 0.35)
-	box.border_color = Color(CREAM, 0.8)
-	box.set_border_width_all(1)            # (square: a pixel cap, no rounded smoothing)
-	box.content_margin_left = 6
-	box.content_margin_right = 6
-	cap.add_theme_stylebox_override("panel", box)
-	_prompt.add_child(cap)
 	_key = _label(SMALL, CREAM)
 	_key.text = "E"
-	cap.add_child(_key)
+	_prompt.add_child(_key)
 	_what = _label(BODY, CREAM)
-	_band(_what)
 	_prompt.add_child(_what)
 	_prompt.visible = false
 	_tell = _label(BIG, CREAM)
 	_tell.set_anchors_preset(Control.PRESET_CENTER)
 	_tell.position += Vector2(0, 52)
 	_tell.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_band(_tell)
 	_tell.visible = false
 	add_child(_tell)
 	_meter = Control.new()
@@ -114,7 +109,6 @@ func _ready() -> void:
 	_note.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	_note.position += Vector2(0, 40)
 	_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_band(_note)
 	_note.visible = false
 	add_child(_note)
 	_tally = Control.new()
@@ -134,29 +128,24 @@ func _ready() -> void:
 	_plot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_plot.draw.connect(_draw_plot)
 	add_child(_plot)
+	# the words, drawn in the kit's type over everything else here
+	_type = Control.new()
+	_type.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_type.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_type.draw.connect(_draw_type)
+	add_child(_type)
 
 
-## A label in the HUD's one style: cream with a soft shadow.
+## A label that holds a line of words and is drawn clear: _draw_type() prints it in the kit's type.
 static func _label(size: int, col: Color) -> Label:
 	var l := Label.new()
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	l.add_theme_font_size_override("font_size", size)
-	l.add_theme_color_override("font_color", col)
-	l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.85))
-	l.add_theme_constant_override("shadow_offset_x", 1)
-	l.add_theme_constant_override("shadow_offset_y", 1)
+	l.add_theme_color_override("font_color", Color(col, 0.0))
+	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0))
+	l.add_theme_constant_override("outline_size", 0)
+	l.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
 	return l
-
-
-## A dark band behind a line of words, just their width.
-static func _band(l: Label) -> void:
-	var box := StyleBoxFlat.new()
-	box.bg_color = BACKING
-	box.content_margin_left = 12
-	box.content_margin_right = 12
-	box.content_margin_top = 4
-	box.content_margin_bottom = 3
-	l.add_theme_stylebox_override("normal", box)
 
 
 ## `l` says `text` at the biggest of `sizes` that fits in `share` of the screen's width, centred on its anchor, its
@@ -168,23 +157,38 @@ func _fit(l: Label, text: String, sizes: Array, share := 0.9) -> void:
 		return
 	var screen := get_viewport().get_visible_rect().size.x
 	var room := minf(TELL_W, minf(screen * share, screen - MARGIN * 2.0))
-	var font := l.get_theme_font("font")
 	var size: int = sizes[-1]
 	for s: int in sizes:
-		if font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, s).x <= room:
+		if _words_w(text, s) <= room:
 			size = s
 			break
-	l.add_theme_font_size_override("font_size", size)
-	var w := ceilf(font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x) + 24.0
-	l.offset_left = -floorf(w * 0.5)        # (from its anchor, the middle: centred however the window's sized)
-	l.offset_right = l.offset_left + w
+	l.set_meta("size", size)
+
+
+## How wide `text` runs (px) in the HUD's spaced capitals at type size `s` (the old size scale: SMALL, BODY, BIG).
+func _words_w(text: String, s: int) -> float:
+	var fs := float(s) * 1.2 * _px()
+	return kit.text_w(text.to_upper(), fs, 600, fs * 0.12)
+
+
+func _px() -> float:
+	return clampf(get_viewport().get_visible_rect().size.y / 1080.0, 0.7, 2.5)
 
 
 func _text(on: Control, at: Vector2, text: String, size: int, col: Color, align := HORIZONTAL_ALIGNMENT_LEFT,
 		width := -1.0) -> void:
-	var f := ThemeDB.fallback_font
-	on.draw_string(f, at + Vector2(1, 1), text, align, width, size, Color(0, 0, 0, 0.8 * col.a))
-	on.draw_string(f, at, text, align, width, size, col)
+	var p := _px()
+	var fs := float(size) * 1.2 * p
+	var x := at.x
+	var a := -1
+	if align == HORIZONTAL_ALIGNMENT_CENTER:
+		x += width * 0.5
+		a = 0
+	elif align == HORIZONTAL_ALIGNMENT_RIGHT:
+		x += width
+		a = 1
+	kit.px = p
+	kit.text(on, Vector2(x, at.y - fs * 0.3), text.to_upper(), fs, col, a, 600, fs * 0.12)
 
 
 ## At the wheel: the fish on, each [bearing (rad, 0 dead astern, + to starboard), metres off, how hard it's rubbing
@@ -199,24 +203,30 @@ func plot(fish: Array, _throttle_now := 0.0) -> void:
 func _draw_plot() -> void:
 	if _fish.is_empty():
 		return
-	var r := 90.0
-	_plot.draw_circle(Vector2.ZERO, r + 6.0, Color(0.02, 0.05, 0.06, 0.45))
-	_plot.draw_arc(Vector2.ZERO, r, 0.0, TAU, 48, Color(0.6, 0.9, 0.8, 0.25), 1.0)
-	# the danger: forward of her beam the line's on the hull
-	_plot.draw_arc(Vector2.ZERO, r * 0.35, PI * 1.5 - 1.4, PI * 1.5 + 1.4, 24, Color(1.0, 0.3, 0.2, 0.35), 3.0)
+	var p := _px()
+	kit.px = p
+	kit.defer = true
+	var r := 90.0 * p
+	var ci := _plot
+	# the dial: a ticked circle, the hull-danger arc forward of her beam hatched in orange
+	kit.dial(ci, Vector2.ZERO, r, 24, 6, Kit.PAPER, 5.0 * p, 10.0 * p)
+	kit.sweep(ci, Vector2.ZERO, r * 0.35, PI * 1.5 - 1.4, PI * 1.5 + 1.4, Kit.ORANGE, true)
 	# her, bow up
-	var hull := PackedVector2Array([Vector2(0, -22), Vector2(8, -8), Vector2(8, 14), Vector2(-8, 14), Vector2(-8, -8),
-			Vector2(0, -22)])
-	_plot.draw_polyline(hull, Color(0.9, 0.95, 0.9, 0.85), 2.0)
-	var stern := Vector2(0, 14)
+	var hull := PackedVector2Array([Vector2(0, -22), Vector2(8, -8), Vector2(8, 14), Vector2(-8, 14), Vector2(-8, -8)])
+	for i in hull.size():
+		hull[i] *= p
+	kit.path(ci, hull, Kit.PAPER, false, true)
+	var stern := Vector2(0, 14) * p
 	for f: Array in _fish:
 		var b := float(f[0])
 		var d := clampf(log(1.0 + float(f[1]) / 6.0) / log(1.0 + 300.0 / 6.0), 0.12, 1.0) * r
 		var at := stern + Vector2(sin(b), cos(b)) * d
-		var hot := float(f[2])
-		var col := Color(0.95, 0.9, 0.6).lerp(Color(1.0, 0.25, 0.15), hot)
-		_plot.draw_line(stern, at, Color(col, 0.6), 1.0)
-		_plot.draw_circle(at, 5.0, col)
+		var hot := float(f[2]) > 0.5
+		var col := Kit.ORANGE
+		kit.rule(ci, stern, at, Kit.ORANGE if hot else Kit.PAPER, hot)
+		kit.diamond(ci, at, 11.0 * p, col, true)
+	kit.flush()
+	kit.defer = false
 
 
 ## At the wheel: her speed in knots and the throttle -1..1 (knots < 0 hides it).
@@ -231,16 +241,21 @@ func helm(knots: float, throttle := 0.0) -> void:
 func _draw_helm() -> void:
 	if _knots < 0.0:
 		return
-	# her knots over a throttle bar, ahead green right of the middle tick, astern amber left of it
-	var w := 80.0
-	_text(_helm, Vector2(0, -12), "%d kn" % roundi(_knots), BODY, CREAM)
-	_helm.draw_rect(Rect2(0, 0, w * 2.0, 6), Color(0, 0, 0, 0.4))
+	# her knots over a throttle ruler: ahead to the right of the middle tick, astern to the left
+	var p := _px()
+	kit.px = p
+	kit.defer = true
+	var ci := _helm
+	var w := 80.0 * p
+	var dw := kit.num(ci, Vector2(0, -22.0 * p), "%d" % roundi(_knots), 30.0 * p, Kit.PAPER, -1)
+	kit.label(ci, Vector2(dw + 7.0 * p, -17.0 * p), "KN", 14.0 * p, Kit.PAPER, -1)
+	kit.scale(ci, Vector2(0, 0), Vector2(w * 2.0, 0), 20, 5, Kit.PAPER, 1.0, 5.0 * p, 9.0 * p)
 	var t := clampf(_throttle, -1.0, 1.0)
-	if t > 0.0:
-		_helm.draw_rect(Rect2(w, 0, w * t, 6), Color(GREEN, 0.85))
-	elif t < 0.0:
-		_helm.draw_rect(Rect2(w + w * t, 0, -w * t, 6), Color(AMBER, 0.9))
-	_helm.draw_rect(Rect2(w - 1, -3, 2, 12), Color(CREAM, 0.9))
+	if absf(t) > 0.01:
+		kit.rule(ci, Vector2(w, 0), Vector2(w + w * t, 0), Kit.YELLOW if t > 0.0 else Kit.PAPER, true)
+	kit.tri(ci, Vector2(w, -3.0 * p), 11.0 * p, Vector2.DOWN, Kit.PAPER)
+	kit.flush()
+	kit.defer = false
 
 
 ## The trip, top left (boat/fish_hold.gd): day, days, box, cap, deck (counts), earned, quota, aboard (dollars), and
@@ -255,45 +270,53 @@ func tally(trip: Dictionary) -> void:
 func _draw_tally() -> void:
 	if _trip.is_empty():
 		return
-	var w := 200.0
-	# a dark backing, so it reads over a bright sky (Rivals' race tally carries on under it, vs/vs.gd)
-	var pips := (int(_trip["cap"]) + int(_trip["deck"])) * 14.0 + 6.0
-	_tally.draw_rect(Rect2(-10, -6, maxf(w, pips) + 20.0, 56), BACKING)
+	var p := _px()
+	kit.px = p
+	kit.defer = true
+	var ci := _tally
+	var w := 220.0 * p
 	if _trip.has("rivals"):
-		# (Rivals: the match's day, no quota; her box as ever)
-		# (as one fleet there's no match to win: just the day)
-		_text(_tally, Vector2(0, 12), "Day %d  -  %s" % [int(_trip["day"]), "one fleet" if bool(_trip.get("together", false))
-				else "best of three"], SMALL, Color(CREAM, 0.85))
-		_draw_box()
+		# (Rivals: the match's day, no quota; her box as ever. As one fleet there's no match to win: just the day)
+		var dw := kit.num(ci, Vector2(0, 14.0 * p), "DAY %d" % int(_trip["day"]), 24.0 * p, Kit.PAPER, -1)
+		kit.label(ci, Vector2(dw + 10.0 * p, 17.0 * p), "ONE FLEET" if bool(_trip.get("together", false))
+				else "BEST OF THREE", 13.0 * p, Kit.PAPER, -1)
+		_draw_box(46.0 * p)
+		kit.flush()
+		kit.defer = false
 		return
 	var quota := maxf(float(_trip["quota"]), 1.0)
 	var earned := float(_trip["earned"])
 	var made := earned >= quota
-	_text(_tally, Vector2(0, 12), "%s / %s" % [_trip["earned_text"], _trip["quota_text"]], SMALL,
-			Color(GREEN if made else CREAM, 0.9))
 	var left := int(_trip["days"]) - int(_trip["day"]) + 1
-	_text(_tally, Vector2(0, 12), "paid" if made else ("due today" if left <= 1 else "due in %d days" % left), SMALL,
-			Color(CREAM, 0.75), HORIZONTAL_ALIGNMENT_RIGHT, w)
-	_tally.draw_rect(Rect2(0, 20, w, 6), Color(0, 0, 0, 0.5))
+	# line one: what's earned over the payment; line two: when it's due, over the ruler of how far along it is
+	var ew := kit.num(ci, Vector2(0, 14.0 * p), str(_trip["earned_text"]), 26.0 * p, Kit.YELLOW if made else Kit.PAPER, -1)
+	kit.text(ci, Vector2(ew + 8.0 * p, 16.0 * p), "/ %s" % _trip["quota_text"], 18.0 * p, Kit.PAPER, -1, 600, 1.5 * p)
+	var due_col := Kit.ORANGE if (left <= 1 and not made) else (Kit.YELLOW if made else Kit.PAPER)
+	kit.label(ci, Vector2(0, 42.0 * p), "PAID" if made else ("DUE TODAY" if left <= 1 else "DUE IN %d DAYS" % left),
+			13.0 * p, due_col, -1)
+	var ry := 58.0 * p
+	kit.scale(ci, Vector2(0, ry), Vector2(w, ry), 20, 5, Kit.PAPER, 1.0, 4.0 * p, 8.0 * p)
 	var aboard := clampf((earned + float(_trip["aboard"])) / quota, 0.0, 1.0)
-	_tally.draw_rect(Rect2(0, 20, w * aboard, 6), Color(1, 1, 1, 0.5))
-	_tally.draw_rect(Rect2(0, 20, w * clampf(earned / quota, 0.0, 1.0), 6), Color(GREEN if made else AMBER, 0.85))
-	_draw_box()
+	var got := clampf(earned / quota, 0.0, 1.0)
+	if aboard > got:
+		kit.rule(ci, Vector2(w * got, ry), Vector2(w * aboard, ry), Kit.YELLOW, true)
+	if got > 0.0:
+		kit.rule(ci, Vector2(0, ry), Vector2(w * got, ry), Kit.YELLOW if made else Kit.PAPER, true)
+	_draw_box(84.0 * p)
+	kit.flush()
+	kit.defer = false
 
 
-func _draw_box() -> void:
-	# the fish box, a pip a place (filled once iced), and any still on deck after it
-	var x := 0.0
+func _draw_box(y: float) -> void:
+	# the fish box, a square a place (solid once iced), and any still on deck after it in orange
+	var p := _px()
+	var x := 6.0 * p
 	for i in int(_trip["cap"]):
-		var r := Rect2(x, 34, 10, 10)
-		if i < int(_trip["box"]):
-			_tally.draw_rect(r, Color(0.7, 0.9, 1.0, 0.9))
-		else:
-			_tally.draw_rect(r, Color(0.7, 0.9, 1.0, 0.5), false, 1.0)
-		x += 14.0
+		kit.square(_tally, Vector2(x, y), 11.0 * p, Kit.PAPER, i < int(_trip["box"]))
+		x += 17.0 * p
 	for i in int(_trip["deck"]):
-		_tally.draw_rect(Rect2(x + 6.0, 34, 10, 10), Color(AMBER, 0.9))
-		x += 14.0
+		kit.square(_tally, Vector2(x + 6.0 * p, y), 11.0 * p, Kit.ORANGE, true)
+		x += 17.0 * p
 
 
 ## A few words at the top for a few seconds ("Fish on!").
@@ -313,6 +336,52 @@ func note_at(y: float) -> void:
 func _process(delta: float) -> void:
 	_note_t -= delta
 	_note.modulate.a = clampf(_note_t, 0.0, 1.0)
+	_type.queue_redraw()
+
+
+## The words under the crosshair, the fight's word and the notice, in the fight's type: fine spaced capitals with a
+## thin dark outline, no panel. During an arcade fight nothing goes in the minigame's frame (centre, low) or under
+## its ruler (top middle): the hint sits just under the crosshair, above the frame, and a notice drops under the
+## ruler.
+func _draw_type() -> void:
+	var ci := _type
+	var sz := ci.size
+	var p := _px()
+	kit.px = p
+	kit.defer = true
+	var y := sz.y * 0.5 + 36.0 * p
+	if _prompt.visible and not _what.text.is_empty():
+		var fs := float(BODY) * 1.2 * p
+		var words := _what.text.to_upper()
+		var kw := kit.text_w(_key.text, fs, 700, 0.0) + 16.0 * p
+		var ww := kit.text_w(words, fs, 600, fs * 0.12)
+		var x := (sz.x - (kw + 12.0 * p + ww)) * 0.5
+		kit.span(ci, Rect2(x, y - 12.0 * p, kw, 24.0 * p), Kit.PAPER)
+		kit.text(ci, Vector2(x + kw * 0.5, y), _key.text, fs, Kit.PAPER, 0, 700)
+		kit.text(ci, Vector2(x + kw + 12.0 * p, y), words, fs, Kit.PAPER, -1, 600, fs * 0.12)
+		y += 30.0 * p
+	if _tell.visible and not _tell.text.is_empty():
+		var size := int(_tell.get_meta("size", BIG))
+		var fs := float(size) * 1.2 * p
+		var words := _tell.text.to_upper()
+		var ww := kit.text_w(words, fs, 600, fs * 0.12)
+		var x := (sz.x - ww) * 0.5
+		if _tell_warn:
+			kit.tri(ci, Vector2(x - 12.0 * p, y), 15.0 * p, Vector2.RIGHT, Kit.ORANGE)
+		kit.text(ci, Vector2(x, y), words, fs, Kit.ORANGE if _tell_warn else Kit.PAPER, -1, 600, fs * 0.12)
+	if _note.visible and _note.modulate.a > 0.01 and not _note.text.is_empty():
+		var size := int(_note.get_meta("size", BODY))
+		var fs := float(size) * 1.2 * p
+		var top := _note.position.y * p + 12.0 * p
+		var arcade := get_node_or_null("FightArcadeHud")
+		if arcade != null and float(arcade.get("_a")) > 0.01:
+			top = maxf(top, 156.0 * p)
+		var words := _note.text.to_upper()
+		var ww := kit.text_w(words, fs, 600, fs * 0.12)
+		var a := _note.modulate.a
+		kit.text(ci, Vector2((sz.x - ww) * 0.5, top), words, fs, Color(Kit.PAPER, a), -1, 600, fs * 0.12)
+	kit.flush()
+	kit.defer = false
 
 
 ## In a fight: what to do ("Crank") and the strain 0..1 ("" and 0 when there's no fight: then `tell` is what wants
@@ -323,7 +392,7 @@ func fight(tell: String, strain: float, arms := 1.0, line := -1.0, gain := 0.0, 
 	var said := Settings.say(tell)
 	if said != _tell.text:
 		_fit(_tell, said, [BIG, BODY, SMALL], 0.72)       # (a long one down a size, so it's all on the screen, centred)
-	_tell.add_theme_color_override("font_color", _tell_colour(tell))
+	_tell_warn = _tell_colour(tell) == RED
 	if line != _line or absf(gain - _gain) > 0.05 or absf(fresh - _fresh) > 0.01:
 		_line = line
 		_gain = gain

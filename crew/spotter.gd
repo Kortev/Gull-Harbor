@@ -14,6 +14,7 @@ extends CanvasLayer
 ## Not from the wheel with her running (faster than RUNNING): she's slamming along and the captain's eyes are on the
 ## water ahead. The mate picks the birds out; the captain eases off to look for himself.
 
+const Kit := preload("res://ui/kit.gd")
 const AIM := 0.06             # how close to the middle of your view a flock has to be (rad)
 const REACH := 4500.0         # the furthest a flock can be picked out (m)
 ## Closer than this you can tell what the birds are on (m), from the deck (your eye about EYE m over the sea); the
@@ -41,13 +42,10 @@ func _ready() -> void:
 	layer = 5
 	_read = Label.new()
 	_read.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	_read.position = Vector2(-300, -250)
-	_read.size = Vector2(600, 30)
+	_read.position = Vector2(-450, -250)
+	_read.size = Vector2(900, 34)
 	_read.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_read.add_theme_font_size_override("font_size", 17)
-	_read.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.85))
-	_read.add_theme_constant_override("shadow_offset_x", 1)
-	_read.add_theme_constant_override("shadow_offset_y", 1)
+	Kit.style_label(_read, 22, Kit.PAPER, 1.2)      # (the fight's hand: its condensed face, a thin dark outline, no panel)
 	_read.visible = false
 	add_child(_read)
 

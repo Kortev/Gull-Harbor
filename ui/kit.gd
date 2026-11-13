@@ -26,9 +26,6 @@ extends RefCounted
 ## 10. Lay it out in `unit(rect)` (a rect 100 tall is 1) and keep inside the rect; line weights are the kit's own
 ##     (they follow the screen: `px` is 1 at 1080p).
 ## 11. Everything is drawn from the game's own state, the same on every screen: nothing random in draw().
-## The old look's calls (rrect, pill, meter, dot, ring, glow, line, arc, polyline, chevron, text_pop, and the colour
-## names FOAM, GOLD, CORAL, GO, TEAL, MIST, DIM, TRACK, EDGE, DEEP) are still here as plain STAND-INS in the new inks,
-## so a game not yet redrawn still draws: don't use them in new drawing (they're at the bottom of this file).
 ##
 ## What else is here: font() (a condensed system face, tabular numerals), text(), box(), solid(), corners() (the
 ## frame), stamp() and tag() (the fish-market stamps: the one loud thing), button() (the engraved mouse or the pad's
@@ -62,11 +59,11 @@ var _ops: Array[Callable] = []
 # ------------------------------------------------------------------ ink
 
 func fine() -> float:
-	return 1.5 * px
+	return 2.0 * px
 
 
 func heavy() -> float:
-	return 3.0 * px
+	return 4.5 * px
 
 
 func _key(col: Color) -> Color:
@@ -649,96 +646,30 @@ func button(ci: CanvasItem, c: Vector2, h: float, side: int, cue: int, t: float,
 		label(ci, Vector2(c.x, y1 + h * 0.44), WORDS[cue], h * 0.27, col)
 
 
-# ------------------------------------------------------------------ STAND-INS for the old look
-# What the games not yet redrawn still call. Each draws something plain in the new inks; none of it is to be used
-# in new drawing (the header says what to use instead), and all of it goes when the last game's been redrawn.
+# ------------------------------------------------------------------ Godot labels in the same hand
 
-const FOAM := PAPER
-const GOLD := YELLOW
-const CORAL := ORANGE
-const GO := PAPER
-const TEAL := PAPER
-const MIST := Color(0.957, 0.945, 0.910, 0.75)
-const DIM := Color(0.957, 0.945, 0.910, 0.45)
-const TRACK := Color(0.957, 0.945, 0.910, 0.4)
-const EDGE := Color(0.957, 0.945, 0.910, 0.4)
-const DEEP := BLACK
-
-
-func _w(w: float) -> float:
-	return clampf(w, fine(), heavy())
+## The kit's face with `spacing` px between the letters (for a Label's font override).
+static func spaced(weight := 600, spacing := 0.0) -> Font:
+	if spacing == 0.0:
+		return font(weight)
+	var key := "sp%d_%d" % [weight, int(spacing * 10.0)]
+	if not _fonts.has(key):
+		var v := FontVariation.new()
+		v.base_font = font(weight)
+		v.spacing_glyph = int(roundf(spacing))
+		_fonts[key] = v
+	return _fonts[key]
 
 
-## (use rule())
-func line(ci: CanvasItem, a: Vector2, b: Vector2, col: Color, w := 2.0, _round_ends := true) -> void:
-	_stroke(ci, a, b, col, _w(w))
-
-
-## (use path())
-func polyline(ci: CanvasItem, pts: PackedVector2Array, col: Color, w := 2.0) -> void:
-	path(ci, pts, col, w > 2.5 * px)
-
-
-## (use sweep())
-func arc(ci: CanvasItem, c: Vector2, radius: float, a0: float, a1: float, col: Color, w := 3.0, _round_ends := true) -> void:
-	sweep(ci, c, radius, a0, a1, col, w > 2.5 * px)
-
-
-## (use circle())
-func ring(ci: CanvasItem, c: Vector2, radius: float, col: Color, w := 2.0) -> void:
-	circle(ci, c, radius, col, w > 2.5 * px)
-
-
-## (use diamond() or square()) A small solid diamond; hollow if it was faint.
-func dot(ci: CanvasItem, c: Vector2, radius: float, col: Color) -> void:
-	if radius > 0.3:
-		diamond(ci, c, radius * 2.2, Color(col, 1.0) if col.a < 0.5 else col, col.a >= 0.5)
-
-
-## (gone: nothing glows)
-func glow(_ci: CanvasItem, _c: Vector2, _radius: float, _col: Color, _strength := 1.0) -> void:
-	pass
-
-
-## (use solid())
-func poly(ci: CanvasItem, pts: PackedVector2Array, col: Color) -> void:
-	solid(ci, pts, col)
-
-
-## (use bar() or box()) A square-cornered rectangle: solid if it was, else its outline.
-func rrect(ci: CanvasItem, r: Rect2, _radius: float, col: Color, edge := Color(0, 0, 0, 0), _edge_w := 0.0,
-		_shadow := 0.0, _shadow_col := Color(0, 0, 0, 0.35)) -> void:
-	if col.a >= 0.5:
-		bar(ci, r, col)
-	elif edge.a > 0.0:
-		box(ci, r, Color(edge, 1.0))
-	elif col.a > 0.0:
-		box(ci, r, Color(col, 1.0))
-
-
-## (use bar() or box())
-func pill(ci: CanvasItem, r: Rect2, col: Color) -> void:
-	rrect(ci, r, 0.0, col)
-
-
-## (use scale() and a bar() or a tri() on it) An outlined rectangle, `frac` of it solid.
-func meter(ci: CanvasItem, r: Rect2, frac: float, col: Color, _track := TRACK) -> void:
-	box(ci, r, PAPER)
-	frac = clampf(frac, 0.0, 1.0)
-	if frac <= 0.0:
-		return
-	if r.size.x >= r.size.y:
-		bar(ci, Rect2(r.position, Vector2(r.size.x * frac, r.size.y)), col)
-	else:
-		bar(ci, Rect2(r.position.x, r.end.y - r.size.y * frac, r.size.x, r.size.y * frac), col)
-
-
-## (use tri())
-func chevron(ci: CanvasItem, c: Vector2, size: float, dir: Vector2, col: Color, _w_was := 2.5) -> void:
-	var n := Vector2(-dir.y, dir.x)
-	path(ci, PackedVector2Array([c - dir * size * 0.3 + n * size * 0.5, c + dir * size * 0.3, c - dir * size * 0.3 - n * size * 0.5]), col)
-
-
-## (use num() or label(), and slam() for its size)
-func text_pop(ci: CanvasItem, at: Vector2, s: String, size: float, col: Color, k: float, weight := 700) -> void:
-	text(ci, at, s, size * k, col, 0, weight)
+## A Godot Label (or RichTextLabel-less text) put in the kit's hand: its condensed face, `col` ink, a dark outline
+## and no panel behind it. `spacing`: px between letters (0 for running sentences).
+static func style_label(l: Label, size: int, col := PAPER, spacing := 0.0, weight := 600) -> void:
+	l.add_theme_font_override("font", spaced(weight, spacing))
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", col)
+	l.add_theme_color_override("font_outline_color", Color(0.03, 0.035, 0.04, 0.88))
+	l.add_theme_constant_override("outline_size", maxi(int(roundf(size * 0.22)), 3))
+	l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
+	l.add_theme_constant_override("shadow_offset_x", 0)
+	l.add_theme_constant_override("shadow_offset_y", 0)
+	l.add_theme_stylebox_override("normal", StyleBoxEmpty.new())

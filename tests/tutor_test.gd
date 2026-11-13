@@ -13,6 +13,8 @@ var tutor: Node
 
 
 func _ready() -> void:
+	# (Dale's lessons for the classic hands: the arcade fight teaches by its own glyphs, tests/fight_arcade_test.tscn)
+	(preload("res://tuna/fight.gd") as GDScript).set("arcade", false)
 	sea = (load("res://sea/sea.tscn") as PackedScene).instantiate() as Sea
 	add_child(sea)
 	await _frames(3)

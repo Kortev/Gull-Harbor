@@ -6,6 +6,7 @@ extends Control
 ## pick.
 
 const Kit := preload("res://crew/kit.gd")
+const Ink := preload("res://ui/kit.gd")
 const NAMES := {"knife": "Knife", "gaff": "Gaff", "jig": "Jig rod", "scoop": "Chum scoop", "bait": "Live mackerel",
 		"dead": "Dead mackerel", "whistle": "Tin whistle"}
 const CELL := 48.0
@@ -61,6 +62,7 @@ const SPRITES := {
 }
 
 var hands: Node               # crew/hands.gd
+var ink := Ink.new()          # the fight's linework and type (ui/kit.gd): the hotbar is drawn in it, no slots
 var _held := "?"
 var _shown := 0.0             # s left fully shown
 var _lift := {}               # item -> how far its slot's stood up, 0..1
@@ -112,58 +114,62 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	if hands == null:
 		return
+	var p := clampf(get_viewport().get_visible_rect().size.y / 1080.0, 0.7, 2.5)
+	ink.px = p
+	ink.defer = true
+	var cell := CELL * p
+	var gap := GAP * p
 	var n := Kit.ITEMS.size()
-	var w := n * CELL + (n - 1) * GAP
+	var w := n * cell + (n - 1) * gap
 	var held := str(hands.get("item"))
 	var stowed := bool(hands.call("stowed"))
 	for i in n:
 		var it := Kit.ITEMS[i]
 		var up := smoothstep(0.0, 1.0, float(_lift.get(it, 0.0)))
-		var r := Rect2(Vector2(roundf(-w * 0.5 + i * (CELL + GAP)), -roundf(6.0 * up)), Vector2(CELL, CELL))
-		var a := 0.35 if stowed else 1.0
-		# a dark slot with a hard 2 px frame, lit warm for the one in your hands
-		draw_rect(r, Color(0.05, 0.07, 0.08, lerpf(0.42, 0.7, up) * a))
-		draw_rect(r.grow(-2.0), Color(1, 1, 1, 0.04 * a), false, 2.0)
-		draw_rect(r, Color(1, 1, 1, 0.2 * a).lerp(Color(1.0, 0.86, 0.5, 0.95 * a), up), false, 2.0)
+		var r := Rect2(Vector2(roundf(-w * 0.5 + i * (cell + gap)), -roundf(6.0 * p * up)), Vector2(cell, cell))
+		var a := 0.45 if stowed else 1.0
+		# no slot: the picture stands on the world, what's in your hands in a frame of yellow corner ticks
 		var tex := _icons["scoop_full" if it == "scoop" and bool(hands.get("scoop_full")) else it] as Texture2D
-		var tint := Color(0.62, 0.66, 0.7, 0.75 * a).lerp(Color(1, 1, 1, a), up)
+		var tint := Color(0.7, 0.74, 0.78, 0.8 * a).lerp(Color(1, 1, 1, a), up)
 		if it == "bait" and str(hands.call("carrying")) == "dead":
 			tint *= Color(0.6, 0.58, 0.56)        # (a dead one in your fist: dull)
-		draw_texture_rect(tex, Rect2(r.position + Vector2(8, 8), Vector2(32, 32)), false, tint)
+		var pad := 8.0 * p
+		draw_texture_rect(tex, Rect2(r.position + Vector2(pad, pad), Vector2(cell - pad * 2.0, cell - pad * 2.0)), false, tint)
+		if up > 0.5:
+			ink.corners(self, r, 10.0 * p, Color(Ink.YELLOW, a), false)
 		# its key, small in the corner; how many you've got where that matters (chum scoops left, live bait in the well)
-		var font := get_theme_default_font()
-		draw_string(font, r.position + Vector2(4, 12), str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 10,
-				Color(1, 1, 1, 0.45 * a))
+		ink.text(self, r.position + Vector2(8.0 * p, 7.0 * p), str(i + 1), 12.0 * p, Color(Ink.PAPER, a), -1, 600, 0.0, false)
 		var have := _count(it)
 		if have >= 0:
-			var tw := font.get_string_size(str(have), HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
-			draw_rect(Rect2(r.position + Vector2(CELL - tw - 7, CELL - 15), Vector2(tw + 5, 13)), Color(0.05, 0.07, 0.08, 0.8 * a))
-			draw_string(font, r.position + Vector2(0, CELL - 4), str(have), HORIZONTAL_ALIGNMENT_RIGHT, CELL - 4, 12,
-					Color(1, 1, 1, 0.85 * a))
+			ink.num(self, r.position + Vector2(cell - 4.0 * p, cell - 8.0 * p), str(have), 16.0 * p,
+					Color(Ink.ORANGE if have == 0 else Ink.PAPER, a), 1)
 	# what you've just picked, named once over the bar (it fades with it)
 	if held != "" and _shown > 0.0:
 		var named := str(hands.call("net_item"))
-		draw_string(get_theme_default_font(), Vector2(-w * 0.5, -14), str(NAMES.get(named, named)),
-				HORIZONTAL_ALIGNMENT_CENTER, w, 14, Color(1.0, 0.92, 0.7, clampf(_shown / 0.6, 0.0, 1.0)))
+		var fade := clampf(_shown / 0.6, 0.0, 1.0)
+		ink.label(self, Vector2(0.0, -22.0 * p), str(NAMES.get(named, named)), 15.0 * p, Color(Ink.PAPER, fade))
 	# winding up: how hard it'll go (the scoop's throw, or a rod's cast: rods.gd's wind on your rod)
 	var wind := float(hands.get("wind"))
 	var spread: Node = null
-	var p: Node = hands.get("player")
-	var boat: Node = p.get("boat") if p else null
+	var pl: Node = hands.get("player")
+	var boat: Node = pl.get("boat") if pl else null
 	var sea: Node = boat.get("sea") if boat else null
 	spread = sea.get("rods") if sea else null
-	var mine: Node = spread.call("held_by", str(p.name).to_int()) if spread else null
+	var mine: Node = spread.call("held_by", str(pl.name).to_int()) if spread else null
 	if mine:
 		wind = float(mine.get("wind"))
 	var landing: Node = sea.get("landing") if sea else null
-	if landing != null and int(landing.get("harpoon_holder")) == str(p.name).to_int():
+	if landing != null and int(landing.get("harpoon_holder")) == str(pl.name).to_int():
 		wind = float(landing.get("draw"))       # (the harpoon wound up to throw)
 	if wind > 0.0:
 		_shown = maxf(_shown, 0.5)
-		var bar := Rect2(Vector2(-60.0, -22.0), Vector2(120.0, 6.0))
-		draw_rect(bar, Color(0, 0, 0, 0.45))
-		draw_rect(Rect2(bar.position, Vector2(bar.size.x * wind, bar.size.y)),
-				Color(1.0, 0.86, 0.5).lerp(Color(1.0, 0.45, 0.2), wind))
+		var x0 := -60.0 * p
+		var x1 := 60.0 * p
+		var y := -44.0 * p
+		ink.scale(self, Vector2(x0, y), Vector2(x1, y), 12, 4, Ink.PAPER, -1.0, 4.0 * p, 8.0 * p)
+		ink.rule(self, Vector2(x0, y), Vector2(lerpf(x0, x1, wind), y), Ink.ORANGE if wind > 0.85 else Ink.YELLOW, true)
+	ink.flush()
+	ink.defer = false
 
 
 ## How many of `item` you've got, where it matters (-1: it doesn't): chum scoops left in the bucket, live mackerel

@@ -18,6 +18,7 @@ extends Control
 const Fight := preload("res://tuna/fight.gd")
 const FightCoach := preload("res://ui/fight_coach.gd")
 const Sfx := preload("res://audio/sfx.gd")
+const Kit := preload("res://ui/kit.gd")
 const GREEN := Color(0.45, 0.95, 0.55)
 const AMBER := Color(1.0, 0.75, 0.3)
 const RED := Color(1.0, 0.3, 0.25)
@@ -36,6 +37,7 @@ const EDGE := 24.0
 var teaching := false
 var highlight := false
 var coach := FightCoach.new()
+var kit := Kit.new()
 var _on := false
 var _a := 0.0                         # how much the reel's showing (fades in and out)
 var _s := {}                          # the fight's state this frame
@@ -467,29 +469,32 @@ func _draw_marks() -> void:
 	var cam := get_viewport().get_camera_3d()
 	if cam == null:
 		return
-	var font := get_theme_default_font()
-	var blink := 1.0 if fmod(_t, 0.6) < 0.4 else 0.55
+	kit.px = _kpx()
+	var p := kit.px
+	var lit := fmod(_t, 0.6) < 0.4
 	for m: Dictionary in _marks:
 		var at: Vector3 = m["at"]
 		var behind := cam.is_position_behind(at)
-		var p := cam.unproject_position(at)
+		var pt := cam.unproject_position(at)
 		var inset := Rect2(Vector2(70, 90), size - Vector2(140, 200))
-		var off := behind or not inset.has_point(p)
+		var off := behind or not inset.has_point(pt)
 		if behind:
 			# (behind you: low on the screen, toward the side to turn to)
 			var right := (cam.global_transform.affine_inverse() * at).x > 0.0
-			p = Vector2(size.x * (0.75 if right else 0.25), size.y)
+			pt = Vector2(size.x * (0.75 if right else 0.25), size.y)
 		var free := bool(m.get("free", false))
 		var head := "ROD %d: %s" % [int(m["i"]) + 1, str(m.get("word", "FISH ON"))]
 		if behind:
 			head = "ROD %d: BEHIND YOU" % (int(m["i"]) + 1)
 		var under := ("E: TAKE THE ROD" if free else "%s'S ON IT" % str(m.get("who", "")).to_upper())
 		under = Settings.say(under)
-		var col := AMBER if free else PALE
-		var w := maxf(_w(font, head, 18), _w(font, under, 12)) + 20.0
+		# (a small yellow triangle where the fish is on, and who or what, in spaced capitals; paper once someone has it)
+		var col := Kit.YELLOW if free else Kit.PAPER
+		var w := maxf(kit.text_w(head, 17.0 * p, 600, 17.0 * p * 0.17), kit.text_w(under, 13.0 * p, 600, 13.0 * p * 0.17)) + 20.0 * p
+		kit.defer = true
 		if off:
 			var c := size * 0.5
-			var d := (p - c)
+			var d := (pt - c)
 			if d.length() < 1.0:
 				d = Vector2(0, 1)
 			# out to the edge of the inset rectangle along d
@@ -497,23 +502,24 @@ func _draw_marks() -> void:
 			var sy := (inset.size.y * 0.5) / maxf(absf(d.y), 0.001)
 			var q := c + d * minf(sx, sy)
 			var n := d.normalized()
-			_pointer(q, n, Color(col, blink))
+			kit.tri(self, q, 22.0 * p, n, col)
 			# (the words just inside the arrow, never over it)
-			var mid := q - n * Vector2(w * 0.5 + 26.0, 46.0)
-			var box := Vector2(clampf(roundf(mid.x - w * 0.5), 8.0, size.x - w - 8.0),
-					clampf(roundf(mid.y - 23.0), 8.0, size.y - 60.0))
-			draw_rect(Rect2(box, Vector2(w, 46)), Color(INK, INK.a))
-			_text(font, box + Vector2(10, 22), head, 18, Color(col, 1.0))
-			_text(font, box + Vector2(10, 38), under, 12, Color(PALE, blink if free else 0.8))
+			var mid := q - n * Vector2(w * 0.5 + 26.0 * p, 46.0 * p)
+			var mc := Vector2(clampf(roundf(mid.x), w * 0.5 + 8.0, size.x - w * 0.5 - 8.0),
+					clampf(roundf(mid.y), 30.0 * p, size.y - 60.0 * p))
+			kit.label(self, mc - Vector2(0, 9.0 * p), head, 17.0 * p, col)
+			if lit or not free:
+				kit.label(self, mc + Vector2(0, 12.0 * p), under, 13.0 * p, Kit.PAPER)
 		else:
-			# over the tip: a bobbing arrow down onto it, the words above
+			# over the tip: a bobbing triangle down onto it, the words above
 			var bob := roundf(sin(_t * 6.0) * 3.0)
-			var tip := p.floor() + Vector2(0, -10 + bob)
-			_pointer(tip, Vector2(0, 1), Color(col, blink))
-			var box := Vector2(roundf(tip.x - w * 0.5), tip.y - 70.0)
-			draw_rect(Rect2(box, Vector2(w, 46)), Color(INK, INK.a))
-			_text(font, box + Vector2(10, 22), head, 18, Color(col, 1.0))
-			_text(font, box + Vector2(10, 38), under, 12, Color(PALE, blink if free else 0.8))
+			var tip := pt.floor() + Vector2(0, -8.0 * p + bob)
+			kit.tri(self, tip, 20.0 * p, Vector2.DOWN, col)
+			kit.label(self, tip - Vector2(0, 52.0 * p), head, 17.0 * p, col)
+			if lit or not free:
+				kit.label(self, tip - Vector2(0, 32.0 * p), under, 13.0 * p, Kit.PAPER)
+		kit.flush()
+		kit.defer = false
 
 
 ## A chunky pixel arrowhead at `p` pointing along `dir`.
@@ -528,26 +534,44 @@ func _pointer(p: Vector2, dir: Vector2, col: Color) -> void:
 # ------------------------------------------------------------------ the moments
 
 func _draw_banner() -> void:
+	var p := _kpx()
+	kit.px = p
 	var k := clampf(_banner, 0.0, 1.0)
 	var age := _banner_len - _banner
-	var punch := 1.0 - smoothstep(0.0, 0.2, age)
-	var font := get_theme_default_font()
-	var px := 48 if _banner_col != GREEN else 36
-	var y := roundf(size.y * 0.3 - punch * 24.0)
-	var w := _w(font, _banner_text, px)
-	var shake := Vector2(roundf(sin(age * 70.0) * 4.0 * punch), 0) if _banner_col == AMBER else Vector2.ZERO
-	draw_rect(Rect2(Vector2(roundf((size.x - w) * 0.5) - 20.0, y - px - 12.0) + shake, Vector2(w + 40.0, px + 24.0)),
-			Color(INK, INK.a * k))
-	_text(font, Vector2((size.x - w) * 0.5, y) + shake, _banner_text, px, Color(_banner_col, k))
-	var y2 := y + 36.0
+	# FISH ON! is a market stamp in yellow, slammed in and gone in about a second and a half; the other moments
+	# (HE'S GONE in orange, BOATSIDE in yellow) stay their time
+	var fish_on := _banner_col == AMBER
+	var col := Kit.YELLOW if _banner_col != RED else Kit.ORANGE
+	var life := 1.5 if fish_on else _banner_len
+	var at := Vector2(size.x * 0.5, size.y * 0.3)
+	var big := 64.0 * p if _banner_col != GREEN else 50.0 * p
+	# ("FISH ON! ROD 2!": the stamp says FISH ON!, and the rod's a small triangle and ROD 2 under it)
+	var word := _banner_text
+	var rod := ""
+	if word.begins_with("FISH ON! ROD"):
+		rod = word.trim_prefix("FISH ON! ").trim_suffix("!")
+		word = "FISH ON!"
+	if age < life:
+		var fade := clampf((life - age) / 0.25, 0.0, 1.0)
+		kit.stamp(self, at, word, big, col, Kit.slam(age), fade, -0.07 if fish_on else 0.05)
+	var y2 := at.y + big * 0.62 + 34.0 * p
+	if rod != "":
+		var rw := kit.text_w(rod, 22.0 * p, 600, 22.0 * p * 0.17)
+		kit.tri(self, Vector2(size.x * 0.5 - rw * 0.5 - 2.0 * p, y2), 16.0 * p, Vector2.RIGHT, Kit.YELLOW)
+		kit.label(self, Vector2(size.x * 0.5 + 6.0 * p, y2), rod, 22.0 * p, Color(Kit.YELLOW, k))
+		y2 += 34.0 * p
 	if not _banner_sub.is_empty():
-		_plate_text(Vector2(size.x * 0.5, y2), _banner_sub, 24, Color(PALE, k), k, true)
-		y2 += 42.0
-	if not _lesson.is_empty() and _banner_col != AMBER:
-		_plate_text(Vector2(size.x * 0.5, y2), _lesson, 18, Color(PALE, k), k, true)
+		kit.label(self, Vector2(size.x * 0.5, y2), Settings.say(_banner_sub), 20.0 * p, Color(Kit.PAPER, k))
+		y2 += 34.0 * p
+	if not _lesson.is_empty() and not fish_on:
+		var lesson := Settings.say(_lesson)
+		var fs := 24.0 * p
+		while kit.text_w(lesson, fs, 600, fs * 0.06) > size.x * 0.9 and fs > 14.0 * p:
+			fs -= 1.0
+		kit.text(self, Vector2(size.x * 0.5, y2), lesson, fs, Color(Kit.PAPER, k), 0, 600, fs * 0.06)
 
 
-## Words on a dark plate at `at` (its left end, or `centred` on it): the pixel font reads cleanest on a solid ground.
+## Words on a dark plate at `at` (its left end, or `centred` on it): the classic fight's reel plate.
 func _plate_text(at: Vector2, text: String, px: int, col: Color, a: float, centred := false) -> void:
 	var font := get_theme_default_font()
 	text = Settings.say(text)
@@ -555,6 +579,11 @@ func _plate_text(at: Vector2, text: String, px: int, col: Color, a: float, centr
 	var x := roundf(at.x - w * 0.5) if centred else roundf(at.x)
 	draw_rect(Rect2(Vector2(x - 12.0, at.y - px - 6.0), Vector2(w + 24.0, px + 16.0)), Color(INK, INK.a * a))
 	_text(font, Vector2(x, at.y), text, px, col)
+
+
+## The screen's scale for the kit: 1 at 1080p.
+func _kpx() -> float:
+	return clampf(size.y / 1080.0, 0.7, 2.5)
 
 
 # ------------------------------------------------------------------ drawing
