@@ -1486,6 +1486,12 @@ func _process(delta: float) -> void:
 			var tip := r.tip_position()
 			var to := fish_point(r, boat)
 			var sea_y := float(ocean.call("height_at", tip))
+			# (lying on her hull, it bends over her there and goes on from that: line_on_hull)
+			var on: Array = line_on_hull(r)
+			r.line_via = on[0]
+			r.line_rub = float(on[1])
+			if r.line_via != Vector3.INF and r.line_via.y > sea_y:
+				tip = r.line_via
 			var k := clampf((tip.y - sea_y) / maxf(tip.y - to.y, 0.01), 0.0, 1.0)
 			end = tip.lerp(to, k)
 			end.y = ocean.call("height_at", end)
@@ -1521,6 +1527,9 @@ func _process(delta: float) -> void:
 			r.slack = clampf(-r.stretch / 4.0, 0.0, 1.0) if r.hooked and not r.alongside else 0.0
 		elif flying(r.index):
 			r.slack = 0.25
+		if not r.hooked or r.alongside:
+			r.line_via = Vector3.INF
+			r.line_rub = 0.0
 		r.line_end = end
 		_outrigger(r, boat, tangled_in, delta)
 		_show_fish(r, boat, ocean, delta)
@@ -2048,47 +2057,82 @@ func fish_point(r: Rod, boat: Node3D) -> Vector3:
 	return p
 
 
-## How hard rod r's line is rubbing on her (0..1), from the line itself against her hull: the straight line from the
-## rod tip to the fish (what's drawn) ray-cast against her collision shape, in and back out, with a few lines just
-## beside it (a line grazing her rail rubs too). Only where it really lies on her house or her bow: over the open
-## cockpit (her rail, her transom) the angler leans out and holds the line clear, so only the part of the line forward
-## of her house's aft face is cast; and a line well clear over her cabin or bow doesn't touch.
+## How hard rod r's line is rubbing on her (0..1): only where it really lies on her (line_on_hull).
 func rub_on_hull(r: Rod) -> float:
+	return float(line_on_hull(r)[1])
+
+
+## A line's bend over her (rad) that doesn't rub yet (it only kisses her), and the bend that's a full rub.
+const BEND_FREE := 0.12
+const BEND_ALL := 0.9
+
+## Where rod r's line lies on her hull: [where it bends over her (world; INF: it's clear of her), how hard it rubs
+## there 0..1]. The straight line from the rod tip to the fish is ray-cast against her collision shape, itself and
+## nothing beside it: a line that passes her without touching her doesn't count, wherever the fish is.
+## If it would go through her it can't: it lies over her edge instead. That edge is found from the fish's side (in
+## toward the rod at a few heights: the outermost of her there), then walked up to the top of her rail until both
+## lengths of line are clear, and that's where it bends, and where it's drawn bent (rods/rod.gd).
+## It rubs only on her house and bow: over the open cockpit (her rail, her transom) it lies on the covering board
+## and the angler works it, as before. How hard: by how much of her the straight line would have gone through
+## forward of her house's aft face, or how sharply it's bent over her there.
+func line_on_hull(r: Rod) -> Array:
 	var boat := sea.get("boat") as Node3D
 	if boat == null or not boat.is_inside_tree():
-		return 0.0
+		return [Vector3.INF, 0.0]
 	var space := boat.get_world_3d().direct_space_state
-	var to_her := boat.global_transform.affine_inverse()
 	var tip := r.tip_position()
 	var to := fish_point(r, boat)
-	# the stretch of line forward of her house's aft face (her frame: her bow's -z)
+	var hit_in := _hull_hit(space, boat, tip, to)
+	if hit_in == Vector3.INF:
+		return [Vector3.INF, 0.0]
+	var up := boat.global_basis.y.normalized()
+	# her edge on the fish's side
+	var edge := Vector3.INF
+	var best := INF
+	for h: float in [0.25, 0.9, 1.6]:
+		var a := Vector3(to.x, boat.global_position.y + h, to.z)
+		var b := Vector3(tip.x, a.y, tip.z)
+		var e := _hull_hit(space, boat, a, b)
+		if e != Vector3.INF and e.distance_squared_to(a) < best:
+			best = e.distance_squared_to(a)
+			edge = e
+	var via := hit_in
+	if edge != Vector3.INF:
+		var out := Vector3(to.x - tip.x, 0.0, to.z - tip.z).normalized() * 0.08
+		var lo := 0.0
+		for n in range(0, 25):
+			var h := 0.12 * n
+			var v := edge + up * h + out
+			if _hull_hit(space, boat, tip, v) != Vector3.INF or _hull_hit(space, boat, v, to) != Vector3.INF:
+				lo = h
+				via = v
+				continue
+			via = v
+			break
+	# how hard it rubs: the stretch of the straight line forward of her house's aft face (her frame: her bow's -z)
+	var to_her := boat.global_transform.affine_inverse()
+	var a0 := tip
+	var b0 := to
 	var lt := to_her * tip
 	var lf := to_her * to
 	var cut := _house + 0.3
-	if lt.z < cut and lf.z < cut:
-		pass
-	elif lt.z >= cut and lf.z >= cut:
-		return 0.0
+	if lt.z >= cut and lf.z >= cut:
+		return [via, 0.0]
 	elif lt.z >= cut:
-		tip = tip.lerp(to, (lt.z - cut) / (lt.z - lf.z))
-	else:
-		to = tip.lerp(to, (cut - lt.z) / (lf.z - lt.z))
-	var along := (to - tip).normalized()
-	var side := along.cross(Vector3.UP).normalized()
-	if side == Vector3.ZERO:
-		side = Vector3.RIGHT
-	var down := side.cross(along).normalized()
-	var worst := 0.0
-	for off: Vector3 in [Vector3.ZERO, side * Fight.HULL_MARGIN, -side * Fight.HULL_MARGIN, -down * Fight.HULL_MARGIN]:
-		var a := tip + off
-		var b := to + off
-		var hit_in := _hull_hit(space, boat, a, b)
-		if hit_in == Vector3.INF:
-			continue
-		var hit_out := _hull_hit(space, boat, b, a)
-		var inside := hit_in.distance_to(hit_out) if hit_out != Vector3.INF else 0.0
-		worst = maxf(worst, inside + 0.25)        # (even a touch rubs a little)
-	return smoothstep(0.0, Fight.RUB_ALL, worst) if worst > 0.0 else 0.0
+		a0 = tip.lerp(to, (lt.z - cut) / (lt.z - lf.z))
+	elif lf.z >= cut:
+		b0 = tip.lerp(to, (cut - lt.z) / (lf.z - lt.z))
+	var f_in := _hull_hit(space, boat, a0, b0)
+	if f_in == Vector3.INF:
+		return [via, 0.0]
+	var f_out := _hull_hit(space, boat, b0, a0)
+	var through := f_in.distance_to(f_out) if f_out != Vector3.INF else 0.0
+	var rub := smoothstep(0.0, Fight.RUB_ALL, through + 0.1)
+	if (to_her * via).z < cut:
+		rub = maxf(rub, smoothstep(BEND_FREE, BEND_ALL, (via - tip).angle_to(to - via)))
+		# (and by how far it lies along her, from where it first touches to the edge it leaves her by)
+		rub = maxf(rub, smoothstep(0.3, Fight.RUB_ALL + 0.3, f_in.distance_to(via)))
+	return [via, rub]
 
 
 ## Where the segment a..b first meets her hull (world), or INF: other things aboard (the chair, the wheel, the rods)

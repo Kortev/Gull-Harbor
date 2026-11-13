@@ -577,7 +577,7 @@ func step(dt: float, crank: float, rod_pitch: float, _side: float, drag_set: flo
 		chafe = rub(_tip(hd0), _fish(hd0), half_beam, house, fore) * hd0 / (hd0 + depth + 1.0)
 		if move == "spiral":
 			chafe *= 0.5
-	chafe = maxf(chafe, side_rub())
+		chafe = maxf(chafe, side_rub())      # (the estimate only: the real line's own word is enough)
 	var beaten := energy < BEATEN
 	wear += chafe * (0.4 + 0.6 * clampf(strain, 0.0, 1.0)) * dt / (CHAFE_LIFE * chafe_mul) * (0.4 if beaten else 1.0)
 	if grinding:

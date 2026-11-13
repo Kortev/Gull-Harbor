@@ -42,7 +42,7 @@ func _ready() -> void:
 	var rod = sea.rods.rods[0]
 	var mem := {}
 	var style := "sloppy" if "--sloppy" in OS.get_cmdline_user_args() else "good"
-	var shots: Array = Games.ids() + ["pull", "bigpull", "grade", "miss"]
+	var shots: Array = Games.ids() + ["pull", "bigpull", "grade", "miss", "clear"]
 	var total := 0.0          # (the strike's own banners are let go by before the first)
 	for p: String in shots:
 		if not only.is_empty() and not only.has(p):
@@ -121,6 +121,8 @@ func _ready_for(g: Object) -> bool:
 			return str(g.get("phase")) == "now" and int(g.get("n")) >= 1
 		"pull":
 			return t > 0.7 and not bool(g.get("fired"))
+		"clear":
+			return int(g.get("taps")) >= 3
 	return t > float(AT.get(str(g.get("id")), 2.5))
 
 

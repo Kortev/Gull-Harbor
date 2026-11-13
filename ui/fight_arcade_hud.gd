@@ -236,9 +236,31 @@ func _draw_base() -> void:
 	kit.label(ci, Vector2(dx + dw + 7.0 * p, y - 3.0 * p), "M", 17.0 * p, Kit.PAPER, -1)
 	if bool(_v["leader"]):
 		kit.label(ci, Vector2(dx, y + 25.0 * p), "LEADER", 13.0 * p, Kit.YELLOW, -1)
+	# one line under the ruler for what's about to cost you the fish, the worst of it first: nothing near the boat
+	# happens without it being said here
+	var mid := Vector2((x0 + x1) * 0.5, y + 54.0 * p)
+	var blink := fposmod(_t * 4.0, 1.0) < 0.65
+	if str(_v["game"]) == "clear":
+		pass        # (the game on screen is the warning)
+	elif float(_v.get("prop", 0.0)) > 0.0:
+		if blink:
+			kit.tri(ci, mid + Vector2(-kit.text_w("LINE UNDER HER: OUT OF GEAR", 18.0 * p, 600, 3.0 * p) * 0.5 - 16.0 * p, 0.0), 14.0 * p, Vector2.RIGHT, Kit.ORANGE)
+			kit.label(ci, mid, "LINE UNDER HER: OUT OF GEAR", 18.0 * p, Kit.ORANGE)
+	elif float(_v.get("chafe", 0.0)) > 0.05:
+		if blink or float(_v["wear"]) < 0.55:
+			kit.label(ci, mid, "LINE ON THE HULL: TURN HER TO HIM", 18.0 * p, Kit.ORANGE)
+		# (how much of the line's left: it empties as it wears)
+		var ww := 220.0 * p
+		var wy := mid.y + 22.0 * p
+		kit.scale(ci, Vector2(mid.x - ww * 0.5, wy), Vector2(mid.x + ww * 0.5, wy), 10, 5, Kit.PAPER, 1.0, 4.0 * p, 8.0 * p)
+		kit.rule(ci, Vector2(mid.x - ww * 0.5, wy), Vector2(mid.x - ww * 0.5 + ww * clampf(1.0 - float(_v["wear"]), 0.0, 1.0), wy), Kit.ORANGE, true)
+	elif bool(_v.get("last_run", false)):
+		kit.label(ci, mid, "HIS LAST RUN: LET HIM GO", 18.0 * p, Kit.YELLOW)
+	elif bool(_v.get("bolt", false)):
+		kit.label(ci, mid, "STILL FRESH: HE'LL RUN WHEN HE SEES HER", 16.0 * p, Kit.YELLOW)
 	elif float(_v["angle"]) < 0.75 and fposmod(_t * 2.0, 1.0) < 0.7:
 		# (he's off her stern: everything you do counts for less till she's turned to him)
-		kit.label(ci, Vector2((x0 + x1) * 0.5, y + 52.0 * p), "HE'S OFF THE STERN", 14.0 * p, Kit.YELLOW)
+		kit.label(ci, mid, "HE'S OFF THE STERN", 14.0 * p, Kit.YELLOW)
 	var combo := int(_v["combo"])
 	var every := Arcade.PULL_EVERY
 	var due: bool = _f != null and (str(_v["phase"]) == "pull" or (_pull_ready < 2.0 and _f.game == null))

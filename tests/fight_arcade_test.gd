@@ -20,6 +20,7 @@ const Arcade := preload("res://tuna/fight_arcade.gd")
 const Minigame := preload("res://tuna/minigames/minigame.gd")
 const Games := preload("res://tuna/minigames/all.gd")
 const Pull := preload("res://tuna/minigames/pull.gd")
+const Clear := preload("res://tuna/minigames/clear.gd")
 const Kit := preload("res://ui/kit.gd")
 const Bot := preload("res://tests/fight_arcade_bot.gd")
 const Sim := preload("res://tests/fight_arcade_sim.gd")
@@ -193,10 +194,10 @@ func _every_game() -> void:
 	_check(variants.is_empty(), "mirrored, faster, with its twist and as a boss they still play (%s)" % str(variants))
 	# drawn: every game at each tier, part-way through, and the BIG PULL, onto a real canvas
 	_to_draw = []
-	for id: String in ids + ["pull"]:
+	for id: String in ids + ["pull", "clear"]:
 		for tier: float in [0.0, 0.5, 1.0]:
 			for part: float in [0.1, 0.5, 0.9]:
-				var g: Minigame = Games.make(id) if id != "pull" else Pull.new()
+				var g: Minigame = Pull.new() if id == "pull" else (Clear.new() if id == "clear" else Games.make(id))
 				var r := RandomNumberGenerator.new()
 				r.seed = 5
 				g.begin(tier, r, {"twist": part > 0.6, "mirror": part > 0.8})
@@ -301,6 +302,37 @@ func _sequencer() -> void:
 				"at x5 a BIG PULL, %s: %.0f m of line in %.1f s (%.0f m to %.0f m)" % ["pressed" if hands else "left alone (it goes by itself)",
 				metres, t, out0, p.line_out])
 		_check(worst <= Arcade.PULL_RATE + Arcade.HAUL_RATE + 6.0, "and he comes in fast but never in a jump (%.0f m/s at the most)" % worst)
+	# the line worn through on her hull with somebody on the rod: not lost there and then. The game that saves it:
+	# won, the fight goes on with the line left alone a while; nothing done, he's gone the way he was going.
+	# In its holder there's nobody to save it.
+	for hands: int in [2, 1, 0]:
+		var cf := Arcade.new(150.0, 120.0, 1.0, 9)
+		cf.in_holder = hands == 0
+		var why := [""]
+		cf.lost.connect(func(w: String) -> void: why[0] = w)
+		var cmem := {}
+		var saw := false
+		var ct := 0.0
+		for i in 30:
+			_play(cf, cmem, "good")
+		cf.wear = 0.9995
+		while not cf.done and ct < 12.0 and not (saw and not cf.game is Clear):
+			cf.rub_now = 1.0
+			if hands == 2:
+				_play(cf, cmem, "good")
+			else:
+				cf.pull_btn = 0.0
+				cf.step(DT, 0.0, 0.6, 0.0, 0.6)
+			saw = saw or cf.game is Clear
+			ct += DT
+		match hands:
+			2:
+				_check(saw and not cf.done and cf.wear <= Arcade.CLEAR_WEAR + 0.01 and cf.grace > 0.0,
+						"worn through on her hull: the game that saves it, won, and the fight goes on (wear %.2f, %.1f s)" % [cf.wear, ct])
+			1:
+				_check(saw and cf.done and why[0] == "chafed", "nothing done about it: chafed through (%s, %.1f s)" % [why[0], ct])
+			0:
+				_check(not saw and cf.done and why[0] == "chafed", "in its holder there's nobody to save it (%s)" % why[0])
 
 
 func _play(f: Arcade, mem: Dictionary, style: String) -> void:

@@ -33,6 +33,10 @@ var holder := 0
 var strain := 0.05
 ## Where the line goes into the water (world), set by rods.gd every frame.
 var line_end := Vector3.ZERO
+## Where the line bends over her hull with a fish on (world; INF: clear of her), and how hard it rubs there 0..1
+## (rods/rods.gd: line_on_hull).
+var line_via := Vector3.INF
+var line_rub := 0.0
 ## Line coming in (m/s): turns the crank.
 var reeling := 0.0
 var spread: Node              # rods.gd
@@ -446,7 +450,7 @@ func tip_position() -> Vector3:
 
 func _process(delta: float) -> void:
 	# bend toward the line: the pull's direction seen from the rod, scaled by how hard it pulls
-	var pull := (_via() if clip_k > 0.01 else line_end) - global_position
+	var pull := (_via() if clip_k > 0.01 else (line_via if line_via != Vector3.INF else line_end)) - global_position
 	var local := global_transform.basis.inverse() * pull.normalized()
 	# (a big rod loads up hard early, a strike drag's already a deep bend, and only creeps further toward parting:
 	# past that it's the creak, the line singing and the tip shivering that say how near it is)
@@ -626,6 +630,12 @@ func _draw_line() -> void:
 		_sag_line(a, via, 0.06 * tight, false)
 		from = via
 		_sag_line(via, b, (0.05 + 0.3 * slack) * tight, true)
+	elif fighting and line_via != Vector3.INF:
+		# on her hull: to where it bends over her, and on from there
+		_sag_line(a, line_via, 0.02 * tight, false)
+		from = line_via
+		if line_via.y > b.y:
+			_sag_line(line_via, b, (0.04 + 0.3 * slack) * tight, true)
 	else:
 		_sag_line(a, b, (0.04 + 0.3 * slack) * tight, false)
 	# and on under the water, straight down to him (seen from below the top, or as he comes up close)

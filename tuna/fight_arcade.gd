@@ -30,6 +30,7 @@ extends "res://tuna/fight.gd"
 const Minigame := preload("res://tuna/minigames/minigame.gd")
 const Games := preload("res://tuna/minigames/all.gd")
 const Pull := preload("res://tuna/minigames/pull.gd")
+const Clear := preload("res://tuna/minigames/clear.gd")
 
 ## What he does (the classic fight's moves, less its rest).
 const PIECES := ["run", "surge", "shake", "jump", "sound", "dog", "charge", "circle", "spiral"]
@@ -94,6 +95,11 @@ static var beat_fn := Callable()
 
 ## B, 0..1 (rods.gd, before each step).
 var pull_btn := 0.0
+## How near the props are to cutting the line, 0..1 (under her, in gear).
+var prop_k := 0.0
+## A line saved off her hull (clear.gd): what it's worn back to, and how long it's left alone after (s).
+const CLEAR_WEAR := 0.6
+const CLEAR_GRACE := 8.0
 ## The minigame on now (null: the breath between two), s of breath left, and how many more in this set.
 var game: Minigame
 var breath := 0.6
@@ -398,7 +404,7 @@ func step(dt: float, crank: float, _rod_pitch: float, _side: float, drag_set: fl
 			else:
 				pay = -rate * fresh * (0.3 if beaten else 1.0)
 	_burst = maxf(_burst - dt, 0.0)
-	if game is Pull:
+	if game is Pull or game is Clear:
 		pay = 0.0                 # (the BIG PULL's yours: he takes nothing while it's on)
 	if move == "charge" and line_out < 22.0 and game != null and game.only:
 		game.done = true          # (he's here: he turns away)
@@ -495,22 +501,30 @@ func step(dt: float, crank: float, _rod_pitch: float, _side: float, drag_set: fl
 		chafe = rub(_tip(hd0), _fish(hd0), half_beam, house, fore) * hd0 / (hd0 + depth + 1.0)
 		if move == "spiral":
 			chafe *= 0.5
-	chafe = maxf(chafe, side_rub())
-	if grace <= 0.0:
+		chafe = maxf(chafe, side_rub())      # (the estimate only: the real line's own word is enough)
+	if game is Clear:
+		pass        # (it's being worked clear: nothing more comes off it till that's settled)
+	elif grace <= 0.0:
 		wear += 0.5 * chafe * (0.4 + 0.6 * clampf(strain, 0.0, 1.0)) * dt / (CHAFE_LIFE * chafe_mul) \
 				* (0.4 if beaten else 1.0)
 		if tangled:
 			wear += dt / (TANGLE_LIFE * chafe_mul)
-	if wear >= 1.0:
-		_end("tangle" if tangled and chafe < 0.05 else ("chafed" if chafe > 0.05 else "broke"))
-		return
-	if b_now() > UNDER and absf(throttle) > 0.05 and depth < 25.0 and hd0 < 35.0:
+	if wear >= 1.0 and not game is Clear:
+		var how := "tangle" if tangled and chafe < 0.05 else ("chafed" if chafe > 0.05 else "broke")
+		if how != "chafed" or in_holder:
+			_end(how)
+			return
+		_start_clear(how)        # (on her hull, and somebody on the rod: a last chance to work it off her)
+	if b_now() > UNDER and absf(throttle) > 0.05 and depth < 25.0 and hd0 < 35.0 and grace <= 0.0 and not game is Clear:
 		_prop_t += dt
 		if _prop_t >= PROP_GRACE:
-			_end("cut")
-			return
+			if in_holder:
+				_end("cut")
+				return
+			_start_clear("cut")
 	else:
 		_prop_t = 0.0
+	prop_k = clampf(_prop_t / PROP_GRACE, 0.0, 1.0)
 	if line_out >= CAPACITY:
 		_end("spooled")
 		return
@@ -548,6 +562,17 @@ func _finish() -> void:
 	breath = BREATH
 	if g is Pull:
 		return
+	if g is Clear:
+		if not (g as Clear).won:
+			_end((g as Clear).why)
+			return
+		# worked off her: the line's still worn, but it holds, and he's given a while to get clear of her
+		wear = minf(wear, CLEAR_WEAR)
+		_prop_t = 0.0
+		grace = CLEAR_GRACE
+		events.append(["saved", (g as Clear).why])
+		_start_move("run")
+		return
 	var q := g.score
 	grade = "perfect" if q >= Q_PERFECT else ("great" if q >= Q_GREAT else ("ok" if q >= Q_OK else "miss"))
 	grade_t = 0.0
@@ -580,6 +605,21 @@ func _finish() -> void:
 	_jumping = false
 
 
+## The line's about to part on her hull, or go in her props: whatever game was on is dropped for the one that
+## saves it (tuna/minigames/clear.gd). Won, the fight goes on; lost, the fish is gone the way it was going.
+func _start_clear(how: String) -> void:
+	wear = minf(wear, 0.99)
+	var c := Clear.new()
+	c.why = how
+	game = c
+	_is_boss = false
+	var r := RandomNumberGenerator.new()
+	r.seed = rng.randi()
+	c.begin(difficulty(), r, {})
+	events.append(["game", c.id, false])
+	events.append(["clear", how])
+
+
 ## The BIG PULL goes off: a great chunk of line, coming in fast.
 func _fire_pull() -> void:
 	var level := maxi((game as Pull).level, 1)
@@ -593,6 +633,9 @@ func _fire_pull() -> void:
 ## The next game: the BIG PULL if one's owed; the game his move is (the jump, the charge); a boss at a stage's end;
 ## or the next out of the bag.
 func _begin_next() -> void:
+	if force_piece == "clear":
+		_start_clear("chafed")       # (for a picture of it)
+		return
 	if set_left <= 0 and not _pull_due:
 		_start_move(_pick_move())
 	var v := {}
@@ -751,7 +794,9 @@ func view() -> Dictionary:
 			"combo": combo, "mult": mult(), "next_pull": _pull_at, "grade": grade, "grade_t": grade_t,
 			"hold": hold, "energy": energy, "stage": stage, "stages": stages(), "line_out": line_out, "wear": wear,
 			"kg": kg, "angle": angle_k(), "a": int(c[0]), "b": int(c[1]), "tension": strain, "holder": in_holder,
-			"leader": leader, "boss": _is_boss, "set_left": set_left, "move": move}
+			"leader": leader, "boss": _is_boss, "set_left": set_left, "move": move,
+			"chafe": chafe, "prop": prop_k, "last_run": _last_run and move == "surge",
+			"bolt": energy > 0.35 and line_out < CLOSE + 12.0 and line_out >= CLOSE and not move in ["run", "surge"]}
 
 
 func cues() -> Dictionary:
