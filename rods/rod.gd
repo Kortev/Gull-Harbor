@@ -198,6 +198,7 @@ func _ready() -> void:
 		add_child(mi)
 		if n == "blank":
 			_blank = mi
+			mi.mesh = _sliced(mi.mesh)
 			for i in mi.mesh.get_surface_count():
 				mi.set_surface_override_material(i, _bend_material(mi.mesh.surface_get_material(i)))
 		elif n == "handle":
@@ -329,6 +330,97 @@ func _ready() -> void:
 	cs.position = Vector3(0, 0.05, 0.4)
 	_grab.add_child(cs)
 	add_child(_grab)
+
+
+## The blank's mesh cut across every SLICE m of its length (once: every rod shares it). The model's blank is one long
+## box, so the bend (rods/rod_bend.gdshader moves each vertex) only moved its two ends and it stayed a straight stick
+## while its guides, each with vertices of their own, rode out along the curve. Cut into short lengths it bends with
+## them.
+const SLICE := 0.05
+static var _sliced_meshes := {}
+
+
+static func _sliced(src: Mesh) -> Mesh:
+	if _sliced_meshes.has(src):
+		return _sliced_meshes[src]
+	var out := ArrayMesh.new()
+	for si in src.get_surface_count():
+		var arr := src.surface_get_arrays(si)
+		var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var ns: PackedVector3Array = arr[Mesh.ARRAY_NORMAL] if arr[Mesh.ARRAY_NORMAL] != null else PackedVector3Array()
+		var us: PackedVector2Array = arr[Mesh.ARRAY_TEX_UV] if arr[Mesh.ARRAY_TEX_UV] != null else PackedVector2Array()
+		var cs: PackedColorArray = arr[Mesh.ARRAY_COLOR] if arr[Mesh.ARRAY_COLOR] != null else PackedColorArray()
+		var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+		if idx.is_empty():
+			idx.resize(vs.size())
+			for i in vs.size():
+				idx[i] = i
+		# each corner: [position, normal, uv, colour]
+		var tris: Array = []
+		for i in range(0, idx.size() - 2, 3):
+			var tri: Array = []
+			for k in 3:
+				var v := idx[i + k]
+				tri.append([vs[v], ns[v] if v < ns.size() else Vector3.UP, us[v] if v < us.size() else Vector2.ZERO,
+						cs[v] if v < cs.size() else Color.WHITE])
+			tris.append(tri)
+		var z0 := INF
+		var z1 := -INF
+		for v: Vector3 in vs:
+			z0 = minf(z0, v.z)
+			z1 = maxf(z1, v.z)
+		var z := z0 + SLICE
+		while z < z1 - 0.001:
+			var next: Array = []
+			for tri: Array in tris:
+				_cut(tri, z, next)
+			tris = next
+			z += SLICE
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		for tri: Array in tris:
+			for c: Array in tri:
+				st.set_normal(c[1])
+				st.set_uv(c[2])
+				st.set_color(c[3])
+				st.add_vertex(c[0])
+		st.commit(out)
+		out.surface_set_material(out.get_surface_count() - 1, src.surface_get_material(si))
+	_sliced_meshes[src] = out
+	return out
+
+
+## Triangle `tri` cut by the plane at `z` into `into` (itself if it lies to one side): the one corner alone on its side
+## makes a triangle, the other two a quad (two triangles), wound as it was.
+static func _cut(tri: Array, z: float, into: Array) -> void:
+	var side: Array[bool] = []
+	for c: Array in tri:
+		side.append((c[0] as Vector3).z > z + 0.0005)
+	var above := side.count(true)
+	var low := 0
+	for c: Array in tri:
+		low += 1 if (c[0] as Vector3).z < z - 0.0005 else 0
+	if above == 0 or low == 0:
+		into.append(tri)
+		return
+	# the corner alone: the only one above, or the only one not above
+	var lone := side.find(above == 1)
+	var a: Array = tri[lone]
+	var b: Array = tri[(lone + 1) % 3]
+	var c2: Array = tri[(lone + 2) % 3]
+	var ab := _mix(a, b, z)
+	var ac := _mix(a, c2, z)
+	into.append([a, ab, ac])
+	into.append([ab, b, c2])
+	into.append([ab, c2, ac])
+
+
+static func _mix(p: Array, q: Array, z: float) -> Array:
+	var pz := (p[0] as Vector3).z
+	var qz := (q[0] as Vector3).z
+	var t := clampf((z - pz) / (qz - pz), 0.0, 1.0) if absf(qz - pz) > 1e-6 else 0.5
+	return [(p[0] as Vector3).lerp(q[0], t), ((p[1] as Vector3).lerp(q[1], t)).normalized(),
+			(p[2] as Vector2).lerp(q[2], t), (p[3] as Color).lerp(q[3], t)]
 
 
 static func _bend_material(m: Material) -> Material:
