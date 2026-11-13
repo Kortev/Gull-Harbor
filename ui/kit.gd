@@ -331,8 +331,6 @@ static func font(weight := 600) -> Font:
 		f.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_AUTO
 		f.generate_mipmaps = true
 		f.allow_system_fallback = true
-		var behind: Array[Font] = [ThemeDB.fallback_font]
-		f.fallbacks = behind
 		var v := FontVariation.new()
 		v.base_font = f
 		var ts := TextServerManager.get_primary_interface()
@@ -673,3 +671,28 @@ static func style_label(l: Label, size: int, col := PAPER, spacing := 0.0, weigh
 	l.add_theme_constant_override("shadow_offset_x", 0)
 	l.add_theme_constant_override("shadow_offset_y", 0)
 	l.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
+
+
+# ------------------------------------------------------------------ in place of the old pixel font
+
+## The menus were laid out with ui/pixfont.gd's two calls (draw and width, `scale` px a font pixel, a capital
+## 5 * scale tall, `at` the top left). These are the same two in the kit's face, so a screen can be moved over a line
+## at a time: the same height of capital, a dark keyline round it (so no shadow copy is wanted any more).
+static func old_size(scale: float) -> int:
+	return maxi(int(roundf(scale * 7.2)), 9)
+
+
+static func old_width(s: String, scale: float, weight := 600) -> float:
+	return font(weight).get_string_size(s.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1.0, old_size(scale)).x
+
+
+static func old_draw(ci: CanvasItem, at: Vector2, s: String, col: Color, scale: float, weight := 600) -> void:
+	if col.a <= 0.0 or s == "":
+		return
+	var f := font(weight)
+	var fs := old_size(scale)
+	var base := Vector2(floorf(at.x), floorf(at.y + scale * 5.0))
+	var t := s.to_upper()
+	ci.draw_string_outline(f, base, t, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, maxi(int(roundf(fs * 0.12)), 2),
+			Color(0.03, 0.035, 0.04, 0.8 * col.a))
+	ci.draw_string(f, base, t, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, col)

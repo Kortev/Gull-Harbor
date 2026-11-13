@@ -20,6 +20,7 @@ extends Node
 const Player := preload("res://crew/player.gd")
 const Radio := preload("res://ui/radio.gd")
 const PixFont := preload("res://ui/pixfont.gd")
+const Kit := preload("res://ui/kit.gd")
 
 const LOCAL := 0
 const VHF := 1
@@ -62,6 +63,7 @@ var _steam_poll := 0.0
 var _steam_tail := 0.0
 var _steam_on := false
 var _board: Control
+var _kit := Kit.new()
 var _rows := {}           # id -> [alpha, channel, level]
 var _was_us := 0
 
@@ -557,26 +559,12 @@ func _tick_board(delta: float) -> void:
 		_board.queue_redraw()
 
 
-## The speaker (a cone, its waves) and the handset (a box, its aerial), 2 px a pixel.
-const CONE := [
-	"...#.....",
-	"..##..#..",
-	"####...#.",
-	"####...#.",
-	"..##..#..",
-	"...#.....",
-]
-const HANDSET := [
-	"#....",
-	"#....",
-	"####.",
-	"#..#.",
-	"####.",
-	"####.",
-]
-
-
+## Who's talking, top left: a speaker (its waves lit with the voice) or the handset (its aerial lit), and the name, in
+## the kit's hand: no boxes, no colours but the three inks.
 func _draw_board() -> void:
+	var p := clampf(_board.get_viewport_rect().size.y / 1080.0, 0.7, 2.5)
+	_kit.px = p
+	_kit.defer = true
 	var y := 0.0
 	var ids: Array = _rows.keys()
 	ids.sort()
@@ -585,23 +573,25 @@ func _draw_board() -> void:
 		var a := float(row[0])
 		var radio := int(row[1]) == VHF
 		var lvl := float(row[2])
-		var colour: Color = Player.OILSKINS[int(crew.get("slots").get(id, 0)) % Player.OILSKINS.size()]
-		var icon: Array = HANDSET if radio else CONE
-		var tint := Color(1.0, 0.75, 0.35) if radio else colour
 		var t := Time.get_ticks_msec() / 1000.0
-		for r in icon.size():
-			var line: String = icon[r]
-			for c in line.length():
-				if line[c] != "#":
-					continue
-				var on := 1.0
-				if not radio and c >= 6:
-					on = 1.0 if lvl > (0.15 if c == 6 else 0.45) else 0.25      # (the waves, with the voice)
-				elif radio and r < 2:
-					on = 1.0 if fmod(t * 6.0, 1.0) < 0.6 or lvl > 0.3 else 0.3   # (the aerial, lit)
-				_board.draw_rect(Rect2(c * 2 + 1, y + r * 2 + 1, 2, 2), Color(0, 0, 0, 0.7 * a))
-				_board.draw_rect(Rect2(c * 2, y + r * 2, 2, 2), Color(tint, a * on))
+		var c := Vector2(10.0 * p, y + 11.0 * p)
+		var ink := Color(Kit.PAPER, a)
+		if radio:
+			# the handset: a body, and its aerial that blinks while it's keyed
+			_kit.bar(_board, Rect2(c + Vector2(-6.0, -2.0) * p, Vector2(12.0, 10.0) * p), ink)
+			var lit := fmod(t * 6.0, 1.0) < 0.6 or lvl > 0.3
+			_kit.rule(_board, c + Vector2(-4.0, -3.0) * p, c + Vector2(-4.0, -10.0) * p, Color(Kit.YELLOW if lit else Kit.PAPER, a * (1.0 if lit else 0.4)), true)
+		else:
+			# the speaker: a box and its cone, and three waves that fill with the voice
+			_kit.solid(_board, PackedVector2Array([c + Vector2(-8.0, -3.0) * p, c + Vector2(-4.0, -3.0) * p,
+					c + Vector2(1.0, -8.0) * p, c + Vector2(1.0, 8.0) * p, c + Vector2(-4.0, 3.0) * p, c + Vector2(-8.0, 3.0) * p]), ink)
+			for w in 3:
+				var on: bool = lvl > [0.0, 0.15, 0.45][w]
+				var x := (5.0 + w * 4.0) * p
+				var h := (3.0 + w * 2.0) * p
+				_kit.rule(_board, c + Vector2(x, -h), c + Vector2(x, h), Color(Kit.YELLOW if on and w > 0 else Kit.PAPER, a * (1.0 if on else 0.3)))
 		var who := "You" if id == Net.my_id() else str(crew.call("call_sign", id))
-		PixFont.draw(_board, Vector2(23, y + 2), who, Color(0, 0, 0, 0.7 * a), 2)
-		PixFont.draw(_board, Vector2(22, y + 1), who, Color(colour, a), 2)
-		y += 18.0 * a
+		_kit.label(_board, Vector2(32.0 * p, c.y), who, 17.0 * p, Color(Kit.YELLOW if id == Net.my_id() else Kit.PAPER, a), -1)
+		y += 26.0 * p * a
+	_kit.flush()
+	_kit.defer = false

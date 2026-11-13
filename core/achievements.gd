@@ -5,14 +5,14 @@ extends Node
 ## steam_link.gd's `available`), sets it there too and stores the stats. What was earned with Steam off is handed to
 ## Steam the next time it's on (Steam ignores the ones it has). docs/steam_achievements.md is the list for Steamworks.
 ##
-## A pixel toast comes in at the top right as one's earned (ui/pixfont.gd, its medal from ui/medals.gd), eases in,
+## A toast in the kit's hand comes in at the top right as one's earned (its medal from ui/medals.gd, no box), eases in,
 ## waits, eases out; several queue up one after another. The page of them all is ui/achievements_page.gd.
 ##
 ## Tests and screenshots (headless, or a scene under tests/) start with none and never read or write the player's
 ## file, and never touch Steam (`path` is "" and `steam` null there, unless a test sets them).
 
-const PixFont := preload("res://ui/pixfont.gd")
 const Medals := preload("res://ui/medals.gd")
+const Kit := preload("res://ui/kit.gd")
 
 const PATH := "user://achievements.cfg"
 ## [Steam API name, the name shown, what it's for]. The API names are what Steamworks is given; never rename one.
@@ -44,10 +44,6 @@ const GIANT_KG := 300.0
 const IN := 0.35
 const UP := 4.0
 const OUT := 0.35
-const CREAM := Color(1.0, 0.95, 0.82)
-const AMBER := Color(1.0, 0.78, 0.34)
-const DIM := Color(0.72, 0.76, 0.8)
-const PANEL := Color(0.02, 0.04, 0.07, 0.92)
 
 signal unlocked(api: String)
 
@@ -63,6 +59,7 @@ var queue: Array[String] = []
 var _t := -1.0
 var _layer: CanvasLayer
 var _view: Control
+var _kit := Kit.new()
 
 
 func _ready() -> void:
@@ -229,39 +226,35 @@ func _process(delta: float) -> void:
 	_view.queue_redraw()
 
 
+## The toast: no box. The medal, ACHIEVEMENT small over its name in type, a heavy rule under both, all over the world
+## in the kit's hand (ui/kit.gd): in from off the right edge at a steady rate, held, and back out.
 func _draw_toast() -> void:
 	if _t < 0.0 or queue.is_empty():
 		return
 	var a := info(queue[0])
-	var head := "ACHIEVEMENT"
 	var title := str(a[1]).to_upper()
-	var line := str(a[2]).to_upper()
-	var s := 2 if _view.size.x < 1400.0 else 3          # (a font pixel's size: bigger on a big screen)
-	var icon := 32 * (s - 1)                             # (the medal: its 32 grid at 1x, or 2x on a big screen)
-	var w := maxi(PixFont.width(title, s * 2), maxi(PixFont.width(line, s), PixFont.width(head, s))) + icon + s * 14
-	var h := maxi(s * 30, icon + s * 8)
-	# eased in from off the right edge, and back out (continuous, a whole pixel at a time)
+	var p := clampf(_view.size.y / 1080.0, 0.7, 2.5)
+	_kit.px = p
+	_kit.defer = true
+	var icon := 32.0 * (2 if _view.size.y >= 840.0 else 1)       # (the medal: its 32 grid at 1x, or 2x on a big screen)
+	var head_s := 16.0 * p
+	var name_s := 34.0 * p
+	var tw := maxf(_kit.text_w(title, name_s, 700), _kit.text_w("ACHIEVEMENT", head_s, 600, head_s * 0.17))
+	var w := icon + 18.0 * p + tw
+	# in from off the right edge, and back out, at a steady rate
 	var k := 1.0
 	if _t < IN:
 		k = _t / IN
 	elif _t > IN + UP:
 		k = 1.0 - (_t - IN - UP) / OUT
 	k = clampf(k, 0.0, 1.0)
-	k = k * k * (3.0 - 2.0 * k)
-	var x := floorf(_view.size.x - (w + s * 8) * k)
-	var y := float(s * 8)
-	var r := Rect2(x, y, w, h)
-	_view.draw_rect(r, PANEL)
-	_view.draw_rect(Rect2(x, y, w, s), AMBER)
-	_view.draw_rect(Rect2(x, y + h - s, w, s), AMBER)
-	_view.draw_rect(Rect2(x, y, s, h), AMBER)
-	_view.draw_rect(Rect2(x + w - s, y, s, h), AMBER)
-	# the medal
-	var mx := x + s * 4
-	var my := floorf(y + (h - icon) * 0.5)
-	_view.draw_texture_rect(Medals.texture(queue[0]), Rect2(mx, my, icon, icon), false)
-	var tx := mx + icon + s * 5
-	var ty := floorf(y + (h - s * 26) * 0.5)
-	PixFont.draw(_view, Vector2(tx, ty + s), head, DIM, s)
-	PixFont.draw(_view, Vector2(tx, ty + s * 8), title, CREAM, s * 2)
-	PixFont.draw(_view, Vector2(tx, ty + s * 20), line, DIM, s)
+	var x := floorf(_view.size.x - (w + 28.0 * p) * k)
+	var y := 26.0 * p
+	var mid := y + icon * 0.5
+	_view.draw_texture_rect(Medals.texture(queue[0]), Rect2(x, y, icon, icon), false)
+	var tx := x + icon + 18.0 * p
+	_kit.label(_view, Vector2(tx, mid - 17.0 * p), "ACHIEVEMENT", head_s, Kit.YELLOW, -1)
+	_kit.num(_view, Vector2(tx, mid + 11.0 * p), title, name_s, Kit.PAPER, -1)
+	_kit.rule(_view, Vector2(x, y + icon + 10.0 * p), Vector2(x + w, y + icon + 10.0 * p), Kit.PAPER, true)
+	_kit.flush()
+	_kit.defer = false

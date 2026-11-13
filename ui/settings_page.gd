@@ -1,33 +1,30 @@
 extends Control
-## The settings page: one dark card over whatever's behind (the title's harbour, or the sea from the pause card), five
+## The settings page: a column over whatever's behind (the title's harbour, or the sea from the pause card), five
 ## pages along its top, LOOK, SOUND, SCREEN, KEYS and PAD (the right stick's look, its invert Y, rumble). Everything
 ## on it is core/settings.gd's, applied the moment it changes (a slider as it's dragged, the field of view and the
 ## loudness with it); the file's written on BACK.
 ##
-## Drawn whole in the pixel font (ui/pixfont.gd) and square blocks: a slider is a row of cells filling amber, a switch
-## two blocks, a choice < ONE > arrows. Mouse: hover picks, click or drag changes. Keys: up and down pick, left and
-## right change, Enter flips or presses, Tab the next page, Esc back. On KEYS, click an action (or Enter) and press the
-## key or mouse button for it (Esc keeps what it had); one that clashes with another shows red, and says with what.
+## Drawn in the kit's hand (ui/kit.gd; the menus' brief is docs/UI_MENUS_BRIEF.md): no panel, one flat dim over the
+## whole screen and type and linework on it. A slider is a ruler with a pointer on the value, a switch the word ON or
+## OFF, a choice its word between two pointers, the one picked yellow. Mouse: hover picks, click or drag changes.
+## Keys: up and down pick, left and right change, Enter flips or presses, Tab the next page, Esc back. On KEYS, click an
+## action (or Enter) and press the key or mouse button for it (Esc keeps what it had); one that clashes with another
+## shows orange, and says with what.
 ## A pad works it as the keys do (core/pad.gd's as_key(): the d-pad or left stick, A, B back, the bumpers the pages).
 
 signal closed
 
-const PixFont := preload("res://ui/pixfont.gd")
+const Kit := preload("res://ui/kit.gd")
 const Sfx := preload("res://audio/sfx.gd")
 
-const AMBER := Color(1.0, 0.78, 0.34)
-const CREAM := Color(1.0, 0.95, 0.82)
-const DIM := Color(0.66, 0.71, 0.76)
-const BAD := Color(1.0, 0.5, 0.42)
-const SHADOW := Color(0.02, 0.03, 0.05, 0.85)
-const CELL := Color(0.12, 0.15, 0.18)
 const TABS := ["LOOK", "SOUND", "SCREEN", "KEYS", "PAD"]
 const Pad := preload("res://core/pad.gd")
-## A slider's cells, and each one's size (px).
+## A slider's ruler: how many divisions it has (every fifth is long).
 const CELLS := 20
-const CELL_W := 14
-const CELL_H := 18
+## The whole-screen dim (the brief's one exception to no fills).
+const DIM := Color(0.02, 0.03, 0.04, 0.6)
 
+var kit := Kit.new()
 var tab := 0
 var _rows: Array = []        # Dictionary each: kind (slider, toggle, choice, key, button), label, and its own
 var _pick := 0
@@ -283,135 +280,138 @@ func _slide_to(i: int, x: float) -> void:
 
 # --- drawing ---
 
-func _text(at: Vector2, text: String, col: Color, scale: int) -> void:
-	PixFont.draw(self, at + Vector2(scale, scale), text, SHADOW, scale)
-	PixFont.draw(self, at, text, col, scale)
+## The screen's scale (the HUD's): 1 at 1080p.
+func _px() -> float:
+	return clampf(get_viewport().get_visible_rect().size.y / 1080.0, 0.7, 2.5)
 
 
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0.01, 0.02, 0.035, 0.55))
-	var w := minf(880.0, size.x - 32.0)
-	var h := minf(600.0, size.y - 32.0)
-	var card := Rect2(((size - Vector2(w, h)) * 0.5).floor(), Vector2(w, h))
-	draw_rect(card, Color(0.025, 0.035, 0.045, 0.96))
-	draw_rect(Rect2(card.position, Vector2(4, h)), Color(AMBER, 0.7))
-	var x := card.position.x + 32.0
-	var y := card.position.y + 26.0
-	_text(Vector2(x, y), "SETTINGS", AMBER, 4)
-	# the pages along the top
-	y += 46.0
+	var p := _px()
+	kit.px = p
+	kit.defer = true
+	draw_rect(Rect2(Vector2.ZERO, size), DIM)
+	var w := minf(size.x - 48.0, 1240.0 * p)
+	var x := floorf((size.x - w) * 0.5)
+	var y0 := floorf(maxf(20.0 * p, (size.y - 740.0 * p) * 0.5))
+	# the title, its heavy rule, and the ticks hanging under the first of it
+	kit.num(self, Vector2(x, y0 + 22.0 * p), "SETTINGS", 44.0 * p, Kit.PAPER, -1)
+	kit.rule(self, Vector2(x, y0 + 54.0 * p), Vector2(x + w, y0 + 54.0 * p), Kit.PAPER, true)
+	kit.scale(self, Vector2(x, y0 + 54.0 * p), Vector2(x + w * 0.3, y0 + 54.0 * p), 24, 4, Kit.PAPER, 1.0, -1.0, -1.0, false)
+	# the pages: the open one yellow, a pointer under it
+	var ty := y0 + 92.0 * p
 	_tab_rects.clear()
 	var tx := x
 	for t in TABS.size():
 		var label: String = TABS[t]
-		var tw := PixFont.width(label, 3)
-		_tab_rects.append(Rect2(tx - 8, y - 8, tw + 16, 31))
-		_text(Vector2(tx, y), label, AMBER if t == tab else DIM, 3)
+		var tw := kit.text_w(label, 22.0 * p, 600, 22.0 * p * 0.17)
+		_tab_rects.append(Rect2(tx - 12.0 * p, ty - 18.0 * p, tw + 24.0 * p, 52.0 * p))
+		kit.label(self, Vector2(tx, ty), label, 22.0 * p, Kit.YELLOW if t == tab else Kit.PAPER, -1)
 		if t == tab:
-			draw_rect(Rect2(tx, y + 20, tw, 3), AMBER)
-		tx += tw + 40
-	draw_rect(Rect2(x, y + 30, w - 64, 2), Color(DIM, 0.25))
-	y += 50.0
+			kit.tri(self, Vector2(tx + tw * 0.5, ty + 16.0 * p), 12.0 * p, Vector2.UP, Kit.YELLOW)
+		tx += tw + 48.0 * p
+	var y := y0 + 166.0 * p
 	_rects.clear()
 	_bars.clear()
 	if TABS[tab] == "KEYS":
-		_draw_keys(x, y, w - 64)
+		_draw_keys(x, y0 + 146.0 * p, w, p)
 	else:
 		for i in _rows.size():
 			if str(_rows[i]["kind"]) == "button":
 				break
-			_draw_row(i, x, y)
-			y += 44.0
+			_draw_row(i, x, w, y, p)
+			y += 60.0 * p
 	# the buttons, along the bottom
-	var by := card.end.y - 78.0
-	var bx := x
+	var by := y0 + 628.0 * p
+	var bx := x + 14.0 * p
 	for i in _rows.size():
 		if str(_rows[i]["kind"]) != "button":
 			continue
 		var label: String = _rows[i]["label"]
-		var r := Rect2(bx - 4, by - 6, PixFont.width(label, 3) + 34, 27)
+		var on := i == _pick
+		var tw := kit.text_w(label, 28.0 * p, 700 if on else 600)
+		var r := Rect2(bx - 14.0 * p, by - 22.0 * p, tw + 28.0 * p, 44.0 * p)
 		_rects.append(r)
 		_bars.append(r)
-		if i == _pick:
-			draw_rect(Rect2(bx - 4, by - 6, 6, 27), AMBER)
-		_text(Vector2(bx + 14, by), label, AMBER if i == _pick else CREAM, 3)
-		bx += r.size.x + 30
+		kit.text(self, Vector2(bx, by), label, 28.0 * p, Kit.YELLOW if on else Kit.PAPER, -1, 700 if on else 600)
+		kit.corners(self, r.grow(4.0 * p), 9.0 * p, Kit.YELLOW if on else Kit.PAPER, on)
+		bx += r.size.x + 36.0 * p
 	var hint := "CLICK ONE, THEN PRESS ITS KEY OR BUTTON. ESC KEEPS IT" if TABS[tab] == "KEYS" \
 			else "DRAG, CLICK OR LEFT / RIGHT TO CHANGE.  TAB: NEXT PAGE.  ESC: BACK"
 	if Settings.pad:
 		hint = "THE KEYBOARD'S KEYS: [A] ON ONE, THEN PRESS ITS KEY. [B] KEEPS IT" if TABS[tab] == "KEYS" \
 				else "STICK OR D-PAD: PICK AND CHANGE.  [LB] [RB]: PAGES.  [A]: PRESS.  [B]: BACK"
-	_text(Vector2(x, card.end.y - 34), hint, Color(DIM, 0.7), 2)
+	kit.label(self, Vector2(x, y0 + 700.0 * p), hint, 16.0 * p, Color(Kit.PAPER, 0.6), -1)
+	kit.flush()
+	kit.defer = false
 
 
 ## A row on LOOK, SOUND or SCREEN: its name on the left, its control on the right.
-func _draw_row(i: int, x: float, y: float) -> void:
+func _draw_row(i: int, x: float, w: float, y: float, p: float) -> void:
 	var r: Dictionary = _rows[i]
 	var on := i == _pick
-	var cx := x + 360.0
-	_rects.append(Rect2(x - 8, y - 9, cx - x + 470, 36))
+	var ink := Kit.YELLOW if on else Kit.PAPER
+	var cx := x + w * 0.42
+	_rects.append(Rect2(x - 12.0 * p, y - 28.0 * p, w + 24.0 * p, 56.0 * p))
 	if on:
-		draw_rect(Rect2(x - 8, y - 9, 6, 36), AMBER)
-	_text(Vector2(x + 10, y), str(r["label"]), AMBER if on else CREAM, 3)
+		kit.tri(self, Vector2(x + 22.0 * p, y), 18.0 * p, Vector2.RIGHT, Kit.YELLOW)
+	kit.text(self, Vector2(x + 34.0 * p, y), str(r["label"]), 30.0 * p, ink, -1, 600)
 	match str(r["kind"]):
 		"slider":
 			var v := float(r["get"].call())
-			var full := _filled(r, v)
-			var bar := Rect2(cx, y - 2, CELLS * (CELL_W + 3) - 3, CELL_H)
-			_bars.append(bar)
-			for c in CELLS:
-				var cell := Rect2(cx + c * (CELL_W + 3), y - 2, CELL_W, CELL_H)
-				draw_rect(cell, (AMBER if on else Color(AMBER, 0.75)) if c < full else CELL)
-			_text(Vector2(bar.end.x + 16, y), str(r["shown"].call(v)), CREAM, 3)
+			var rw := w * 0.34
+			# (the hit area is the ruler's own length, and tall enough to grab)
+			_bars.append(Rect2(cx, y - 26.0 * p, rw, 52.0 * p))
+			var line := y + 6.0 * p
+			kit.scale(self, Vector2(cx, line), Vector2(cx + rw, line), CELLS, 5, Kit.PAPER, -1.0)
+			var u := (v - float(r["min"])) / (float(r["max"]) - float(r["min"]))
+			kit.tri(self, Vector2(cx + u * rw, line + 3.0 * p), 15.0 * p, Vector2.UP, ink)
+			kit.num(self, Vector2(cx + rw + 22.0 * p, y), str(r["shown"].call(v)), 30.0 * p, ink, -1)
 		"toggle":
 			var lit := bool(r["get"].call())
-			var bar := Rect2(cx, y - 4, 140, 24)
-			_bars.append(bar)
-			for k in 2:
-				var b := Rect2(cx + k * 72, y - 4, 68, 24)
-				var mine := (k == 1) == lit
-				draw_rect(b, (AMBER if on else Color(AMBER, 0.75)) if mine else CELL)
-				var word: String = ["OFF", "ON"][k]
-				PixFont.draw(self, Vector2(b.position.x + (68 - PixFont.width(word, 2)) * 0.5, y + 3), word,
-						Color(0.06, 0.05, 0.03) if mine else DIM, 2)
+			_bars.append(Rect2(cx, y - 24.0 * p, 140.0 * p, 48.0 * p))
+			kit.text(self, Vector2(cx, y), "ON" if lit else "OFF", 30.0 * p, Kit.YELLOW if lit else Color(Kit.PAPER, 0.6), -1, 700)
 		"choice":
 			var shown := "?"
 			for o: Array in r["options"]:
 				if o[1] == r["get"].call():
 					shown = o[0]
-			var bar := Rect2(cx, y - 6, 340, 28)
-			_bars.append(bar)
-			var arrow := AMBER if on else DIM
-			_text(Vector2(cx, y), "<", arrow, 3)
-			_text(Vector2(cx + (340 - PixFont.width(shown, 3)) * 0.5, y), shown, CREAM, 3)
-			_text(Vector2(cx + 340 - PixFont.width(">", 3), y), ">", arrow, 3)
+			var bw := w * 0.36
+			_bars.append(Rect2(cx, y - 24.0 * p, bw, 48.0 * p))
+			kit.text(self, Vector2(cx + bw * 0.5, y), shown, 30.0 * p, ink, 0, 600)
+			if on:
+				kit.tri(self, Vector2(cx, y), 13.0 * p, Vector2.LEFT, Kit.YELLOW)
+				kit.tri(self, Vector2(cx + bw, y), 13.0 * p, Vector2.RIGHT, Kit.YELLOW)
 
 
 ## KEYS: the actions in two columns, each with what it's on; any clash said underneath.
-func _draw_keys(x: float, y: float, w: float) -> void:
+func _draw_keys(x: float, y: float, w: float, p: float) -> void:
 	var keys := _rows.filter(func(r: Dictionary) -> bool: return str(r["kind"]) == "key").size()
 	var per := ceili(keys / 2.0)
 	var col_w := w * 0.5
+	var rh := 34.0 * p
 	var said: Array[String] = []
 	var blink := Time.get_ticks_msec() % 800 < 500
 	for i in keys:
 		var r: Dictionary = _rows[i]
 		var action := str(r["action"])
 		var cx := x + floori(float(i) / per) * col_w
-		var cy := y + (i % per) * 26.0
+		var cy := y + (i % per) * rh + rh * 0.5
 		var on := i == _pick
-		_rects.append(Rect2(cx - 8, cy - 6, col_w - 16, 24))
+		_rects.append(Rect2(cx - 12.0 * p, cy - rh * 0.5, col_w - 16.0 * p, rh))
 		_bars.append(Rect2())
 		if on:
-			draw_rect(Rect2(cx - 8, cy - 6, 5, 22), AMBER)
-		_text(Vector2(cx + 6, cy), str(r["label"]), AMBER if on else CREAM, 2)
+			kit.tri(self, Vector2(cx + 16.0 * p, cy), 14.0 * p, Vector2.RIGHT, Kit.YELLOW)
+		kit.text(self, Vector2(cx + 26.0 * p, cy), str(r["label"]), 24.0 * p, Kit.YELLOW if on else Kit.PAPER, -1, 600)
 		var clash := Settings.clashes(action)
-		var bound := "PRESS A KEY..." if _waiting == action else Settings.describe(action)
-		var col := (AMBER if blink else Color(AMBER, 0.4)) if _waiting == action else (BAD if not clash.is_empty()
-				else CREAM)
-		var bx := cx + 190
-		draw_rect(Rect2(bx - 6, cy - 5, col_w - 200, 20), CELL if not on else CELL.lightened(0.1))
-		_text(Vector2(bx, cy), bound, col, 2)
+		var waiting := _waiting == action
+		var bound := "PRESS A KEY..." if waiting else Settings.describe(action)
+		var col := Kit.YELLOW if waiting else (Kit.ORANGE if not clash.is_empty() else Kit.PAPER)
+		var bx := cx + col_w * 0.5
+		var bw := kit.text(self, Vector2(bx, cy), bound, 22.0 * p, col, -1, 700 if waiting else 600)
+		if waiting:
+			kit.rule(self, Vector2(bx, cy + 12.0 * p), Vector2(cx + col_w - 36.0 * p, cy + 12.0 * p), Kit.YELLOW, true)
+			if blink:
+				kit.bar(self, Rect2(bx + bw + 6.0 * p, cy - 10.0 * p, 4.0 * p, 20.0 * p), Kit.YELLOW)
 		if not clash.is_empty():
 			var who := [str(r["label"])] + clash
 			who.sort()
@@ -420,7 +420,7 @@ func _draw_keys(x: float, y: float, w: float) -> void:
 				said.append(line)
 	if _waiting != "":
 		queue_redraw()        # (the blink)
-	var sy := y + per * 26.0 + 8
+	var sy := y + per * rh + 20.0 * p
 	for line in said:
-		_text(Vector2(x, sy), line, BAD, 2)
-		sy += 18
+		kit.label(self, Vector2(x, sy), line, 16.0 * p, Kit.ORANGE, -1)
+		sy += 22.0 * p

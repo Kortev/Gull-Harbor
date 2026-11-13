@@ -5,13 +5,15 @@ extends CanvasLayer
 ## of every boat out there (yours in your hands); birds brought in near. Mouse, or the key beside each row.
 ## Nobody else has it: a friend pressing F1 is told it's the host's.
 
+const Kit := preload("res://ui/kit.gd")
 const FishHold := preload("res://boat/fish_hold.gd")
 const Fight := preload("res://tuna/fight.gd")
 const KEYS := "1234567890QWERTY"
 
 var sea: Node                 # sea/sea.gd
 var _box: VBoxContainer
-var _panel: PanelContainer
+var kit := Kit.new()
+var _panel: Control
 var _rows: Array = []         # [label, Callable]
 var _said: Label
 ## How long fights are (tuna/fight.gd's pace), stepped through by its row: [the word, the pace].
@@ -26,17 +28,13 @@ var _arcade_at := 0
 func _ready() -> void:
 	layer = 60
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	_panel = PanelContainer.new()
-	var back := StyleBoxFlat.new()
-	back.bg_color = Color(0.03, 0.05, 0.07, 0.92)
-	back.border_color = Color(0.86, 0.62, 0.28)
-	back.border_width_left = 3
-	back.set_content_margin_all(12)
-	_panel.add_theme_stylebox_override("panel", back)
-	_panel.position = Vector2(24, 24)
+	# (no panel and no dim: it's small, top left, over live play; the type's keylined by its outline)
+	_panel = Control.new()
+	_panel.position = Vector2(24.0, 118.0 * _px())        # (under the HUD's top left)
 	add_child(_panel)
 	_box = VBoxContainer.new()
-	_box.add_theme_constant_override("separation", 2)
+	_box.add_theme_constant_override("separation", 0)
+	_box.custom_minimum_size = Vector2(390.0 * _px(), 0)
 	_panel.add_child(_box)
 	_head("DEV  -  THE HOST'S  -  F1 CLOSES")
 	_head("WEATHER (EVERYONE'S)")
@@ -55,29 +53,51 @@ func _ready() -> void:
 	_row("FIGHTS: USUAL LENGTH", _pace)
 	_pace_row = _box.get_child(_box.get_child_count() - 1) as Button
 	_said = Label.new()
-	_said.add_theme_color_override("font_color", Color(0.98, 0.86, 0.22))
-	_said.add_theme_font_size_override("font_size", 14)
+	Kit.style_label(_said, roundi(17.0 * _px()), Kit.YELLOW, 0.0, 600)
 	_box.add_child(_said)
 	visible = false
 
 
+## The screen's scale (the HUD's): 1 at 1080p.
+func _px() -> float:
+	return clampf(get_viewport().get_visible_rect().size.y / 1080.0, 0.7, 2.5)
+
+
+## A heading: a label with a fine rule under it.
 func _head(text: String) -> void:
-	var l := Label.new()
-	l.text = text
-	l.add_theme_font_size_override("font_size", 14)
-	l.add_theme_color_override("font_color", Color(0.86, 0.62, 0.28))
-	_box.add_child(l)
+	var c := Control.new()
+	var p := _px()
+	c.custom_minimum_size = Vector2(0, 40.0 * p)
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.draw.connect(func() -> void:
+		kit.px = p
+		kit.label(c, Vector2(0, 24.0 * p), text, 15.0 * p, Color(Kit.PAPER, 0.6), -1)
+		kit.rule(c, Vector2(0, 36.0 * p), Vector2(c.size.x, 36.0 * p), Kit.PAPER))
+	_box.add_child(c)
 
 
+## A row: its key and its words as type, yellow under the mouse.
 func _row(text: String, what: Callable) -> void:
+	var p := _px()
 	var b := Button.new()
 	b.text = "%s  %s" % [KEYS[_rows.size()], text]
 	b.flat = true
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	b.focus_mode = Control.FOCUS_NONE
-	b.add_theme_font_size_override("font_size", 14)
-	b.add_theme_color_override("font_color", Color(0.93, 0.9, 0.8))
-	b.add_theme_color_override("font_hover_color", Color(1.0, 0.86, 0.3))
+	var fs := roundi(18.0 * p)
+	b.add_theme_font_override("font", Kit.font(600))
+	b.add_theme_font_size_override("font_size", fs)
+	b.custom_minimum_size = Vector2(0, 28.0 * p)
+	var pad := StyleBoxEmpty.new()
+	pad.content_margin_top = 0
+	pad.content_margin_bottom = 0
+	for st: String in ["normal", "hover", "pressed", "disabled", "focus"]:
+		b.add_theme_stylebox_override(st, pad)
+	b.add_theme_color_override("font_color", Kit.PAPER)
+	b.add_theme_color_override("font_hover_color", Kit.YELLOW)
+	b.add_theme_color_override("font_pressed_color", Kit.YELLOW)
+	b.add_theme_color_override("font_outline_color", Color(0.03, 0.035, 0.04, 0.88))
+	b.add_theme_constant_override("outline_size", maxi(roundi(fs * 0.22), 3))
 	b.pressed.connect(what)
 	_box.add_child(b)
 	_rows.append([text, what])

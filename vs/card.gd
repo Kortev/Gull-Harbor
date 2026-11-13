@@ -14,9 +14,9 @@ extends CanvasLayer
 ##
 ## What it says is all in lines() (and cell()), what _draw_card() puts up: the words can be read without a screen.
 ##
-## The pixel font (ui/pixfont.gd) at whole sizes, the colours of the title (ui/title.gd) and the menu (ui/menu.gd).
+## Drawn in the instruments' hand (ui/kit.gd): one flat dim over the whole screen, no panel; type and linework over it.
 
-const PixFont := preload("res://ui/pixfont.gd")
+const Kit := preload("res://ui/kit.gd")
 const Sfx := preload("res://audio/sfx.gd")
 const Pad := preload("res://core/pad.gd")
 
@@ -74,6 +74,10 @@ var _tick_at := 0.0
 var _counted := -1.0
 var _stamped := false
 var _fading := false
+var kit := Kit.new()
+## The table's left edge and width on screen (px), and the screen's scale, as _draw_card() sets them.
+var _left := 0.0
+var _wide := 1.0
 
 
 func _ready() -> void:
@@ -329,15 +333,6 @@ func _on_input(e: InputEvent) -> void:
 		_view.accept_event()
 
 
-func _text(at: Vector2, text: String, col: Color, sc: int) -> void:
-	PixFont.draw(_view, at + Vector2(sc, sc), text, Color(SHADOW, SHADOW.a * col.a), sc)
-	PixFont.draw(_view, at, text, col, sc)
-
-
-func _centred(cx: float, y: float, text: String, col: Color, sc: int) -> void:
-	_text(Vector2(floorf(cx - PixFont.width(text, sc) * 0.5), y), text, col, sc)
-
-
 ## "BOAT C", "BOATS B AND C", "BOATS B, C AND D".
 func _boats_said(list: Array) -> String:
 	var names := PackedStringArray()
@@ -456,128 +451,133 @@ func span() -> float:
 	return float(COLS_TWO[1]) - float(COLS_TWO[0]) if boats() == 2 else (COLS_TO - COLS_FROM) / boats()
 
 
+## A card-x (0..W, where columns() stands) on the screen.
+func _sx(x: float) -> float:
+	return _left + x / float(W) * _wide
+
+
 func _draw_card() -> void:
 	var size := _view.size
+	var px := clampf(size.y / 1080.0, 0.5, 3.0)
+	kit.px = px
+	kit.defer = true
 	var a := clampf(t / 0.35, 0.0, 1.0)
 	var e := 1.0 - pow(1.0 - a, 3.0)
-	_view.draw_rect(Rect2(Vector2.ZERO, size), Color(0.01, 0.02, 0.035, 0.55 * e))
+	# one flat dim over the whole screen, nothing else behind
+	_view.draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.03, 0.04, 0.78 * e))
 	var said := lines()
 	var fleet := together()
-	# the stamp's thump shakes the card a pixel or two
-	var shake := Vector2.ZERO
-	var since := t - T_STAMP - STAMP
-	if since > 0.0 and since < 0.25 and not fleet:
-		var m := roundf(3.0 * (1.0 - since / 0.25))
-		shake = Vector2(randi_range(-1, 1), randi_range(-1, 1)) * m
-	var o := ((size - Vector2(W, H)) * 0.5).floor() + Vector2(0, roundf((1.0 - e) * 48.0)) + shake
+	_wide = minf(size.x * 0.9, 1500.0 * px)
+	_left = floorf((size.x - _wide) * 0.5)
+	var oy := maxf(floorf((size.y - 960.0 * px) * 0.5), 8.0 * px)
 	var fade := e
-	_view.draw_rect(Rect2(o, Vector2(W, H)), Color(BG, BG.a * fade))
-	_view.draw_rect(Rect2(o, Vector2(4, H)), Color(AMBER, 0.7 * fade))
+	var paper := Color(Kit.PAPER, fade)
 	var winner := int(data.get("winner", -1))
 	var me := _team()
 	var n := boats()
 	var seats := order()
-	var wide := span()
-	_text(o + Vector2(28, 22), str(said["title"]), Color(AMBER, fade), 4)
-	_text(o + Vector2(30, 50), str(said["sub"]), Color(DIM, fade), 2)
-	_view.draw_rect(Rect2(o + Vector2(28, 70), Vector2(W - 56, 2)), Color(DIM, 0.25 * fade))
+	var wide_col := span() / float(W) * _wide
+	# the page's title, heavy rule and ticks, and its small line
+	kit.num(_view, Vector2(_left, oy + 28.0 * px), str(said["title"]), 48.0 * px, paper, -1)
+	var ry := oy + 64.0 * px
+	kit.rule(_view, Vector2(_left, ry), Vector2(_left + _wide, ry), paper, true)
+	kit.scale(_view, Vector2(_left, ry + 3.0 * px), Vector2(_left + _wide * 0.3, ry + 3.0 * px), 24, 4, paper, 1.0, 7.0 * px, 13.0 * px, false)
+	kit.label(_view, Vector2(_left, oy + 96.0 * px), str(said["sub"]), 17.0 * px, Color(Kit.PAPER, 0.75 * fade), -1)
 	# each boat's column: by the boat's own number, wherever she stands
 	var cx: Array[float] = []
 	cx.resize(n)
 	var at := columns()
 	for k in seats.size():
-		cx[seats[k]] = o.x + at[k]
-	var top := o.y + 84.0
-	var row_y := top + 64.0
-	var step := 30.0
-	# the winner's column, lit once the stamp's down
-	if stamped() and winner >= 0 and winner < n and not fleet:
-		_view.draw_rect(Rect2(cx[winner] - wide * 0.5 + 10.0, top - 8.0, wide - 20.0, 64.0 + step * ROWS.size() + 4.0),
-				Color(boat_colour(winner), 0.09 * fade))
+		cx[seats[k]] = _sx(at[k])
+	var head_y := oy + 252.0 * px
+	var rows0 := oy + 352.0 * px
+	var step := 50.0 * px
+	var first := 1 if fleet else 0
+	var weighed_y := rows0 + (ROWS.size() - 1 - first) * step + 20.0 * px
 	for k in seats.size():
 		var i := seats[k]
-		_centred(cx[i], top, str(said["heads"][k]), Color(boat_colour(i), fade), 4)
-		# (with more than two up, yours is the bright one, ruled under in her colour)
-		var yours := i == me and n > 2
-		_centred(cx[i], top + 30.0, str(said["tags"][k]), Color(CREAM if yours else DIM, fade), 2)
-		if yours:
-			_view.draw_rect(Rect2(floorf(cx[i] - 46.0), top + 46.0, 92.0, 2.0), Color(boat_colour(i), 0.7 * fade))
+		var nm := str(said["heads"][k])
+		var ink := Color(Kit.YELLOW if i == me else Kit.PAPER, fade)
+		var tw := kit.text_w(nm, 30.0 * px, 700)
+		var sq := 15.0 * px
+		var x0 := cx[i] - (sq + 10.0 * px + tw) * 0.5
+		kit.square(_view, Vector2(x0 + sq * 0.5, head_y), sq, Color(boat_colour(i), fade))
+		kit.text(_view, Vector2(x0 + sq + 10.0 * px, head_y), nm, 30.0 * px, ink, -1, 700)
+		kit.label(_view, Vector2(cx[i], head_y + 36.0 * px), str(said["tags"][k]), 17.0 * px, Color(Kit.PAPER, 0.75 * fade))
+	var rule_y := head_y + 60.0 * px
+	kit.rule(_view, Vector2(_left, rule_y), Vector2(_left + _wide, rule_y), Color(Kit.PAPER, 0.8 * fade))
 	# (fishing together there are no days to win: the rows move up one, the fleet's day under them)
-	var first := 1 if fleet else 0
 	for r in range(first, ROWS.size()):
-		var y := row_y + (r - first) * step
+		var y := rows0 + (r - first) * step + (20.0 * px if r == ROWS.size() - 1 else 0.0)
 		var on := clampf((t - T0 - r * ROW) / 0.15, 0.0, 1.0) * fade
-		_text(Vector2(o.x + 30.0, y + 4.0), ROWS[r], Color(DIM, on), 2)
+		if r == ROWS.size() - 1:
+			kit.rule(_view, Vector2(_left, y - 28.0 * px), Vector2(_left + _wide, y - 28.0 * px), Color(Kit.PAPER, 0.8 * on))
+		kit.label(_view, Vector2(_left, y), ROWS[r], 17.0 * px, Color(Kit.PAPER, 0.75 * on), -1)
 		for i in n:
-			_cell(r, i, cx[i], y, on)
-	# the stamp: lands from big to its size in whole steps, square to the card (with more than two boats up it's a
-	# column's width, and kept on the card all the way down)
-	if t >= T_STAMP and not fleet:
-		var k := clampf((t - T_STAMP) / STAMP, 0.0, 1.0)
-		var to := 6.0 if n == 2 else 4.0
-		var sc := roundi(lerpf(to + 10.0, to, k * k))
-		var word := str(said["stamp"])
-		var ink := AMBER if winner < 0 else INK
-		var sx: float = (float(cx.min()) + float(cx.max())) * 0.5 if winner < 0 or winner >= n else cx[winner]
-		var tw := PixFont.width(word, sc)
-		var pad := sc * 2
-		var mid := 34.0 if n == 2 else 30.0
-		var box := Rect2(floorf(sx - tw * 0.5 - pad), floorf(o.y + mid - sc * 2.5 - pad), tw + pad * 2, sc * 5 + pad * 2)
-		if n > 2:
-			box.position.x = clampf(box.position.x, o.x + 8.0, o.x + W - 8.0 - box.size.x)
-		var al := (0.35 + 0.65 * k) * fade
-		_view.draw_rect(box, Color(0.04, 0.03, 0.03, 0.85 * al))
-		var b := maxi(sc / 2, 2)
-		for edge: Rect2 in [Rect2(box.position, Vector2(box.size.x, b)),
-				Rect2(box.position + Vector2(0, box.size.y - b), Vector2(box.size.x, b)),
-				Rect2(box.position, Vector2(b, box.size.y)),
-				Rect2(box.position + Vector2(box.size.x - b, 0), Vector2(b, box.size.y))]:
-			_view.draw_rect(edge, Color(ink, al))
-		PixFont.draw(_view, box.position + Vector2(pad, pad), word, Color(ink, al), sc)
-	if t < T_STAMP + STAMP:
-		return
-	# who won, in words (together: the fleet's day, and each boat's share of it under it, in her column)
+			_cell(r, i, cx[i], y, on, px)
+	var bottom := weighed_y + 34.0 * px
 	var after := clampf((t - T_STAMP - STAMP) / 0.3, 0.0, 1.0) * fade
-	var lc: Color = _verdict()[1]
-	var ly := row_y + step * ROWS.size() + 10.0
-	if fleet:
-		_centred(o.x + W * 0.5, ly - step, str(said["verdict"]), Color(lc, after), 3)
-		_text(Vector2(o.x + 30.0, ly + 2.0), "SHARE", Color(DIM, after), 2)
+	var ly := oy + 724.0 * px
+	if t >= T_STAMP + STAMP:
+		var lc: Color = _verdict()[1]
+		var vc := Kit.YELLOW if lc == GOOD else Kit.PAPER
+		if fleet:
+			var sy := weighed_y + 64.0 * px
+			kit.label(_view, Vector2(_left, sy), "SHARE", 17.0 * px, Color(Kit.PAPER, 0.75 * after), -1)
+			for k in seats.size():
+				kit.num(_view, Vector2(cx[seats[k]], sy), str(said["shares"][k]), 34.0 * px, Color(Kit.PAPER, after))
+			bottom = sy + 30.0 * px
+		kit.text(_view, Vector2(_left + _wide * 0.5, ly), str(said["verdict"]), 36.0 * px, Color(vc, after), 0, 700, 1.5 * px)
+		# each boat's crew: pressed yet?
 		for k in seats.size():
-			_centred(cx[seats[k]], ly - 2.0, str(said["shares"][k]), Color(boat_colour(seats[k]), after), 3)
-	else:
-		_centred(o.x + W * 0.5, ly, str(said["verdict"]), Color(lc, after), 3)
-	# each boat's crew: pressed yet?
-	for k in seats.size():
-		var sc2: Color = [DIM, GOOD, Color(DIM, 0.5), BAD, BAD][state(seats[k])]
-		_centred(cx[seats[k]], ly + 30.0, str(said["crews"][k]), Color(sc2, after * sc2.a), 2)
+			var sc2: Color = [Kit.PAPER, Kit.YELLOW, Color(Kit.PAPER, 0.4), Kit.ORANGE, Kit.ORANGE][state(seats[k])]
+			if state(seats[k]) == 0:
+				sc2.a = 0.6
+			kit.label(_view, Vector2(cx[seats[k]], ly + 46.0 * px), str(said["crews"][k]), 17.0 * px, Color(sc2, sc2.a * after))
+	# yours: the corners of its whole column
+	if me >= 0 and me < n:
+		var top := head_y - 32.0 * px
+		kit.corners(_view, Rect2(cx[me] - wide_col * 0.5 + 2.0 * px, top, wide_col - 4.0 * px, bottom - top), 16.0 * px, paper, false)
 	# the buttons
-	var bk := clampf((t - T_BUTTONS) / 0.3, 0.0, 1.0) * fade
-	var by := o.y + H - 84.0
-	var labels: Array = said["buttons"]
 	_rects.clear()
-	for i in 2:
-		var r := Rect2(o.x + W * 0.5 - 300.0 + i * 310.0, by, 290.0, 44.0)
-		_rects.append(r)
-		var primary := i == 0
-		var live := _can_press() if primary else t >= T_BUTTONS
-		var base := Color(0.85, 0.55, 0.16) if primary else Color(0.1, 0.13, 0.16)
-		if primary and ready_ids.has(Net.my_id()):
-			base = Color(0.3, 0.62, 0.3)
-		if not live:
-			base = Color(base.darkened(0.45), 0.7)
-		elif i == _pick:
-			base = base.lightened(0.15)
-		_view.draw_rect(r, Color(base, base.a * bk))
-		if i == _pick and live:
-			for edge: Rect2 in [Rect2(r.position, Vector2(r.size.x, 2)), Rect2(r.position + Vector2(0, r.size.y - 2),
-					Vector2(r.size.x, 2)), Rect2(r.position, Vector2(2, r.size.y)),
-					Rect2(r.position + Vector2(r.size.x - 2, 0), Vector2(2, r.size.y))]:
-				_view.draw_rect(edge, Color(CREAM, 0.8 * bk))
-		var tc := Color(0.06, 0.05, 0.03) if primary and live else (CREAM if live else Color(DIM, 0.5))
-		PixFont.draw(_view, Vector2(floorf(r.get_center().x - PixFont.width(str(labels[i]), 3) * 0.5),
-				floorf(r.get_center().y - 7.0)), str(labels[i]), Color(tc, tc.a * bk), 3)
-	_centred(o.x + W * 0.5, by + 56.0, str(said["status"]), Color(_status_colour(), bk), 2)
+	if t >= T_STAMP + STAMP:
+		var bk := clampf((t - T_BUTTONS) / 0.3, 0.0, 1.0) * fade
+		var by := oy + 840.0 * px
+		var labels: Array = said["buttons"]
+		var bw: Array[float] = []
+		var total := 0.0
+		for i in 2:
+			bw.append(kit.text_w(str(labels[i]), 30.0 * px, 700) + 64.0 * px)
+			total += bw[i]
+		var gap := 40.0 * px
+		var bx := _left + _wide * 0.5 - (total + gap) * 0.5
+		for i in 2:
+			var r := Rect2(floorf(bx), by - 28.0 * px, bw[i], 56.0 * px)
+			bx += bw[i] + gap
+			_rects.append(r)
+			var live := _can_press() if i == 0 else t >= T_BUTTONS
+			var lit := i == _pick and live
+			var col := Kit.YELLOW if lit else Kit.PAPER
+			col.a = bk * (1.0 if live else 0.45)
+			kit.text(_view, r.get_center(), str(labels[i]), 30.0 * px, col, 0, 700 if lit else 600, 1.0 * px)
+			kit.corners(_view, r, 12.0 * px, col, lit)
+		var sc3 := _status_colour()
+		var sink := Kit.PAPER
+		sink.a = 0.7
+		if sc3 == BAD:
+			sink = Kit.ORANGE
+		elif sc3 == AMBER:
+			sink = Kit.YELLOW
+		kit.text(_view, Vector2(_left + _wide * 0.5, by + 64.0 * px), str(said["status"]), 22.0 * px,
+				Color(sink, sink.a * bk), 0, 600, 1.2 * px)
+	kit.flush()
+	kit.defer = false
+	# the winner's stamp, over the head of her column (a tie: the middle of them all)
+	if t >= T_STAMP and not fleet:
+		var k := t - T_STAMP
+		var word := str(said["stamp"])
+		var sx: float = (float(cx.min()) + float(cx.max())) * 0.5 if winner < 0 or winner >= n else cx[winner]
+		kit.stamp(_view, Vector2(sx, oy + 176.0 * px), word, 32.0 * px, Kit.YELLOW, Kit.slam(k, 2.2), fade * clampf(k / 0.05, 0.0, 1.0))
 
 
 ## What row `r` says for boat `i` when its number stands at `v` ("" for the days won: they're pips).
@@ -591,25 +591,22 @@ func cell(r: int, i: int, v: float) -> String:
 		_: return "%d LB" % roundi(v)
 
 
-## One number on the card, counting up (the days won as pips).
-func _cell(r: int, i: int, cx: float, y: float, on: float) -> void:
+## One number on the card, counting up (the days won as squares, solid for each won).
+func _cell(r: int, i: int, cx: float, y: float, on: float, px: float) -> void:
 	var v := shown(r, i)
-	var col := Color(CREAM, on)
+	var col := Color(Kit.PAPER, on)
+	var size := 34.0 * px
 	match r:
 		0:
 			var n := roundi(v)
-			var x := floorf(cx - 22.0)
 			for d in 2:
-				var c := boat_colour(i)
-				_view.draw_rect(Rect2(x + d * 30.0, y, 14, 14), Color(c, 0.35 * on))
-				if d >= n:
-					_view.draw_rect(Rect2(x + d * 30.0 + 2.0, y + 2.0, 10, 10), Color(0.02, 0.03, 0.04, on))
-				else:
-					_view.draw_rect(Rect2(x + d * 30.0, y, 14, 14), Color(c, on))
+				kit.square(_view, Vector2(cx + (d - 0.5) * 30.0 * px, y), 17.0 * px, col, d < n)
 			return
-		4: col = Color(BAD, on) if _value(4, i) > 0.0 else Color(DIM, on)
-		5: col = Color(boat_colour(i), on)
-	_centred(cx, y, cell(r, i, v), col, 3)
+		4:
+			col = Color(Kit.ORANGE, on) if _value(4, i) > 0.0 else Color(Kit.PAPER, 0.6 * on)
+		5:
+			size = 50.0 * px
+	kit.num(_view, Vector2(cx, y), cell(r, i, v), size, col)
 
 
 func _status() -> String:

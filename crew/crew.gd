@@ -12,6 +12,7 @@ const Player := preload("res://crew/player.gd")
 const Hud := preload("res://ui/hud.gd")
 const Talk := preload("res://crew/talk.gd")
 const PixFont := preload("res://ui/pixfont.gd")
+const Kit := preload("res://ui/kit.gd")
 ## How long a crewmate come back takes to fade in (s).
 const FADE_IN := 1.2
 
@@ -31,6 +32,7 @@ var back := {}
 var waiting: Array = []
 var _fade_until := {}         # peer id -> msec: made before then, they fade in
 var _notice: Control
+var kit := Kit.new()
 var _clock_in := 0.0
 var _clock_asks := 0
 var _best_rtt := INF
@@ -120,18 +122,17 @@ func notice_text() -> String:
 			+ " LOST CONNECTION — WAITING"
 
 
-## Top middle, in the pixel font, on a dark strip, the dots counting.
+## Top middle, in the kit's small capitals, no strip behind it, the dots counting.
 func _draw_notice() -> void:
 	var text := notice_text()
 	if text.is_empty():
 		return
-	var sc := 3
-	var w := PixFont.width(text + "...", sc)
-	var at := Vector2(floorf((_notice.size.x - w) * 0.5), 14.0)
+	var p := clampf(_notice.size.y / 1080.0, 0.7, 2.5)
+	kit.px = p
+	var size := 20.0 * p
+	var w := kit.text_w(text + "...", size, 600, size * 0.17)
 	text += "...".left(int(Time.get_ticks_msec() / 400) % 4)
-	_notice.draw_rect(Rect2(at - Vector2(12, 8), Vector2(w + 24, 5 * sc + 16)), Color(0.02, 0.03, 0.05, 0.75))
-	PixFont.draw(_notice, at + Vector2(sc, sc), text, Color(0, 0, 0, 0.85), sc)
-	PixFont.draw(_notice, at, text, Color(1.0, 0.62, 0.38), sc)
+	kit.label(_notice, Vector2(floorf((_notice.size.x - w) * 0.5), 34.0 * p), text, size, Kit.ORANGE, -1)
 
 
 # ------------------------------------------------------------------ the host

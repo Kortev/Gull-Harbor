@@ -1,6 +1,6 @@
 extends CanvasLayer
 ## The title: what you see when the game starts. The harbour at the fish pier behind it, a camera drifting slowly
-## round the boats at their berths; BLUEFIN in big pixel letters (ui/pixfont.gd, the game's pixel look) and the way
+## round the boats at their berths; BLUEFIN in big type over a ruled scale (ui/kit.gd) and the way
 ## in:
 ##   FISH     your boat: out after the boat payment alone, and open for friends to come aboard any time (it hosts quietly:
 ##            a Steam friend sees your boat, or the Esc menu has the join code to send)
@@ -18,13 +18,13 @@ extends CanvasLayer
 ## START (Rivals: only with someone aboard every boat; it says why not, vs/vs.gd's team_problem); joining is your
 ## Steam friends with a boat out, or typing in their code. START
 ## (or SOLO) closes it for everyone aboard: the letters fade and a short intro plays, the camera pulling up and out
-## over the harbour mouth and sweeping back in low past the boats at the pier, a line or two in big pixel letters (what
+## over the harbour mouth and sweeping back in low past the boats at the pier, a line or two in big type (what
 ## the day is), then gliding down into your eyes on the dock, no cut. Any key or click skips on to the glide.
 ##
 ## Mouse, keys (up, down, Enter, Esc back) or a pad (the d-pad or left stick, A, B: the hints say so while it's in
 ## hand). Only in the game itself: tests and screenshots never see it.
 
-const PixFont := preload("res://ui/pixfont.gd")
+const Kit := preload("res://ui/kit.gd")
 const Kinds := preload("res://boat/kinds.gd")
 const SettingsPage := preload("res://ui/settings_page.gd")
 const AchievementsPage := preload("res://ui/achievements_page.gd")
@@ -32,14 +32,9 @@ const Pad := preload("res://core/pad.gd")
 const Version := preload("res://core/version.gd")
 
 const AMBER := Color(1.0, 0.78, 0.34)
-const CREAM := Color(1.0, 0.95, 0.82)
-const DIM := Color(0.72, 0.76, 0.8)
-const SHADOW := Color(0.02, 0.03, 0.05, 0.85)
-## The letters' sizes (px per font pixel): the name, its line under it, the choices, the small print.
-const LOGO := 15
-const SUB := 3
-const ITEM := 5
-const SMALL := 2
+## The letters' sizes at 1080p (times kit.px): the name, and the choices (the biggest, shrinking when the page is long).
+const LOGO := 150.0
+const ITEM := 30.0
 ## How long the camera takes gliding down into your eyes (s); the intro's two legs before it (s).
 const GLIDE := 2.4
 const LEG := 3.4
@@ -63,6 +58,7 @@ const CREDITS := [
 ]
 
 var sea: Node                # sea/sea.gd
+var kit := Kit.new()
 ## Up: the title's showing (and the dock menu, ui/menu.gd, waits under it).
 var up := true
 var _page := "main"
@@ -519,13 +515,14 @@ func _draw_caption() -> void:
 	var u := (_intro - i * span) / span
 	var a := clampf(minf(u / 0.2, (1.0 - u) / 0.2), 0.0, 1.0)
 	var text: String = lines[i]
-	var sc := 5
-	var at := Vector2((_caption.size.x - PixFont.width(text, sc)) * 0.5, _caption.size.y * 0.72)
-	PixFont.draw(_caption, at + Vector2(4, 4), text, Color(SHADOW, SHADOW.a * a), sc)
-	PixFont.draw(_caption, at, text, Color(CREAM, a), sc)
-	var skip := "ANY BUTTON TO SKIP" if Settings.pad else "ANY KEY TO SKIP"
-	PixFont.draw(_caption, Vector2(_caption.size.x - PixFont.width(skip, 2) - 24, _caption.size.y - 30), skip,
-			Color(DIM, 0.6), 2)
+	kit.px = _caption.size.y / 1080.0
+	kit.defer = true
+	var tx := Vector2(_caption.size.x * 0.5, _caption.size.y * 0.72)
+	kit.text(_caption, tx, text, 84.0 * kit.px, Color(Kit.PAPER, a), 0, 700, 2.0 * kit.px)
+	var skip := "ANY BUTTON SKIPS" if Settings.pad else "ANY KEY SKIPS"
+	kit.label(_caption, Vector2(_caption.size.x - 28.0 * kit.px, _caption.size.y - 34.0 * kit.px), skip,
+			_s(18.0), Color(Kit.PAPER, 0.6), 1)
+	kit.flush()
 
 
 func _on_input(e: InputEvent) -> void:
@@ -575,89 +572,87 @@ func _press() -> void:
 		_view.queue_redraw()
 
 
-func _text(at: Vector2, text: String, col: Color, scale: int) -> void:
-	PixFont.draw(_view, at + Vector2(scale, scale), text, SHADOW, scale)
-	PixFont.draw(_view, at, text, col, scale)
+## A size at 1080p made for this screen, never under 15 px.
+func _s(v: float) -> float:
+	return maxf(v * kit.px, 15.0)
 
 
 func _draw_view() -> void:
 	var size := _view.size
-	# a dark wash down the left, the harbour bright beside it
-	var wash := Color(0.01, 0.02, 0.035, 0.78)
-	var w0 := size.x * 0.5
-	var w1 := size.x * 0.8
-	_view.draw_rect(Rect2(0, 0, w0, size.y), wash)
-	_view.draw_polygon(PackedVector2Array([Vector2(w0, 0), Vector2(w1, 0), Vector2(w1, size.y), Vector2(w0, size.y)]),
-			PackedColorArray([wash, Color(wash, 0.0), Color(wash, 0.0), wash]))
-	# the name, shaded top to bottom like the dawn on the water, and its line under it
-	var at := Vector2(64, 56)
+	kit.px = size.y / 1080.0
+	kit.defer = true
+	var px := kit.px
+	# one flat dim over the whole screen, the harbour still showing through
+	_view.draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.03, 0.04, 0.35))
+	# the name, a heavy rule the width of the word with a scale of ticks under it, and its line
+	var left := 72.0 * px
 	var word := "BLUEFIN"
-	var rows := [CREAM, CREAM, AMBER, AMBER, Color(0.95, 0.5, 0.22)]
-	PixFont.draw(_view, at + Vector2(5, 5), word, SHADOW, LOGO)
-	for r in 5:
-		var x := at.x
-		for ch in word:
-			var g: Array = PixFont.GLYPHS[ch]
-			var row: String = g[r]
-			for cx in 3:
-				if row[cx] == "#":
-					_view.draw_rect(Rect2(x + cx * LOGO, at.y + r * LOGO, LOGO, LOGO), rows[r])
-			x += 4 * LOGO
-	_text(at + Vector2(4, LOGO * 5 + 18), "GULL HARBOR  -  BLUEFIN TUNA OFF THE NEW ENGLAND COAST", DIM, SUB)
+	var ww := kit.text_w(word, LOGO * px, 700)
+	kit.num(_view, Vector2(left, 56.0 * px + LOGO * px * 0.5), word, LOGO * px, Kit.PAPER, -1)
+	var ry := 56.0 * px + LOGO * px * 1.04
+	kit.rule(_view, Vector2(left, ry), Vector2(left + ww, ry), Kit.PAPER, true)
+	kit.scale(_view, Vector2(left, ry + 3.0 * px), Vector2(left + ww, ry + 3.0 * px), 28, 4, Kit.PAPER, 1.0, 7.0 * px, 14.0 * px, false)
+	kit.label(_view, Vector2(left, ry + 42.0 * px), "GULL HARBOR  /  BLUEFIN TUNA OFF THE NEW ENGLAND COAST", _s(20.0), Kit.PAPER, -1)
 	# the page's own heading, and the crew list in the lobby
-	var y := at.y + LOGO * 5 + 70
+	var colw := maxf(ww, 700.0 * px)
+	var y := ry + 96.0 * px
 	var heading: String = {"host_join": _mode.to_upper().replace("COOP", "CO-OP"), "join": "JOIN A FRIEND",
 			"lobby": "THE CREW", "credits": "CREDITS"}.get(_page, "")
 	if not heading.is_empty():
-		_text(Vector2(at.x + 4, y), heading, AMBER, 3)
-		y += 30
+		kit.num(_view, Vector2(left, y + 22.0 * px), heading, 44.0 * px, Kit.PAPER, -1)
+		var hy := y + 56.0 * px
+		kit.rule(_view, Vector2(left, hy), Vector2(left + colw, hy), Kit.PAPER, true)
+		kit.scale(_view, Vector2(left, hy + 3.0 * px), Vector2(left + colw * 0.3, hy + 3.0 * px), 12, 4, Kit.PAPER, 1.0, 6.0 * px, 12.0 * px, false)
+		y = hy + 44.0 * px
 	if _page == "join":
-		# the code's own box, so it's plain it's where you type
-		_text(Vector2(at.x + 4, y + 4), "CODE", DIM, 3)
-		var fx := at.x + 4 + PixFont.width("CODE", 3) + 18
-		var field := Rect2(fx, y - 6, maxf(PixFont.width(_code + "_", 4) + 28, 300), 34)
-		_view.draw_rect(field, Color(0.02, 0.03, 0.05, 0.85))
-		_view.draw_rect(field.grow(-1.0), Color(AMBER, 0.7), false, 2.0)
-		_text(Vector2(fx + 14, y), _code + ("_" if Time.get_ticks_msec() % 1000 < 500 else " "), CREAM, 4)
-		y += 40
+		# the code's field: its type on a heavy rule, a bar blinking after it
+		kit.label(_view, Vector2(left, y + 8.0 * px), "CODE", _s(20.0), Kit.PAPER, -1)
+		var fx := left + kit.text_w("CODE", _s(20.0), 600, _s(20.0) * 0.17) + 28.0 * px
+		var cw := kit.text_w(_code, 40.0 * px, 700)
+		var fend := fx + maxf(cw + 36.0 * px, 340.0 * px)
+		kit.num(_view, Vector2(fx, y), _code, 40.0 * px, Kit.PAPER, -1)
+		kit.rule(_view, Vector2(fx, y + 26.0 * px), Vector2(fend, y + 26.0 * px), Kit.PAPER, true)
+		if Time.get_ticks_msec() % 1000 < 500:
+			kit.bar(_view, Rect2(fx + cw + 4.0 * px, y - 16.0 * px, 4.0 * px, 36.0 * px), Kit.YELLOW)
+		y += 62.0 * px
 		if bool(Net.steam.get("available")) and _items.size() <= 2:
-			_text(Vector2(at.x + 4, y), "NO STEAM FRIENDS HAVE A BOAT OUT RIGHT NOW", Color(DIM, 0.8), SMALL)
-			y += 26
+			kit.label(_view, Vector2(left, y), "NO STEAM FRIENDS HAVE A BOAT OUT RIGHT NOW", _s(17.0), Color(Kit.PAPER, 0.6), -1)
+			y += 34.0 * px
 	if _page == "lobby":
-		y = _draw_crew(Vector2(at.x + 4, y))
+		y = _draw_crew(Vector2(left, y))
 	if _page == "credits":
-		y = _draw_credits(Vector2(at.x + 4, y))
+		y = _draw_credits(Vector2(left, y))
 	# the choices: as big as the page has room for under what's above them (the Rivals lobby is the long one)
 	_rects.clear()
-	var sc := ITEM
-	while sc > 3 and y + _items.size() * _row(sc) > size.y - 70:
-		sc -= 1
+	var sz := ITEM * px
+	while sz > 18.0 * px and y + _items.size() * _row(sz) > size.y - 70.0 * px:
+		sz -= 2.0 * px
+	var row := _row(sz)
 	for i in _items.size():
 		var label: String = _items[i][0]
 		var on := i == _pick
-		var pad := mini(6, (_row(sc) - sc * 5) / 2)       # (a row's box never reaches into the next one's)
-		var r := Rect2(at.x - 4, y - pad, PixFont.width(label, sc) + 60, sc * 5 + pad * 2)
-		_rects.append(r)
+		var cy := y + row * 0.5
+		var tw := kit.text_w(label, sz, 700 if on else 600)
+		_rects.append(Rect2(left - 8.0 * px, y, tw + 70.0 * px, row))
 		if on:
-			_view.draw_rect(Rect2(at.x - 4, y - pad, 8, sc * 5 + pad * 2), AMBER)
-		_text(Vector2(at.x + 22, y), label, AMBER if on else CREAM, sc)
+			kit.tri(_view, Vector2(left + 14.0 * px, cy), sz * 0.55, Vector2.RIGHT, Kit.YELLOW)
+		kit.text(_view, Vector2(left + 26.0 * px, cy), label, sz, Kit.YELLOW if on else Kit.PAPER, -1, 700 if on else 600)
 		# what the picked one does, beside it
 		var blurb: String = _items[i][1]
 		if on and not blurb.is_empty():
-			_text(Vector2(at.x + 22 + PixFont.width(label, sc) + 26, y + (sc * 5 - SMALL * 5) / 2), blurb,
-					Color(CREAM, 0.8), SMALL)
-		y += _row(sc)
+			kit.label(_view, Vector2(left + 26.0 * px + tw + 28.0 * px, cy), blurb, _s(17.0), Color(Kit.PAPER, 0.75), -1)
+		y += row
 	if not _note.is_empty():
-		_text(Vector2(at.x + 22, y + 10), _note, Color(1.0, 0.7, 0.5), SMALL)
-	_text(Vector2(at.x + 4, size.y - 30), "STICK OR D-PAD, [A] TO PICK, [B] TO GO BACK" if Settings.pad
-			else "MOUSE OR ARROW KEYS, ENTER TO PICK, ESC TO GO BACK", Color(DIM, 0.6), SMALL)
-	var v := version_text()
-	_text(Vector2(size.x - PixFont.width(v, SMALL) - 24, size.y - 30), v, Color(DIM, 0.6), SMALL)
+		kit.label(_view, Vector2(left + 26.0 * px, y + 20.0 * px), _note, _s(18.0), Kit.ORANGE, -1)
+	kit.label(_view, Vector2(left, size.y - 34.0 * px), "STICK OR D-PAD, [A] TO PICK, [B] TO GO BACK" if Settings.pad
+			else "MOUSE OR ARROW KEYS, ENTER TO PICK, ESC TO GO BACK", _s(16.0), Color(Kit.PAPER, 0.6), -1)
+	kit.label(_view, Vector2(size.x - 28.0 * px, size.y - 34.0 * px), version_text(), _s(16.0), Color(Kit.PAPER, 0.6), 1)
+	kit.flush()
 
 
-## A choice's row, top to top (px), its letters at `scale`.
-static func _row(scale: int) -> int:
-	return scale * 5 + (16 if scale >= ITEM else scale * 2 + 2)
+## A choice's row, top to top (px), its letters `sz` tall.
+func _row(sz: float) -> float:
+	return sz * 1.5
 
 
 ## What the corner says: "V1.0.0".
@@ -667,15 +662,17 @@ static func version_text() -> String:
 
 ## The credits, under the page's heading. Returns where they end.
 func _draw_credits(at: Vector2) -> float:
+	var px := kit.px
 	var y := at.y
 	for c: Array in CREDITS:
-		_text(Vector2(at.x, y), str(c[0]), AMBER, SMALL)
-		y += 16
+		kit.label(_view, Vector2(at.x, y), str(c[0]), _s(17.0), Kit.PAPER, -1)
+		y += 26.0 * px
 		for line: String in c[1]:
-			_text(Vector2(at.x + 12, y), line, CREAM, SMALL)
-			y += 14
-		y += 8
-	return y + 6
+			kit.text(_view, Vector2(at.x + 14.0 * px, y), line.to_upper(), _s(19.0), Color(Kit.PAPER, 0.85), -1)
+			y += 24.0 * px
+		y += 8.0 * px
+	return y + 6.0 * px
+
 
 ## Boat i's colour (vs/vs.gd's, once it has one to give).
 func boat_colour(i: int) -> Color:
@@ -717,43 +714,49 @@ func crew_columns() -> Array:
 ## Who's aboard (a column a boat in rivals), the host's choices for whoever isn't the host, and the code to send: under
 ## the lobby's heading. Returns where it ends.
 func _draw_crew(at: Vector2) -> float:
+	var px := kit.px
 	var rivals := _rivals()
 	var cols := crew_columns()
-	# (two boats sit as they always have; three and four closer, to stay on the dark of the wash)
-	var step := minf(260.0, 600.0 / cols.size())
+	var mine := int(((sea.get("vs") as Node).get("teams") as Dictionary).get(Net.my_id(), 0))
+	var step := minf(300.0 * px, 700.0 * px / cols.size())
 	var y := at.y
 	for c in cols.size():
 		var col: Dictionary = cols[c]
 		var x := at.x + c * step
 		var yy := at.y
+		var ind := 8.0 * px if rivals else 0.0
 		if rivals:
-			_text(Vector2(x, yy), str(col["head"]), col["colour"], 3)
-			yy += 24
+			kit.square(_view, Vector2(x + 7.0 * px, yy), 14.0 * px, col["colour"])
+			kit.text(_view, Vector2(x + 26.0 * px, yy), str(col["head"]), 26.0 * px, Kit.YELLOW if c == mine else Kit.PAPER, -1, 700)
+			var ly := yy + 20.0 * px
+			kit.rule(_view, Vector2(x, ly), Vector2(x + step - 24.0 * px, ly))
+			yy += 46.0 * px
 		for who: String in col["crew"]:
-			_text(Vector2(x + 8, yy), who, CREAM, 2)
-			yy += 18
+			kit.text(_view, Vector2(x + ind, yy), who, _s(21.0), Kit.PAPER, -1)
+			yy += 28.0 * px
 		if (col["crew"] as Array).is_empty():
-			_text(Vector2(x + 8, yy), "NOBODY ABOARD", Color(DIM, 0.55), 2)
-			yy += 18
+			kit.text(_view, Vector2(x + ind, yy), "NOBODY ABOARD", _s(21.0), Color(Kit.PAPER, 0.6), -1)
+			yy += 28.0 * px
 		y = maxf(y, yy)
-	y += 14
+	y += 16.0 * px
 	if rivals and not Net.is_host():
 		# (the host's choices, for everyone who can't change them)
 		var way: Array = WAYS[int(together())]
-		_text(Vector2(at.x, y), "%d BOATS, %s. %s" % [cols.size(), way[0], way[1]], CREAM, 2)
-		y += 22
+		kit.label(_view, Vector2(at.x, y), "%d BOATS, %s. %s" % [cols.size(), way[0], way[1]], _s(17.0), Kit.PAPER, -1)
+		y += 30.0 * px
 	if Net.is_host() and Net.mode == "code" and not Net.code.is_empty():
-		_text(Vector2(at.x, y), "JOIN CODE: " + Net.code, CREAM, 3)
-		y += 30
+		kit.label(_view, Vector2(at.x, y + 4.0 * px), "JOIN CODE", _s(17.0), Kit.PAPER, -1)
+		kit.num(_view, Vector2(at.x + 150.0 * px, y), Net.code, 30.0 * px, Kit.PAPER, -1)
+		y += 42.0 * px
 	elif Net.is_host() and Net.mode == "code":
-		_text(Vector2(at.x, y), "JOIN CODE: ASKING YOUR ROUTER" + ".".repeat(1 + Time.get_ticks_msec() / 400 % 3), DIM, 3)
-		y += 30
+		kit.label(_view, Vector2(at.x, y), "JOIN CODE: ASKING YOUR ROUTER" + ".".repeat(1 + Time.get_ticks_msec() / 400 % 3), _s(17.0), Color(Kit.PAPER, 0.6), -1)
+		y += 36.0 * px
 	elif not Net.is_host():
-		_text(Vector2(at.x, y), "WAITING FOR THE HOST TO START", DIM, 2)
-		y += 22
+		kit.label(_view, Vector2(at.x, y), "WAITING FOR THE HOST TO START", _s(17.0), Color(Kit.PAPER, 0.6), -1)
+		y += 30.0 * px
 	# (Rivals: why it can't start yet, on everyone's screen)
 	var why := rivals_problem() if rivals else ""
 	if not why.is_empty():
-		_text(Vector2(at.x, y), why, Color(1.0, 0.7, 0.5), 2)
-		y += 22
-	return y + 10
+		kit.label(_view, Vector2(at.x, y), why, _s(17.0), Kit.ORANGE, -1)
+		y += 30.0 * px
+	return y + 10.0 * px

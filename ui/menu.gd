@@ -16,28 +16,27 @@ extends CanvasLayer
 ## invite), leave the crew, back to the title, quit the game. No heading in from a menu, in any game: you drive her home and tie her up alongside
 ## the fish pier (sea/sea.gd's race home at dusk).
 ##
-## The one pixel font (ui/pixfont.gd) at whole sizes, few words, dark cards over the harbour behind.
+## In the kit's hand (ui/kit.gd, docs/UI_MENUS_BRIEF.md): no cards, one flat dim over the screen and type and linework on it.
 ##
-## A pad: the d-pad or left stick goes from button to button (Godot's own focus, each button's amber frame showing
+## A pad: the d-pad or left stick goes from button to button (Godot's own focus, each one picked going yellow, showing
 ## which: the first one's picked up as the pad is), A presses; out there B or START is back to the deck, and B shuts
 ## the manual.
 
+const Kit := preload("res://ui/kit.gd")
 const FishHold := preload("res://boat/fish_hold.gd")
 const Kinds := preload("res://boat/kinds.gd")
 const Manual := preload("res://ui/manual.gd")
 const SettingsPage := preload("res://ui/settings_page.gd")
 const AchievementsPage := preload("res://ui/achievements_page.gd")
 
-## The type sizes: the pixel font's 6 px line at 2, 3 and 4 times.
-const SMALL := 12
-const BODY := 18
-const BIG := 24
-const AMBER := Color(1.0, 0.78, 0.34)
-const CREAM := Color(1.0, 0.95, 0.84)
-const DIM := Color(0.66, 0.71, 0.76)
-const GOOD := Color(0.6, 1.0, 0.6)
-const BAD := Color(1.0, 0.5, 0.42)
-const CARD := Color(0.06, 0.08, 0.1, 0.94)
+## The type sizes, as the kit's (times the screen's scale, _px()): SMALL a label (small spaced capitals), BODY a sentence, BIG
+## a figure or a heading.
+const SMALL := 16
+const BODY := 26
+const BIG := 34
+## Dim type is paper at alpha 0.6, and the whole-screen dim behind a page the brief's.
+const DIM := Color(Kit.PAPER, 0.6)
+const SCREEN_DIM := Color(0.02, 0.03, 0.04, 0.72)
 
 ## The harbour board (at the dock) and the pause card (out there): `_panel` is whichever's in use.
 var _panel: Control
@@ -75,21 +74,32 @@ var _boarding := false
 var _board_button: Button
 
 
+var kit := Kit.new()
+
+
 func _ready() -> void:
 	layer = 10
 	process_mode = Node.PROCESS_MODE_ALWAYS      # (it's what's left running while it holds the world still)
-	_board = _card_panel(Vector2(1040, 600))
+	# (one flat dim over the whole screen behind the board, the pause card and the manual: first, so it's under them)
+	_dim = ColorRect.new()
+	_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_dim.color = SCREEN_DIM
+	_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_dim.visible = false
+	add_child(_dim)
+	_board = _card_panel(Vector2(minf(1440.0 * _px(), get_viewport().get_visible_rect().size.x - 48.0), 0))
 	add_child(_board)
 	_dock = VBoxContainer.new()
-	_dock.add_theme_constant_override("separation", 12)
+	_dock.add_theme_constant_override("separation", roundi(12.0 * _px()))
 	_board.add_child(_dock)
-	_pause = _card_panel(Vector2(420, 0))
+	_pause = _card_panel(Vector2(560.0 * _px(), 0))
 	add_child(_pause)
 	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 10)
+	col.add_theme_constant_override("separation", roundi(4.0 * _px()))
 	_pause.add_child(col)
-	_heading = _label("PAUSED", BIG, AMBER)
+	_heading = _label("PAUSED", 44, Kit.PAPER, HORIZONTAL_ALIGNMENT_LEFT, 700)
 	col.add_child(_heading)
+	col.add_child(_title_rule())
 	_still = _label("", SMALL, DIM)
 	col.add_child(_still)
 	_status = _label("", SMALL, DIM)
@@ -102,11 +112,11 @@ func _ready() -> void:
 	col.add_child(_button("ACHIEVEMENTS", open_achievements))
 	# (the card in three: the way back and the pages; bringing a friend aboard; leaving)
 	_crew_box = VBoxContainer.new()
-	_crew_box.add_theme_constant_override("separation", 6)
+	_crew_box.add_theme_constant_override("separation", roundi(4.0 * _px()))
 	col.add_child(_gap())
 	col.add_child(_crew_box)
 	_crew_box.add_child(_label("A FRIEND JOINS YOUR BOAT WITH", SMALL, DIM))
-	_code = _label("", BODY, CREAM)
+	_code = _label("", BODY, Kit.PAPER)
 	_crew_box.add_child(_code)
 	_copy = _button("COPY THE JOIN CODE", func() -> void:
 		DisplayServer.clipboard_set(Net.code)
@@ -119,21 +129,17 @@ func _ready() -> void:
 	col.add_child(_leave)
 	col.add_child(_button("BACK TO THE TITLE", _to_title))
 	col.add_child(_button("QUIT THE GAME", func() -> void: get_tree().quit()))
-	# (the manual over a dimmed screen, as the settings and achievements pages are: the HUD under it out of the way)
-	_dim = ColorRect.new()
-	_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_dim.color = Color(0.01, 0.02, 0.035, 0.6)
-	_dim.visible = false
-	add_child(_dim)
+	# (the manual over the same dim as the board's: the HUD under it out of the way)
+	var p := _px()
 	_manual = Manual.new(get_parent().get("tips") as Node)
 	_manual.set_anchors_preset(Control.PRESET_CENTER)
-	_manual.custom_minimum_size = Vector2(820, 560)
-	_manual.position = Vector2(-410, -280)
+	_manual.custom_minimum_size = Vector2(1100, 590) * p
+	_manual.position = Vector2(-550, -310) * p
 	_manual.visible = false
 	add_child(_manual)
 	var shut := _button("CLOSE THE MANUAL", func() -> void: _reading = false)
 	shut.set_anchors_preset(Control.PRESET_CENTER)
-	shut.position = Vector2(-110, 290)
+	shut.position = Vector2(-550, 290) * p
 	shut.visible = false
 	shut.name = "CloseManual"
 	add_child(shut)
@@ -149,77 +155,138 @@ func _ready() -> void:
 		open_settings.call_deferred(_shot_page())
 
 
-## A dark card centred on the screen, at least `size` (height 0: as tall as it needs), an amber edge down its left.
+## The screen's scale (the HUD's): 1 at 1080p.
+func _px() -> float:
+	return clampf(get_viewport().get_visible_rect().size.y / 1080.0, 0.7, 2.5)
+
+
+## A column centred on the screen, at least `size` (height 0: as tall as it needs). No panel behind it: the type and the
+## linework go straight over the dim.
 func _card_panel(size: Vector2) -> PanelContainer:
 	var p := PanelContainer.new()
 	p.set_anchors_preset(Control.PRESET_CENTER)
 	p.custom_minimum_size = size
 	p.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	p.grow_vertical = Control.GROW_DIRECTION_BOTH
-	var box := StyleBoxFlat.new()
-	box.bg_color = Color(0.025, 0.035, 0.045, 0.94)
-	box.border_color = Color(AMBER, 0.7)
-	box.border_width_left = 4
-	box.set_content_margin_all(22)
-	p.add_theme_stylebox_override("panel", box)
+	p.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	return p
 
 
 ## A little space between groups of buttons.
-static func _gap() -> Control:
+func _gap() -> Control:
 	var c := Control.new()
-	c.custom_minimum_size = Vector2(0, 4)
+	c.custom_minimum_size = Vector2(0, 14.0 * _px())
 	return c
 
 
-func _label(text: String, size := BODY, col := CREAM, align := HORIZONTAL_ALIGNMENT_LEFT) -> Label:
+## A line of type in the kit's hand: `size` is SMALL (a label: spaced capitals), BODY (a sentence) or BIG (a figure),
+## or any size in kit units (times the screen's scale); the heading's 44 is the page title's.
+func _label(text: String, size := BODY, col := Kit.PAPER, align := HORIZONTAL_ALIGNMENT_LEFT, weight := 600) -> Label:
 	var l := Label.new()
 	l.text = text
-	l.add_theme_font_size_override("font_size", size)
-	l.add_theme_color_override("font_color", col)
+	var fs := maxi(roundi(size * _px()), 11)
+	Kit.style_label(l, fs, col, fs * 0.17 if size == SMALL else 0.0, 700 if size == BIG else weight)
 	l.horizontal_alignment = align
 	return l
 
 
-## A button in the board's style: square, dark, amber when it's the one to press.
-func _button(text: String, on: Callable, primary := false) -> Button:
+## The page title's heavy rule, with the ticks hanging under the first 30% of it.
+func _title_rule() -> Control:
+	var c := Control.new()
+	c.custom_minimum_size = Vector2(0, 30.0 * _px())
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.draw.connect(func() -> void:
+		var p := _px()
+		kit.px = p
+		var y := 6.0 * p
+		kit.defer = true
+		kit.rule(c, Vector2(0, y), Vector2(c.size.x, y), Kit.PAPER, true)
+		kit.scale(c, Vector2(0, y), Vector2(c.size.x * 0.3, y), 24, 4, Kit.PAPER, 1.0, -1.0, -1.0, false)
+		kit.flush()
+		kit.defer = false)
+	return c
+
+
+## A fine rule across.
+func _rule() -> Control:
+	var c := Control.new()
+	c.custom_minimum_size = Vector2(0, 10.0 * _px())
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.draw.connect(func() -> void:
+		kit.px = _px()
+		kit.rule(c, Vector2(0, 4.0 * kit.px), Vector2(c.size.x, 4.0 * kit.px), Kit.PAPER))
+	return c
+
+
+## A ruler for how far along (the payment): ticks, and a pointer on the value.
+func _ruler(frac: float, col: Color) -> Control:
+	var c := Control.new()
+	c.custom_minimum_size = Vector2(0, 34.0 * _px())
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.draw.connect(func() -> void:
+		var p := _px()
+		kit.px = p
+		var y := 10.0 * p
+		kit.defer = true
+		kit.scale(c, Vector2(0, y), Vector2(c.size.x, y), 20, 5, Kit.PAPER, 1.0, -1.0, -1.0)
+		kit.tri(c, Vector2(c.size.x * clampf(frac, 0.0, 1.0), y + 3.0 * p), 15.0 * p, Vector2.UP, col)
+		kit.flush()
+		kit.defer = false)
+	return c
+
+
+## A button in the kit's hand: its word, nothing behind it. In a list (`boxed` false) the one hovered or focused gets a
+## pointer at its left and goes yellow; `boxed`, and the big one (`primary`), have the frame's corners round the word
+## (yellow and heavy when picked). Never filled.
+func _button(text: String, on: Callable, primary := false, boxed := false) -> Button:
 	var b := Button.new()
 	b.text = text
 	b.pressed.connect(on)
 	if primary:
 		b.set_meta("primary", true)
-	b.add_theme_font_size_override("font_size", BIG if primary else SMALL)
-	b.custom_minimum_size = Vector2(0, 52 if primary else 30)
-	var base := Color(0.1, 0.13, 0.16) if not primary else Color(0.85, 0.55, 0.16)
+	var p := _px()
+	var fs := roundi((34.0 if primary else (28.0 if boxed else 30.0)) * p)
+	b.flat = true
+	b.add_theme_font_override("font", Kit.font(700 if primary else 600))
+	b.add_theme_font_size_override("font_size", fs)
+	b.custom_minimum_size = Vector2(0, (58.0 if primary else (44.0 if boxed else 40.0)) * p)
+	b.alignment = HORIZONTAL_ALIGNMENT_CENTER if (boxed or primary) else HORIZONTAL_ALIGNMENT_LEFT
+	var pad := StyleBoxEmpty.new()
+	pad.content_margin_left = (18.0 if (boxed or primary) else 30.0) * p
+	pad.content_margin_right = 18.0 * p
 	for st: String in ["normal", "hover", "pressed", "disabled", "focus"]:
-		var box := StyleBoxFlat.new()
-		box.bg_color = {"normal": base, "hover": base.lightened(0.18), "pressed": base.darkened(0.2),
-				"disabled": Color(base.darkened(0.4), 0.6), "focus": Color(0, 0, 0, 0)}[st]
-		if st == "focus":
-			box.border_color = Color(AMBER, 0.8)
-			box.set_border_width_all(2)
-		box.set_content_margin_all(6)
-		b.add_theme_stylebox_override(st, box)
-	b.add_theme_color_override("font_color", Color(0.06, 0.05, 0.03) if primary else CREAM)
-	b.add_theme_color_override("font_hover_color", Color(0.06, 0.05, 0.03) if primary else AMBER)
-	b.add_theme_color_override("font_pressed_color", Color(0.06, 0.05, 0.03) if primary else AMBER)
-	b.add_theme_color_override("font_disabled_color", Color(DIM, 0.5))
+		b.add_theme_stylebox_override(st, pad)
+	if primary:
+		b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	for c: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color"]:
+		b.add_theme_color_override(c, Kit.PAPER if c == "font_color" else Kit.YELLOW)
+	b.add_theme_color_override("font_disabled_color", Color(Kit.PAPER, 0.4))
+	b.add_theme_color_override("font_outline_color", Color(0.03, 0.035, 0.04, 0.88))
+	b.add_theme_constant_override("outline_size", maxi(roundi(fs * 0.2), 3))
+	b.draw.connect(func() -> void:
+		var q := _px()
+		kit.px = q
+		var lit := not b.disabled and (b.is_hovered() or b.has_focus())
+		var col := Color(Kit.YELLOW if lit else Kit.PAPER, 0.4 if b.disabled else 1.0)
+		if boxed or primary:
+			var w := Kit.font(700 if primary else 600).get_string_size(b.text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs).x
+			var r := Rect2((b.size.x - w) * 0.5 - 12.0 * q, 4.0 * q, w + 24.0 * q, b.size.y - 8.0 * q)
+			if b.alignment == HORIZONTAL_ALIGNMENT_LEFT:
+				r.position.x = pad.content_margin_left - 12.0 * q
+			kit.corners(b, r, 8.0 * q, col, lit)
+		elif lit:
+			kit.tri(b, Vector2(22.0 * q, b.size.y * 0.5), 15.0 * q, Vector2.RIGHT, Kit.YELLOW))
 	return b
 
 
-## A titled card on the board: returns where its contents go.
+## A part of the board with its heading (a label) and a fine rule under it: returns where its contents go.
 func _section(parent: Control, title: String) -> VBoxContainer:
-	var p := PanelContainer.new()
-	var box := StyleBoxFlat.new()
-	box.bg_color = CARD
-	box.set_content_margin_all(12)
-	p.add_theme_stylebox_override("panel", box)
-	parent.add_child(p)
 	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 6)
-	p.add_child(col)
+	col.add_theme_constant_override("separation", roundi(4.0 * _px()))
+	parent.add_child(col)
 	if not title.is_empty():
 		col.add_child(_label(title, SMALL, DIM))
+	col.add_child(_rule())
 	return col
 
 
@@ -283,7 +350,7 @@ func _process(_delta: float) -> void:
 	_board.visible = open and not away and _panel == _board
 	_pause.visible = open and not away and _panel == _pause
 	_manual.visible = _reading
-	_dim.visible = _reading
+	_dim.visible = open and not _tuning and not _proud       # (the settings and achievements pages dim the screen themselves)
 	(get_node("CloseManual") as Control).visible = _reading
 	_open = open
 	_hold_world(open and not vs_on)
@@ -398,48 +465,37 @@ func _fill_board(hold: Node, docked: bool) -> void:
 	# along the top: where, when, what's in the bank
 	var top := HBoxContainer.new()
 	_dock.add_child(top)
-	var where := _label("GULL HARBOR, THE FISH PIER", BIG, AMBER)
+	var where := _label("GULL HARBOR, THE FISH PIER", 44, Kit.PAPER, HORIZONTAL_ALIGNMENT_LEFT, 700)
 	where.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(where)
 	top.add_child(_label("DAY %d OF %d    BANK $%s" % [int(hold.get("day")), FishHold.DAYS,
-			_money(int(hold.get("bank")))], BODY, CREAM))
+			_money(int(hold.get("bank")))], BODY, Kit.PAPER))
 	var sold: Dictionary = hold.get("sale")
 	var verdict := str(sold.get("verdict", ""))
 	if verdict == "lost":
 		_dock.add_child(_label("THE BANK TOOK THE BOAT. A NEW RUN: THE SKIFF AND $%s" % _money(FishHold.START_CASH),
-				BODY, BAD))
+				BODY, Kit.ORANGE))
 	elif verdict == "met":
 		_dock.add_child(_label("BOAT PAYMENT MADE! THE NEXT: $%s IN %d DAYS" % [_money(int(sold["next"])),
-				FishHold.DAYS], BODY, GOOD))
+				FishHold.DAYS], BODY, Kit.YELLOW))
 	var cols := HBoxContainer.new()
-	cols.add_theme_constant_override("separation", 14)
+	cols.add_theme_constant_override("separation", roundi(28.0 * _px()))
 	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_dock.add_child(cols)
 	var left := VBoxContainer.new()
-	left.custom_minimum_size = Vector2(380, 0)
-	left.add_theme_constant_override("separation", 12)
+	left.custom_minimum_size = Vector2(480.0 * _px(), 0)
+	left.add_theme_constant_override("separation", roundi(14.0 * _px()))
 	cols.add_child(left)
 	var right := VBoxContainer.new()
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right.add_theme_constant_override("separation", 12)
+	right.add_theme_constant_override("separation", roundi(14.0 * _px()))
 	cols.add_child(right)
 	# the quota: a bar, and what's left by when
 	var quota := int(hold.get("quota"))
 	var earned := int(hold.get("earned"))
 	var q := _section(left, str(hold.call("due_text")))
-	q.add_child(_label("$%s OF $%s" % [_money(earned), _money(quota)], BIG, GOOD if earned >= quota else CREAM))
-	var bar := ProgressBar.new()
-	bar.max_value = maxf(quota, 1)
-	bar.value = minf(earned, quota)
-	bar.show_percentage = false
-	bar.custom_minimum_size = Vector2(0, 14)
-	var fill := StyleBoxFlat.new()
-	fill.bg_color = GOOD if earned >= quota else AMBER
-	bar.add_theme_stylebox_override("fill", fill)
-	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0.16, 0.19, 0.22)          # (empty, it's still a bar: what's to fill)
-	bar.add_theme_stylebox_override("background", bg)
-	q.add_child(bar)
+	q.add_child(_label("$%s OF $%s" % [_money(earned), _money(quota)], BIG, Kit.YELLOW if earned >= quota else Kit.PAPER))
+	q.add_child(_ruler(float(earned) / maxf(quota, 1), Kit.YELLOW if earned >= quota else Kit.PAPER))
 	q.add_child(_label("PAID: SHE'S YOURS TILL THE NEXT ONE" if earned >= quota else "$%s MORE, OR THE BANK TAKES HER"
 			% _money(quota - earned), SMALL, DIM))
 	# the last trip's slip
@@ -452,9 +508,9 @@ func _fill_board(hold: Node, docked: bool) -> void:
 	else:
 		var lines: Array = sold.get("lines", [])
 		if bool(sold.get("late", false)):
-			slip.add_child(_label("TOWED IN LATE: THE CANNERY PAID HALF", SMALL, BAD))
+			slip.add_child(_label("TOWED IN LATE: THE CANNERY PAID HALF", SMALL, Kit.ORANGE))
 		if bool(sold.get("abandoned", false)):
-			slip.add_child(_label("LEFT HER OUT THERE: THE DAY'S GONE", SMALL, BAD))
+			slip.add_child(_label("LEFT HER OUT THERE: THE DAY'S GONE", SMALL, Kit.ORANGE))
 		if lines.is_empty():
 			slip.add_child(_label("NO FISH", BODY, DIM))
 		for l: Array in lines.slice(0, 5):
@@ -464,39 +520,40 @@ func _fill_board(hold: Node, docked: bool) -> void:
 		if lines.size() > 5:
 			slip.add_child(_label("AND %d MORE" % (lines.size() - 5), SMALL, DIM))
 		for c: Array in sold.get("costs", []):
-			slip.add_child(_row(str(c[0]).to_upper(), "-$" + _money(int(c[1])), BAD))
+			slip.add_child(_row(str(c[0]).to_upper(), "-$" + _money(int(c[1])), Kit.ORANGE))
 		var total := int(sold.get("total", 0))
-		slip.add_child(_row("THE TRIP", ("$" if total >= 0 else "-$") + _money(absi(total)), GOOD if total > 0 else BAD,
+		slip.add_child(_row("THE TRIP", ("$" if total >= 0 else "-$") + _money(absi(total)), Kit.YELLOW if total > 0 else Kit.ORANGE,
 				BODY))
 	# the boats, side by side
 	var bank := int(hold.get("bank"))
 	var owned: Array = hold.get("owned")
 	var picked := str(hold.get("kind"))
 	var boats := HBoxContainer.new()
-	boats.add_theme_constant_override("separation", 12)
+	boats.add_theme_constant_override("separation", roundi(28.0 * _px()))
 	right.add_child(boats)
 	for k: String in Kinds.KINDS:
 		var spec: Dictionary = Kinds.KINDS[k]
-		var b := _section(boats, "TAKING HER" if k == picked else "")
-		(b.get_parent() as Control).size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		b.add_child(_label(str(spec["name"]).trim_prefix("the ").to_upper(), BODY, AMBER if k == picked else CREAM))
+		var b := _section(boats, "TAKING HER" if k == picked else " ")        # (a blank heading keeps the rules level)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.add_child(_label(str(spec["name"]).trim_prefix("the ").to_upper(), BODY, Kit.YELLOW if k == picked else Kit.PAPER))
 		var short := _label(str(spec["blurb"]).split(". ")[0].split(": ")[0].to_upper(), SMALL, DIM)
 		short.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		short.custom_minimum_size = Vector2(240, 0)
+		short.custom_minimum_size = Vector2(240.0 * _px(), 0)
 		b.add_child(short)
 		b.add_child(_label("%d RODS   FUEL $%s A TRIP   PAYMENT $%s" % [(spec["rods"] as Array).size(),
 				_money(int(spec["fuel"])), _money(int(spec.get("payment", 0)))],
 				SMALL, DIM))
+		b.add_child(_gap())
 		if owned.has(k):
-			var take := _button("TAKING HER" if k == picked else "TAKE HER", func() -> void: hold.call("pick", k))
+			var take := _button("TAKING HER" if k == picked else "TAKE HER", func() -> void: hold.call("pick", k), false, true)
 			take.disabled = not skipper or k == picked
 			b.add_child(take)
 		else:
-			var buy := _button("BUY HER: $%s" % _money(int(spec["price"])), func() -> void: hold.call("buy", k))
+			var buy := _button("BUY HER: $%s" % _money(int(spec["price"])), func() -> void: hold.call("buy", k), false, true)
 			buy.disabled = not skipper or bank < int(spec["price"])
 			b.add_child(buy)
 			var hire := _button("CHARTERED" if k == picked else "CHARTER: $%s A DAY" % _money(FishHold.CHARTER),
-					func() -> void: hold.call("pick", k))
+					func() -> void: hold.call("pick", k), false, true)
 			hire.disabled = not skipper or k == picked
 			b.add_child(hire)
 	# the chandlery
@@ -506,43 +563,43 @@ func _fill_board(hold: Node, docked: bool) -> void:
 		var item: Dictionary = FishHold.GEAR[g]
 		var line := HBoxContainer.new()
 		var what := _label(str(item["name"]).to_upper() + ": " + str(item["blurb"]).split(". ")[0].split(":")[0]
-				.to_upper(), SMALL, CREAM)
+				.to_upper(), SMALL, Kit.PAPER)
 		what.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		what.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		line.add_child(what)
 		if gear.has(g):
-			line.add_child(_label("ABOARD", SMALL, GOOD))
+			line.add_child(_label("ABOARD", SMALL, Kit.YELLOW))
 		else:
-			var buy := _button("$%s" % _money(int(item["price"])), func() -> void: hold.call("buy", g))
-			buy.custom_minimum_size = Vector2(110, 30)
+			var buy := _button("$%s" % _money(int(item["price"])), func() -> void: hold.call("buy", g), false, true)
+			buy.custom_minimum_size = Vector2(110.0 * _px(), 0)
 			buy.disabled = not skipper or bank < int(item["price"])
 			line.add_child(buy)
 		shop.add_child(line)
 	# the bait: not for sale. Every boat's well goes out with a few live mackerel; tuna take nothing else
 	var well := HBoxContainer.new()
 	var says := _label("LIVE BAIT ONLY, NO LURES: A MACKEREL ON EVERY HOOK, %d IN THE WELL. JIG MORE: THE JIG ROD (3)"
-			% FishHold.WELL_START, SMALL, CREAM)
+			% FishHold.WELL_START, SMALL, Kit.PAPER)
 	says.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	says.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	well.add_child(says)
-	well.add_child(_label("ABOARD", SMALL, GOOD))
+	well.add_child(_label("ABOARD", SMALL, Kit.YELLOW))
 	shop.add_child(well)
 	# the way out
 	# the way out: by hand, her lines let go (no button for it); and the dock prep, the skipper's to change
 	var prep := str(hold.get("prep"))
 	var way := HBoxContainer.new()
-	way.add_theme_constant_override("separation", 12)
+	way.add_theme_constant_override("separation", roundi(24.0 * _px()))
 	way.alignment = BoxContainer.ALIGNMENT_CENTER
 	_dock.add_child(way)
-	way.add_child(_label("TO CAST OFF, LET GO HER BOW AND STERN LINES (E AT HER CLEATS) AND TAKE HER OUT", BODY, CREAM,
+	way.add_child(_label("TO CAST OFF, LET GO HER BOW AND STERN LINES (E AT HER CLEATS) AND TAKE HER OUT", BODY, Kit.PAPER,
 			HORIZONTAL_ALIGNMENT_CENTER))
-	var prep_b := _button("DOCK PREP: %s" % prep.to_upper(), func() -> void: Settings.next_prep("career"))
+	var prep_b := _button("DOCK PREP: %s" % prep.to_upper(), func() -> void: Settings.next_prep("career"), false, true)
 	prep_b.disabled = not skipper
 	way.add_child(prep_b)
 	_dock.add_child(_button("BACK", func() -> void: _boarding = false, true))
 	var links := HBoxContainer.new()
 	links.alignment = BoxContainer.ALIGNMENT_CENTER
-	links.add_theme_constant_override("separation", 10)
+	links.add_theme_constant_override("separation", roundi(10.0 * _px()))
 	_dock.add_child(links)
 	links.add_child(_button("THE OWNER'S MANUAL", func() -> void: _reading = true))
 	links.add_child(_button("SETTINGS", open_settings))
@@ -554,8 +611,8 @@ func _fill_board(hold: Node, docked: bool) -> void:
 				hold.call("new_career")
 			_wipe = not _wipe)
 		if _wipe:
-			wipe.add_theme_color_override("font_color", BAD)
-			wipe.add_theme_color_override("font_hover_color", BAD)
+			wipe.add_theme_color_override("font_color", Kit.ORANGE)
+			wipe.add_theme_color_override("font_hover_color", Kit.ORANGE)
 		links.add_child(wipe)
 	links.add_child(_button("BACK TO THE TITLE", _to_title))
 	links.add_child(_button("QUIT THE GAME", func() -> void: get_tree().quit()))
@@ -570,13 +627,13 @@ func _why(reasons: Array) -> HBoxContainer:
 	r.add_theme_constant_override("separation", 10)
 	r.add_child(_label(" ", SMALL, DIM))
 	for w: Array in reasons.slice(0, 3):
-		r.add_child(_label(str(w[0]), SMALL, GOOD if bool(w[1]) else BAD))
+		r.add_child(_label(str(w[0]), SMALL, Kit.YELLOW if bool(w[1]) else Kit.ORANGE))
 	return r
 
 
-func _row(what: String, money: String, col := CREAM, size := SMALL) -> HBoxContainer:
+func _row(what: String, money: String, col := Kit.PAPER, size := SMALL) -> HBoxContainer:
 	var r := HBoxContainer.new()
-	var a := _label(what, size, CREAM)
+	var a := _label(what, size, Kit.PAPER)
 	a.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	r.add_child(a)
 	r.add_child(_label(money, size, col))

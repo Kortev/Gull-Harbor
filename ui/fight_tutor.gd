@@ -14,16 +14,11 @@ const Fight := preload("res://tuna/fight.gd")
 const Sfx := preload("res://audio/sfx.gd")
 const Pad := preload("res://core/pad.gd")
 const SAVE := "user://bluefin_tutor.cfg"
-const GREEN := Color(0.45, 0.95, 0.55)
-const AMBER := Color(1.0, 0.75, 0.3)
-const RED := Color(1.0, 0.3, 0.25)
-const PALE := Color(0.95, 0.93, 0.86)
-const DIM := Color(0.62, 0.66, 0.68)
-const INK := Color(0.02, 0.03, 0.05, 0.86)
-const U := 3.0                        # px a pixel of the drawn mouse and keys
+const Kit := preload("res://ui/kit.gd")
 ## (The fight's lessons: none any more. Kept so a save from before reads.)
 const ORDER: Array[String] = []
 
+var kit := Kit.new()
 var rods: Node                # rods/rods.gd
 var sea: Node                 # sea/sea.gd
 ## Whether it teaches at all (real play; a test or --tutor turns it on), and whether what's taught is saved.
@@ -222,127 +217,73 @@ func _unhold() -> void:
 
 # ------------------------------------------------------------------ drawn
 
+func _c(col: Color, a: float) -> Color:
+	return Color(col, col.a * a)
+
+
+## The card, straight over the world (nothing behind it): the title in heavy numerals over a heavy rule, the step
+## beside the button to use.
 func _draw() -> void:
 	if _a <= 0.01 or _id == "":
 		return
-	var font := get_theme_default_font()
+	var p := clampf(size.y / 1080.0, 0.7, 2.5)
+	kit.px = p
 	var a := _a
-	var head := ""
-	var tag := ""
-	var doing: Array = []
-	var why := ""
-	var steps := 1
-	head = "HE'S ALONGSIDE! LAND HIM" if _phase == "do" else "HE'S ABOARD!"
-	tag = "FIRST FISH: HE'LL HOLD ON THE HOOK TILL YOU'RE DONE"
-	doing = _land_do
-	why = "SPIKE HIM, BLEED HIM, ICE HIM. QUICK.\nA CLEAN, COLD FISH PAYS DOUBLE."
-	# the card's lines, and how wide the widest is
-	var lines := [[tag, 12, DIM], [head, 24, AMBER]]
-	var w := 0.0
-	var why_lines := why.split("\n") if _phase == "why" else PackedStringArray()
-	for s: String in why_lines:
-		w = maxf(w, font.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x)
-	for ln: Array in lines:
-		w = maxf(w, font.get_string_size(str(ln[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, int(ln[1])).x)
-	var icon_w := 22.0 * U
-	if _phase == "do" and not doing.is_empty():
-		w = maxf(w, icon_w + font.get_string_size(str(doing[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x)
-	w = roundf(w + 48.0)
-	var h := 30.0 + 42.0 + (24.0 * U if _phase == "do" else 24.0 + why_lines.size() * 30.0 + 30.0) + 18.0
-	var at := Vector2(roundf((size.x - w) * 0.5), roundf(size.y * 0.2))
-	draw_rect(Rect2(at, Vector2(w, h)), Color(INK, INK.a * a))
-	draw_rect(Rect2(at, Vector2(w, 6)), Color(AMBER, 0.9 * a))
-	var y := at.y + 30.0
-	_line(font, at.x + 24.0, y, tag, 12, Color(DIM, a))
-	y += 36.0
-	_line(font, at.x + 24.0, y, head, 24, Color(AMBER, a))
-	y += 18.0
-	if _phase == "do" and not doing.is_empty():
-		# the picture, and what to do beside it
-		var pulse := 0.7 + 0.3 * sin(_t * 7.0)
-		_draw_icon(Vector2(at.x + 24.0, y + 2.0 * U), str(doing[1]), a, pulse)
-		var col := GREEN if _good > 0.0 else PALE
-		_line(font, at.x + 24.0 + icon_w, y + 12.0 * U, str(doing[0]), 18, Color(col, a))
-		if steps > 1:
-			_line(font, at.x + 24.0 + icon_w, y + 12.0 * U + 30.0, "STEP %d OF %d" % [_step + 1, steps], 12,
-					Color(DIM, a))
+	var cx := roundf(size.x * 0.5)
+	var y := roundf(size.y * 0.2)
+	var head := "HE'S ALONGSIDE! LAND HIM" if _phase == "do" else "HE'S ABOARD!"
+	var tag := "FIRST FISH: HE'LL HOLD ON THE HOOK TILL YOU'RE DONE"
+	kit.label(self, Vector2(cx, y), Settings.say(tag), 15.0 * p, _c(Kit.PAPER, 0.6 * a))
+	y += 46.0 * p
+	var hw := kit.num(self, Vector2(cx, y), head, 44.0 * p, _c(Kit.YELLOW, a))
+	y += 30.0 * p
+	kit.rule(self, Vector2(cx - hw * 0.5, y), Vector2(cx + hw * 0.5, y), _c(Kit.PAPER, a), true)
+	kit.scale(self, Vector2(cx - hw * 0.5, y + 4.0 * p), Vector2(cx - hw * 0.5 + hw * 0.3, y + 4.0 * p), 6, 3,
+			_c(Kit.PAPER, a), 1.0, 6.0 * p, 11.0 * p, false)
+	y += 58.0 * p
+	if _phase == "do" and not _land_do.is_empty():
+		# the button, and what to do beside it
+		var said := Settings.say(str(_land_do[0]))
+		var fs := 28.0 * p
+		var tw := kit.text_w(said, fs, 600, fs * 0.06)
+		var icon_w := 84.0 * p
+		var left := roundf(cx - (icon_w + tw) * 0.5)
+		_draw_icon(Vector2(left + icon_w * 0.4, y + 6.0 * p), str(_land_do[1]), a)
+		kit.text(self, Vector2(left + icon_w, y), said, fs, _c(Kit.YELLOW if _good > 0.0 else Kit.PAPER, a), -1, 600, fs * 0.06)
 		if _good > 0.0:
-			_line(font, at.x + w - 24.0 - font.get_string_size("GOOD!", HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x,
-					at.y + 66.0, "GOOD!", 18, Color(GREEN, a))
+			kit.label(self, Vector2(cx, y + 84.0 * p), "GOOD!", 20.0 * p, _c(Kit.YELLOW, a))
 	elif _phase == "why":
-		y += 24.0
-		_line(font, at.x + 24.0, y, "GOOD!", 18, Color(GREEN, a))
-		for s: String in why_lines:
-			y += 30.0
-			_line(font, at.x + 24.0, y, s, 18, Color(PALE, a))
-		y += 36.0
+		kit.num(self, Vector2(cx, y), "GOOD!", 30.0 * p, _c(Kit.YELLOW, a))
+		for s: String in "SPIKE HIM, BLEED HIM, ICE HIM. QUICK.\nA CLEAN, COLD FISH PAYS DOUBLE.".split("\n"):
+			y += 40.0 * p
+			kit.text(self, Vector2(cx, y), s, 28.0 * p, _c(Kit.PAPER, a), 0, 600, 28.0 * p * 0.06)
+		y += 56.0 * p
 		var ready := _phase_t >= 0.6
-		var blink := 1.0 if fmod(_t, 1.0) < 0.6 else 0.45
-		var next := Settings.say("SPACE OR CLICK: GO ON")
-		var nw := font.get_string_size(next, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
-		_line(font, at.x + w - 24.0 - nw, y, next, 12, Color(AMBER, (blink if ready else 0.25) * a))
+		var on := fmod(_t, 1.0) < 0.6
+		kit.label(self, Vector2(cx, y), Settings.say("SPACE OR CLICK: GO ON"), 18.0 * p,
+				_c(Kit.YELLOW, (1.0 if on else 0.5) * a if ready else 0.3 * a))
 
 
-func _line(font: Font, x: float, y: float, text: String, px: int, col: Color) -> void:
-	draw_string(font, Vector2(roundf(x), roundf(y)), Settings.say(text), HORIZONTAL_ALIGNMENT_LEFT, -1, px, col)
-
-
-## The button to use, drawn in whole pixels: a mouse with the button that matters lit (and which way to move it), or
-## a key. With the pad in your hands, its button on a key cap (the left mouse its RT, the right its LT).
-func _draw_icon(at: Vector2, kind: String, a: float, pulse: float) -> void:
-	var o := at.floor()
-	var line := Color(PALE, 0.8 * a)
-	var lit := Color(GREEN, pulse * a)
-	if Settings.pad and kind != "none":
-		kind = "key:" + {"left": "RT", "left_down": "RT", "right": "LT", "wheel_down": "LB"}.get(kind,
-				Pad.cap(kind.substr(4), true) if kind.begins_with("key:") else kind)
+## The button to use, from the kit: the mouse with the button that matters solid (HOLD), or a key cap (its letter in
+## yellow), or crossed out for hands off. With the pad in your hands, its button (the left mouse its RT, the right its LT).
+func _draw_icon(at: Vector2, kind: String, a: float) -> void:
+	var p := kit.px
+	var pad := Settings.pad
 	if kind.begins_with("key:"):
-		_px(o, Vector2(0, 2), Vector2(11, 11), Color(INK, a))
-		_box(o + Vector2(0, 2) * U, Vector2(11, 11), line)
-		_px(o, Vector2(1, 12), Vector2(10, 1), Color(PALE, 0.4 * a))
-		var font := get_theme_default_font()
-		draw_string(font, o + Vector2(4, 10) * U, kind.substr(4), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, lit)
+		var k := kind.substr(4)
+		if pad:
+			k = Pad.cap(k, true)
+		var w := maxf(44.0 * p, kit.text_w(k, 26.0 * p, 700) + 18.0 * p)
+		var r := Rect2(at - Vector2(w * 0.5, 22.0 * p), Vector2(w, 44.0 * p))
+		kit.corners(self, r, 12.0 * p, _c(Kit.PAPER, a))
+		kit.num(self, at, k, 28.0 * p, _c(Kit.YELLOW, a))
 		return
-	# the mouse: a body 10 x 14, its two buttons over the top, the wheel between
-	_box(o, Vector2(10, 16), line)
-	_px(o, Vector2(5, 1), Vector2(0.34, 6), line)
-	_px(o, Vector2(1, 6), Vector2(8, 0.34), line)
-	var left := [Vector2(1, 1), Vector2(4, 5)]
-	var right := [Vector2(5.34, 1), Vector2(3.66, 5)]
 	match kind:
 		"left", "left_down":
-			_px(o, left[0], left[1], lit)
+			kit.button(self, at, 64.0 * p, 0, Kit.HOLD, _t, false, pad, a)
 		"right":
-			_px(o, right[0], right[1], lit)
+			kit.button(self, at, 64.0 * p, 1, Kit.HOLD, _t, false, pad, a)
 		"wheel_down":
-			_px(o, Vector2(4.34, 1.5), Vector2(1.34, 3), lit)
+			kit.button(self, at, 64.0 * p, 0, Kit.TAP, _t, false, pad, a)
 		"none":
-			# hands off: both buttons crossed out
-			for k in 9:
-				_px(o, Vector2(0.5 + k, 0.5 + k * 0.6), Vector2(1, 1), Color(AMBER, pulse * a))
-				_px(o, Vector2(8.5 - k, 0.5 + k * 0.6), Vector2(1, 1), Color(AMBER, pulse * a))
-	# which way: the rod up (lift), the mouse or the wheel down
-	if kind == "right":
-		_arrow(o + Vector2(13, 1) * U, -1.0, Color(AMBER, pulse * a))
-	elif kind in ["left_down", "down", "wheel_down"]:
-		_arrow(o + Vector2(13, 1) * U, 1.0, Color(AMBER, pulse * a))
-
-
-## A rectangle in mouse pixels from `o`.
-func _px(o: Vector2, p: Vector2, s: Vector2, col: Color) -> void:
-	draw_rect(Rect2((o + p * U).round(), (s * U).round().max(Vector2.ONE)), col)
-
-
-## A one-pixel outline, `s` mouse pixels.
-func _box(o: Vector2, s: Vector2, col: Color) -> void:
-	_px(o, Vector2(0, 0), Vector2(s.x, 1), col)
-	_px(o, Vector2(0, s.y - 1), Vector2(s.x, 1), col)
-	_px(o, Vector2(0, 0), Vector2(1, s.y), col)
-	_px(o, Vector2(s.x - 1, 0), Vector2(1, s.y), col)
-
-
-## An arrow 5 wide and 12 tall, pointing down (`way` 1) or up (-1).
-func _arrow(o: Vector2, way: float, col: Color) -> void:
-	_px(o, Vector2(2, 0 if way > 0.0 else 3), Vector2(1, 9), col)
-	for k in 3:
-		_px(o, Vector2(k, 9.0 + k if way > 0.0 else 2.0 - k), Vector2(5 - 2 * k, 1), col)
+			kit.button(self, at, 64.0 * p, 0, Kit.OFF, _t, false, pad, a)

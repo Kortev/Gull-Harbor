@@ -22,16 +22,7 @@ const Kit := preload("res://ui/kit.gd")
 const GREEN := Color(0.45, 0.95, 0.55)
 const AMBER := Color(1.0, 0.75, 0.3)
 const RED := Color(1.0, 0.3, 0.25)
-const INK := Color(0.02, 0.03, 0.05, 0.82)
 const PALE := Color(0.95, 0.93, 0.86)
-const DIM := Color(0.62, 0.66, 0.68)
-const LINE := Color(0.78, 0.84, 0.7)
-const BACKING := Color(0.97, 0.97, 0.95)
-const METAL := Color(0.55, 0.57, 0.6)
-const U := 2.0                        # px a pixel of the reel and the key caps
-## The reel's plate (px) and its margin off the screen's corner.
-const PLATE := Vector2(348, 196)
-const EDGE := 24.0
 
 ## (kept for rods.gd: nothing teaches over the fight with a card)
 var teaching := false
@@ -207,247 +198,213 @@ func _draw() -> void:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(1.0, 0.97, 0.9, 0.35 * _flash))
 	_draw_marks()
 	if _a > 0.01:
-		var at := (size - PLATE - Vector2(EDGE, EDGE)).floor()
-		_draw_plate(at, _a)
-		_draw_caps(at + Vector2(0, -50), _a * coach.caps_a)
+		kit.px = _kpx()
+		kit.defer = true
+		_draw_reel(_a)
+		_draw_caps(_a * coach.caps_a)
+		kit.flush()
+		kit.defer = false
 		_draw_coach(_a)
 	if _banner > 0.0:
 		_draw_banner()
 
 
-# ------------------------------------------------------------------ the reel's plate
-
-func _draw_plate(at: Vector2, a: float) -> void:
-	var font := get_theme_default_font()
-	var lit := 1.0 - smoothstep(0.6, 1.4, _lever_t)
-	var empty := _spool > 0.85
-	var blink := (0.55 + 0.45 * sin(_t * 9.0)) if empty else 1.0
-	draw_rect(Rect2(at, PLATE), Color(INK, INK.a * a))
-	var edge := RED if empty else (AMBER if lit > 0.0 else Color(PALE, 0.25))
-	_frame(Rect2(at, PLATE), Color(edge, a * (blink if empty else maxf(lit, 0.6))))
-	# the top line: which rod, and him in a word
-	_text(font, at + Vector2(12, 24), "ROD %d" % int(_s.get("rod", 1)), 12, Color(DIM, a))
-	var word := coach.word
-	var wcol := _tone_col(coach.word_tone)
-	var ww := _w(font, word, 24)
-	var flick := 1.0 if coach.word != "RUNNING" or fmod(_t, 0.5) < 0.35 else 0.6
-	if _lift_flash > 0.0:
-		# (his tired moment: a green plate flares behind the word)
-		draw_rect(Rect2(at + Vector2(PLATE.x - 18 - ww, 4), Vector2(ww + 12, 34)), Color(GREEN, 0.35 * _lift_flash * a))
-	_text(font, at + Vector2(PLATE.x - 12 - ww, 30), word, 24, Color(wcol, a * flick))
-	# the reel: its side plate, the spool on it, the drag lever on its quadrant
-	var c := (at + Vector2(66, 116)).floor()
-	_ring(c, 21.0, 22.0, Color(METAL, a * 0.9))
-	var fill := clampf(1.0 - _spool, 0.0, 1.0)
-	var arbor := 7.0
-	var full := 20.0
-	var top := arbor + (full - arbor) * fill
-	var back_top := arbor + (full - arbor) * 0.5          # (the backing's the lower half of the spool)
-	_ring(c, arbor, minf(top, back_top), Color(BACKING, a))
-	if top > back_top:
-		_ring(c, back_top, top, Color(LINE, a))
-	_disc(c, arbor, Color(METAL.lightened(0.15), a))
-	var spin := float(_s.get("spin", 0.0))
-	for k in 3:
-		var ang := spin + TAU * k / 3.0
-		var p := (c + Vector2(cos(ang), sin(ang)) * (arbor - 2.0) * U).floor()
-		draw_rect(Rect2(p - Vector2(U, U), Vector2(U * 2.0, U * 2.0)), Color(INK, a * 0.8))
-	var mark := c + Vector2(cos(spin), sin(spin)) * (top - 1.0) * U
-	draw_rect(Rect2(mark.floor() - Vector2(U, U), Vector2(U * 2.0, U * 2.0)), Color(0.4, 0.45, 0.4, a))
-	for k in 11:
-		var lv := k / 10.0
-		var p := (c + Vector2(cos(_lever_ang(lv)), sin(_lever_ang(lv))) * 27.0 * U).floor()
-		var strike := absf(lv - Fight.STRIKE_DRAG) < 0.01
-		var col := AMBER if strike else Color(PALE, 0.55)
-		draw_rect(Rect2(p - Vector2(U, U), Vector2(U * (3.0 if strike else 2.0), U * (3.0 if strike else 2.0))),
-				Color(col, a))
-	var la := _lever_ang(_lever)
-	for k in range(int(arbor) + 2, 26):
-		var p := (c + Vector2(cos(la), sin(la)) * float(k) * U).floor()
-		draw_rect(Rect2(p, Vector2(U, U)), Color(METAL.lightened(0.25), a))
-	var knob := (c + Vector2(cos(la), sin(la)) * 25.0 * U).floor()
-	draw_rect(Rect2(knob - Vector2(U * 2.0, U * 2.0), Vector2(U * 4.0, U * 4.0)), Color(0.85, 0.15, 0.1, a))
-	# the quadrant's three marks, named
-	var on := func(lv: float) -> float: return 1.0 if absf(_lever - lv) < 0.05 else 0.5
-	_text(font, c + Vector2(cos(_lever_ang(1.0)), sin(_lever_ang(1.0))) * 27.0 * U + Vector2(6, 2), "FULL", 12,
-			Color(PALE, on.call(1.0) * a))
-	_text(font, c + Vector2(27.0 * U + 8, 2 + sin(_lever_ang(Fight.STRIKE_DRAG)) * 27.0 * U), "STRIKE", 12,
-			Color(AMBER, on.call(Fight.STRIKE_DRAG) * a))
-	_text(font, c + Vector2(cos(_lever_ang(0.0)), sin(_lever_ang(0.0))) * 27.0 * U + Vector2(6, 10), "FREE", 12,
-			Color(PALE, on.call(0.0) * a))
-	# the line left and the bend, as bars
-	var bx := at.x + 196.0
-	var bw := PLATE.x - 196.0 - 14.0
-	var left_m := maxf(Fight.CAPACITY * (1.0 - _spool), 0.0)
-	var lcol := GREEN if _spool < 0.5 else (AMBER if _spool < 0.8 else RED)
-	_text(font, Vector2(bx, at.y + 66), "LINE LEFT", 12, Color(DIM, a))
-	_bar(Rect2(bx, at.y + 72, bw, 10), clampf(1.0 - _spool, 0.0, 1.0), Color(lcol, a * (blink if empty else 1.0)), a)
-	_text(font, Vector2(bx, at.y + 100), "%d M" % roundi(left_m), 12, Color(PALE, a))
-	var bend := clampf(_bend, 0.0, 1.0)
-	var danger := float(_s.get("danger", 0.0))
-	var bcol := Color(PALE, 0.8).lerp(AMBER, smoothstep(0.35, 0.6, bend)).lerp(RED, danger)
-	_text(font, Vector2(bx, at.y + 126), "BEND", 12, Color(DIM, a))
-	_bar(Rect2(bx, at.y + 132, bw, 10), pow(bend, 0.6), Color(bcol, a), a)      # (a light bend still shows)
-	# (where it parts: the bar's end, marked red)
-	draw_rect(Rect2(bx + bw - 4.0, at.y + 128, 4.0, 18.0), Color(RED, a * 0.9))
-	var feel := "ON - LIGHT" if bend < 0.12 else ("ON - TIGHT" if danger < 0.3 else "ABOUT TO PART!")
-	if coach.word == "SLACK":
-		feel = "SLACK! WIND!"
-	_text(font, Vector2(bx, at.y + 160), feel, 12,
-			Color(RED if danger >= 0.3 or feel == "SLACK!" else PALE, a))
-	# the drag: what this notch does, a moment after it moves
-	if coach.drag_t < 2.5:
-		var k := clampf(2.5 - coach.drag_t, 0.0, 1.0) * a
-		var note := "DRAG %d/10: %s" % [roundi(_lever * 10.0), coach.drag_note]
-		_plate_text(Vector2(at.x + PLATE.x - _w(font, note, 12) - 12, at.y - 66), note, 12, Color(AMBER, k), k)
+## `col` faded by `a`.
+static func _c(col: Color, a: float) -> Color:
+	return Color(col, col.a * a)
 
 
-## A bar `k` full in `r`, on a dark ground.
-func _bar(r: Rect2, k: float, col: Color, a: float) -> void:
-	draw_rect(r, Color(0.0, 0.0, 0.0, 0.5 * a))
-	draw_rect(Rect2(r.position, Vector2(roundf(r.size.x * clampf(k, 0.0, 1.0)), r.size.y)), col)
-
-
-static func _tone_col(tone: String) -> Color:
+## The ink for a state's tone: orange when it's wrong, yellow when it's the moment to act, paper otherwise.
+static func _tone_ink(tone: String) -> Color:
 	match tone:
 		"bad":
-			return RED
+			return Kit.ORANGE
 		"do":
-			return GREEN
-	return AMBER
+			return Kit.YELLOW
+	return Kit.PAPER
 
 
-## Where the lever points at setting `lv` (rad: free down and to the right, full up and to the right).
-static func _lever_ang(lv: float) -> float:
-	return lerpf(1.05, -1.05, clampf(lv, 0.0, 1.0))
+## The reel's instruments, bottom right, straight over the world (no plate): who he is and what he's doing in a word,
+## the tension on a ruler (the good band hatched yellow, where the line parts hatched orange), the line out, the drag
+## setting on a ruler, and his stamina on a thin one.
+func _draw_reel(a: float) -> void:
+	var p := kit.px
+	var x1 := size.x - 40.0 * p
+	var x0 := x1 - 360.0 * p
+	var rx0 := x0 + 112.0 * p
+	var base := size.y - 140.0 * p                 # (the keys' row hangs under this)
+	var ls := 17.0 * p
+	var dim := _c(Kit.PAPER, 0.92 * a)
+	var empty := _spool > 0.85
+	# the top line: which rod, and him in a word
+	var hy := base - 214.0 * p
+	kit.label(self, Vector2(x0, hy), "ROD %d" % int(_s.get("rod", 1)), ls, dim, -1)
+	var big := 24.0 * p * (1.25 if _lift_flash > 0.5 else 1.0)
+	var wcol := Kit.YELLOW if _lift_flash > 0.5 else _tone_ink(coach.word_tone)
+	kit.label(self, Vector2(x1, hy), coach.word, big, _c(wcol, a), 1)
+	if coach.drag_t < 2.5:
+		# the drag: what this notch does, a moment after it moves
+		var note := Settings.say("DRAG %d/10: %s" % [roundi(_lever * 10.0), coach.drag_note])
+		kit.label(self, Vector2(x1, hy - 30.0 * p), note, ls, _c(Kit.YELLOW, a * clampf((2.5 - coach.drag_t) * 2.0, 0.0, 1.0)), 1)
+	# the tension: a ruler, the good band yellow and the end where it parts orange, a solid triangle on the value
+	var ty := base - 168.0 * p
+	var bend := clampf(_bend, 0.0, 1.0)
+	var danger := float(_s.get("danger", 0.0))
+	var span := x1 - rx0
+	var good_a := rx0 + span * pow(0.12, 0.6)          # (a light bend still shows: the bar's scale is eased)
+	var good_b := rx0 + span * pow(0.6, 0.6)
+	var in_good := bend >= 0.12 and bend < 0.6
+	var in_bad := bend >= 0.6
+	kit.label(self, Vector2(x0, ty - 6.0 * p), "TENSION", ls, dim, -1)
+	kit.scale(self, Vector2(rx0, ty), Vector2(x1, ty), 20, 5, _c(Kit.PAPER, a), 1.0, 6.0 * p, 12.0 * p)
+	var band := Rect2(good_a, ty - 22.0 * p, good_b - good_a, 16.0 * p)
+	kit.span(self, band, _c(Kit.YELLOW, a), in_good)
+	kit.hatch(self, band, _c(Kit.YELLOW, a), in_good, 8.0 * p)
+	var bad := Rect2(good_b, ty - 22.0 * p, x1 - good_b, 16.0 * p)
+	kit.span(self, bad, _c(Kit.ORANGE, a), in_bad)
+	kit.hatch(self, bad, _c(Kit.ORANGE, a), in_bad, 8.0 * p)
+	var vx := rx0 + span * pow(bend, 0.6)
+	kit.tri(self, Vector2(vx, ty + 15.0 * p), 16.0 * p, Vector2.UP,
+			_c(Kit.ORANGE if in_bad else (Kit.YELLOW if in_good else Kit.PAPER), a))
+	var feel := ""
+	if coach.word == "SLACK":
+		feel = "SLACK! WIND!"
+	elif danger >= 0.3:
+		feel = "ABOUT TO PART!"
+	if feel != "":
+		kit.label(self, Vector2(x0, ty + 14.0 * p), feel, ls, _c(Kit.ORANGE, a), -1)
+	# the line out, in metres
+	var ly := base - 116.0 * p
+	var out_m := maxf(float(_s.get("out", Fight.CAPACITY * _spool)), 0.0)
+	var lcol := Kit.ORANGE if empty and fmod(_t, 0.5) < 0.3 else Kit.PAPER
+	kit.label(self, Vector2(x0, ly), "LINE OUT", ls, dim, -1)
+	var lw := kit.num(self, Vector2(rx0, ly - 3.0 * p), str(roundi(out_m)), 36.0 * p, _c(lcol, a), -1)
+	kit.label(self, Vector2(rx0 + lw + 8.0 * p, ly + 2.0 * p), "M", 17.0 * p, _c(lcol, a), -1)
+	# the drag setting: a ruler of ten, the strike setting marked above it, a triangle on the lever
+	var dy := base - 78.0 * p
+	var moved := _lever_t < 1.0
+	kit.label(self, Vector2(x0, dy - 6.0 * p), "DRAG", ls, dim, -1)
+	kit.num(self, Vector2(x0, dy + 16.0 * p), str(roundi(_lever * 10.0)), 22.0 * p, _c(Kit.YELLOW if moved else Kit.PAPER, a), -1)
+	kit.scale(self, Vector2(rx0, dy), Vector2(x1, dy), 10, 5, _c(Kit.PAPER, a), 1.0, 6.0 * p, 12.0 * p)
+	kit.tri(self, Vector2(rx0 + span * Fight.STRIKE_DRAG, dy - 4.0 * p), 12.0 * p, Vector2.DOWN, _c(Kit.YELLOW, a), false)
+	kit.tri(self, Vector2(rx0 + span * clampf(_lever, 0.0, 1.0), dy + 15.0 * p), 16.0 * p, Vector2.UP,
+			_c(Kit.YELLOW if moved else Kit.PAPER, a))
+	# his stamina: a thin ruler, an orange marker (right is fresh, left is beaten)
+	var sy := base - 26.0 * p
+	var f: Fight = _s.get("fight")
+	var energy := clampf(f.energy if f != null else 1.0, 0.0, 1.0)
+	kit.label(self, Vector2(x0, sy), "FISH", ls, dim, -1)
+	kit.scale(self, Vector2(rx0, sy), Vector2(x1, sy), 20, 5, _c(Kit.PAPER, a * 0.8), 1.0, 4.0 * p, 8.0 * p)
+	kit.tri(self, Vector2(rx0 + span * energy, sy + 11.0 * p), 13.0 * p, Vector2.UP, _c(Kit.ORANGE, a))
 
 
 # ------------------------------------------------------------------ the keys
 
-## The three things you do with a fish on, as pixel key caps over the reel's plate: lift, wind, the drag; the one
-## the coach wants now lit and pulsing. The pad's buttons while it's the pad in your hands.
-func _draw_caps(at: Vector2, a: float) -> void:
+## The three things you do with a fish on, under the reel's instruments: lift, wind, the drag; the one the coach wants
+## now YELLOW and solid, the rest hollow. The pad's buttons while it's the pad in your hands.
+func _draw_caps(a: float) -> void:
 	if a <= 0.01:
 		return
-	var font := get_theme_default_font()
+	var p := kit.px
 	var want := coach.keys
-	var pulse := 0.65 + 0.35 * sin(_t * 8.0)
 	var pad := Settings.pad
-	var caps := [
-		["lift", "RS UP" if pad else "", "LIFT", "up"],
-		["wind", "RT" if pad else "", "WIND", "left"],
-		["drag", "LB/RB" if pad else "", "DRAG", "wheel"],
-	]
-	var x := at.x + PLATE.x
-	for ci in range(caps.size() - 1, -1, -1):
-		var cap: Array = caps[ci]
-		var id := str(cap[0])
-		var lit := want == id or (id == "drag" and want.begins_with("drag")) or (id == "lift" and want == "drop") 				or (id == "wind" and want == "wait")
-		var w := 112.0
-		x -= w + (6.0 if ci < caps.size() - 1 else 0.0)
-		var r := Rect2(Vector2(x, at.y), Vector2(w, 44))
-		draw_rect(r, Color(INK, INK.a * a))
-		_frame(r, Color(GREEN if lit else Color(PALE, 0.35), a * (pulse if lit else 1.0)))
-		var col := Color(GREEN if lit else PALE, a * (1.0 if lit else 0.7))
-		var icon := r.position + Vector2(8, 6)
-		if pad:
-			var k := str(cap[1])
-			var kw := _w(font, k, 12) + 8.0
-			draw_rect(Rect2(icon + Vector2(0, 6), Vector2(kw, 20)), Color(col, 0.18 * a))
-			_frame(Rect2(icon + Vector2(0, 6), Vector2(kw, 20)), col)
-			_text(font, icon + Vector2(4, 22), k, 12, col)
-			if id == "lift" and want == "drop":
-				_text(font, icon + Vector2(4, 22), "RS DN", 12, col)
-		else:
-			_mouse(icon, str(cap[3]), col, lit and want != "drop", want == "drop" and id == "lift",
-					want == "drag_down", want == "drag_up")
-		var label := str(cap[2])
+	var x1 := size.x - 40.0 * p
+	var x0 := x1 - 360.0 * p
+	var cy := size.y - 140.0 * p + 44.0 * p
+	for ci in 3:
+		var id: String = ["lift", "wind", "drag"][ci]
+		var lit := want == id or (id == "drag" and want.begins_with("drag")) or (id == "lift" and want == "drop") \
+				or (id == "wind" and want == "wait")
+		var cx := x0 + 360.0 * p * (ci + 0.5) / 3.0
+		var col := _c(Kit.YELLOW if lit else Kit.PAPER, a * (1.0 if lit else 0.9))
+		var name := id.to_upper()
 		if id == "lift" and want == "drop":
-			label = "DROP TIP"
-		elif id == "wind" and want == "none":
-			label = "HANDS OFF"
-			col = Color(AMBER, a * pulse)
+			name = "DROP TIP"
 		elif id == "lift" and want == "wait":
-			label = "WAIT..."
-		_text(font, Vector2(r.position.x + r.size.x - 6 - _w(font, label, 12), r.position.y + 28), label, 12, col)
-
-
-## A little pixel mouse at `o` (10 x 15 px of U): `kind` "up" (the arrow up beside it), "left" (its left button lit),
-## "wheel" (its wheel lit, the arrows up and down).
-func _mouse(o: Vector2, kind: String, col: Color, lit: bool, down: bool, wheel_down: bool, wheel_up: bool) -> void:
-	o = o.floor()
-	var line := Color(col, col.a)
-	_box(o, Vector2(9, 15), line)
-	_px(o, Vector2(4, 1), Vector2(1, 5), line)
-	_px(o, Vector2(1, 6), Vector2(7, 1), line)
-	match kind:
-		"left":
-			if lit:
-				_px(o, Vector2(1, 1), Vector2(3, 5), line)
-		"wheel":
-			_px(o, Vector2(4, 2), Vector2(1, 3), Color(AMBER, col.a) if lit else line)
-			_arrow(o + Vector2(11, 0) * U, -1.0, Color(line, line.a * (1.0 if wheel_up or not lit else 0.3)))
-			_arrow(o + Vector2(11, 8) * U, 1.0, Color(line, line.a * (1.0 if wheel_down or not lit else 0.3)))
-		"up":
-			_arrow(o + Vector2(11, 1) * U, 1.0 if down else -1.0, line)
-
-
-## A rectangle in key-cap pixels from `o`.
-func _px(o: Vector2, p: Vector2, s: Vector2, col: Color) -> void:
-	draw_rect(Rect2((o + p * U).round(), (s * U).round().max(Vector2.ONE)), col)
-
-
-## A one-pixel outline, `s` key-cap pixels.
-func _box(o: Vector2, s: Vector2, col: Color) -> void:
-	_px(o, Vector2(0, 0), Vector2(s.x, 1), col)
-	_px(o, Vector2(0, s.y - 1), Vector2(s.x, 1), col)
-	_px(o, Vector2(0, 0), Vector2(1, s.y), col)
-	_px(o, Vector2(s.x - 1, 0), Vector2(1, s.y), col)
-
-
-## An arrow 5 wide and 7 tall, pointing down (`way` 1) or up (-1).
-func _arrow(o: Vector2, way: float, col: Color) -> void:
-	_px(o, Vector2(2, 0 if way > 0.0 else 2), Vector2(1, 5), col)
-	for k in 3:
-		_px(o, Vector2(k, 4.0 + k if way > 0.0 else 2.0 - k), Vector2(5 - 2 * k, 1), col)
+			name = "WAIT..."
+		kit.label(self, Vector2(cx, size.y - 140.0 * p), name, 15.0 * p, col)
+		var under := ""
+		match id:
+			"lift":
+				var down := want == "drop"
+				var tip := Vector2(cx, cy + (22.0 if down else -22.0) * p)
+				kit.tri(self, tip, 26.0 * p, Vector2.DOWN if down else Vector2.UP, col, lit)
+				kit.rule(self, Vector2(cx, cy + (-2.0 if down else 2.0) * p), Vector2(cx, cy + (-22.0 if down else 22.0) * p), col, lit)
+				under = ("RS DN" if down else "RS UP") if pad else "MOUSE"
+			"wind":
+				var cue := Kit.HOLD if lit else (Kit.OFF if want == "none" else Kit.NONE)
+				kit.button(self, Vector2(cx, cy), 44.0 * p, 0, cue, _t, false, pad, a)
+				if want == "none":
+					kit.label(self, Vector2(cx, size.y - 140.0 * p), "WIND", 15.0 * p, _c(Kit.ORANGE, a))
+			"drag":
+				var up := want == "drag_up" or (lit and want == "drag")
+				var dn := want == "drag_down" or (lit and want == "drag")
+				kit.tri(self, Vector2(cx, cy - 24.0 * p), 18.0 * p, Vector2.UP, col, up)
+				kit.tri(self, Vector2(cx, cy + 24.0 * p), 18.0 * p, Vector2.DOWN, col, dn)
+				under = "LB / RB" if pad else "SCROLL"
+		if under != "":
+			kit.label(self, Vector2(cx, cy + 44.0 * p), under, 15.0 * p, _c(Kit.PAPER, 0.6 * a))
 
 
 # ------------------------------------------------------------------ what to do now
 
+## The line over the bottom of the screen: the words straight over the world, the key or button to press in yellow.
 func _draw_coach(a: float) -> void:
 	var k := coach.a * a
 	if coach.tone == "bad":
 		k = a
 	if k <= 0.01 or coach.say.is_empty():
 		return
-	var font := get_theme_default_font()
-	var col := _tone_col(coach.tone)
+	var p := kit.px
 	var one := _keys_said(coach.say)
 	var two := _keys_said(coach.then)
-	var px := 24
-	var gap := "  >  "
-	var w := _w(font, one, px) + (_w(font, gap + two, px) if not two.is_empty() else 0.0)
-	if w > size.x - 120.0:
-		px = 18
-		w = _w(font, one, px) + (_w(font, gap + two, px) if not two.is_empty() else 0.0)
-	var y := roundf(size.y * 0.66)
+	var fs := 26.0 * p
+	var gap := 34.0 * p
+	var w := _said_w(one, fs) + (gap + _said_w(two, fs) if not two.is_empty() else 0.0)
+	if w > size.x - 120.0 * p:
+		fs = 19.0 * p
+		w = _said_w(one, fs) + (gap + _said_w(two, fs) if not two.is_empty() else 0.0)
+	var y := roundf(size.y * 0.6)
 	var x := roundf((size.x - w) * 0.5)
-	if x + w + 16.0 > size.x - PLATE.x - EDGE - 8.0:
-		# (clear of the reel's plate: centred in what's left of the screen)
-		x = maxf(roundf((size.x - PLATE.x - EDGE - w) * 0.5), 24.0)
-	var pulse := 0.8 + 0.2 * sin(_t * 7.0)
-	draw_rect(Rect2(Vector2(x - 16.0, y - px - 12.0), Vector2(w + 32.0, px + 24.0)), Color(INK, INK.a * k))
-	draw_rect(Rect2(Vector2(x - 16.0, y - px - 12.0), Vector2(w + 32.0, 4.0)), Color(col, 0.9 * k))
+	var room := size.x - 400.0 * p - 40.0 * p - 24.0 * p
+	if x + w > room:
+		# (clear of the reel's instruments: centred in what's left of the screen)
+		x = maxf(roundf((room - w) * 0.5), 24.0 * p)
+	var base := Kit.ORANGE if coach.tone == "bad" else Kit.PAPER
 	if two.is_empty():
-		_text(font, Vector2(x, y), one, px, Color(col, k * pulse))
+		_said(x, y, one, fs, base, k)
 		return
 	# the pump's two halves: the one you're on lit, the other waiting
-	var lit := Color(AMBER if coach.keys == "wait" else GREEN, k * pulse)
-	var wait := Color(DIM, k * 0.6)
-	_text(font, Vector2(x, y), one, px, lit if coach.first else wait)
-	var x2 := x + _w(font, one, px)
-	_text(font, Vector2(x2, y), gap, px, Color(PALE, k * 0.5))
-	_text(font, Vector2(x2 + _w(font, gap, px), y), two, px, wait if coach.first else lit)
+	var wait := coach.keys == "wait"
+	var w1 := _said(x, y, one, fs, base, k if coach.first else k * 0.5, coach.first and not wait)
+	kit.tri(self, Vector2(x + w1 + gap * 0.75, y), 14.0 * p, Vector2.RIGHT, _c(Kit.PAPER, k * 0.6))
+	_said(x + w1 + gap, y, two, fs, base, k * 0.5 if coach.first else k, not coach.first)
+
+
+## A coach line is its words, then the key to press in brackets: split them.
+static func _split_said(text: String) -> PackedStringArray:
+	var i := text.find("(")
+	if i < 0 or not text.ends_with(")"):
+		return PackedStringArray([text, ""])
+	return PackedStringArray([text.substr(0, i).strip_edges(), text.substr(i + 1, text.length() - i - 2)])
+
+
+func _said_w(text: String, fs: float) -> float:
+	var parts := _split_said(text)
+	var w := kit.text_w(parts[0], fs, 600, fs * 0.06)
+	if parts[1] != "":
+		w += fs * 0.6 + kit.text_w(parts[1], fs * 0.7, 600, fs * 0.7 * 0.17)
+	return w
+
+
+## A coach line from `x` (its left end), vertically centred on `y`: the words in `col`, the key in YELLOW. Returns its width.
+func _said(x: float, y: float, text: String, fs: float, col: Color, a: float, heavy := false) -> float:
+	var parts := _split_said(text)
+	var w := kit.text(self, Vector2(x, y), parts[0], fs, _c(col, a), -1, 700 if heavy else 600, fs * 0.06)
+	if parts[1] != "":
+		var kw := kit.label(self, Vector2(x + w + fs * 0.6, y), parts[1], fs * 0.7, _c(Kit.YELLOW, a), -1)
+		w += fs * 0.6 + kw
+	return w
 
 
 ## The coach's words with the pad's keys while it's the pad in your hands.
@@ -522,15 +479,6 @@ func _draw_marks() -> void:
 		kit.defer = false
 
 
-## A chunky pixel arrowhead at `p` pointing along `dir`.
-func _pointer(p: Vector2, dir: Vector2, col: Color) -> void:
-	var side := Vector2(-dir.y, dir.x)
-	for k in 8:
-		var row := p - dir * float(k) * 4.0
-		for s in range(-k, k + 1):
-			draw_rect(Rect2((row + side * float(s) * 4.0).floor() - Vector2(2, 2), Vector2(4, 4)), col)
-
-
 # ------------------------------------------------------------------ the moments
 
 func _draw_banner() -> void:
@@ -571,48 +519,6 @@ func _draw_banner() -> void:
 		kit.text(self, Vector2(size.x * 0.5, y2), lesson, fs, Color(Kit.PAPER, k), 0, 600, fs * 0.06)
 
 
-## Words on a dark plate at `at` (its left end, or `centred` on it): the classic fight's reel plate.
-func _plate_text(at: Vector2, text: String, px: int, col: Color, a: float, centred := false) -> void:
-	var font := get_theme_default_font()
-	text = Settings.say(text)
-	var w := _w(font, text, px)
-	var x := roundf(at.x - w * 0.5) if centred else roundf(at.x)
-	draw_rect(Rect2(Vector2(x - 12.0, at.y - px - 6.0), Vector2(w + 24.0, px + 16.0)), Color(INK, INK.a * a))
-	_text(font, Vector2(x, at.y), text, px, col)
-
-
 ## The screen's scale for the kit: 1 at 1080p.
 func _kpx() -> float:
 	return clampf(size.y / 1080.0, 0.7, 2.5)
-
-
-# ------------------------------------------------------------------ drawing
-
-func _w(font: Font, text: String, px: int) -> float:
-	return font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x
-
-
-## A pixel ring round `c`, `r0` to `r1` reel-pixels out.
-func _ring(c: Vector2, r0: float, r1: float, col: Color) -> void:
-	var n := int(ceilf(r1))
-	for y in range(-n, n + 1):
-		for x in range(-n, n + 1):
-			var d := sqrt(float(x * x + y * y))
-			if d >= r0 and d < r1:
-				draw_rect(Rect2(c + Vector2(x, y) * U, Vector2(U, U)), col)
-
-
-func _disc(c: Vector2, r: float, col: Color) -> void:
-	_ring(c, 0.0, r, col)
-
-
-## A 2 px outline round `r`.
-func _frame(r: Rect2, col: Color) -> void:
-	draw_rect(Rect2(r.position, Vector2(r.size.x, 2.0)), col)
-	draw_rect(Rect2(r.position + Vector2(0.0, r.size.y - 2.0), Vector2(r.size.x, 2.0)), col)
-	draw_rect(Rect2(r.position, Vector2(2.0, r.size.y)), col)
-	draw_rect(Rect2(r.position + Vector2(r.size.x - 2.0, 0.0), Vector2(2.0, r.size.y)), col)
-
-
-func _text(font: Font, at: Vector2, text: String, px: int, col: Color) -> void:
-	draw_string(font, at.round(), text, HORIZONTAL_ALIGNMENT_LEFT, -1, px, col)

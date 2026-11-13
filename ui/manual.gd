@@ -1,6 +1,7 @@
 extends PanelContainer
 ## The boat's owner's manual (the Esc menu's "The manual"): everything in docs/FEATURES.md, short, in the voice of a
-## manual nobody proofread. Chapters down the left (the one open lit, the numbers lined up), the page on the right.
+## manual nobody proofread. Chapters down the left (the one open yellow, a pointer at it), the page on the right, in the kit's hand
+## (ui/kit.gd): type over the menu's flat dim, no panel.
 
 const CHAPTERS := [
 	["1. Controls", "WASD walk (at the wheel: throttle, steer). Mouse look. Shift sprint, Space jump.\n"
@@ -96,9 +97,9 @@ const CHAPTERS := [
 		+ "Gear lasts the run: a two-speed reel (winds a quarter faster), heavier line (rubs the hull longer)."],
 ]
 
-const INK := Color(0.12, 0.1, 0.08)
-const BLUE := Color(0.2, 0.25, 0.4)
+const Kit := preload("res://ui/kit.gd")
 
+var kit := Kit.new()
 var _page: Label
 var _scroll: ScrollContainer
 var _chapters: Array[Button] = []
@@ -111,39 +112,52 @@ func _init(tips: Node) -> void:
 	_tips = tips
 
 
+## The screen's scale (the HUD's): 1 at 1080p.
+func _px() -> float:
+	return clampf(get_viewport().get_visible_rect().size.y / 1080.0, 0.7, 2.5)
+
+
 func _ready() -> void:
-	var box := StyleBoxFlat.new()
-	box.bg_color = Color(0.93, 0.9, 0.8)
-	box.set_content_margin_all(16)
-	add_theme_stylebox_override("panel", box)
-	var cols := HBoxContainer.new()
-	cols.add_theme_constant_override("separation", 14)
-	add_child(cols)
-	var chapters := VBoxContainer.new()
-	chapters.custom_minimum_size = Vector2(170, 0)
-	cols.add_child(chapters)
+	var p := _px()
+	# (no panel: the menu's one flat dim is behind it, and the type and the linework are on that)
+	add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	var page := VBoxContainer.new()
+	page.add_theme_constant_override("separation", roundi(10.0 * p))
+	add_child(page)
 	var head := Label.new()
 	head.text = "OWNER'S MANUAL"
-	head.add_theme_color_override("font_color", Color(0.15, 0.12, 0.1))
-	head.add_theme_font_size_override("font_size", 16)
-	chapters.add_child(head)
+	Kit.style_label(head, roundi(44.0 * p), Kit.PAPER, 0.0, 700)
+	page.add_child(head)
+	# the heavy rule under the title, and the ticks under the first 30% of it
+	var rule := Control.new()
+	rule.custom_minimum_size = Vector2(0, 30.0 * p)
+	rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rule.draw.connect(func() -> void:
+		kit.px = _px()
+		var y := 6.0 * kit.px
+		kit.defer = true
+		kit.rule(rule, Vector2(0, y), Vector2(rule.size.x, y), Kit.PAPER, true)
+		kit.scale(rule, Vector2(0, y), Vector2(rule.size.x * 0.3, y), 24, 4, Kit.PAPER, 1.0, -1.0, -1.0, false)
+		kit.flush()
+		kit.defer = false)
+	page.add_child(rule)
+	var cols := HBoxContainer.new()
+	cols.add_theme_constant_override("separation", roundi(36.0 * p))
+	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	page.add_child(cols)
+	var chapters := VBoxContainer.new()
+	chapters.custom_minimum_size = Vector2(330.0 * p, 0)
+	cols.add_child(chapters)
 	for i in CHAPTERS.size():
-		var b := Button.new()
-		var name := str(CHAPTERS[i][0])
-		b.text = (" " if name.find(".") == 1 else "") + name        # (1. under 10.: the numbers lined up)
-		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		var b := _link(str(CHAPTERS[i][0]).to_upper(), p)
 		b.pressed.connect(turn.bind(i))
 		chapters.add_child(b)
 		_chapters.append(b)
-	var again := Button.new()
-	again.text = "   Dale's tips again"         # (under the chapters' names)
-	again.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	again.flat = true
-	again.add_theme_color_override("font_color", Color(0.55, 0.2, 0.15))
+	var again := _link("DALE'S TIPS AGAIN", p)
 	again.pressed.connect(func() -> void:
 		if _tips:
 			_tips.call("reset")
-		again.text = "Dale will be in touch")
+		again.text = "DALE WILL BE IN TOUCH")
 	chapters.add_child(again)
 	_scroll = ScrollContainer.new()
 	_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -152,31 +166,48 @@ func _ready() -> void:
 	_page = Label.new()
 	_page.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_page.add_theme_color_override("font_color", INK)
-	_page.add_theme_constant_override("line_spacing", 2)
+	Kit.style_label(_page, roundi(23.0 * p), Kit.PAPER, 0.0, 600)
+	_page.add_theme_constant_override("outline_size", 3)
+	_page.add_theme_constant_override("line_spacing", roundi(4.0 * p))
 	_scroll.add_child(_page)
 	turn(0)
+
+
+## A chapter's name in the list: type only, the open one yellow with a pointer at its left (drawn in turn()).
+func _link(text: String, p: float) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.flat = true
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	var fs := roundi(24.0 * p)
+	b.add_theme_font_override("font", Kit.font(600))
+	b.add_theme_font_size_override("font_size", fs)
+	b.custom_minimum_size = Vector2(0, 38.0 * p)
+	var pad := StyleBoxEmpty.new()
+	pad.content_margin_left = 30.0 * p
+	for st: String in ["normal", "hover", "pressed", "focus", "disabled"]:
+		b.add_theme_stylebox_override(st, pad)
+	b.add_theme_color_override("font_outline_color", Color(0.03, 0.035, 0.04, 0.88))
+	b.add_theme_constant_override("outline_size", maxi(roundi(fs * 0.2), 3))
+	b.draw.connect(func() -> void:
+		kit.px = _px()
+		if b.is_hovered() or b.has_focus() or b.has_meta("open"):
+			kit.tri(b, Vector2(22.0 * kit.px, b.size.y * 0.5), 15.0 * kit.px, Vector2.RIGHT, Kit.YELLOW))
+	return b
 
 
 ## Open at chapter i: its page from the top, its name lit in the list.
 func turn(i: int) -> void:
 	open = i
-	_page.text = str(CHAPTERS[i][1])
+	_page.text = str(CHAPTERS[i][1]).to_upper()
 	_scroll.scroll_vertical = 0
 	for j in _chapters.size():
 		var b := _chapters[j]
 		var on := j == i
-		for st: String in ["normal", "hover", "pressed", "focus"]:
-			var box := StyleBoxFlat.new()
-			box.bg_color = Color(BLUE, 0.16 if on else (0.08 if st == "hover" else 0.0))
-			if st == "focus":
-				box.bg_color = Color(0, 0, 0, 0)
-				box.border_color = Color(BLUE, 0.8)
-				box.set_border_width_all(2)
-			box.content_margin_left = 6
-			box.content_margin_right = 6
-			box.content_margin_top = 2
-			box.content_margin_bottom = 2
-			b.add_theme_stylebox_override(st, box)
+		if on:
+			b.set_meta("open", true)
+		else:
+			b.remove_meta("open")
+		b.queue_redraw()
 		for c: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
-			b.add_theme_color_override(c, INK if on else BLUE)
+			b.add_theme_color_override(c, Kit.YELLOW if (on or c == "font_hover_color") else Kit.PAPER)

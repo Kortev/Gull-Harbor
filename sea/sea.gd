@@ -22,6 +22,7 @@ const Crew := preload("res://crew/crew.gd")
 const Menu := preload("res://ui/menu.gd")
 const Title := preload("res://ui/title.gd")
 const PixFont := preload("res://ui/pixfont.gd")
+const Kit := preload("res://ui/kit.gd")
 const Rods := preload("res://rods/rods.gd")
 const Schools := preload("res://tuna/schools.gd")
 const Sonar := preload("res://tuna/sonar.gd")
@@ -115,9 +116,10 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		_args[kv[0]] = kv[1] if kv.size() > 1 else ""
-	# the one typeface, everywhere, its pixels square (ui/pixfont.gd)
-	ThemeDB.fallback_font = PixFont.font()
-	ThemeDB.get_default_theme().default_font = PixFont.font()
+	# the one typeface for every Label and Button: the kit's (ui/kit.gd). The pixel font (ui/pixfont.gd) is only for
+	# the screens aboard her now (the plotter, the sounder, the radar), which ask for it themselves.
+	ThemeDB.fallback_font = Kit.font()
+	ThemeDB.get_default_theme().default_font = Kit.font()
 	get_viewport().canvas_item_default_texture_filter = Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST
 	_build_world()
 	cam = Camera3D.new()
@@ -495,14 +497,13 @@ func _draw_home() -> void:
 	var t := tow_for(boat)
 	if t != null:
 		text = "UNDER TOW" if boat.helm.towed_by != null else "THE HARBOR LAUNCH IS COMING OUT FOR HER"
-	var col := Color(1.0, 0.78, 0.34) if left > 60 and t == null else Color(1.0, 0.45, 0.3)
-	var at := Vector2((_home_ui.size.x - PixFont.width(text, 4)) * 0.5, 40.0)
-	PixFont.draw(_home_ui, at + Vector2(3, 3), text, Color(0, 0, 0, 0.8), 4)
-	PixFont.draw(_home_ui, at, text, col, 4)
+	var col := Kit.PAPER if left > 60 and t == null else Kit.ORANGE
+	var kit := Kit.new()
+	kit.px = _home_ui.size.y / 1080.0
+	var mid := _home_ui.size.x * 0.5
+	kit.num(_home_ui, Vector2(mid, 56.0 * kit.px), text, 36.0 * kit.px, col)
 	var sub := "TIE HER UP AT THE FISH PIER: BOW AND STERN LINES. LATE: THE CANNERY PAYS HALF."
-	var sa := Vector2((_home_ui.size.x - PixFont.width(sub, 2)) * 0.5, 72.0)
-	PixFont.draw(_home_ui, sa + Vector2(2, 2), sub, Color(0, 0, 0, 0.8), 2)
-	PixFont.draw(_home_ui, sa, sub, Color(0.9, 0.93, 0.96), 2)
+	kit.label(_home_ui, Vector2(mid, 94.0 * kit.px), sub, maxf(17.0 * kit.px, 15.0), Kit.PAPER)
 
 
 func _process(_delta: float) -> void:

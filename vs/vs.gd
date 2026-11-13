@@ -48,6 +48,7 @@ const Horn := preload("res://vs/horn.gd")
 const Hud := preload("res://ui/hud.gd")
 const Sfx := preload("res://audio/sfx.gd")
 const PixFont := preload("res://ui/pixfont.gd")
+const Kit := preload("res://ui/kit.gd")
 const Card := preload("res://vs/card.gd")
 ## Each boat's things, the sea's and a side's (the sea's point at the boat you're on).
 const PARTS := ["boat", "rods", "landing", "fish_hold", "chum", "jig"]
@@ -123,6 +124,7 @@ var _fading_for := -1.0
 var _go_shown := -10.0
 var _ticked := -1
 var _count: Control
+var _kit := Kit.new()
 var _ui: CanvasLayer
 var _race: Control
 var _verdict: Label
@@ -1271,24 +1273,36 @@ func _fleet_lb() -> int:
 	return roundi(sum)
 
 
+func _px() -> float:
+	return clampf(get_viewport().get_visible_rect().size.y / 1080.0, 0.7, 2.5)
+
+
 func _draw_count() -> void:
 	var now := _now()
-	var text := ""
-	var col := Hud.CREAM
+	var p := _px()
+	_kit.px = p
+	_kit.defer = true
+	var mid := _count.size.x * 0.5
+	var label := ""
+	var big := ""
+	var col: Color = Kit.PAPER
+	var sub := ""
+	var go := false
 	if count_end > 0.0:
 		var left := ceili(count_end - now)
-		text = "CAST OFF IN %d" % maxi(left, 0)
-		col = Color(1.0, 0.78, 0.34) if left > 3 else Color(1.0, 0.45, 0.3)
+		label = "CAST OFF IN"
+		big = str(maxi(left, 0))
+		col = Kit.PAPER if left > 3 else Kit.ORANGE
+		sub = "%s BOATS LET GO TOGETHER. TAKE THE WHEEL!" % ("BOTH" if sides.size() <= 2 else "ALL %d" % sides.size())
 	elif now - _go_shown < 2.0:
-		text = "GO!"
-		col = Color(0.6, 1.0, 0.6)
+		go = true
 	elif home_by > 0.0:
 		var left := maxi(ceili(home_by - now), 0)
-		var clock := "%d:%02d" % [left / 60, left % 60]
+		big = "%d:%02d" % [left / 60, left % 60]
 		var in_ := came_home(my_team)
-		text = ("HOME. WAITING FOR THEM  " if in_ else "DUSK: BRING HER HOME  ") + clock
-		col = Color(0.6, 1.0, 0.6) if in_ else (Color(1.0, 0.78, 0.34) if left > 60 else Color(1.0, 0.45, 0.3))
-		var sub := "ALONGSIDE YOUR BERTH AT THE FISH PIER, SLOW. LATE: HALF WEIGHT."
+		label = "HOME. WAITING FOR THEM" if in_ else "DUSK: BRING HER HOME"
+		col = Kit.YELLOW if in_ else (Kit.PAPER if left > 60 else Kit.ORANGE)
+		sub = "ALONGSIDE YOUR BERTH AT THE FISH PIER, SLOW. LATE: HALF WEIGHT."
 		var theirs := []          # (the other boats already in)
 		for i in home.size():
 			if i != my_team and bool(home[i]):
@@ -1296,50 +1310,49 @@ func _draw_count() -> void:
 		if in_:
 			sub = "THEY'RE STILL OUT THERE. IN LATE, THEIR CATCH WEIGHS HALF."
 		elif not theirs.is_empty():
-			sub = ("THEY'RE IN!" if home.size() <= 2 else "BOAT %s'S IN!" % " AND ".join(PackedStringArray(theirs))) \
-					+ " ALONGSIDE YOUR BERTH AT THE FISH PIER, SLOW."
-		var sa := Vector2((_count.size.x - PixFont.width(sub, 2)) * 0.5, 82)
-		PixFont.draw(_count, sa + Vector2(2, 2), sub, Color(0, 0, 0, 0.8), 2)
-		PixFont.draw(_count, sa, sub, Color(0.9, 0.93, 0.96), 2)
-	if text.is_empty():
-		return
-	var sc := 5 if text != "GO!" else 9
-	if home_by > 0.0 and count_end < 0.0 and text != "GO!":
-		sc = 4
-	var w := PixFont.width(text, sc)
-	var at := Vector2((_count.size.x - w) * 0.5, 40.0)
-	PixFont.draw(_count, at + Vector2(sc * 0.6, sc * 0.6), text, Color(0, 0, 0, 0.8), sc)
-	PixFont.draw(_count, at, text, col, sc)
-	if count_end > 0.0:
-		var sub := "%s BOATS LET GO TOGETHER. TAKE THE WHEEL!" % ("BOTH" if sides.size() <= 2 else "ALL %d" % sides.size())
-		var sa := Vector2((_count.size.x - PixFont.width(sub, 2)) * 0.5, 82)
-		PixFont.draw(_count, sa + Vector2(2, 2), sub, Color(0, 0, 0, 0.8), 2)
-		PixFont.draw(_count, sa, sub, Color(0.9, 0.93, 0.96), 2)
+			sub = ("THEY'RE IN!" if home.size() <= 2 else "BOAT %s'S IN!" % " AND ".join(PackedStringArray(theirs))) 					+ " ALONGSIDE YOUR BERTH AT THE FISH PIER, SLOW."
+	if go:
+		_kit.stamp(_count, Vector2(mid, 52.0 * p), "GO", 44.0 * p, Kit.YELLOW, Kit.slam(now - _go_shown, 2.2))
+	elif big != "":
+		_kit.label(_count, Vector2(mid, 20.0 * p), label, 17.0 * p, Color(Kit.PAPER, 0.85))
+		_kit.num(_count, Vector2(mid, 60.0 * p), big, 66.0 * p, col)
+		_kit.text(_count, Vector2(mid, 100.0 * p), sub, 19.0 * p, Kit.PAPER, 0, 600, 1.0 * p)
+	_kit.flush()
+	_kit.defer = false
 
 
 func _draw_race() -> void:
 	var lbs: Array = _race.get_meta("lbs", [])
 	if lbs.size() != sides.size():
 		return
+	var p := _px()
+	_kit.px = p
+	_race.position = Vector2(18.0, 84.0) * p
+	_kit.defer = true
 	var top := 1.0
 	for lb: float in lbs:
 		top = maxf(top, lb)
 	var order := _order()
-	_race.draw_rect(Rect2(-18, 0, 258, 4 + 18 * order.size()), Hud.BACKING)      # (under the HUD's tally's, ui/hud.gd)
+	var step := 26.0 * p
 	for k in order.size():
 		var t: int = order[k]
-		var y := k * 18.0
-		var col := boat_colour(t)
-		var lit := 1.0 if k == 0 else 0.75
-		_text(Vector2(0, y + 11), boat_name(t), Color(col, lit))
-		_race.draw_rect(Rect2(16, y + 2, 120, 9), Color(0, 0, 0, 0.45))
-		_race.draw_rect(Rect2(16, y + 2, 120.0 * float(lbs[t]) / top, 9), Color(col, 0.85 * lit))
-		_text(Vector2(142, y + 11), "%d lb" % roundi(float(lbs[t])), Color(Hud.CREAM, lit))
+		var y := k * step + 10.0 * p
+		var lit := 1.0 if k == 0 else 0.8
+		_kit.square(_race, Vector2(6.0 * p, y), 13.0 * p, boat_colour(t))
+		_kit.num(_race, Vector2(22.0 * p, y), "%d" % roundi(float(lbs[t])), 22.0 * p, Color(Kit.PAPER, lit), -1)
 		if not together and t < wins.size():
 			for d in int(wins[t]):
-				_race.draw_rect(Rect2(212 + d * 10, y + 3, 6, 6), Color(col, lit))     # (square, like the pixels)
+				_kit.square(_race, Vector2(124.0 * p + d * 14.0 * p, y), 9.0 * p, Kit.PAPER)
 		if t != my_team and t < _on_by.size() and int(_on_by[t]) > 0 and fmod(_their_on, 0.8) < 0.5:
-			_race.draw_rect(Rect2(-12, y + 2, 8, 8), Hud.RED)
+			_kit.square(_race, Vector2(-8.0 * p, y), 9.0 * p, Kit.ORANGE)
+	# one fine ruler under them: each boat's square sits on it at her share of the leader's pounds
+	var ry := order.size() * step + 12.0 * p
+	var rw := 190.0 * p
+	_kit.scale(_race, Vector2(0, ry), Vector2(rw, ry), 10, 5, Color(Kit.PAPER, 0.8), 1.0, 4.0 * p, 8.0 * p)
+	for t: int in order:
+		_kit.square(_race, Vector2(rw * float(lbs[t]) / top, ry - 8.0 * p), 9.0 * p, boat_colour(t))
+	_kit.flush()
+	_kit.defer = false
 
 
 func _text(at: Vector2, text: String, col: Color) -> void:
