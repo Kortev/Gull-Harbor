@@ -84,6 +84,33 @@ var _a_was := false
 var _b_was := false
 
 
+## What to do, in a line, for someone who's never seen the game ({A}, {B}: the two buttons, named by the HUD for
+## the mouse or the pad). The HUD says it big as each game starts.
+const HOW := {
+	"ride": "HOLD {B} TO RAISE THE MARKER, LET GO TO DROP IT: KEEP IT IN THE YELLOW",
+	"beats": "TAP {B} AS EACH MARK CROSSES THE RING",
+	"jump": "LET GO OF BOTH WHILE HE'S IN THE AIR, THEN TAP {A} AS HE LANDS",
+	"pump": "HOLD {B} TO LIFT INTO THE YELLOW, THEN HOLD {A} TO WIND DOWN",
+	"dog": "HOLD {B} TO LIFT, THEN {A} TO WIND. LET GO OF {B} WHEN IT FLARES",
+	"charge": "HAMMER {A}: WIND IN THE SLACK",
+	"laps": "HOLD {A} ON THE YELLOW HALF, HOLD {B} ON THE ORANGE HALF",
+	"spool": "TAP {A} TO STOP THE MARK ON THE YELLOW",
+	"mimic": "WATCH HIM, THEN REPEAT IT: {A} IS LEFT, {B} IS RIGHT",
+	"lanes": "TAP {A} FOR THE LEFT LANE, {B} FOR THE RIGHT, AS EACH NOTE LANDS",
+	"heave": "HOLD {B} TO WIND UP, LET GO IN THE YELLOW",
+	"duel": "WAIT... TAP {A} THE MOMENT HE TURNS. NOT BEFORE",
+	"steady": "TAP {A} TO KNOCK IT LEFT, {B} RIGHT: KEEP IT IN THE MIDDLE",
+	"tug": "{A}, {B}, {A}, {B}: HAND OVER HAND, FAST",
+	"twohands": "{B}: HOLD TO KEEP THE MARKER IN THE YELLOW. {A}: TAP AS MARKS CROSS THE RING",
+	"pull": "TAP EITHER BUTTON",
+	"clear": "{A}, {B}, {A}, {B}: WORK THE LINE OFF HER",
+}
+
+
+func how() -> String:
+	return str(HOW.get(id, ""))
+
+
 func begin(tier_now: float, r: RandomNumberGenerator, v := {}) -> void:
 	tier = clampf(tier_now, 0.0, 1.0)
 	rng = r

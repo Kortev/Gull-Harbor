@@ -70,7 +70,7 @@ const TEAR := 0.13
 const BURST_M := 0.5
 const BURST_S := 0.4
 const MISS_HOLD := 0.02
-const HURT_CAP := 3.0
+const HURT_CAP := 2.0
 const HOOK_RATE := 0.06
 const FRAY_RATE := 0.035
 ## What he's owed to you comes in at this (m/s): never a jump of the line.
@@ -78,9 +78,9 @@ const HAUL_RATE := 5.0
 ## The line, by what he's doing: m/s (+ yours) with the game at its worst (gain -1), at nothing (0), at its best (1);
 ## and what those are in: 0 m/s, 1 his free speed (the runs: he only ever takes), 2 his closing speed (the charge).
 const LINE := {
-	"run": [-1.0, -0.8, -0.36, 1], "surge": [-0.85, -0.65, -0.28, 1],
-	"sound": [-1.1, -0.5, 2.5, 0], "dog": [-0.7, -0.3, 2.7, 0], "shake": [-0.6, -0.25, 2.2, 0],
-	"circle": [-1.5, -0.5, 3.0, 0], "spiral": [-1.2, -0.4, 2.8, 0],
+	"run": [-0.8, -0.6, -0.3, 1], "surge": [-0.7, -0.5, -0.24, 1],
+	"sound": [-0.5, 0.15, 2.5, 0], "dog": [-0.35, 0.15, 2.7, 0], "shake": [-0.3, 0.1, 2.2, 0],
+	"circle": [-0.6, 0.15, 3.0, 0], "spiral": [-0.5, 0.15, 2.8, 0],
 	"jump": [-0.4, 0.0, 1.0, 0], "charge": [0.1, 0.5, 1.0, 2],
 }
 ## How tiring a second of a game at its best is, by what he's doing.
@@ -95,6 +95,19 @@ static var beat_fn := Callable()
 
 ## B, 0..1 (rods.gd, before each step).
 var pull_btn := 0.0
+## The games this player's met (this run of the game): the first time each comes up the fight stops for TEACH s
+## with what to do said big (the HUD: "teach"), and that go is practice: nothing's lost by getting it wrong.
+static var known := {}
+static var teach := true
+const TEACH := 3.2
+var practice := false
+## A hand for whoever's struggling: each miss makes the next games easier (their tier down by this much, to
+## ASSIST_MOST), each good one takes it back.
+const ASSIST_STEP := 0.2
+const ASSIST_MOST := 0.6
+var assist := 0.0
+## Even played badly a game tires him this much (of its best), so no fight stands still: only hands off does.
+const WORK_FLOOR := 0.45
 ## How near the props are to cutting the line, 0..1 (under her, in gear).
 var prop_k := 0.0
 ## A line saved off her hull (clear.gd): what it's worn back to, and how long it's left alone after (s).
@@ -143,6 +156,7 @@ var _why := "pulled"
 var _jumping := false
 var _slack_m := 0.0
 var _ready_done := false
+var _busy_t := 0.0
 
 
 static func _forced() -> String:
@@ -293,7 +307,7 @@ func _start_move(m: String, long := false) -> void:
 func _hurt(x: float, why: String) -> void:
 	if in_holder or grace > 0.0 or x <= 0.0:
 		return
-	hold -= x
+	hold -= x * (1.0 - 0.6 * assist / ASSIST_MOST)
 	_why = why
 
 
@@ -350,7 +364,13 @@ func step(dt: float, crank: float, _rod_pitch: float, _side: float, drag_set: fl
 	elif game != null:
 		game.step(dt, a_on, b_on, a_tap, b_tap)
 		g = clampf(game.gain, -1.0, 1.0)
-		work = clampf(game.tire, 0.0, 1.0) * float(WORK.get(move, 1.2))
+		if practice:
+			g = maxf(g, 0.0)
+		var tire_k := clampf(game.tire, 0.0, 1.0)
+		if a_on or b_on or _busy_t > 0.0:
+			tire_k = maxf(tire_k, WORK_FLOOR + 0.3 * assist / ASSIST_MOST)       # (hands on it at all lately: he's being worked)
+		_busy_t = 1.5 if a_on or b_on else maxf(_busy_t - dt, 0.0)
+		work = tire_k * float(WORK.get(move, 1.2))
 		tens = game.tension
 		pose = lerpf(0.35, 1.3, clampf(game.pose, 0.0, 1.0))
 		airborne = game.air
@@ -371,14 +391,14 @@ func step(dt: float, crank: float, _rod_pitch: float, _side: float, drag_set: fl
 			_tire(BURST_S * game.burst)
 			game.burst = 0.0
 		if game.hurt > 0.0:
-			var h := minf(game.hurt, _hurt_left)
+			var h := 0.0 if practice else minf(game.hurt, _hurt_left)
 			_hurt_left -= h
 			_hurt(MISS_HOLD * h, _why_now())
 			game.hurt = 0.0
-		if game.hook > 0.0:
+		if game.hook > 0.0 and not practice:
 			_hurt(HOOK_RATE * game.hook * dt, _why_now())
-		if game.fray > 0.0 and grace <= 0.0:
-			wear += FRAY_RATE * game.fray * dt
+		if game.fray > 0.0 and grace <= 0.0 and not practice:
+			wear += FRAY_RATE * game.fray * dt * (1.0 - 0.6 * assist / ASSIST_MOST)
 			_why = "pulled"
 	else:
 		work = 0.15
@@ -404,6 +424,8 @@ func step(dt: float, crank: float, _rod_pitch: float, _side: float, drag_set: fl
 			else:
 				pay = -rate * fresh * (0.3 if beaten else 1.0)
 	_burst = maxf(_burst - dt, 0.0)
+	if not in_holder:
+		pay *= 1.0 - 0.6 * assist / ASSIST_MOST        # (struggling: he takes less)
 	if game is Pull or game is Clear:
 		pay = 0.0                 # (the BIG PULL's yours: he takes nothing while it's on)
 	if move == "charge" and line_out < 22.0 and game != null and game.only:
@@ -453,7 +475,7 @@ func step(dt: float, crank: float, _rod_pitch: float, _side: float, drag_set: fl
 	t_fish = strain
 	slack_t = slack_t + dt if stretch < -0.3 else maxf(slack_t - 2.0 * dt, 0.0)
 	if strain > OVER and not in_holder and grace <= 0.0:
-		var o := strain - OVER
+		var o := (strain - OVER) * (1.0 - 0.6 * assist / ASSIST_MOST)
 		wear += o * FRAY * dt
 		_hurt(o * TEAR * dt, "pulled")
 
@@ -576,6 +598,16 @@ func _finish() -> void:
 	var q := g.score
 	grade = "perfect" if q >= Q_PERFECT else ("great" if q >= Q_GREAT else ("ok" if q >= Q_OK else "miss"))
 	grade_t = 0.0
+	if grade == "miss":
+		assist = minf(assist + ASSIST_STEP, ASSIST_MOST)
+	elif grade != "ok":
+		assist = maxf(assist - ASSIST_STEP * 0.5, 0.0)
+	if practice:
+		practice = false
+		if grade == "miss":
+			grade = "ok"        # (not got yet: it's shown once more, free again; got, it isn't)
+		else:
+			known[g.id] = 2
 	match grade:
 		"perfect":
 			combo += 1
@@ -586,7 +618,7 @@ func _finish() -> void:
 		"miss":
 			combo = combo / 2
 			_pull_at = (combo / PULL_EVERY + 1) * PULL_EVERY
-			_hurt(0.03, _why_now())
+			_hurt(0.015, _why_now())
 	best = maxi(best, combo)
 	events.append(["grade", grade, combo, g.id])
 	if _is_boss:
@@ -686,7 +718,13 @@ func _begin_next() -> void:
 			v["to_beat"] = float(b[1])
 	var r := RandomNumberGenerator.new()
 	r.seed = rng.randi()
+	tier = maxf(tier - assist, 0.0)
 	game.begin(tier, r, v)
+	practice = false
+	if teach and not in_holder and int(known.get(game.id, 0)) < 2 and not game is Pull:
+		known[game.id] = int(known.get(game.id, 0)) + (2 if known.has(game.id) else 1)
+		practice = true
+		freeze = TEACH
 	_rise = depth / 0.8
 	events.append(["game", game.id, _is_boss])
 
@@ -795,7 +833,8 @@ func view() -> Dictionary:
 			"hold": hold, "energy": energy, "stage": stage, "stages": stages(), "line_out": line_out, "wear": wear,
 			"kg": kg, "angle": angle_k(), "a": int(c[0]), "b": int(c[1]), "tension": strain, "holder": in_holder,
 			"leader": leader, "boss": _is_boss, "set_left": set_left, "move": move,
-			"chafe": chafe, "prop": prop_k, "last_run": _last_run and move == "surge",
+			"how": game.how() if game != null else "", "practice": practice, "teach": freeze if practice else 0.0,
+			"assist": assist, "chafe": chafe, "prop": prop_k, "last_run": _last_run and move == "surge",
 			"bolt": energy > 0.35 and line_out < CLOSE + 12.0 and line_out >= CLOSE and not move in ["run", "surge"]}
 
 

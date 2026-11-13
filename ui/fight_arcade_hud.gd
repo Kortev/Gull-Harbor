@@ -295,6 +295,22 @@ func _draw_base() -> void:
 		tx0 += kit.label(ci, Vector2(tx0, ty), "BOSS", 15.0 * p, Color(Kit.YELLOW, ta), -1) + 10.0 * p
 	if str(_v["phase"]) != "pull":
 		kit.label(ci, Vector2(tx0, ty), _last_title, 15.0 * p, Color(Kit.PAPER, ta), -1)
+	# what to do, said in a line under the frame: big and yellow the first time a game's met (the fight waits while
+	# it's read, and that go is free), small after that
+	var how := str(_v.get("how", ""))
+	if how != "" and str(_v["phase"]) == "game":
+		how = how.replace("{A}", "RT" if Settings.pad else "LEFT CLICK").replace("{B}", "LT" if Settings.pad else "RIGHT CLICK")
+		var hc := Vector2(stage.get_center().x, stage.end.y + 32.0 * p)
+		if bool(_v.get("practice", false)):
+			kit.text(ci, hc, how, 27.0 * p, Kit.YELLOW, 0, 700)
+			var wait_s := float(_v.get("teach", 0.0))
+			kit.label(ci, hc + Vector2(0.0, 34.0 * p), "NEW GAME: THIS GO IS PRACTICE" if wait_s > 0.0 else "PRACTICE: NOTHING TO LOSE",
+					16.0 * p, Kit.PAPER)
+			if wait_s > 0.0:
+				var bw := 260.0 * p * clampf(wait_s / Arcade.TEACH, 0.0, 1.0)
+				kit.rule(ci, hc + Vector2(-bw * 0.5, 54.0 * p), hc + Vector2(bw * 0.5, 54.0 * p), Kit.YELLOW, true)
+		else:
+			kit.text(ci, hc, how, 19.0 * p, Color(Kit.PAPER, 0.9 * ta), 0, 600)
 	var more := int(_v["set_left"]) - (1 if _f != null and _f.game != null else 0)
 	for i in clampi(more, 0, 4):
 		kit.square(ci, Vector2(stage.end.x - 34.0 * p - i * 14.0 * p, ty), 6.0 * p, Kit.PAPER)
